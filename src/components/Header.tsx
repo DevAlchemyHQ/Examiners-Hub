@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { LogOut, Sun, Moon, Info } from 'lucide-react';
+import { LogOut, Sun, Moon, Info, User, Camera, Settings, CreditCard } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useThemeStore } from '../store/themeStore';
 import { WeatherDate } from './WeatherDate';
@@ -8,7 +8,7 @@ import { signOut } from '../lib/supabase';
 const PROFILE_EMOJI = '🚂';
 
 export const Header: React.FC = () => {
-  const { logout } = useAuthStore();
+  const { logout, user } = useAuthStore(); // Assuming you have user in your auth store
   const { isDark, toggle } = useThemeStore();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showBetaInfo, setShowBetaInfo] = useState(false);
@@ -64,16 +64,58 @@ export const Header: React.FC = () => {
               </button>
 
               {showProfileMenu && (
-                <div className="profile-menu absolute right-0 mt-2 w-48 bg-gray-800/90 rounded-lg shadow-xl border border-gray-700 backdrop-blur-lg z-50">
-                  {/* show user name, picture, subscription and edit/upload picture */}
+                <div className="profile-menu absolute right-0 mt-2 w-72 bg-gray-800/90 rounded-lg shadow-xl border border-gray-700 backdrop-blur-lg z-50">
+                  {/* User Info Section */}
+                  <div className="p-4 border-b border-gray-700">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="relative">
+                        <div className="w-12 h-12 rounded-full bg-indigo-500 flex items-center justify-center text-xl">
+                          {PROFILE_EMOJI}
+                        </div>
+                        <button className="absolute -bottom-1 -right-1 p-1 bg-gray-700 rounded-full hover:bg-gray-600 transition-colors">
+                          <Camera size={12} className="text-gray-300" />
+                        </button>
+                      </div>
+                      <div>
+                        <h3 className="text-white font-medium">John Doe</h3>
+                        <p className="text-sm text-gray-400">john.doe@example.com</p>
+                      </div>
+                    </div>
+                  </div>
 
-                  <button
-                    onClick={handleLogout}
-                    className="w-full px-4 py-3 text-left text-sm text-red-400 hover:bg-red-900/20 flex items-center gap-2"
-                  >
-                    <LogOut size={16} />
-                    Logout
-                  </button>
+                  {/* Subscription Info */}
+                  <div className="p-4 border-b border-gray-700">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm text-gray-400">Current Plan</span>
+                      <span className="text-xs bg-indigo-500 text-white px-2 py-1 rounded-full">Up Fast</span>
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      Next billing date: March 11, 2025
+                    </div>
+                  </div>
+
+                  {/* Menu Items */}
+                  <div className="p-2">
+                    <button className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-gray-700/50 rounded-lg flex items-center gap-2">
+                      <User size={16} />
+                      Edit Profile
+                    </button>
+                    <button className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-gray-700/50 rounded-lg flex items-center gap-2">
+                      <CreditCard size={16} />
+                      Manage Subscription
+                    </button>
+                    <button className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-gray-700/50 rounded-lg flex items-center gap-2">
+                      <Settings size={16} />
+                      Settings
+                    </button>
+                    <button
+                      onClick={handleLogout}
+                      className="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-red-900/20 rounded-lg flex items-center gap-2"
+                    >
+                      <LogOut size={16} />
+                      Logout
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
