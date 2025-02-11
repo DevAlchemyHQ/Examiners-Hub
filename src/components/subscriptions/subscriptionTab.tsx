@@ -94,7 +94,10 @@ export const SubscriptionTab: React.FC = () => {
                 <span className="text-lg">Productive and happy examiners.</span>
               </div>
             </div>
-            <button className="w-full py-3 px-4 rounded-lg bg-indigo-500 hover:bg-indigo-600 transition-colors text-lg font-medium">
+            <button 
+              onClick={handleUpgrade}
+              className="w-full py-3 px-4 rounded-lg bg-indigo-500 hover:bg-indigo-600 transition-colors text-lg font-medium cursor-pointer"
+            >
               Upgrade Plan
             </button>
           </div>
