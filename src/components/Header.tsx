@@ -65,6 +65,8 @@ export const Header: React.FC = () => {
 
               {showProfileMenu && (
                 <div className="profile-menu absolute right-0 mt-2 w-48 bg-gray-800/90 rounded-lg shadow-xl border border-gray-700 backdrop-blur-lg z-50">
+                  {/* show user name, picture, subscription and edit/upload picture */}
+
                   <button
                     onClick={handleLogout}
                     className="w-full px-4 py-3 text-left text-sm text-red-400 hover:bg-red-900/20 flex items-center gap-2"

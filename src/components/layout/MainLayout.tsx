@@ -1,29 +1,30 @@
 import React, { useState, useEffect } from 'react';
+// import { useLocation } from 'react-router-dom';
+import { Images, Map, FileText, Calculator, Brain, Trash2, TowerControl as GameController, Loader2, WalletCards } from 'lucide-react';
+import { useMetadataStore } from '../../store/metadataStore';
+import { useProjectStore } from '../../store/projectStore';
+// import { usePDFStore } from '../../store/pdfStore';
 import { Header } from '../Header';
 import { Sidebar } from './Sidebar';
 import { MainContent } from './MainContent';
 import { GridReferenceFinder } from '../GridReferenceFinder/GridReferenceFinder';
 import { PDFViewer } from '../PDFViewer/PDFViewer';
 import { CalculatorTabs } from '../calculators/CalculatorTabs';
+import { SubscriptionTab } from '../subscriptions/subscriptionTab';
 import { GameTabs } from '../games/GameTabs';
-import { Images, Map, FileText, Calculator, Brain, Trash2, TowerControl as GameController, Loader2 } from 'lucide-react';
-import { useMetadataStore } from '../../store/metadataStore';
-import { usePDFStore } from '../../store/pdfStore';
-import { useProjectStore } from '../../store/projectStore';
 import { FeedbackTab } from '../FeedbackTab';
-import { useLocation } from 'react-router-dom';
 
-type TabType = 'images' | 'pdf' | 'calculator' | 'bcmi' | 'grid' | 'games';
+type TabType = 'images' | 'pdf' | 'calculator' | 'bcmi' | 'grid' | 'games' | 'subscription';
 
 interface MainLayoutProps {
   children?: React.ReactNode;
 }
 
 export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
-  const location = useLocation();
+  // const location = useLocation();
   const [activeTab, setActiveTab] = useState<TabType>('images');
   const { images, selectedImages, loadUserData } = useMetadataStore();
-  const { file1, file2 } = usePDFStore();
+  // const { file1, file2 } = usePDFStore();
   const { clearProject, isLoading: isClearingProject } = useProjectStore();
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [isLoadingData, setIsLoadingData] = useState(true);
@@ -112,7 +113,8 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                 { id: 'calculator', icon: Calculator, label: 'Calc' },
                 { id: 'grid', icon: Map, label: 'Grid' },
                 { id: 'bcmi', icon: Brain, label: 'BCMI & AI' },
-                { id: 'games', icon: GameController, label: 'Games' }
+                { id: 'games', icon: GameController, label: 'Games' },
+                { id: 'subscription', icon: WalletCards, label: 'Subscription' }
               ].map(({ id, icon: Icon, label }) => (
                 <button
                   key={id}
@@ -165,6 +167,8 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               <GridReferenceFinder />
             ) : activeTab === 'games' ? (
               <GameTabs />
+            ) : activeTab === 'subscription' ? (
+              <SubscriptionTab />
             ) : (
               <div className="h-full flex items-center justify-center text-slate-400 dark:text-gray-500">
                 <div className="text-center">
