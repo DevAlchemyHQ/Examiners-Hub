@@ -8,7 +8,8 @@ import { signOut } from '../lib/supabase';
 const PROFILE_EMOJI = '🚂';
 
 export const Header: React.FC = () => {
-  const { logout, user } = useAuthStore(); 
+  const { logout, user } = useAuthStore();
+  console.log('user-----------:', user);
   const { isDark, toggle } = useThemeStore();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showBetaInfo, setShowBetaInfo] = useState(false);

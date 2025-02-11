@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import type { UserProfile } from '../types/profile';
+import { useAuthStore } from '../store/authStore';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -25,12 +26,21 @@ export const signInWithEmail = async (email: string, password: string) => {
       email,
       password
     });
-    
+
     if (error) {
       console.error('Login error:', error.message);
       throw error;
     }
-    
+
+    // Fetch the logged-in user
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (user) {
+      console.log('User logged in:', user);
+      useAuthStore.getState().setUser(user);
+      useAuthStore.getState().setAuth(true);
+    }
+
     console.log('Login successful');
     return data;
   } catch (error) {
