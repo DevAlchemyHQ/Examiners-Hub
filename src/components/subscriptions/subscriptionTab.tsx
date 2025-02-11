@@ -15,7 +15,7 @@ export const SubscriptionTab: React.FC = () => {
           <div className="rounded-lg bg-gray-800 p-6">
             <h2 className="text-xl font-semibold mb-4">Up Slow</h2>
             <div className="mb-6">
-              <span className="text-4xl font-bold">£0</span>
+              <span className="text-4xl font-bold">£ 0</span>
               <span className="text-gray-400">/month</span>
             </div>
             <div className="space-y-4 mb-6">
@@ -44,7 +44,7 @@ export const SubscriptionTab: React.FC = () => {
             </div>
             <h2 className="text-xl font-semibold mb-4">Up Fast</h2>
             <div className="mb-6">
-              <span className="text-4xl font-bold">£4.99</span>
+              <span className="text-4xl font-bold">£ 4.99</span>
               <span className="text-gray-400">/month</span>
             </div>
             <div className="space-y-4 mb-6">
@@ -70,13 +70,13 @@ export const SubscriptionTab: React.FC = () => {
           <div className="rounded-lg bg-gray-800 p-6">
             <h2 className="text-xl font-semibold mb-4">Business</h2>
             <div className="mb-6">
-              <span className="text-4xl font-bold">£</span>
+              <span className="text-4xl font-bold">£ 9.99</span>
               <span className="text-gray-400">/month</span>
             </div>
             <div className="space-y-4 mb-6">
               <div className="flex items-start gap-2">
                 <Settings2 className="w-5 h-5 text-green-500 mt-1 flex-shrink-0" />
-                <span>Customisable workflows that align with your organisation's specific processes.</span>
+                <span>Customizable workflows that align with your organisation's specific processes.</span>
               </div>
               <div className="flex items-start gap-2">
                 <Users className="w-5 h-5 text-green-500 mt-1 flex-shrink-0" />
