@@ -19,7 +19,7 @@ export const SubscriptionTab: React.FC = () => {
           <div className="rounded-xl bg-gray-800 p-8 hover:shadow-xl transition-shadow min-w-[360px]">
             <h2 className="text-2xl font-semibold mb-4">Up Slow</h2>
             <div className="mb-8">
-              <span className="text-5xl font-bold">£0</span>
+              <span className="text-5xl font-bold">£ 0</span>
               <span className="text-gray-400 text-xl">/month</span>
             </div>
             <div className="space-y-6 mb-8">
@@ -48,7 +48,7 @@ export const SubscriptionTab: React.FC = () => {
             </div>
             <h2 className="text-2xl font-semibold mb-4">Up Fast</h2>
             <div className="mb-8">
-              <span className="text-5xl font-bold">£4.99</span>
+              <span className="text-5xl font-bold">£ 4.99</span>
               <span className="text-gray-400 text-xl">/month</span>
             </div>
             <div className="space-y-6 mb-8">
@@ -77,7 +77,7 @@ export const SubscriptionTab: React.FC = () => {
           <div className="rounded-xl bg-gray-800 p-8 hover:shadow-xl transition-shadow min-w-[360px]">
             <h2 className="text-2xl font-semibold mb-4">Business</h2>
             <div className="mb-8">
-              <span className="text-5xl font-bold">£</span>
+              <span className="text-5xl font-bold">£ 9.99</span>
               <span className="text-gray-400 text-xl">/month</span>
             </div>
             <div className="space-y-6 mb-8">
