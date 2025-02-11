@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 import { User } from '@supabase/supabase-js';
-import { getCurrentUser } from '../lib/supabase';
 
 interface AuthState {
   isAuthenticated: boolean;
