@@ -9,7 +9,6 @@ const PROFILE_EMOJI = '🚂';
 
 export const Header: React.FC = () => {
   const { logout, user } = useAuthStore();
-  console.log('user-----------:', user);
   const { isDark, toggle } = useThemeStore();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showBetaInfo, setShowBetaInfo] = useState(false);
@@ -78,7 +77,7 @@ export const Header: React.FC = () => {
                         </button>
                       </div>
                       <div>
-                        <h3 className="text-white font-medium">{user?.full_name || 'User'}</h3>
+                        <h3 className="text-white font-medium">{user?.user_metadata.full_name || 'User'}</h3>
                         <p className="text-sm text-gray-400">{user?.email || 'No email available'}</p>
                       </div>
                     </div>
