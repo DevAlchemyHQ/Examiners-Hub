@@ -20,7 +20,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
         if (e.target.files && e.target.files[0]) {
             const file = e.target.files[0];
             setAvatarFile(file);
-            setAvatarUrl(URL.createObjectURL(file)); // Show preview instantly
+            setAvatarUrl(URL.createObjectURL(file));
         }
     };
 

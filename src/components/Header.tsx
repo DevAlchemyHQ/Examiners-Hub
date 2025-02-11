@@ -7,7 +7,6 @@ import { EditProfileModal } from './profile/EditProfile';
 import { SubscriptionTab } from './subscriptions/subscriptionTab';
 import { signOut } from '../lib/supabase';
 
-const PROFILE_EMOJI = '🚂';
 
 export const Header: React.FC = () => {
   const { logout, user } = useAuthStore();
@@ -16,6 +15,8 @@ export const Header: React.FC = () => {
   const [showBetaInfo, setShowBetaInfo] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [showSubscriptionTab, setShowSubscriptionTab] = useState(false);
+
+  const profileImage = user?.user_metadata.avatar_url || '🚂';
 
   const handleLogout = async () => {
     try {
@@ -63,7 +64,15 @@ export const Header: React.FC = () => {
                 onClick={() => setShowProfileMenu(!showProfileMenu)}
                 className="profile-button w-10 h-10 rounded-full bg-indigo-500 text-white flex items-center justify-center text-lg hover:bg-indigo-600 transition overflow-hidden"
               >
-                {PROFILE_EMOJI}
+                {profileImage ? (
+                  <img
+                    src={profileImage}
+                    alt="Profile"
+                    className="w-full h-full object-cover rounded-full"
+                  />
+                ) : (
+                  profileImage
+                )}
               </button>
 
               {showProfileMenu && (
@@ -72,9 +81,17 @@ export const Header: React.FC = () => {
                   <div className="p-4 border-b border-gray-700">
                     <div className="flex items-center gap-3 mb-3">
                       <div className="relative">
-                        <div className="w-12 h-12 rounded-full bg-indigo-500 flex items-center justify-center text-xl">
-                          {PROFILE_EMOJI}
-                        </div>
+                        {profileImage ? (
+                          <img
+                            src={profileImage}
+                            alt="Profile"
+                            className="w-12 h-12 rounded-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-12 h-12 rounded-full bg-indigo-500 flex items-center justify-center text-xl">
+                            {profileImage}
+                          </div>
+                        )}
                         <button className="absolute -bottom-1 -right-1 p-1 bg-gray-700 rounded-full hover:bg-gray-600 transition-colors">
                           <Camera size={12} className="text-gray-300" />
                         </button>
@@ -166,15 +183,8 @@ export const Header: React.FC = () => {
         </div>
       )}
 
-      {/* Render Subscription Tab */}
-      {showSubscriptionTab && (
-        <SubscriptionTab onClose={() => setShowSubscriptionTab(false)} />
-      )}
-
-      {/* Render Edit Profile Modal */}
-      {showEditProfile && (
-        <EditProfileModal isOpen={showEditProfile} onClose={() => setShowEditProfile(false)} />
-      )}
+      {showSubscriptionTab && <SubscriptionTab onClose={() => setShowSubscriptionTab(false)} />}
+      {showEditProfile && <EditProfileModal isOpen={showEditProfile} onClose={() => setShowEditProfile(false)} />}
     </header>
   );
 };
