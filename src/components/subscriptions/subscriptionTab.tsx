@@ -1,13 +1,22 @@
 import React from 'react';
-import {Check, Download, Tag, Layout, Infinity, Sparkles, Users, Building2, Settings2 } from 'lucide-react';
+import { Check, Download, Tag, Layout, Infinity, Sparkles, Users, Building2, Settings2 } from 'lucide-react';
 
-export const SubscriptionTab: React.FC = () => {
+interface SubscriptionTabProps {
+  onClose?: () => void;
+}
+
+export const SubscriptionTab: React.FC<SubscriptionTabProps> = ({ onClose }) => {
   const handleUpgrade = () => {
     window.location.href = 'https://buy.stripe.com/test_bIY5mug4N6sQbOUcMM';
   };
 
   return (
-    <div className="min-h-[calc(100vh-120px)] overflow-auto p-4 bg-gray-900 text-white">
+    <div className="min-h-[calc(100vh-120px)] overflow-auto p-4 bg-gray-900 text-white relative">
+      {/* Close Button */}
+      <button onClick={onClose} className="absolute top-4 right-4 text-white bg-red-500 px-4 py-2 rounded">
+        Close
+      </button>
+
       <div className="max-w-[1440px] mx-auto py-12">
         <h1 className="text-4xl font-bold text-center mb-6">Get on the Up Fast plan today!</h1>
         <p className="text-center text-gray-400 mb-16 text-lg max-w-3xl mx-auto">

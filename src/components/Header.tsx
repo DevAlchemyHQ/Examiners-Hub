@@ -3,6 +3,8 @@ import { LogOut, Sun, Moon, Info, User, Camera, Settings, CreditCard } from 'luc
 import { useAuthStore } from '../store/authStore';
 import { useThemeStore } from '../store/themeStore';
 import { WeatherDate } from './WeatherDate';
+import { EditProfileModal } from './profile/EditProfile';
+import { SubscriptionTab } from './subscriptions/subscriptionTab';
 import { signOut } from '../lib/supabase';
 
 const PROFILE_EMOJI = '🚂';
@@ -12,6 +14,8 @@ export const Header: React.FC = () => {
   const { isDark, toggle } = useThemeStore();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showBetaInfo, setShowBetaInfo] = useState(false);
+  const [showEditProfile, setShowEditProfile] = useState(false);
+  const [showSubscriptionTab, setShowSubscriptionTab] = useState(false);
 
   const handleLogout = async () => {
     try {
@@ -23,7 +27,6 @@ export const Header: React.FC = () => {
     }
   };
 
-  // Close profile menu when clicking outside
   React.useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as HTMLElement;
@@ -43,10 +46,10 @@ export const Header: React.FC = () => {
           <h1 className="text-xl font-bold text-slate-800 dark:text-white">
             Welcome to Exametry 🙂
           </h1>
-          
+
           <div className="flex items-center gap-4">
             <WeatherDate />
-            
+
             <button
               onClick={toggle}
               className="p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
@@ -96,11 +99,18 @@ export const Header: React.FC = () => {
 
                   {/* Menu Items */}
                   <div className="p-2">
-                    <button className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-gray-700/50 rounded-lg flex items-center gap-2">
+                    <button 
+                      onClick={() => setShowEditProfile(true)}
+                      className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-gray-700/50 rounded-lg flex items-center gap-2">
                       <User size={16} />
                       Edit Profile
                     </button>
-                    <button className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-gray-700/50 rounded-lg flex items-center gap-2">
+                    <button 
+                      onClick={() => {
+                        setShowSubscriptionTab(true);
+                        setShowProfileMenu(false);
+                      }}
+                      className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-gray-700/50 rounded-lg flex items-center gap-2">
                       <CreditCard size={16} />
                       Manage Subscription
                     </button>
@@ -154,6 +164,16 @@ export const Header: React.FC = () => {
             </button>
           </div>
         </div>
+      )}
+
+      {/* Render Subscription Tab */}
+      {showSubscriptionTab && (
+        <SubscriptionTab onClose={() => setShowSubscriptionTab(false)} />
+      )}
+
+      {/* Render Edit Profile Modal */}
+      {showEditProfile && (
+        <EditProfileModal isOpen={showEditProfile} onClose={() => setShowEditProfile(false)} />
       )}
     </header>
   );
