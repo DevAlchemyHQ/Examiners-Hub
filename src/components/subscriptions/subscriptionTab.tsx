@@ -1,7 +1,11 @@
 import React from 'react';
-import { WalletCards, Check, Download, Tag, Layout, Infinity, Sparkles, Users, Building2, Settings2 } from 'lucide-react';
+import {Check, Download, Tag, Layout, Infinity, Sparkles, Users, Building2, Settings2 } from 'lucide-react';
 
 export const SubscriptionTab: React.FC = () => {
+  const handleUpgrade = () => {
+    window.location.href = 'https://buy.stripe.com/test_bIY5mug4N6sQbOUcMM';
+  };
+
   return (
     <div className="min-h-[calc(100vh-120px)] overflow-auto p-4 bg-gray-900 text-white">
       <div className="max-w-[1440px] mx-auto py-12">
@@ -15,7 +19,7 @@ export const SubscriptionTab: React.FC = () => {
           <div className="rounded-xl bg-gray-800 p-8 hover:shadow-xl transition-shadow min-w-[360px]">
             <h2 className="text-2xl font-semibold mb-4">Up Slow</h2>
             <div className="mb-8">
-              <span className="text-5xl font-bold">£ 0</span>
+              <span className="text-5xl font-bold">£0</span>
               <span className="text-gray-400 text-xl">/month</span>
             </div>
             <div className="space-y-6 mb-8">
@@ -33,7 +37,7 @@ export const SubscriptionTab: React.FC = () => {
               </div>
             </div>
             <button className="w-full py-3 px-4 rounded-lg bg-green-500 hover:bg-green-600 transition-colors text-lg font-medium">
-              Choose Plan
+              Current Plan
             </button>
           </div>
 
@@ -44,7 +48,7 @@ export const SubscriptionTab: React.FC = () => {
             </div>
             <h2 className="text-2xl font-semibold mb-4">Up Fast</h2>
             <div className="mb-8">
-              <span className="text-5xl font-bold">£ 4.99</span>
+              <span className="text-5xl font-bold">£4.99</span>
               <span className="text-gray-400 text-xl">/month</span>
             </div>
             <div className="space-y-6 mb-8">
@@ -61,8 +65,11 @@ export const SubscriptionTab: React.FC = () => {
                 <span className="text-lg">Early access to exclusive features and tools for report writing.</span>
               </div>
             </div>
-            <button className="w-full py-3 px-4 rounded-lg bg-indigo-500 hover:bg-indigo-600 transition-colors text-lg font-medium">
-              Choose Plan
+            <button 
+              onClick={handleUpgrade}
+              className="w-full py-3 px-4 rounded-lg bg-indigo-500 hover:bg-indigo-600 transition-colors text-lg font-medium cursor-pointer"
+            >
+              Upgrade Plan
             </button>
           </div>
 
@@ -70,7 +77,7 @@ export const SubscriptionTab: React.FC = () => {
           <div className="rounded-xl bg-gray-800 p-8 hover:shadow-xl transition-shadow min-w-[360px]">
             <h2 className="text-2xl font-semibold mb-4">Business</h2>
             <div className="mb-8">
-              <span className="text-5xl font-bold">£ 9.99</span>
+              <span className="text-5xl font-bold">£</span>
               <span className="text-gray-400 text-xl">/month</span>
             </div>
             <div className="space-y-6 mb-8">
@@ -88,7 +95,7 @@ export const SubscriptionTab: React.FC = () => {
               </div>
             </div>
             <button className="w-full py-3 px-4 rounded-lg bg-indigo-500 hover:bg-indigo-600 transition-colors text-lg font-medium">
-              Cgoo Plan
+              Upgrade Plan
             </button>
           </div>
         </div>
