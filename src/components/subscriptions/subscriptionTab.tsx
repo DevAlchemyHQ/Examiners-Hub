@@ -1,5 +1,5 @@
 import React from 'react';
-import { Check } from 'lucide-react';
+import { Check, Download, Tag, Layout, Infinity, Sparkles, Users, Building2, Settings2 } from 'lucide-react';
 
 export const SubscriptionTab: React.FC = () => {
   return (
@@ -11,7 +11,6 @@ export const SubscriptionTab: React.FC = () => {
         </p>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
           {/* Up Slow Plan */}
           <div className="rounded-lg bg-gray-800 p-6">
             <h2 className="text-xl font-semibold mb-4">Up Slow</h2>
@@ -21,20 +20,20 @@ export const SubscriptionTab: React.FC = () => {
             </div>
             <div className="space-y-4 mb-6">
               <div className="flex items-start gap-2">
-                <Check className="w-5 h-5 text-green-500 mt-1 flex-shrink-0" />
+                <Download className="w-5 h-5 text-green-500 mt-1 flex-shrink-0" />
                 <span>Enjoy up to five free downloads.</span>
               </div>
               <div className="flex items-start gap-2">
-                <Check className="w-5 h-5 text-green-500 mt-1 flex-shrink-0" />
+                <Tag className="w-5 h-5 text-green-500 mt-1 flex-shrink-0" />
                 <span>Easily view and tag your site and sketch photos.</span>
               </div>
               <div className="flex items-start gap-2">
-                <Check className="w-5 h-5 text-green-500 mt-1 flex-shrink-0" />
+                <Layout className="w-5 h-5 text-green-500 mt-1 flex-shrink-0" />
                 <span>Forget juggling a hundred tabs—view both reports side by side.</span>
               </div>
             </div>
             <button className="w-full py-2 px-4 rounded bg-green-500 hover:bg-green-600 transition-colors">
-              Current Plan 0000
+              Current Plan
             </button>
           </div>
 
@@ -50,7 +49,7 @@ export const SubscriptionTab: React.FC = () => {
             </div>
             <div className="space-y-4 mb-6">
               <div className="flex items-start gap-2">
-                <Check className="w-5 h-5 text-green-500 mt-1 flex-shrink-0" />
+                <Infinity className="w-5 h-5 text-green-500 mt-1 flex-shrink-0" />
                 <span>Unlimited downloads.</span>
               </div>
               <div className="flex items-start gap-2">
@@ -58,7 +57,7 @@ export const SubscriptionTab: React.FC = () => {
                 <span>+ All Up Slow tools.</span>
               </div>
               <div className="flex items-start gap-2">
-                <Check className="w-5 h-5 text-green-500 mt-1 flex-shrink-0" />
+                <Sparkles className="w-5 h-5 text-green-500 mt-1 flex-shrink-0" />
                 <span>Early access to exclusive features and tools for report writing.</span>
               </div>
             </div>
@@ -76,15 +75,15 @@ export const SubscriptionTab: React.FC = () => {
             </div>
             <div className="space-y-4 mb-6">
               <div className="flex items-start gap-2">
-                <Check className="w-5 h-5 text-green-500 mt-1 flex-shrink-0" />
+                <Settings2 className="w-5 h-5 text-green-500 mt-1 flex-shrink-0" />
                 <span>Customisable workflows that align with your organisation's specific processes.</span>
               </div>
               <div className="flex items-start gap-2">
-                <Check className="w-5 h-5 text-green-500 mt-1 flex-shrink-0" />
+                <Users className="w-5 h-5 text-green-500 mt-1 flex-shrink-0" />
                 <span>Everything from the Up Fast tier, plus multi-user collaboration with role-based access.</span>
               </div>
               <div className="flex items-start gap-2">
-                <Check className="w-5 h-5 text-green-500 mt-1 flex-shrink-0" />
+                <Building2 className="w-5 h-5 text-green-500 mt-1 flex-shrink-0" />
                 <span>Productive and happy examiners.</span>
               </div>
             </div>
