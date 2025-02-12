@@ -38,23 +38,14 @@ export const ImageUpload: React.FC = () => {
         <button
           onClick={() => sketchInputRef.current?.click()}
           disabled={isLoadingSketch || isLoadingExam}
-          className={`w-full flex items-center justify-center gap-2 bg-indigo-500 text-white px-4 py-2 rounded-lg transition-all group shadow ${
-            isLoadingSketch || isLoadingExam
-              ? 'opacity-50 cursor-not-allowed'
-              : 'hover:bg-indigo-600'
-          }`}
+          className={`w-full flex items-center justify-center gap-3 bg-indigo-600 text-white px-5 py-3 rounded-xl transition-all group shadow-lg font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-indigo-700 active:scale-95`}
         >
           {isLoadingSketch ? (
-            <>
-              <Loader2 size={20} className="animate-spin" />
-              <span className="text-sm font-medium">Uploading...</span>
-            </>
+            <Loader2 size={20} className="animate-spin" />
           ) : (
-            <>
-              <Upload size={20} className="group-hover:scale-110 transition-transform" />
-              <span className="text-sm font-medium">Upload Sketch Images</span>
-            </>
+            <Upload size={20} className="group-hover:scale-110 transition-transform" />
           )}
+          <span>{isLoadingSketch ? "Uploading..." : "Upload Sketch Images"}</span>
         </button>
 
         <input
@@ -68,23 +59,14 @@ export const ImageUpload: React.FC = () => {
         <button
           onClick={() => fileInputRef.current?.click()}
           disabled={isLoadingSketch || isLoadingExam}
-          className={`w-full flex items-center justify-center gap-2 bg-indigo-500 text-white px-4 py-2 rounded-lg transition-all group shadow ${
-            isLoadingSketch || isLoadingExam
-              ? 'opacity-50 cursor-not-allowed'
-              : 'hover:bg-indigo-600'
-          }`}
+          className={`w-full flex items-center justify-center gap-3 bg-indigo-600 text-white px-5 py-3 rounded-xl transition-all group shadow-lg font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-indigo-700 active:scale-95`}
         >
           {isLoadingExam ? (
-            <>
-              <Loader2 size={20} className="animate-spin" />
-              <span className="text-sm font-medium">Uploading...</span>
-            </>
+            <Loader2 size={20} className="animate-spin" />
           ) : (
-            <>
-              <Upload size={20} className="group-hover:scale-110 transition-transform" />
-              <span className="text-sm font-medium">Upload Exam Photos</span>
-            </>
+            <Upload size={20} className="group-hover:scale-110 transition-transform" />
           )}
+          <span>{isLoadingExam ? "Uploading..." : "Upload Exam Photos"}</span>
         </button>
       </div>
     </div>
