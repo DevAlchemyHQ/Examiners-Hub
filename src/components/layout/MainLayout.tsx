@@ -79,8 +79,6 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   };
 
 
-<DownloadButton onUpgradeClick={handleUpgradeClick} setActiveTab={(tab) => setActiveTab(tab as TabType)} />
-
   // If we're rendering children (like the profile page), just show the header
   if (children) {
     return (
@@ -226,6 +224,8 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       )}
 
       <FeedbackTab />
+
+      <DownloadButton onUpgradeClick={handleUpgradeClick} setActiveTab={(tab) => setActiveTab(tab as TabType)} />
     </div>
   );
 };
