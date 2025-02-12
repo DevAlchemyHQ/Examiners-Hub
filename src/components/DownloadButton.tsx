@@ -9,11 +9,12 @@ import { validateDescription } from '../utils/fileValidation';
 
 interface DownloadButtonProps {
   onUpgradeClick: () => void;
+  setActiveTab?: (tab: string) => void;
 }
 
-export const DownloadButton: React.FC<DownloadButtonProps> = ({ onUpgradeClick }) => {
+export const DownloadButton: React.FC<DownloadButtonProps> = ({ onUpgradeClick, setActiveTab }) => {
   const { images, selectedImages, formData } = useMetadataStore();
-  const { isValid, getValidationErrors } = useValidation();
+  const { isValid } = useValidation();
   const { trackEvent } = useAnalytics();
   const { user } = useAuthStore();
   const [isDownloading, setIsDownloading] = useState(false);
@@ -31,6 +32,14 @@ export const DownloadButton: React.FC<DownloadButtonProps> = ({ onUpgradeClick }
     const selectedImagesList = images.filter(img => selectedImages.has(img.id));
     return selectedImagesList.some(img => !img.isSketch && !validateDescription(img.description || '').isValid);
   }, [images, selectedImages]);
+
+  const handleUpgradeClick = () => {
+    console.log("onUpgradeClick in DownloadButton:", onUpgradeClick);
+    if (setActiveTab) {
+      setActiveTab('subscription');
+    }
+    onUpgradeClick();
+  };
 
   const handleDownload = async () => {
     try {
@@ -77,7 +86,7 @@ export const DownloadButton: React.FC<DownloadButtonProps> = ({ onUpgradeClick }
     <div className="space-y-2">
       {downloadsLeft === 0 ? (
         <button
-          onClick={onUpgradeClick}
+          onClick={handleUpgradeClick}
           className="w-full flex items-center justify-center gap-2 px-6 py-3 rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:from-purple-600 hover:to-pink-600"
         >
           <WalletCards size={20} />
@@ -126,3 +135,5 @@ export const DownloadButton: React.FC<DownloadButtonProps> = ({ onUpgradeClick }
     </div>
   );
 };
+
+export default DownloadButton;

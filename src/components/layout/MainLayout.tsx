@@ -13,6 +13,7 @@ import { CalculatorTabs } from '../calculators/CalculatorTabs';
 import { SubscriptionTab } from '../subscriptions/subscriptionTab';
 import { GameTabs } from '../games/GameTabs';
 import { FeedbackTab } from '../FeedbackTab';
+import { DownloadButton } from '../DownloadButton';
 
 type TabType = 'images' | 'pdf' | 'calculator' | 'bcmi' | 'grid' | 'games' | 'subscription';
 
@@ -43,7 +44,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       }
     };
     initialLoad();
-  }, []); // Empty dependency array for initial load only
+  }, []);
 
   // Auto-save changes
   useEffect(() => {
@@ -71,6 +72,16 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       setIsLoadingData(false);
     }
   };
+  
+
+  const handleUpgradeClick = () => {
+    console.log("onUpgradeClick in MainLayout:", handleUpgradeClick);
+    setActiveTab('subscription');
+  };
+  console.log("handleUpgradeClick in MainLayout BEFORE passing:", handleUpgradeClick);
+
+
+<DownloadButton onUpgradeClick={handleUpgradeClick} setActiveTab={(tab) => setActiveTab(tab as TabType)} />
 
   // If we're rendering children (like the profile page), just show the header
   if (children) {
