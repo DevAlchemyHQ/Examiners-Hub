@@ -6,13 +6,15 @@ import { createDownloadPackage } from '../utils/fileUtils';
 import { useValidation } from '../hooks/useValidation';
 import { useAnalytics } from '../hooks/useAnalytics';
 import { validateDescription } from '../utils/fileValidation';
+import SubscriptionTab from './subscriptions/subscriptionTab';
 
 interface DownloadButtonProps {
   onUpgradeClick: () => void;
   setActiveTab?: (tab: string) => void;
+  activeTab?: string;
 }
 
-export const DownloadButton: React.FC<DownloadButtonProps> = ({ onUpgradeClick, setActiveTab }) => {
+export const DownloadButton: React.FC<DownloadButtonProps> = ({ setActiveTab, activeTab }) => {
   const { images, selectedImages, formData } = useMetadataStore();
   const { isValid } = useValidation();
   const { trackEvent } = useAnalytics();
@@ -34,10 +36,8 @@ export const DownloadButton: React.FC<DownloadButtonProps> = ({ onUpgradeClick, 
   }, [images, selectedImages]);
 
   const handleUpgradeClick = () => {
-    if (setActiveTab) {
-      setActiveTab('subscription');
-    }
-    onUpgradeClick();
+    setActiveTab?.('subscription');
+    // onUpgradeClick();
   };
 
   const handleDownload = async () => {
@@ -85,7 +85,7 @@ export const DownloadButton: React.FC<DownloadButtonProps> = ({ onUpgradeClick, 
     <div className="space-y-2">
       {downloadsLeft === 0 ? (
         <button
-          onClick={handleUpgradeClick}
+          onClick={()=>handleUpgradeClick()}
           className="w-full flex items-center justify-center gap-2 px-6 py-3 rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:from-purple-600 hover:to-pink-600"
         >
           <WalletCards size={20} />
@@ -131,6 +131,7 @@ export const DownloadButton: React.FC<DownloadButtonProps> = ({ onUpgradeClick, 
           </div>
         </div>
       )}
+
     </div>
   );
 };

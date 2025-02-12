@@ -160,7 +160,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             {activeTab === 'images' ? (
               <div className="h-full grid grid-cols-1 lg:grid-cols-12 gap-4">
                 <div className="lg:col-span-2 overflow-hidden">
-                  <Sidebar />
+                  <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
                 </div>
                 <MainContent />
               </div>
@@ -225,7 +225,6 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 
       <FeedbackTab />
 
-      <DownloadButton onUpgradeClick={handleUpgradeClick} setActiveTab={(tab) => setActiveTab(tab as TabType)} />
     </div>
   );
 };

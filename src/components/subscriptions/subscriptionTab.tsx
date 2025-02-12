@@ -5,17 +5,13 @@ interface SubscriptionTabProps {
   onClose?: () => void;
 }
 
-export const SubscriptionTab: React.FC<SubscriptionTabProps> = ({ onClose }) => {
+export const SubscriptionTab: React.FC<SubscriptionTabProps> = () => {
   const handleUpgrade = () => {
     window.location.href = 'https://buy.stripe.com/test_bIY5mug4N6sQbOUcMM';
   };
 
   return (
     <div className="min-h-[calc(100vh-120px)] overflow-auto p-4 bg-gray-900 text-white relative">
-      {/* Close Button
-      <button onClick={onClose} className="absolute top-4 right-4 text-white bg-red-500 px-4 py-2 rounded">
-        Close
-      </button> */}
 
       <div className="max-w-[1440px] mx-auto py-12">
         <h1 className="text-4xl font-bold text-center mb-6">Get on the Up Fast plan today!</h1>

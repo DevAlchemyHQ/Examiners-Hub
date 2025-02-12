@@ -280,6 +280,7 @@ export const updateUserProfile = async (userId: string, updates: Partial<UserPro
         data: {
           full_name: updates.full_name,
           avatar_emoji: updates.avatar_emoji,
+          avatar_url: updates.avatar_url,
           subscription_plan: updates.subscription_status
         }
       });
