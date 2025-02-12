@@ -380,7 +380,7 @@ export const cancelSubscription = async (userId: string) => {
     console.log(`Cancelling subscription for user: ${userId}`);
     const { error } = await supabase
       .from('profiles')
-      .update({ subscription_status: 'cancelled' })
+      .update({ subscription_status: 'Basic' })
       .eq('id', userId);
 
     if (error) {

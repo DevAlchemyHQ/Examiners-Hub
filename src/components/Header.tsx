@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { LogOut, Sun, Moon, Info, User, Camera, Settings, CreditCard } from 'lucide-react';
+import { LogOut, Sun, Moon, Info, User, Camera, Settings, XCircle } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useThemeStore } from '../store/themeStore';
 import { WeatherDate } from './WeatherDate';
 import { EditProfileModal } from './profile/EditProfile';
-import { SubscriptionTab } from './subscriptions/subscriptionTab';
-import { signOut } from '../lib/supabase';
+// import { SubscriptionTab } from './subscriptions/subscriptionTab';
+import { signOut, updateUserProfile } from '../lib/supabase';
 
 
 export const Header: React.FC = () => {
@@ -14,9 +14,13 @@ export const Header: React.FC = () => {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showBetaInfo, setShowBetaInfo] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
-  const [showSubscriptionTab, setShowSubscriptionTab] = useState(false);
+  const [showUnsubscribeModal, setShowUnsubscribeModal] = useState(false);
 
   const profileImage = user?.user_metadata.avatar_url || '🚂';
+  const subscriptionPlan = user?.user_metadata.subscription_plan || 'Basic';
+  const billingDate = new Date();
+  billingDate.setMonth(billingDate.getMonth() + 1);
+
 
   const handleLogout = async () => {
     try {
@@ -27,6 +31,20 @@ export const Header: React.FC = () => {
       console.error('Logout error:', error);
     }
   };
+
+  const handleUnsubscribe = () => {
+    setShowProfileMenu(false);
+    setShowUnsubscribeModal(true);
+  };
+
+  const confirmUnsubscribe = async () => {
+    try {
+      await updateUserProfile({ subscription_plan: 'Basic' });
+      setShowUnsubscribeModal(false);
+    } catch (error) {
+      console.error('Unsubscribe error:', error);
+    }
+  }
 
   React.useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -107,11 +125,25 @@ export const Header: React.FC = () => {
                   <div className="p-4 border-b border-gray-700">
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-sm text-gray-400">Current Plan</span>
-                      <span className="text-xs bg-indigo-500 text-white px-2 py-1 rounded-full">Up Fast</span>
+                      <span className={`text-xs px-2 py-1 rounded-full ${subscriptionPlan === 'Basic' ? 'bg-green-500' : 'bg-indigo-500'} text-white`}>
+                        {subscriptionPlan}
+                      </span>
                     </div>
-                    <div className="text-xs text-gray-500">
-                      Next billing date: March 11, 2025
-                    </div>
+                    {subscriptionPlan === 'Basic' ? (
+                      <div className="text-xs text-gray-500">Free Plan</div>
+                    ) : (
+                      <div className="text-xs text-gray-500">
+                        Next billing date: {billingDate.toLocaleDateString()}
+                      </div>
+                    )}
+                    {subscriptionPlan !== 'Basic' && (
+                      <button
+                        onClick={handleUnsubscribe}
+                        className="w-full text-sm text-red-400 hover:bg-red-900/20 rounded-lg py-2 mt-2"
+                      >
+                        Unsubscribe
+                      </button>
+                    )}
                   </div>
 
                   {/* Menu Items */}
@@ -121,15 +153,6 @@ export const Header: React.FC = () => {
                       className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-gray-700/50 rounded-lg flex items-center gap-2">
                       <User size={16} />
                       Edit Profile
-                    </button>
-                    <button 
-                      onClick={() => {
-                        setShowSubscriptionTab(true);
-                        setShowProfileMenu(false);
-                      }}
-                      className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-gray-700/50 rounded-lg flex items-center gap-2">
-                      <CreditCard size={16} />
-                      Manage Subscription
                     </button>
                     <button className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-gray-700/50 rounded-lg flex items-center gap-2">
                       <Settings size={16} />
@@ -183,8 +206,38 @@ export const Header: React.FC = () => {
         </div>
       )}
 
-      {showSubscriptionTab && <SubscriptionTab onClose={() => setShowSubscriptionTab(false)} />}
       {showEditProfile && <EditProfileModal isOpen={showEditProfile} onClose={() => setShowEditProfile(false)} />}
+
+        {/* Unsubscribe Confirmation Modal */}
+        {showUnsubscribeModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-sm w-full p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <XCircle className="text-red-500" size={24} />
+              <h3 className="text-lg font-semibold text-slate-800 dark:text-white">
+                Confirm Unsubscribe
+              </h3>
+            </div>
+            <p className="text-slate-600 dark:text-gray-300 mb-6">
+              Are you sure you want to unsubscribe from {subscriptionPlan}?
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setShowUnsubscribeModal(false)}
+                className="px-4 py-2 bg-gray-300 dark:bg-gray-700 text-gray-800 dark:text-gray-300 rounded-lg hover:bg-gray-400"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmUnsubscribe}
+                className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
+              >
+                Yes, Unsubscribe
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   );
 };
