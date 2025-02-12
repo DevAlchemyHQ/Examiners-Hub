@@ -6,15 +6,13 @@ import { createDownloadPackage } from '../utils/fileUtils';
 import { useValidation } from '../hooks/useValidation';
 import { useAnalytics } from '../hooks/useAnalytics';
 import { validateDescription } from '../utils/fileValidation';
-import SubscriptionTab from './subscriptions/subscriptionTab';
 
 interface DownloadButtonProps {
-  onUpgradeClick: () => void;
   setActiveTab?: (tab: string) => void;
   activeTab?: string;
 }
 
-export const DownloadButton: React.FC<DownloadButtonProps> = ({ setActiveTab, activeTab }) => {
+export const DownloadButton: React.FC<DownloadButtonProps> = ({ setActiveTab }) => {
   const { images, selectedImages, formData } = useMetadataStore();
   const { isValid } = useValidation();
   const { trackEvent } = useAnalytics();
@@ -37,7 +35,6 @@ export const DownloadButton: React.FC<DownloadButtonProps> = ({ setActiveTab, ac
 
   const handleUpgradeClick = () => {
     setActiveTab?.('subscription');
-    // onUpgradeClick();
   };
 
   const handleDownload = async () => {
@@ -131,7 +128,6 @@ export const DownloadButton: React.FC<DownloadButtonProps> = ({ setActiveTab, ac
           </div>
         </div>
       )}
-
     </div>
   );
 };
