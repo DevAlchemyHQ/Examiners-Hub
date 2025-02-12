@@ -4,7 +4,6 @@ import { useAuthStore } from '../store/authStore';
 import { useThemeStore } from '../store/themeStore';
 import { WeatherDate } from './WeatherDate';
 import { EditProfileModal } from './profile/EditProfile';
-// import { SubscriptionTab } from './subscriptions/subscriptionTab';
 import { signOut, updateUserProfile } from '../lib/supabase';
 
 
@@ -39,7 +38,9 @@ export const Header: React.FC = () => {
 
   const confirmUnsubscribe = async () => {
     try {
-      await updateUserProfile({ subscription_plan: 'Basic' });
+      if (user) {
+        await updateUserProfile(user.id, { subscription_status: 'Basic' });
+      }
       setShowUnsubscribeModal(false);
     } catch (error) {
       console.error('Unsubscribe error:', error);
