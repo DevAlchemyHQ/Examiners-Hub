@@ -374,3 +374,23 @@ export const uploadAvatar = async (userId: string, file: File): Promise<string> 
     throw error;
   }
 };
+
+export const cancelSubscription = async (userId: string) => {
+  try {
+    console.log(`Cancelling subscription for user: ${userId}`);
+    const { error } = await supabase
+      .from('profiles')
+      .update({ subscription_status: 'cancelled' })
+      .eq('id', userId);
+
+    if (error) {
+      console.error('Subscription cancellation error:', error);
+      throw error;
+    }
+
+    console.log('Subscription cancelled successfully');
+  } catch (error) {
+    console.error('Subscription cancellation error:', error);
+    throw error;
+  }
+};
