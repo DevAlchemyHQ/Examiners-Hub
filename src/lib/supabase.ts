@@ -396,6 +396,29 @@ export const cancelSubscription = async (userId: string) => {
   }
 };
 
+// Project Functions
+export const createProject = async (userId: string, projectName: string) => {
+  try {
+    console.log(`Creating project for user: ${userId}`);
+    const { data, error } = await supabase
+      .from('projects')
+      .insert({
+        user_id: userId,
+        name: projectName
+      });
+
+    if (error) {
+      console.error('Create project error:', error);
+      throw error;
+    }
+
+    return data;
+  } catch (error) {
+    console.error('Create project error:', error);
+    throw error;
+  }
+};
+
 export const getProjects = async (userId: string) => {
   try {
     console.log(`Getting projects for user: ${userId}`);
@@ -415,3 +438,21 @@ export const getProjects = async (userId: string) => {
     throw error;
   }
 }
+
+export const deleteProject = async (projectId: string) => {
+  try {
+    console.log(`Deleting project: ${projectId}`);
+    const { error } = await supabase
+      .from('projects')
+      .delete()
+      .eq('id', projectId);
+
+    if (error) {
+      console.error('Delete project error:', error);
+      throw error;
+    }
+  } catch (error) {
+    console.error('Delete project error:', error);
+    throw error;
+  }
+};
