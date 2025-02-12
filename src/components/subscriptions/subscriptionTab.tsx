@@ -12,10 +12,10 @@ export const SubscriptionTab: React.FC<SubscriptionTabProps> = ({ onClose }) => 
 
   return (
     <div className="min-h-[calc(100vh-120px)] overflow-auto p-4 bg-gray-900 text-white relative">
-      {/* Close Button */}
+      {/* Close Button
       <button onClick={onClose} className="absolute top-4 right-4 text-white bg-red-500 px-4 py-2 rounded">
         Close
-      </button>
+      </button> */}
 
       <div className="max-w-[1440px] mx-auto py-12">
         <h1 className="text-4xl font-bold text-center mb-6">Get on the Up Fast plan today!</h1>
@@ -117,3 +117,28 @@ export const SubscriptionTab: React.FC<SubscriptionTabProps> = ({ onClose }) => 
 };
 
 export default SubscriptionTab;
+
+
+{(error || (!isValid() && errors.length > 0) || hasSpecialCharacters) && (
+  <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
+    <div className="flex items-start gap-2 text-amber-700 dark:text-amber-400">
+      <AlertCircle size={16} className="mt-0.5 flex-shrink-0" />
+      <div className="text-sm">
+        {error ? (
+          <p>{error}</p>
+        ) : hasSpecialCharacters ? (
+          <p>Remove special characters from defect descriptions before downloading</p>
+        ) : (
+          <>
+            <p className="font-medium mb-1">Please complete the following:</p>
+            <ul className="list-disc list-inside space-y-1">
+              {errors.map((error, index) => (
+                <li key={index}>{error}</li>
+              ))}
+            </ul>
+          </>
+        )}
+      </div>
+    </div>
+  </div>
+)}
