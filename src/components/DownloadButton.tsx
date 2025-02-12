@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Download, AlertCircle, Loader2, WalletCards } from 'lucide-react';
+import { TabType } from './layout/MainLayout';
 import { useMetadataStore } from '../store/metadataStore';
 import { useAuthStore } from '../store/authStore';
 import { createDownloadPackage } from '../utils/fileUtils';
@@ -8,8 +9,8 @@ import { useAnalytics } from '../hooks/useAnalytics';
 import { validateDescription } from '../utils/fileValidation';
 
 interface DownloadButtonProps {
-  setActiveTab?: (tab: string) => void;
-  activeTab?: string;
+  setActiveTab?: (tab: TabType) => void;
+  activeTab?: TabType;
 }
 
 export const DownloadButton: React.FC<DownloadButtonProps> = ({ setActiveTab }) => {

@@ -2,10 +2,11 @@ import React from 'react';
 import { MetadataForm } from '../MetadataForm';
 import { ImageUpload } from '../ImageUpload';
 import { DownloadButton } from '../DownloadButton';
+import { TabType } from './MainLayout';
 
 interface SidebarProps {
-  setActiveTab?: (tab: string) => void;
-  activeTab?: string;
+  setActiveTab?: (tab: TabType) => void;
+  activeTab?: TabType;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => {
