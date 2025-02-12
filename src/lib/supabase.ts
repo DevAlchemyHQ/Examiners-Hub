@@ -1,3 +1,4 @@
+import { v4 as uuidv4 } from 'uuid';
 import { createClient } from '@supabase/supabase-js';
 import type { UserProfile } from '../types/profile';
 import { useAuthStore } from '../store/authStore';
@@ -398,6 +399,20 @@ export const cancelSubscription = async (userId: string) => {
 
 // Project Functions
 export const createProject = async (userId: string, formData: any, images: any[]) => {
+  console.log("Checking if user exists:", userId);
+
+  // Check if user exists before inserting
+  const { data: userExists, error: userError } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', userId)
+    .single();
+
+  if (userError || !userExists) {
+    console.log("User does not exist. Cannot create project.");
+    throw new Error("User not found");
+  }
+
   try {
     console.log(`Creating project for user: ${userId}`);
 
@@ -405,6 +420,7 @@ export const createProject = async (userId: string, formData: any, images: any[]
       .from('projects')
       .insert([
         {
+          id: uuidv4(),
           user_id: userId,
           form_data: formData,
           images: images,

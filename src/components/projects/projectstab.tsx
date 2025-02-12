@@ -33,7 +33,12 @@ export const ProjectsTab: React.FC<ProjectsTabProps> = ({ setActiveTab }) => {
     }, []);
 
     const handleCreateProject = async () => {
-        if (!user) return; 
+        if (!user) {
+            console.error("User is undefined.");
+            return;
+        }
+    
+        console.log("Creating project for user ID:", user.id);
         setLoading(true);
     
         try {
@@ -53,6 +58,8 @@ export const ProjectsTab: React.FC<ProjectsTabProps> = ({ setActiveTab }) => {
             }
         } catch (error) {
             console.error("Error creating project:", error);
+        } finally {
+            setLoading(false);
         }
     };
 
