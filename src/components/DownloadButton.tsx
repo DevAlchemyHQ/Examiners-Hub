@@ -5,13 +5,13 @@ import { createDownloadPackage } from '../utils/fileUtils';
 import { useValidation } from '../hooks/useValidation';
 import { useAnalytics } from '../hooks/useAnalytics';
 import { validateDescription } from '../utils/fileValidation';
-import { useProjectStore } from '../store/projectStore';
+// import { useProjectStore } from '../store/projectStore';
 
 export const DownloadButton: React.FC = () => {
   const { images, selectedImages, formData } = useMetadataStore();
   const { isValid, getValidationErrors } = useValidation();
   const { trackEvent } = useAnalytics();
-  const { clearProject, isLoading } = useProjectStore();
+  // const { clearProject, isLoading } = useProjectStore();
   const [isDownloading, setIsDownloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
