@@ -395,3 +395,23 @@ export const cancelSubscription = async (userId: string) => {
     throw error;
   }
 };
+
+export const getProjects = async (userId: string) => {
+  try {
+    console.log(`Getting projects for user: ${userId}`);
+    const { data: projects, error } = await supabase
+      .from('projects')
+      .select('*')
+      .eq('user_id', userId);
+
+    if (error) {
+      console.error('Get projects error:', error);
+      throw error;
+    }
+
+    return projects;
+  } catch (error) {
+    console.error('Get projects error:', error);
+    throw error;
+  }
+}
