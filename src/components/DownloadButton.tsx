@@ -7,7 +7,7 @@ import { createDownloadPackage } from '../utils/fileUtils';
 import { useValidation } from '../hooks/useValidation';
 import { useAnalytics } from '../hooks/useAnalytics';
 import { validateDescription } from '../utils/fileValidation';
-import { createProject } from '../lib/supabase';
+// import { createProject } from '../lib/supabase';
 
 interface DownloadButtonProps {
   setActiveTab?: (tab: TabType) => void;

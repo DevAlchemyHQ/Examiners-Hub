@@ -13,6 +13,7 @@ import { CalculatorTabs } from '../calculators/CalculatorTabs';
 import { SubscriptionTab } from '../subscriptions/subscriptionTab';
 import { GameTabs } from '../games/GameTabs';
 import { FeedbackTab } from '../FeedbackTab';
+import { createProject, getProject, getProjects } from '../../lib/supabase';
 
 export type TabType = 'images' | 'pdf' | 'calculator' | 'bcmi' | 'grid' | 'games' | 'subscription';
 
