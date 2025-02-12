@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, Hash, Building2, PlusCircle } from 'lucide-react';
 import { useMetadataStore } from '../store/metadataStore';
-import { getProjects } from '../lib/supabase';
+import { createProject, getProject, getProjects } from '../lib/supabase';
 import { useAuthStore } from '../store/authStore';
 
 export const MetadataForm: React.FC = () => {

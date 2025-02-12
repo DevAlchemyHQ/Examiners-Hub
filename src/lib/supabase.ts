@@ -419,6 +419,27 @@ export const createProject = async (userId: string, projectName: string) => {
   }
 };
 
+export const getProject = async (projectId: string) => {
+  try {
+    console.log(`Getting project: ${projectId}`);
+    const { data: project, error } = await supabase
+      .from('projects')
+      .select('*')
+      .eq('id', projectId)
+      .single();
+
+    if (error) {
+      console.error('Get project error:', error);
+      throw error;
+    }
+
+    return project;
+  } catch (error) {
+    console.error('Get project error:', error);
+    throw error;
+  }
+};
+
 export const getProjects = async (userId: string) => {
   try {
     console.log(`Getting projects for user: ${userId}`);
