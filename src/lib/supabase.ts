@@ -397,15 +397,21 @@ export const cancelSubscription = async (userId: string) => {
 };
 
 // Project Functions
-export const createProject = async (userId: string, projectName: string) => {
+export const createProject = async (userId: string, formData: any, images: any[]) => {
   try {
     console.log(`Creating project for user: ${userId}`);
+
     const { data, error } = await supabase
       .from('projects')
-      .insert({
-        user_id: userId,
-        name: projectName
-      });
+      .insert([
+        {
+          user_id: userId,
+          form_data: formData,
+          images: images,
+          selected_images: [],
+        }
+      ])
+      .select();
 
     if (error) {
       console.error('Create project error:', error);

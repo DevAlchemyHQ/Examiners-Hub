@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { getAllProjects } from '../../lib/supabase';
+import { useAuthStore } from '../../store/authStore';
+import { createProject, getProjects } from '../../lib/supabase';
 import { Loader2, PlusCircle } from 'lucide-react';
 import { TabType } from '../../components/layout/MainLayout';
 
@@ -9,6 +10,7 @@ interface ProjectsTabProps {
 }
 
 export const ProjectsTab: React.FC<ProjectsTabProps> = ({ setActiveTab }) => {
+    const { user } = useAuthStore();
     const [projects, setProjects] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
 
@@ -16,7 +18,10 @@ export const ProjectsTab: React.FC<ProjectsTabProps> = ({ setActiveTab }) => {
         const fetchProjects = async () => {
             setLoading(true);
             try {
-                const projects = await getAllProjects();
+                if (user?.id) {
+                    const projects = await getProjects(user.id);
+                    setProjects(projects);
+                }
                 setProjects(projects);
             } catch (error) {
                 console.error('Error fetching projects:', error);
@@ -28,7 +33,27 @@ export const ProjectsTab: React.FC<ProjectsTabProps> = ({ setActiveTab }) => {
     }, []);
 
     const handleCreateProject = async () => {
-        setActiveTab?.('images');
+        if (!user) return; 
+        setLoading(true);
+    
+        try {
+            const formData = {
+                elr: "",
+                structureNo: "",
+                date: new Date().toISOString().split("T")[0],
+            };
+    
+            const images: { publicUrl: string }[] = [];
+    
+            const newProject = await createProject(user.id, formData, images);
+    
+            if (newProject) {
+                setProjects((prevProjects) => [...prevProjects, newProject[0]]);
+                setActiveTab('images');
+            }
+        } catch (error) {
+            console.error("Error creating project:", error);
+        }
     };
 
     const handleProjectClick = () => {
