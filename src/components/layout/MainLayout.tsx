@@ -13,9 +13,9 @@ import { CalculatorTabs } from '../calculators/CalculatorTabs';
 import { SubscriptionTab } from '../subscriptions/subscriptionTab';
 import { GameTabs } from '../games/GameTabs';
 import { FeedbackTab } from '../FeedbackTab';
-import { createProject, getProject, getProjects } from '../../lib/supabase';
+import { ProjectsTab } from '../projects/projectstab';
 
-export type TabType = 'images' | 'pdf' | 'calculator' | 'bcmi' | 'grid' | 'games' | 'subscription';
+export type TabType = 'projects' | 'images' | 'pdf' | 'calculator' | 'bcmi' | 'grid' | 'games' | 'subscription';
 
 interface MainLayoutProps {
   children?: React.ReactNode;
@@ -109,13 +109,14 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           <div className="flex items-center justify-between border-b border-slate-200 dark:border-gray-700">
             <div className="flex items-center gap-0.5">
               {[
+                { id: 'projects', icon: FileText, label: 'My Projects' },
                 { id: 'images', icon: Images, label: 'Images' },
                 { id: 'pdf', icon: FileText, label: 'PDF' },
                 { id: 'calculator', icon: Calculator, label: 'Calc' },
                 { id: 'grid', icon: Map, label: 'Grid' },
                 { id: 'bcmi', icon: Brain, label: 'BCMI & AI' },
                 { id: 'games', icon: GameController, label: 'Games' },
-                { id: 'subscription', icon: WalletCards, label: 'Subscription' }
+                { id: 'subscription', icon: WalletCards, label: 'Subscription' },
               ].map(({ id, icon: Icon, label }) => (
                 <button
                   key={id}
@@ -151,33 +152,35 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 
         <div className="flex-1 h-[calc(100vh-96px)] overflow-hidden">
           <div className={`transition-opacity duration-300 ${isLoading ? 'opacity-50' : 'opacity-100'}`}>
-            {activeTab === 'images' ? (
-              <div className="h-full grid grid-cols-1 lg:grid-cols-12 gap-4">
-                <div className="lg:col-span-2 overflow-hidden">
-                  <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
-                </div>
-                <MainContent />
+          {activeTab === 'projects' ? (
+            <ProjectsTab setActiveTab={setActiveTab} activeTab={activeTab} />
+          ) : activeTab === 'images' ? (
+            <div className="h-full grid grid-cols-1 lg:grid-cols-12 gap-4">
+              <div className="lg:col-span-2 overflow-hidden">
+                <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
               </div>
-            ) : activeTab === 'pdf' ? (
-              <div className="h-full">
-                <PDFViewer />
+              <MainContent />
+            </div>
+          ) : activeTab === 'pdf' ? (
+            <div className="h-full">
+              <PDFViewer />
+            </div>
+          ) : activeTab === 'calculator' ? (
+            <CalculatorTabs />
+          ) : activeTab === 'grid' ? (
+            <GridReferenceFinder />
+          ) : activeTab === 'games' ? (
+            <GameTabs />
+          ) : activeTab === 'subscription' ? (
+            <SubscriptionTab />
+          ) : (
+            <div className="h-full flex items-center justify-center text-slate-400 dark:text-gray-500">
+              <div className="text-center">
+                <Brain size={48} className="mx-auto mb-4 opacity-50" />
+                <p>BCMI & AI features coming soon!</p>
               </div>
-            ) : activeTab === 'calculator' ? (
-              <CalculatorTabs />
-            ) : activeTab === 'grid' ? (
-              <GridReferenceFinder />
-            ) : activeTab === 'games' ? (
-              <GameTabs />
-            ) : activeTab === 'subscription' ? (
-              <SubscriptionTab />
-            ) : (
-              <div className="h-full flex items-center justify-center text-slate-400 dark:text-gray-500">
-                <div className="text-center">
-                  <Brain size={48} className="mx-auto mb-4 opacity-50" />
-                  <p>BCMI & AI features coming soon!</p>
-                </div>
-              </div>
-            )}
+            </div>
+          )}
           </div>
         </div>
       </main>

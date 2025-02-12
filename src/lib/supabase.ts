@@ -460,6 +460,25 @@ export const getProjects = async (userId: string) => {
   }
 }
 
+export const getAllProjects = async () => {
+  try {
+    console.log('Getting all projects');
+    const { data: projects, error } = await supabase
+      .from('projects')
+      .select('*');
+
+    if (error) {
+      console.error('Get all projects error:', error);
+      throw error;
+    }
+
+    return projects;
+  } catch (error) {
+    console.error('Get all projects error:', error);
+    throw error;
+  }
+}
+
 export const deleteProject = async (projectId: string) => {
   try {
     console.log(`Deleting project: ${projectId}`);
