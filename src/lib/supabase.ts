@@ -275,7 +275,7 @@ export const updateUserProfile = async (userId: string, updates: Partial<UserPro
     console.log(`Updating profile for user: ${userId} with updates:`, updates);
     
     // Update auth metadata if name or emoji is being updated
-    if (updates.full_name || updates.avatar_emoji) {
+    if (updates.full_name || updates.avatar_emoji || updates.avatar_url || updates.subscription_status) {
       const { error: authError } = await supabase.auth.updateUser({
         data: {
           full_name: updates.full_name,
