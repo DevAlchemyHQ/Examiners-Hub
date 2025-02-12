@@ -42,7 +42,7 @@ export const ProjectsTab: React.FC<ProjectsTabProps> = ({ setActiveTab }) => {
                 <button
                     onClick={handleCreateProject}
                     disabled={loading}
-                    className="flex items-center gap-2 px-4 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition disabled:opacity-50"
+                    className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-indigo-600 transition disabled:opacity-50"
                 >
                     {loading ? <Loader2 size={16} className="animate-spin" /> : <PlusCircle size={16} />}
                     {loading ? 'Creating...' : 'New Project'}
