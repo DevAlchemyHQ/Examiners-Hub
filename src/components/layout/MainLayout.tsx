@@ -75,10 +75,8 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   
 
   const handleUpgradeClick = () => {
-    console.log("onUpgradeClick in MainLayout:", handleUpgradeClick);
     setActiveTab('subscription');
   };
-  console.log("handleUpgradeClick in MainLayout BEFORE passing:", handleUpgradeClick);
 
 
 <DownloadButton onUpgradeClick={handleUpgradeClick} setActiveTab={(tab) => setActiveTab(tab as TabType)} />

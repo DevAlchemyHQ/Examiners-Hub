@@ -34,7 +34,6 @@ export const DownloadButton: React.FC<DownloadButtonProps> = ({ onUpgradeClick, 
   }, [images, selectedImages]);
 
   const handleUpgradeClick = () => {
-    console.log("onUpgradeClick in DownloadButton:", onUpgradeClick);
     if (setActiveTab) {
       setActiveTab('subscription');
     }
