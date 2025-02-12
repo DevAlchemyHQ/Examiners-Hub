@@ -3,11 +3,12 @@ import { MetadataForm } from '../MetadataForm';
 import { ImageUpload } from '../ImageUpload';
 import { DownloadButton } from '../DownloadButton';
 
-export const Sidebar: React.FC = ({activeTab, setActiveTab}) => {
+interface SidebarProps {
+  setActiveTab?: (tab: string) => void;
+  activeTab?: string;
+}
 
-  const handleUpgradeClick = () => {
-    setActiveTab('subscription');
-  };
+export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => {
 
   return (
     <div className="lg:col-span-2 space-y-4 overflow-container">

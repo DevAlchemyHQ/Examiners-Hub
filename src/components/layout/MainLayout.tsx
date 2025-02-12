@@ -13,7 +13,6 @@ import { CalculatorTabs } from '../calculators/CalculatorTabs';
 import { SubscriptionTab } from '../subscriptions/subscriptionTab';
 import { GameTabs } from '../games/GameTabs';
 import { FeedbackTab } from '../FeedbackTab';
-import { DownloadButton } from '../DownloadButton';
 
 type TabType = 'images' | 'pdf' | 'calculator' | 'bcmi' | 'grid' | 'games' | 'subscription';
 
@@ -72,12 +71,6 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       setIsLoadingData(false);
     }
   };
-  
-
-  const handleUpgradeClick = () => {
-    setActiveTab('subscription');
-  };
-
 
   // If we're rendering children (like the profile page), just show the header
   if (children) {
