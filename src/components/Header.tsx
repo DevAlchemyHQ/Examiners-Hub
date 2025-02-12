@@ -9,6 +9,7 @@ import { signOut, updateUserProfile } from '../lib/supabase';
 
 export const Header: React.FC = () => {
   const { logout, user } = useAuthStore();
+  const { setUser } = useAuthStore();
   const { isDark, toggle } = useThemeStore();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showBetaInfo, setShowBetaInfo] = useState(false);
@@ -40,9 +41,17 @@ export const Header: React.FC = () => {
     try {
       if (user) {
         await updateUserProfile(user.id, { subscription_status: 'Basic' });
+
+        setUser({
+          ...user,
+          user_metadata: {
+            ...user.user_metadata,
+            subscription_plan: 'Basic',
+          },
+        });
       }
       setShowUnsubscribeModal(false);
-    } catch (error) {
+      } catch (error) {
       console.error('Unsubscribe error:', error);
     }
   }
