@@ -21,7 +21,7 @@ export const Header: React.FC = () => {
 
   const navigationTabs = [
     { path: '/projects', label: 'Projects' },
-    { path: '/dashboard', label: 'Dashboard' },
+    { path: '/dashboard', label: 'Images' },
     { path: '/pdf', label: 'PDF' },
     { path: '/calculator', label: 'Calc' },
     { path: '/grid', label: 'Grid' },
