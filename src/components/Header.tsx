@@ -23,7 +23,7 @@ export const Header: React.FC = () => {
     { path: '/projects', label: 'Projects' },
     { path: '/dashboard', label: 'Dashboard' },
     { path: '/pdf', label: 'PDF' },
-    { path: '/calc', label: 'Calc' },
+    { path: '/calculator', label: 'Calc' },
     { path: '/grid', label: 'Grid' },
     { path: '/bscm-ai', label: 'BSCM & AI' },
     { path: '/games', label: 'Games' },
