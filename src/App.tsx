@@ -6,6 +6,7 @@ import { LoginScreen } from './components/LoginScreen';
 import { MainLayout } from './components/layout/MainLayout';
 import { FeedbackAdmin } from './pages/FeedbackAdmin';
 import { UserProfile } from './components/profile/UserProfile';
+import { ProjectsPage } from './pages/projects.pages';
 
 const ProtectedRoute: React.FC = () => {
   const { isAuthenticated } = useAuthStore();
@@ -30,13 +31,14 @@ const App: React.FC = () => {
         {/* Login Route */}
         <Route path="/" element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <LoginScreen />} />
 
-        {/* Protected Routes inside MainLayout */}
+        {/* Protected Routes */}
         <Route element={<ProtectedRoute />}>
-          <Route element={<MainLayout />}>
-            <Route path="/dashboard" element={<h1>Dashboard</h1>} />
-            <Route path="/feedback" element={<FeedbackAdmin />} />
-            <Route path="/profile" element={<UserProfile />} />
-          </Route>
+          <Route path="/dashboard" element={<MainLayout />} />
+
+          {/* Independent Pages */}
+          <Route path="/projects" element={<ProjectsPage />} />
+          <Route path="/feedback" element={<FeedbackAdmin />} />
+          <Route path="/profile" element={<UserProfile />} />
         </Route>
 
         {/* Redirect all unknown routes */}
