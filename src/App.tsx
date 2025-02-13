@@ -8,6 +8,7 @@ import { FeedbackAdmin } from './pages/FeedbackAdmin';
 import { UserProfile } from './components/profile/UserProfile';
 import { ProjectsPage } from './pages/projects.pages';
 import { SubscriptionPage } from './pages/subscription.page';
+import { GamesPage } from './pages/games.page';
 
 const ProtectedRoute: React.FC = () => {
   const { isAuthenticated } = useAuthStore();
@@ -39,12 +40,13 @@ const App: React.FC = () => {
             )
           }
         />
-        <Route element={<ProtectedRoute />}>
+        <Route >
           <Route path="/dashboard" element={<MainLayout />} />
           <Route path="/projects" element={<ProjectsPage />} />
           <Route path="/feedback" element={<FeedbackAdmin />} />
           <Route path="/profile" element={<UserProfile />} />
           <Route path="/subscriptions" element={<SubscriptionPage />} />
+          <Route path="/games" element={<GamesPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
