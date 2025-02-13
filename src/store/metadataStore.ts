@@ -21,6 +21,7 @@ interface MetadataState {
   defectSortDirection: 'asc' | 'desc' | null;
   sketchSortDirection: 'asc' | 'desc' | null;
   bulkDefects: BulkDefect[];
+  currentProjectId: string | null;
   setFormData: (data: Partial<FormData>) => void;
   addImages: (files: File[], isSketch?: boolean) => Promise<void>;
   updateImageMetadata: (id: string, data: Partial<Omit<ImageMetadata, 'id' | 'file' | 'preview'>>) => void;
@@ -43,6 +44,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
   defectSortDirection: null,
   sketchSortDirection: null,
   bulkDefects: [],
+  currentProjectId: null,
 
   setFormData: (data) => {
     set((state) => ({
@@ -50,18 +52,16 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
     }));
     get().saveUserData().catch(console.error);
   },
-
+  
   addImages: async (files, isSketch = false) => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
-      // Upload files to Supabase storage and create image metadata
       const newImages = await Promise.all(files.map(async (file) => {
         const timestamp = new Date().getTime();
         const filePath = `${user.id}/${timestamp}-${file.name}`;
 
-        // Upload file to Supabase storage
         const { error: uploadError } = await supabase.storage
           .from('user-project-files')
           .upload(filePath, file, {
@@ -71,7 +71,6 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
 
         if (uploadError) throw uploadError;
 
-        // Get public URL for the file
         const { data: { publicUrl } } = supabase.storage
           .from('user-project-files')
           .getPublicUrl(filePath);
@@ -94,7 +93,6 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         images: [...state.images, ...newImages],
       }));
 
-      // Save project data after successful uploads
       await get().saveUserData();
     } catch (error) {
       console.error('Error adding images:', error);
@@ -140,11 +138,9 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
 
       const imageToRemove = get().images.find(img => img.id === id);
       if (imageToRemove?.publicUrl) {
-        // Extract file path from public URL
         const url = new URL(imageToRemove.publicUrl);
         const filePath = decodeURIComponent(url.pathname.split('/').slice(-2).join('/'));
         
-        // Delete file from storage
         const { error: deleteError } = await supabase.storage
           .from('user-project-files')
           .remove([filePath]);
@@ -246,7 +242,8 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       formData: initialFormData,
       defectSortDirection: null,
       sketchSortDirection: null,
-      bulkDefects: []
+      bulkDefects: [],
+      currentProjectId: null
     });
   },
 
@@ -267,29 +264,28 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         return;
       }
 
-      // Clear existing state first
       set({
         images: [],
         selectedImages: new Set(),
         formData: initialFormData,
         defectSortDirection: null,
         sketchSortDirection: null,
-        bulkDefects: []
+        bulkDefects: [],
+        currentProjectId: null
       });
 
-      // Load project data
       const { data: projects, error } = await supabase
         .from('projects')
         .select('*')
-        .eq('id', user.id);
+        .eq('user_id', user.id)
+        .order('updated_at', { ascending: false })
+        .limit(1);
 
       if (error) throw error;
 
-      // Get the most recent project if it exists
       const projectData = projects && projects.length > 0 ? projects[0] : null;
 
       if (projectData) {
-        // Load and verify each image
         const validImages = await Promise.all(
           (projectData.images || []).map(async (imgData: any) => {
             try {
@@ -320,14 +316,14 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           })
         );
 
-        // Filter out failed loads
         const images = validImages.filter((img): img is ImageMetadata => img !== null);
         const selectedImages = new Set(projectData.selected_images || []);
 
         set({
           formData: projectData.form_data || initialFormData,
           images,
-          selectedImages
+          selectedImages,
+          currentProjectId: projectData.id
         });
       }
     } catch (error) {
@@ -343,7 +339,6 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
 
       const state = get();
       
-      // Prepare images data for storage
       const imagesData = state.images.map(img => ({
         id: img.id,
         photoNumber: img.photoNumber,
@@ -356,21 +351,34 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         fileSize: img.file.size
       }));
 
-      const projectId = crypto.randomUUID();
+      const projectData = {
+        user_id: user.id,
+        form_data: state.formData,
+        images: imagesData,
+        selected_images: Array.from(state.selectedImages),
+        updated_at: new Date().toISOString()
+      };
 
-      // Create new project record
-      const { error } = await supabase
-        .from('projects')
-        .insert({
-          id: projectId,
-          user_id: user.id,
-          form_data: state.formData,
-          images: imagesData,
-          selected_images: Array.from(state.selectedImages),
-          updated_at: new Date().toISOString()
-        });
+      if (state.currentProjectId) {
+        const { error } = await supabase
+          .from('projects')
+          .update(projectData)
+          .eq('id', state.currentProjectId);
 
-      if (error) throw error;
+        if (error) throw error;
+      } else {
+        const newProjectId = crypto.randomUUID();
+        const { error } = await supabase
+          .from('projects')
+          .insert({
+            id: newProjectId,
+            ...projectData
+          });
+
+        if (error) throw error;
+
+        set({ currentProjectId: newProjectId });
+      }
     } catch (error) {
       console.error('Error saving user data:', error);
       throw error;

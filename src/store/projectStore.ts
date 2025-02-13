@@ -7,23 +7,13 @@ import { usePDFStore } from './pdfStore';
 interface ProjectState {
   isLoading: boolean;
   error: string | null;
-  formData: { elr: string; structureNo: string; date: string };
-  setFormData: (data: Partial<ProjectState['formData']>) => void;
   clearProject: () => Promise<void>;
 }
 
 export const useProjectStore = create<ProjectState>((set) => ({
   isLoading: false,
   error: null,
-  formData: {
-    elr: '',
-    structureNo: '',
-    date: new Date().toISOString().split('T')[0],
-  },
-  setFormData: (data) =>
-    set((state) => ({
-      formData: { ...state.formData, ...data },
-    })),
+
   clearProject: async () => {
     try {
       set({ isLoading: true, error: null });
@@ -68,7 +58,7 @@ export const useProjectStore = create<ProjectState>((set) => ({
       const { error: projectError } = await supabase
         .from('projects')
         .delete()
-        .eq('id', userId);
+        .eq('user_id', userId);
 
       if (projectError) {
         throw new Error(`Failed to delete project data: ${projectError.message}`);
@@ -90,7 +80,7 @@ export const useProjectStore = create<ProjectState>((set) => ({
       const { data: verifyProject } = await supabase
         .from('projects')
         .select('*')
-        .eq('id', userId)
+        .eq('user_id', userId)
         .maybeSingle();
 
       if (verifyProject) {

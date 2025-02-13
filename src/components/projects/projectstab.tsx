@@ -14,22 +14,23 @@ export const ProjectsTab: React.FC<ProjectsTabProps> = ({ setActiveTab }) => {
     const [projects, setProjects] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
 
-    useEffect(() => {
-        const fetchProjects = async () => {
-            setLoading(true);
-            try {
-                if (user?.id) {
-                    const projects = await getProjects(user.id);
-                    setProjects(projects.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
-                }
-            } catch (error) {
-                console.error('Error fetching projects:', error);
-            } finally {
-                setLoading(false);
+    const fetchProjects = async () => {
+        setLoading(true);
+        try {
+            if (user?.id) {
+                const fetchedProjects = await getProjects(user.id);
+                setProjects(fetchedProjects);
             }
-        };
+        } catch (error) {
+            console.error('Error fetching projects:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
         fetchProjects();
-    }, []);
+    }, [user?.id]);
 
     const handleCreateProject = async () => {
         setActiveTab('images'); 

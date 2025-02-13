@@ -448,17 +448,18 @@ export const getProject = async (projectId: string) => {
 
 export const getProjects = async (userId: string) => {
   try {
-    const { data: projects, error } = await supabase
+    const { data, error } = await supabase
       .from('projects')
       .select('*')
-      .eq('user_id', userId);
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
 
     if (error) {
       console.error('Get projects error:', error);
       throw error;
     }
 
-    return projects;
+    return data;
   } catch (error) {
     console.error('Get projects error:', error);
     throw error;

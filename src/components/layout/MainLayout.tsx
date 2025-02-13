@@ -144,7 +144,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                 ) : (
                   <Trash2 size={14} />
                 )}
-                {isLoading ? 'Processing...' : 'Delete Project'}
+                {isLoading ? 'Processing...' : 'Delete All Projects'}
               </button>
             )}
           </div>
