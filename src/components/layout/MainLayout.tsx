@@ -1,37 +1,22 @@
 import React, { useState, useEffect } from 'react';
-// import { useLocation } from 'react-router-dom';
-import { Images, Map, FileText, Calculator, Brain, Trash2, TowerControl as GameController, Loader2, WalletCards } from 'lucide-react';
+import { Loader2, Trash2 } from 'lucide-react';
 import { useMetadataStore } from '../../store/metadataStore';
 import { useProjectStore } from '../../store/projectStore';
-// import { usePDFStore } from '../../store/pdfStore';
 import { Header } from '../Header';
 import { Sidebar } from './Sidebar';
 import { MainContent } from './MainContent';
-import { GridReferenceFinder } from '../GridReferenceFinder/GridReferenceFinder';
-import { PDFViewer } from '../PDFViewer/PDFViewer';
-import { CalculatorTabs } from '../calculators/CalculatorTabs';
-import { SubscriptionTab } from '../subscriptions/subscriptionTab';
-import { GamesPage } from '../../pages/games.page';
-import { FeedbackTab } from '../FeedbackTab';
-import { ProjectsPage } from '../../pages/projects.pages';
-
-export type TabType = 'projects' | 'images' | 'pdf' | 'calculator' | 'bcmi' | 'grid' | 'games' | 'subscription';
 
 interface MainLayoutProps {
   children?: React.ReactNode;
 }
 
 export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
-  // const location = useLocation();
-  const [activeTab, setActiveTab] = useState<TabType>('images');
-  const { images, selectedImages, loadUserData } = useMetadataStore();
-  // const { file1, file2 } = usePDFStore();
+  const { images, loadUserData } = useMetadataStore();
   const { clearProject, isLoading: isClearingProject } = useProjectStore();
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
 
-  // Load user data only on initial mount
   useEffect(() => {
     const initialLoad = async () => {
       try {
@@ -46,24 +31,10 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     initialLoad();
   }, []);
 
-  // Auto-save changes
-  useEffect(() => {
-    if (images.length > 0 && !isInitialLoad) {
-      const saveTimeout = setTimeout(() => {
-        useMetadataStore.getState().saveUserData().catch(error => {
-          console.error('Error saving user data:', error);
-        });
-      }, 1000);
-
-      return () => clearTimeout(saveTimeout);
-    }
-  }, [images, selectedImages, isInitialLoad]);
-
   const handleClearProject = async () => {
     try {
       setIsLoadingData(true);
       await clearProject();
-      // Force reload user data after clearing
       await loadUserData();
       setShowClearConfirm(false);
     } catch (error) {
@@ -73,20 +44,15 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     }
   };
 
-  // If we're rendering children (like the profile page), just show the header
   if (children) {
     return (
       <>
         <Header />
         {children}
-        <FeedbackTab />
       </>
     );
   }
 
-  const isLoading = isClearingProject || isLoadingData;
-
-  // Show loading screen on initial load
   if (isInitialLoad) {
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-gray-900 flex flex-col">
@@ -94,7 +60,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         <main className="flex-1 flex items-center justify-center">
           <div className="text-center">
             <Loader2 className="w-8 h-8 animate-spin text-indigo-500 mx-auto mb-4" />
-            <p className="text-slate-600 dark:text-gray-400">Loading your project...</p>
+            <p className="text-slate-600 dark:text-gray-400">Just a Moment...</p>
           </div>
         </main>
       </div>
@@ -105,83 +71,11 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     <div className="min-h-screen bg-slate-50 dark:bg-gray-900 flex flex-col">
       <Header />
       <main className="flex-1 max-w-[1920px] mx-auto w-full px-2 overflow-hidden">
-        <div className="flex-shrink-0">
-          <div className="flex items-center justify-between border-b border-slate-200 dark:border-gray-700">
-            <div className="flex items-center gap-0.5">
-              {[
-                { id: 'projects', icon: FileText, label: 'My Projects' },
-                { id: 'images', icon: Images, label: 'Images' },
-                { id: 'pdf', icon: FileText, label: 'PDF' },
-                { id: 'calculator', icon: Calculator, label: 'Calc' },
-                { id: 'grid', icon: Map, label: 'Grid' },
-                { id: 'bcmi', icon: Brain, label: 'BCMI & AI' },
-                { id: 'games', icon: GameController, label: 'Games' },
-                { id: 'subscription', icon: WalletCards, label: 'Subscription' },
-              ].map(({ id, icon: Icon, label }) => (
-                <button
-                  key={id}
-                  onClick={() => setActiveTab(id as TabType)}
-                  className={`flex items-center gap-1 px-2 py-1.5 min-w-[70px] ${
-                    activeTab === id
-                      ? 'border-b-2 border-indigo-500 text-indigo-500'
-                      : 'text-slate-600 dark:text-gray-300'
-                  }`}
-                >
-                  <Icon size={14} />
-                  <span className="text-xs whitespace-nowrap">{label}</span>
-                </button>
-              ))}
-            </div>
-
-            {images.length > 0 && (
-              <button
-                onClick={() => setShowClearConfirm(true)}
-                className="flex items-center gap-1 px-2 py-1 text-xs text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors disabled:opacity-50"
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  <Loader2 size={14} className="animate-spin" />
-                ) : (
-                  <Trash2 size={14} />
-                )}
-                {isLoading ? 'Processing...' : 'Delete All Projects'}
-              </button>
-            )}
+        <div className="h-full grid grid-cols-1 lg:grid-cols-12 gap-4 mt-5">
+          <div className="lg:col-span-2 overflow-hidden">
+            <Sidebar />
           </div>
-        </div>
-
-        <div className="flex-1 h-[calc(100vh-96px)] overflow-hidden">
-          <div className={`transition-opacity duration-300 ${isLoading ? 'opacity-50' : 'opacity-100'}`}>
-          {activeTab === 'projects' ? (
-            <ProjectsPage />
-          ) : activeTab === 'images' ? (
-            <div className="h-full grid grid-cols-1 lg:grid-cols-12 gap-4">
-              <div className="lg:col-span-2 overflow-hidden">
-                <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
-              </div>
-              <MainContent />
-            </div>
-          ) : activeTab === 'pdf' ? (
-            <div className="h-full">
-              <PDFViewer />
-            </div>
-          ) : activeTab === 'calculator' ? (
-            <CalculatorTabs />
-          ) : activeTab === 'grid' ? (
-            <GridReferenceFinder />
-          ) : activeTab === 'games' ? (
-            <GamesPage />
-          ) : activeTab === 'subscription' ? (
-            <SubscriptionTab />
-          ) : (
-            <div className="h-full flex items-center justify-center text-slate-400 dark:text-gray-500">
-              <div className="text-center">
-                <Brain size={48} className="mx-auto mb-4 opacity-50" />
-                <p>BCMI & AI features coming soon!</p>
-              </div>
-            </div>
-          )}
-          </div>
+          <MainContent />
         </div>
       </main>
 
@@ -203,10 +97,10 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               </button>
               <button
                 onClick={handleClearProject}
-                disabled={isLoading}
+                disabled={isLoadingData}
                 className="px-4 py-2 text-sm bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50 flex items-center gap-2"
               >
-                {isLoading ? (
+                {isLoadingData ? (
                   <>
                     <Loader2 size={14} className="animate-spin" />
                     Clearing...
@@ -219,9 +113,6 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           </div>
         </div>
       )}
-
-      <FeedbackTab />
-
     </div>
   );
 };
