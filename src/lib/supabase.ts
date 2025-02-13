@@ -399,23 +399,7 @@ export const cancelSubscription = async (userId: string) => {
 
 // Project Functions
 export const createProject = async (userId: string, formData: any, images: any[]) => {
-  console.log("Checking if user exists:", userId);
-
-  // Check if user exists before inserting
-  const { data: userExists, error: userError } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', userId)
-    .single();
-
-  if (userError || !userExists) {
-    console.log("User does not exist. Cannot create project.");
-    throw new Error("User not found");
-  }
-
   try {
-    console.log(`Creating project for user: ${userId}`);
-
     const { data, error } = await supabase
       .from('projects')
       .insert([
@@ -464,7 +448,6 @@ export const getProject = async (projectId: string) => {
 
 export const getProjects = async (userId: string) => {
   try {
-    console.log(`Getting projects for user: ${userId}`);
     const { data: projects, error } = await supabase
       .from('projects')
       .select('*')

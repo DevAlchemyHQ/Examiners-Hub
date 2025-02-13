@@ -13,7 +13,7 @@ import { CalculatorTabs } from '../calculators/CalculatorTabs';
 import { SubscriptionTab } from '../subscriptions/subscriptionTab';
 import { GameTabs } from '../games/GameTabs';
 import { FeedbackTab } from '../FeedbackTab';
-import { ProjectsTab } from '../projects/projectstab';
+import { ProjectsTab } from '../projects/projectsTab';
 
 export type TabType = 'projects' | 'images' | 'pdf' | 'calculator' | 'bcmi' | 'grid' | 'games' | 'subscription';
 

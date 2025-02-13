@@ -1,19 +1,29 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
-import { useAuthStore } from './authStore';
+// import { useAuthStore } from './authStore';
 import { useMetadataStore } from './metadataStore';
 import { usePDFStore } from './pdfStore';
 
 interface ProjectState {
   isLoading: boolean;
   error: string | null;
+  formData: { elr: string; structureNo: string; date: string };
+  setFormData: (data: Partial<ProjectState['formData']>) => void;
   clearProject: () => Promise<void>;
 }
 
 export const useProjectStore = create<ProjectState>((set) => ({
   isLoading: false,
   error: null,
-
+  formData: {
+    elr: '',
+    structureNo: '',
+    date: new Date().toISOString().split('T')[0],
+  },
+  setFormData: (data) =>
+    set((state) => ({
+      formData: { ...state.formData, ...data },
+    })),
   clearProject: async () => {
     try {
       set({ isLoading: true, error: null });
