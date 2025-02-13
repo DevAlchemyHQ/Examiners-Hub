@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, Sun, Moon, Info, User, Camera, Settings, XCircle } from 'lucide-react';
+import { LogOut, Sun, Moon, Info, User, Camera, Settings, XCircle, CreditCard } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useThemeStore } from '../store/themeStore';
 import { WeatherDate } from './WeatherDate';
@@ -23,6 +23,10 @@ export const Header: React.FC = () => {
   const billingDate = new Date();
   billingDate.setMonth(billingDate.getMonth() + 1);
 
+
+  const handleSubsciption = () => {
+    navigate('/subscriptions');
+  }
 
   const handleLogout = async () => {
     try {
@@ -166,6 +170,12 @@ export const Header: React.FC = () => {
                       className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-gray-700/50 rounded-lg flex items-center gap-2">
                       <User size={16} />
                       Edit Profile
+                    </button>
+                    <button 
+                      onClick={handleSubsciption}
+                      className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-gray-700/50 rounded-lg flex items-center gap-2">
+                      <CreditCard size={16} />
+                      Manage Subscription
                     </button>
                     <button className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-gray-700/50 rounded-lg flex items-center gap-2">
                       <Settings size={16} />
