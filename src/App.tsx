@@ -7,6 +7,7 @@ import { MainLayout } from './components/layout/MainLayout';
 import { FeedbackAdmin } from './pages/FeedbackAdmin';
 import { UserProfile } from './components/profile/UserProfile';
 import { ProjectsPage } from './pages/projects.pages';
+import { SubscriptionPage } from './pages/subscription.page';
 
 const ProtectedRoute: React.FC = () => {
   const { isAuthenticated } = useAuthStore();
@@ -43,6 +44,7 @@ const App: React.FC = () => {
           <Route path="/projects" element={<ProjectsPage />} />
           <Route path="/feedback" element={<FeedbackAdmin />} />
           <Route path="/profile" element={<UserProfile />} />
+          <Route path="/subscriptions" element={<SubscriptionPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
