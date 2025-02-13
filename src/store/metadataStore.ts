@@ -356,17 +356,14 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         fileSize: img.file.size
       }));
 
-      // Delete existing project first to ensure clean state
-      await supabase
-        .from('projects')
-        .delete()
-        .eq('id', user.id);
+      const projectId = crypto.randomUUID();
 
       // Create new project record
       const { error } = await supabase
         .from('projects')
         .insert({
-          id: user.id,
+          id: projectId,
+          user_id: user.id,
           form_data: state.formData,
           images: imagesData,
           selected_images: Array.from(state.selectedImages),
@@ -374,6 +371,8 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         });
 
       if (error) throw error;
+
+      return projectId;
     } catch (error) {
       console.error('Error saving user data:', error);
       throw error;
