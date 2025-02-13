@@ -371,8 +371,6 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         });
 
       if (error) throw error;
-
-      return projectId;
     } catch (error) {
       console.error('Error saving user data:', error);
       throw error;
