@@ -11,6 +11,7 @@ import { SubscriptionPage } from './pages/subscription.page';
 import { GamesPage } from './pages/games.page';
 import { CalculatorPage } from './pages/calculator.page';
 import { GridReferenceFinderPage } from './pages/grid.page';
+import { PDFViewerPage } from './pages/pdf.page';
 
 const ProtectedRoute: React.FC = () => {
   const { isAuthenticated } = useAuthStore();
@@ -51,6 +52,7 @@ const App: React.FC = () => {
           <Route path="/calculator" element={<CalculatorPage />} />
           <Route path="/games" element={<GamesPage />} />
           <Route path="/grid" element={<GridReferenceFinderPage />} />
+          <Route path="/pdf" element={<PDFViewerPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
