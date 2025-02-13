@@ -28,20 +28,22 @@ const App: React.FC = () => {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Login Route */}
-        <Route path="/" element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <LoginScreen />} />
-
-        {/* Protected Routes */}
+        <Route
+          path="/"
+          element={
+            isAuthenticated ? (
+              <Navigate to={sessionStorage.getItem("lastPath") || "/projects"} replace />
+            ) : (
+              <LoginScreen />
+            )
+          }
+        />
         <Route element={<ProtectedRoute />}>
           <Route path="/dashboard" element={<MainLayout />} />
-
-          {/* Independent Pages */}
           <Route path="/projects" element={<ProjectsPage />} />
           <Route path="/feedback" element={<FeedbackAdmin />} />
           <Route path="/profile" element={<UserProfile />} />
         </Route>
-
-        {/* Redirect all unknown routes */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
