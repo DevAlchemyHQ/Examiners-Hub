@@ -79,7 +79,9 @@ export const Header: React.FC = () => {
     <header className="bg-white dark:bg-gray-800 shadow-sm">
       <div className="max-w-7xl mx-auto px-4">
         <div className="h-16 flex items-center justify-between">
-          <h1 className="text-xl font-bold text-slate-800 dark:text-white">
+          <h1 
+            onClick = {() => navigate('/dashboard')}
+            className="text-xl font-bold text-slate-800 dark:text-white">
             Welcome to Exametry 🙂
           </h1>
 

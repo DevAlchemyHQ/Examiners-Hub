@@ -11,9 +11,9 @@ import { GridReferenceFinder } from '../GridReferenceFinder/GridReferenceFinder'
 import { PDFViewer } from '../PDFViewer/PDFViewer';
 import { CalculatorTabs } from '../calculators/CalculatorTabs';
 import { SubscriptionTab } from '../subscriptions/subscriptionTab';
-import { GameTabs } from '../games/GameTabs';
+import { GamesPage } from '../../pages/games.page';
 import { FeedbackTab } from '../FeedbackTab';
-// import { ProjectsTab } from '../../pages/projects.pages';
+import { ProjectsPage } from '../../pages/projects.pages';
 
 export type TabType = 'projects' | 'images' | 'pdf' | 'calculator' | 'bcmi' | 'grid' | 'games' | 'subscription';
 
@@ -153,8 +153,8 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         <div className="flex-1 h-[calc(100vh-96px)] overflow-hidden">
           <div className={`transition-opacity duration-300 ${isLoading ? 'opacity-50' : 'opacity-100'}`}>
           {activeTab === 'projects' ? (
-            // <ProjectsTab setActiveTab={setActiveTab} activeTab={activeTab} />
-          // ) : activeTab === 'images' ? (
+            <ProjectsPage />
+          ) : activeTab === 'images' ? (
             <div className="h-full grid grid-cols-1 lg:grid-cols-12 gap-4">
               <div className="lg:col-span-2 overflow-hidden">
                 <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
@@ -170,7 +170,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           ) : activeTab === 'grid' ? (
             <GridReferenceFinder />
           ) : activeTab === 'games' ? (
-            <GameTabs />
+            <GamesPage />
           ) : activeTab === 'subscription' ? (
             <SubscriptionTab />
           ) : (
