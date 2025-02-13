@@ -7,7 +7,7 @@ import { getProjects } from '../lib/supabase';
 
 export const ProjectsPage: React.FC = () => {
     const { user } = useAuthStore();
-    const navigate = useNavigate(); // ✅ Navigation hook
+    const navigate = useNavigate();
     const [projects, setProjects] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 

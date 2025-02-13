@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { LogOut, Sun, Moon, Info, User, Camera, Settings, XCircle } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useThemeStore } from '../store/themeStore';
@@ -8,6 +9,7 @@ import { signOut, updateUserProfile } from '../lib/supabase';
 
 
 export const Header: React.FC = () => {
+  const navigate = useNavigate();
   const { logout, user } = useAuthStore();
   const { setUser } = useAuthStore();
   const { isDark, toggle } = useThemeStore();
@@ -27,6 +29,7 @@ export const Header: React.FC = () => {
       setShowProfileMenu(false);
       await signOut();
       await logout();
+      navigate("/");
     } catch (error) {
       console.error('Logout error:', error);
     }
