@@ -33,7 +33,7 @@ export const ProjectsTab: React.FC<ProjectsTabProps> = ({ setActiveTab }) => {
     }, [user?.id]);
 
     const handleCreateProject = async () => {
-        setActiveTab('images'); 
+        setActiveTab('images');
     };
     
     return (
