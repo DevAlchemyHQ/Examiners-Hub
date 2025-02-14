@@ -107,9 +107,8 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
   },
 
   setImages: (images) => {
-    TODO: // set(() => ({ images }));
-    // set(() => ({ images }));
-    get().saveUserData().catch(console.error);
+    set(() => ({ images }));
+    // get().saveUserData().catch(console.error);
   },
 
   updateImageMetadata: (id, data) => {
