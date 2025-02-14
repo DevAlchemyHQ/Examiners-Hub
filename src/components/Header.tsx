@@ -4,7 +4,7 @@ import { LogOut, Sun, Moon, Info, User, Camera, Settings, XCircle, CreditCard, M
 import { useAuthStore } from '../store/authStore';
 import { useThemeStore } from '../store/themeStore';
 import { WeatherDate } from './WeatherDate';
-// import { EditProfileModal } from './profile/EditProfile';
+import { EditProfileModal } from './profile/EditProfile';
 import { signOut, updateUserProfile } from '../lib/supabase';
 
 export const Header: React.FC = () => {
@@ -15,7 +15,7 @@ export const Header: React.FC = () => {
   const { isDark, toggle } = useThemeStore();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showBetaInfo, setShowBetaInfo] = useState(false);
-  // const [showEditProfile, setShowEditProfile] = useState(false);
+  const [showEditProfile, setShowEditProfile] = useState(false);
   const [showUnsubscribeModal, setShowUnsubscribeModal] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -213,12 +213,12 @@ export const Header: React.FC = () => {
 
                   {/* Menu Items */}
                   <div className="p-2">
-                    {/* <button 
+                    <button 
                       onClick={() => setShowEditProfile(true)}
                       className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-gray-700/50 rounded-lg flex items-center gap-2">
                       <User size={16} />
                       Edit Profile
-                    </button> */}
+                    </button>
                     <button 
                       onClick={handleSubsciption}
                       className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-gray-700/50 rounded-lg flex items-center gap-2">
@@ -300,7 +300,7 @@ export const Header: React.FC = () => {
         </div>
       )}
 
-      {/* {showEditProfile && <EditProfileModal isOpen={showEditProfile} onClose={() => setShowEditProfile(false)} />} */}
+      {showEditProfile && <EditProfileModal isOpen={showEditProfile} onClose={() => setShowEditProfile(false)} />}
 
       {showUnsubscribeModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">

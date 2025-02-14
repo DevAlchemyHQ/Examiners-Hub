@@ -12,7 +12,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
     const { user, setUser } = useAuthStore();
     const [fullName, setFullName] = useState(user?.user_metadata.full_name || '');
     const [avatarUrl, setAvatarUrl] = useState(user?.user_metadata.avatar_url || '');
-    const [subscription, setSubscription] = useState(user?.user_metadata.subscription_plan || 'Up Fast');
+    const [subscription, setSubscription] = useState(user?.user_metadata.subscription_plan || 'Basic');
     const [avatarFile, setAvatarFile] = useState<File | null>(null);
     const [uploading, setUploading] = useState(false);
 
@@ -125,9 +125,9 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
                         onChange={(e) => setSubscription(e.target.value)}
                         className="w-full p-3 border rounded-lg mt-1 dark:bg-gray-800 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-blue-500"
                     >
+                        <option value="Basic">Basic</option>
                         <option value="Up Fast">Up Fast</option>
                         <option value="Premium">Premium</option>
-                        <option value="Basic">Basic</option>
                     </select>
                 </div>
 
