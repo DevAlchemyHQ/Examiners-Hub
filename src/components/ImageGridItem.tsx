@@ -18,19 +18,16 @@ export const ImageGridItem: React.FC<ImageGridItemProps> = ({ images, gridWidth 
   const rowVirtualizer = useVirtualizer({
     count: Math.ceil(images.length / gridWidth),
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 200,
-    overscan: 5,
+    estimateSize: () => 220,
+    overscan: 10,
   });
 
   return (
     <>
       <div 
         ref={parentRef} 
-        className="h-full overflow-y-auto scrollbar-thin"
-        style={{ 
-          overscrollBehavior: 'contain',
-          WebkitOverflowScrolling: 'touch'
-        }}
+        className="h-full overflow-y-scroll scrollbar-thin min-h-screen"
+        style={{ overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch' }}
       >
         <div
           style={{
@@ -65,9 +62,9 @@ export const ImageGridItem: React.FC<ImageGridItemProps> = ({ images, gridWidth 
                         isSelected ? 'ring-2 ring-indigo-500' : ''
                       }`}>
                         <img
-                          src={img.preview}
+                          src={img?.preview || img.publicUrl}
                           alt={img.file?.name || img.fileName || 'Image'}
-                          className="w-full h-full object-cover select-none"
+                          className="w-full h-full object-contain select-none"
                           loading="lazy"
                           draggable="false"
                         />
@@ -106,7 +103,10 @@ export const ImageGridItem: React.FC<ImageGridItemProps> = ({ images, gridWidth 
       </div>
 
       {enlargedImage && (
-        <div className="fixed inset-0 bg-black/75 z-[9999] flex items-center justify-center">
+        <div 
+          className="fixed inset-0 bg-black/75 z-[9999] flex items-center justify-center"
+          onClick={() => setEnlargedImage(null)}
+        >
           <ImageZoom
             src={enlargedImage}
             alt="Enlarged view"

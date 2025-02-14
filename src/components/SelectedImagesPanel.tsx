@@ -248,8 +248,8 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({
                     <div key={img.id} className="flex flex-col bg-slate-50 dark:bg-gray-700 rounded-lg overflow-hidden">
                       <div className="relative aspect-square">
                         <img
-                          src={img.preview}
-                          alt={img.file.name}
+                          src={img?.preview || img.publicUrl}
+                          alt={img.file?.name || img.fileName || 'Image'}
                           className="w-full h-full object-cover cursor-pointer hover:opacity-95 transition-opacity select-none"
                           onClick={() => setEnlargedImage(img.preview)}
                           draggable="false"
@@ -264,7 +264,7 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({
                       
                       <div className="p-2">
                         <div className="text-xs text-slate-500 dark:text-gray-400 truncate mb-1">
-                          {img.file.name}
+                          {img.file?.name || img.fileName || 'Image'}
                         </div>
                         <input
                           type="number"
@@ -304,8 +304,8 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({
                     <div key={img.id} className="flex flex-col bg-slate-50 dark:bg-gray-700 rounded-lg overflow-hidden">
                       <div className="relative aspect-square">
                         <img
-                          src={img.preview}
-                          alt={img.file.name}
+                          src={img?.preview || img.publicUrl}
+                          alt={img.file?.name || img.fileName || 'Image'}
                           className="w-full h-full object-cover cursor-pointer hover:opacity-95 transition-opacity select-none"
                           onClick={() => setEnlargedImage(img.preview)}
                           draggable="false"
@@ -320,7 +320,7 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({
                       
                       <div className="p-2 space-y-1">
                         <div className="text-xs text-slate-500 dark:text-gray-400 truncate">
-                          {img.file.name}
+                          {img.file?.name || img.fileName || 'Image'}
                         </div>
                         <input
                           type="number"
