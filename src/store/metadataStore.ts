@@ -87,7 +87,10 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           preview: URL.createObjectURL(file),
           isSketch,
           publicUrl,
-          userId: user.id
+          userId: user.id,
+          fileName: file.name,
+          fileSize: file.size,
+          fileType: file.type
         };
       }));
 
@@ -104,7 +107,9 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
   },
 
   setImages: (images) => {
-    set({ images });
+    TODO: // set(() => ({ images }));
+    // set(() => ({ images }));
+    get().saveUserData().catch(console.error);
   },
 
   updateImageMetadata: (id, data) => {
