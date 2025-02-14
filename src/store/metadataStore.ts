@@ -37,6 +37,19 @@ interface MetadataState {
   saveUserData: () => Promise<void>;
 }
 
+// Debounce function
+const debounce = <T extends (...args: any[]) => Promise<void>>(func: T, wait: number): T => {
+  let timeout: NodeJS.Timeout;
+  return ((...args: any[]) => {
+    clearTimeout(timeout);
+    return new Promise<void>((resolve) => {
+      timeout = setTimeout(() => {
+        func(...args).then(resolve);
+      }, wait);
+    });
+  }) as T;
+};
+
 export const useMetadataStore = create<MetadataState>((set, get) => ({
   images: [],
   selectedImages: new Set(),
@@ -49,7 +62,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
     set((state) => ({
       formData: { ...state.formData, ...data },
     }));
-    get().saveUserData().catch(console.error);
+    get().saveUserData();
   },
   
   addImages: async (files, isSketch = false) => {
@@ -108,7 +121,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
 
   setImages: (images) => {
     set(() => ({ images }));
-    // get().saveUserData().catch(console.error);
+    get().saveUserData();
   },
 
   updateImageMetadata: (id, data) => {
@@ -137,7 +150,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         return 0;
       });
 
-      get().saveUserData().catch(console.error);
+      get().saveUserData();
       return { images: sortedImages };
     });
   },
@@ -182,7 +195,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         newSelected.add(id);
       }
       
-      get().saveUserData().catch(console.error);
+      get().saveUserData();
       return { selectedImages: newSelected };
     });
   },
@@ -195,7 +208,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           : img
       );
       
-      get().saveUserData().catch(console.error);
+      get().saveUserData();
       return {
         selectedImages: new Set(),
         images: updatedImages
@@ -345,7 +358,8 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
     }
   },
 
-  saveUserData: async () => {
+
+  saveUserData: debounce(async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
@@ -384,5 +398,5 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       console.error('Error saving user data:', error);
       throw error;
     }
-  }
+  }, 60000),   
 }));
