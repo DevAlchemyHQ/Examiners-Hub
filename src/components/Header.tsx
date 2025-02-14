@@ -103,7 +103,7 @@ export const Header: React.FC = () => {
               <Menu size={20} />
             </button>
             <h1 
-              onClick={() => navigate('/dashboard')}
+              onClick={() => navigate('/projects')}
               className="text-xl font-bold text-slate-800 dark:text-white cursor-pointer shrink-0">
               Welcome to Exametry 🙂
             </h1>
