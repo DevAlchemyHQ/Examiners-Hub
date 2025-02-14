@@ -16,6 +16,12 @@ export const MetadataForm: React.FC<MetadataFormProps> = ({ selectedProject }) =
         structureNo: selectedProject.form_data.structureNo || '',
         date: selectedProject.form_data.date || ''
       });
+    } else {
+      setFormData({
+        elr: '',
+        structureNo: '',
+        date: ''
+      });
     }
   }, [selectedProject, setFormData]);
 
@@ -27,7 +33,6 @@ export const MetadataForm: React.FC<MetadataFormProps> = ({ selectedProject }) =
     const value = e.target.value;
     const [year] = value.split('-');
     
-    // Validate year is between 1900 and 9999
     if (year) {
       const yearNum = parseInt(year);
       if (yearNum < 1900 || yearNum > 9999) return;
