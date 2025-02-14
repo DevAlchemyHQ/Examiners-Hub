@@ -1,30 +1,43 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { useMetadataStore } from '../store/metadataStore';
 import { Header } from '../components/Header';
 import { Sidebar } from '../components/layout/Sidebar';
 import { MainContent } from '../components/layout/MainContent';
+import { getProject } from '../lib/supabase';
 
 interface MainLayoutProps {
     children?: React.ReactNode;
 }
 
 export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
-    const { loadUserData } = useMetadataStore();
     const [isLoading, setIsLoading] = useState(true);
+    const [selectedProject, setSelectedProject] = useState<any | null>(null);
+    const { projectId } = useParams();
+    const navigate = useNavigate();
+    const { loadUserData, reset: resetMetadata } = useMetadataStore();
 
     useEffect(() => {
-        const fetchData = async () => {
-            try {
-                await loadUserData();
-            } catch (error) {
-                console.error('Error loading user data:', error);
-            } finally {
-                setIsLoading(false);
+        const fetchProject = async () => {
+            if (projectId) {
+                try {
+                    const project = await getProject(projectId);
+                    if (project) {
+                        setSelectedProject(project);
+                    } else {
+                        navigate('/projects');
+                    }
+                } catch (error) {
+                    console.error('Error fetching project:', error);
+                    resetMetadata();
+                    navigate('/projects');
+                }
             }
+            setIsLoading(false);
         };
-        fetchData();
-    }, []);
+        fetchProject();
+    }, [projectId, navigate]);
 
     if (children) {
         return (
@@ -51,7 +64,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                 <div className="lg:col-span-2">
                     <Sidebar />
                 </div>
-                <MainContent />
+                <MainContent selectedProject={selectedProject} />
             </main>
         </div>
     );

@@ -66,7 +66,7 @@ export const ImageGridItem: React.FC<ImageGridItemProps> = ({ images, gridWidth 
                       }`}>
                         <img
                           src={img.preview}
-                          alt={img.file.name}
+                          alt={img.file?.name || img.fileName || 'Image'}
                           className="w-full h-full object-cover select-none"
                           loading="lazy"
                           draggable="false"
@@ -81,7 +81,7 @@ export const ImageGridItem: React.FC<ImageGridItemProps> = ({ images, gridWidth 
                           </div>
                         )}
                         <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white p-1.5 text-xs truncate">
-                          {img.file.name}
+                          {img.file?.name || img.fileName || 'Image'}
                         </div>
                         
                         <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all">

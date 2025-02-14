@@ -1,12 +1,25 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useMetadataStore } from '../store/metadataStore';
 import { ImageGridItem } from './ImageGridItem';
 import { GridWidthControl } from './GridWidthControl';
 import { useGridWidth } from '../hooks/useGridWidth';
 
-export const ImageGrid: React.FC = () => {
-  const { images } = useMetadataStore();
+interface ImageGridProps {
+  projectId: string;
+  projectImages: any[];
+}
+
+export const ImageGrid: React.FC<ImageGridProps> = ({ projectId, projectImages }) => {
+  const { images, setImages } = useMetadataStore();
   const { gridWidth, setGridWidth } = useGridWidth();
+
+  useEffect(() => {
+    if (projectImages && projectImages.length > 0) {
+      setImages(projectImages);
+    } else {
+      setImages([]);
+    }
+  }, [projectId, projectImages, setImages]);
 
   // Separate sketches and defects
   const sketchImages = images.filter(img => img.isSketch);

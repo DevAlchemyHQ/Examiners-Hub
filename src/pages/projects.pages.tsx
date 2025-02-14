@@ -1,13 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Loader2, PlusCircle, Trash, XCircle } from 'lucide-react';
-import { Header } from '../components/Header';
-import { useAuthStore } from '../store/authStore';
 import { getProject, getProjects, deleteProject, createProject } from '../lib/supabase';
+import { useAuthStore } from '../store/authStore';
+import { useMetadataStore } from '../store/metadataStore';
+import { Header } from '../components/Header';
 
 export const ProjectsPage: React.FC = () => {
     const { user } = useAuthStore();
     const navigate = useNavigate();
+    const { reset: resetMetadata } = useMetadataStore();
     const [projects, setProjects] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -32,29 +34,6 @@ export const ProjectsPage: React.FC = () => {
         fetchProjects();
     }, [user?.id]);
 
-    const handleProjectClick = async (projectId: string) => {
-        try {
-            const projectData = await getProject(projectId);
-            if (projectData) {
-                navigate(`/dashboard?projectId=${projectId}`, { state: { project: projectData } });
-            }
-        } catch (error) {
-            console.error("Error fetching project:", error);
-        }
-    };
-
-    const handleDeleteProject = async () => {
-        if (!selectedProject) return;
-        try {
-            await deleteProject(selectedProject.id);
-            setProjects((prev) => prev.filter((project) => project.id !== selectedProject.id));
-            setShowDeleteModal(false);
-            setSelectedProject(null);
-        } catch (error) {
-            console.error("Error deleting project:", error);
-        }
-    };
-
     const handleCreateProject = async () => {
         try {
             if (!user) {
@@ -66,10 +45,35 @@ export const ProjectsPage: React.FC = () => {
             if (newProjects && newProjects.length > 0) {
                 const newProject = newProjects[0];
                 setProjects((prev) => [...prev, newProject]);
-                navigate(`/dashboard?projectId=${newProject.id}`, { state: { project: newProject } });
+                resetMetadata();
+                navigate(`/dashboard/${newProject.id}`);
             }
         } catch (error) {
             console.error("Error creating project:", error);
+        }
+    };
+    
+    const handleProjectClick = async (projectId: string) => {
+        // try {
+        //     const projectData = await getProject(projectId);
+        //     if (projectData) {
+                resetMetadata();
+                navigate(`/dashboard/${projectId}`);
+        //     }
+        // } catch (error) {
+        //     console.error("Error fetching project:", error);
+        // }
+    };
+
+    const handleDeleteProject = async () => {
+        if (!selectedProject) return;
+        try {
+            await deleteProject(selectedProject.id);
+            setProjects((prev) => prev.filter((project) => project.id !== selectedProject.id));
+            setShowDeleteModal(false);
+            setSelectedProject(null);
+        } catch (error) {
+            console.error("Error deleting project:", error);
         }
     };
 

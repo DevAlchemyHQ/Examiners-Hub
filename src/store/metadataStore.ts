@@ -23,6 +23,7 @@ interface MetadataState {
   bulkDefects: BulkDefect[];
   setFormData: (data: Partial<FormData>) => void;
   addImages: (files: File[], isSketch?: boolean) => Promise<void>;
+  setImages: (images: ImageMetadata[]) => void;
   updateImageMetadata: (id: string, data: Partial<Omit<ImageMetadata, 'id' | 'file' | 'preview'>>) => void;
   removeImage: (id: string) => Promise<void>;
   toggleImageSelection: (id: string) => void;
@@ -100,6 +101,10 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       console.error('Error adding images:', error);
       throw error;
     }
+  },
+
+  setImages: (images) => {
+    set({ images });
   },
 
   updateImageMetadata: (id, data) => {
@@ -351,9 +356,9 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         isSketch: img.isSketch,
         publicUrl: img.publicUrl,
         userId: img.userId,
-        fileName: img.file.name,
-        fileType: img.file.type,
-        fileSize: img.file.size
+        fileName: img.file?.name || img.fileName,
+        fileType: img.file?.type || img.fileType,
+        fileSize: img.file?.size || img.fileSize
       }));
 
       const projectId = crypto.randomUUID();

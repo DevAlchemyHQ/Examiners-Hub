@@ -1,6 +1,9 @@
 export interface ImageMetadata {
   id: string;
   file: File;
+  fileName: string;
+  fileSize: number;
+  fileType: string;
   photoNumber: string;
   description: string;
   preview: string;

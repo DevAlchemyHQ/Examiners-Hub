@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useMetadataStore } from '../store/metadataStore';
 import { X, Trash2, ArrowUpDown, AlertTriangle, Maximize2, Minimize2, Images, FileText } from 'lucide-react';
 import { ImageZoom } from './ImageZoom';
@@ -7,6 +7,13 @@ import { BulkTextInput } from './BulkTextInput';
 import type { ImageMetadata } from '../types';
 
 type ViewMode = 'images' | 'text';
+
+interface SelectedImagesPanelProps {
+  onExpand: () => void;
+  isExpanded: boolean;
+  projectId: string;
+  projectImages: any[];
+}
 
 const SortButton: React.FC<{
   direction: 'asc' | 'desc' | null;
@@ -44,7 +51,12 @@ interface SelectedImagesPanelProps {
   isExpanded: boolean;
 }
 
-export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpand, isExpanded }) => {
+export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ 
+  onExpand, 
+  isExpanded, 
+  projectId,
+  projectImages 
+}) => {
   const {
     images,
     selectedImages,
@@ -55,8 +67,23 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
     sketchSortDirection,
     setDefectSortDirection,
     setSketchSortDirection,
-    getSelectedCounts
+    getSelectedCounts,
+    setImages
   } = useMetadataStore();
+
+  useEffect(() => {
+    if (projectImages && projectImages.length > 0) {
+      setImages(projectImages);
+    } else {
+      setImages([]);
+    }
+  }, [projectId, projectImages, setImages]);
+
+  useEffect(() => {
+    clearSelectedImages();
+  }, [projectId]);
+
+
   const [enlargedImage, setEnlargedImage] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('images');
   

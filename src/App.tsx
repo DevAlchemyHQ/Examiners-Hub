@@ -45,6 +45,7 @@ const App: React.FC = () => {
         />
         <Route element={<ProtectedRoute />}>
           <Route path="/dashboard" element={<MainLayout />} />
+          <Route path="/dashboard/:projectId" element={<MainLayout />} />
           <Route path="/projects" element={<ProjectsPage />} />
           <Route path="/feedback" element={<FeedbackAdmin />} />
           <Route path="/profile" element={<UserProfile />} />
