@@ -56,10 +56,15 @@ export const ProjectsPage: React.FC = () => {
     };
 
     const handleCreateProject = async () => {
-        if (!user) return "User not found";
         try {
-            const newProject = await createProject(user.id, {}, []);
-            if (newProject) {
+            if (!user) {
+                console.error("User is not authenticated");
+                return;
+            }
+            const newProjects = await createProject(user.id, {}, []);
+    
+            if (newProjects && newProjects.length > 0) {
+                const newProject = newProjects[0];
                 setProjects((prev) => [...prev, newProject]);
                 navigate(`/dashboard?projectId=${newProject.id}`, { state: { project: newProject } });
             }
