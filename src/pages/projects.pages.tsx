@@ -57,7 +57,7 @@ export const ProjectsPage: React.FC = () => {
         // try {
         //     const projectData = await getProject(projectId);
         //     if (projectData) {
-                resetMetadata();
+                // resetMetadata();
                 navigate(`/dashboard/${projectId}`);
         //     }
         // } catch (error) {
