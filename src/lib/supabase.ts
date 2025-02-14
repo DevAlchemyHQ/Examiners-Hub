@@ -1,5 +1,7 @@
+import { v4 as uuidv4 } from 'uuid';
 import { createClient } from '@supabase/supabase-js';
 import type { UserProfile } from '../types/profile';
+import { useAuthStore } from '../store/authStore';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -25,12 +27,21 @@ export const signInWithEmail = async (email: string, password: string) => {
       email,
       password
     });
-    
+
     if (error) {
       console.error('Login error:', error.message);
       throw error;
     }
-    
+
+    // Fetch the logged-in user
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (user) {
+      console.log('User logged in:', user);
+      useAuthStore.getState().setUser(user);
+      useAuthStore.getState().setAuth(true);
+    }
+
     console.log('Login successful');
     return data;
   } catch (error) {
@@ -265,11 +276,13 @@ export const updateUserProfile = async (userId: string, updates: Partial<UserPro
     console.log(`Updating profile for user: ${userId} with updates:`, updates);
     
     // Update auth metadata if name or emoji is being updated
-    if (updates.full_name || updates.avatar_emoji) {
+    if (updates.full_name || updates.avatar_emoji || updates.avatar_url || updates.subscription_status) {
       const { error: authError } = await supabase.auth.updateUser({
         data: {
           full_name: updates.full_name,
           avatar_emoji: updates.avatar_emoji,
+          avatar_url: updates.avatar_url,
+          subscription_plan: updates.subscription_status
         }
       });
 
@@ -360,6 +373,132 @@ export const uploadAvatar = async (userId: string, file: File): Promise<string> 
     return publicUrl;
   } catch (error) {
     console.error('Error uploading avatar:', error);
+    throw error;
+  }
+};
+
+export const cancelSubscription = async (userId: string) => {
+  try {
+    console.log(`Cancelling subscription for user: ${userId}`);
+    const { error } = await supabase
+      .from('profiles')
+      .update({ subscription_status: 'Basic' })
+      .eq('id', userId);
+
+    if (error) {
+      console.error('Subscription cancellation error:', error);
+      throw error;
+    }
+
+    console.log('Subscription cancelled successfully');
+  } catch (error) {
+    console.error('Subscription cancellation error:', error);
+    throw error;
+  }
+};
+
+// Project Functions
+export const createProject = async (userId: string, formData: any, images: any[]) => {
+  try {
+    const { data, error } = await supabase
+      .from('projects')
+      .insert([
+        {
+          id: uuidv4(),
+          user_id: userId,
+          form_data: formData,
+          images: images,
+          selected_images: [],
+        }
+      ])
+      .select();
+
+    if (error) {
+      console.error('Create project error:', error);
+      throw error;
+    }
+
+    return data;
+  } catch (error) {
+    console.error('Create project error:', error);
+    throw error;
+  }
+};
+
+export const getProject = async (projectId: string) => {
+  try {
+    console.log(`Getting project: ${projectId}`);
+    const { data: project, error } = await supabase
+      .from('projects')
+      .select('*')
+      .eq('id', projectId)
+      .single();
+
+    if (error) {
+      console.error('Get project error:', error);
+      throw error;
+    }
+
+    return project;
+  } catch (error) {
+    console.error('Get project error:', error);
+    throw error;
+  }
+};
+
+export const getProjects = async (userId: string) => {
+  try {
+    const { data, error } = await supabase
+      .from('projects')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Get projects error:', error);
+      throw error;
+    }
+
+    return data;
+  } catch (error) {
+    console.error('Get projects error:', error);
+    throw error;
+  }
+}
+
+export const getAllProjects = async () => {
+  try {
+    console.log('Getting all projects');
+    const { data: projects, error } = await supabase
+      .from('projects')
+      .select('*');
+
+    if (error) {
+      console.error('Get all projects error:', error);
+      throw error;
+    }
+
+    return projects;
+  } catch (error) {
+    console.error('Get all projects error:', error);
+    throw error;
+  }
+}
+
+export const deleteProject = async (projectId: string) => {
+  try {
+    console.log(`Deleting project: ${projectId}`);
+    const { error } = await supabase
+      .from('projects')
+      .delete()
+      .eq('id', projectId);
+
+    if (error) {
+      console.error('Delete project error:', error);
+      throw error;
+    }
+  } catch (error) {
+    console.error('Delete project error:', error);
     throw error;
   }
 };

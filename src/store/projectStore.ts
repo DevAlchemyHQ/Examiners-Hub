@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
-import { useAuthStore } from './authStore';
+// import { useAuthStore } from './authStore';
 import { useMetadataStore } from './metadataStore';
 import { usePDFStore } from './pdfStore';
 
@@ -58,7 +58,7 @@ export const useProjectStore = create<ProjectState>((set) => ({
       const { error: projectError } = await supabase
         .from('projects')
         .delete()
-        .eq('id', userId);
+        .eq('user_id', userId);
 
       if (projectError) {
         throw new Error(`Failed to delete project data: ${projectError.message}`);
@@ -80,7 +80,7 @@ export const useProjectStore = create<ProjectState>((set) => ({
       const { data: verifyProject } = await supabase
         .from('projects')
         .select('*')
-        .eq('id', userId)
+        .eq('user_id', userId)
         .maybeSingle();
 
       if (verifyProject) {
