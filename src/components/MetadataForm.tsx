@@ -67,8 +67,8 @@ export const MetadataForm: React.FC = () => {
             type="date"
             value={formData.date}
             onChange={handleDateChange}
-            min="1900-01-01"
-            max="9999-12-31"
+            min="2001-01-01"
+            max="2099-12-31"
             className="w-full p-2 border border-slate-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all bg-white dark:bg-gray-800 text-slate-900 dark:text-white"
           />
         </div>
