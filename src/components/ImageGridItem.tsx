@@ -85,7 +85,7 @@ export const ImageGridItem: React.FC<ImageGridItemProps> = ({ images, gridWidth 
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              setEnlargedImage(img.preview);
+                              setEnlargedImage(img?.preview || img.publicUrl);
                             }}
                             className="absolute bottom-2 right-2 bg-white text-gray-800 p-2 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
                           >
@@ -102,16 +102,22 @@ export const ImageGridItem: React.FC<ImageGridItemProps> = ({ images, gridWidth 
         </div>
       </div>
 
+
       {enlargedImage && (
         <div 
           className="fixed inset-0 bg-black/75 z-[9999] flex items-center justify-center"
           onClick={() => setEnlargedImage(null)}
         >
-          <ImageZoom
-            src={enlargedImage}
-            alt="Enlarged view"
-            onClose={() => setEnlargedImage(null)}
-          />
+          <div 
+            className="p-4 bg-white rounded-lg shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <img
+              src={enlargedImage}
+              alt="Enlarged view"
+              className="w-[600px] h-auto object-contain rounded-lg"
+            />
+          </div>
         </div>
       )}
     </>
