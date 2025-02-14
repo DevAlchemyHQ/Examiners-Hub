@@ -1,9 +1,23 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Calendar, Hash, Building2 } from 'lucide-react';
 import { useMetadataStore } from '../store/metadataStore';
 
-export const MetadataForm: React.FC = () => {
+interface MetadataFormProps {
+  selectedProject?: any;
+}
+
+export const MetadataForm: React.FC<MetadataFormProps> = ({ selectedProject }) => {
   const { formData, setFormData } = useMetadataStore();
+
+  useEffect(() => {
+    if (selectedProject?.form_data) {
+      setFormData({
+        elr: selectedProject.form_data.elr || '',
+        structureNo: selectedProject.form_data.structureNo || '',
+        date: selectedProject.form_data.date || ''
+      });
+    }
+  }, [selectedProject, setFormData]);
 
   const handleELRChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ elr: e.target.value.toUpperCase() });

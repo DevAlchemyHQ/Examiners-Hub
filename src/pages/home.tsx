@@ -67,7 +67,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             <Header />
             <main className="flex-1 max-w-[1920px] mx-auto w-full px-2 overflow-hidden grid grid-cols-1 lg:grid-cols-12 gap-4 mt-5">
                 <div className="lg:col-span-2">
-                    <Sidebar />
+                    <Sidebar selectedProject={selectedProject} />
                 </div>
                 <MainContent selectedProject={selectedProject} />
             </main>
