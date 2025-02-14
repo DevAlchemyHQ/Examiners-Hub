@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useMetadataStore } from '../store/metadataStore';
 import { Maximize2, Check } from 'lucide-react';
-import { ImageZoom } from './ImageZoom';
+// import { ImageZoom } from './ImageZoom';
 import { ImageMetadata } from '../types';
 
 interface ImageGridItemProps {

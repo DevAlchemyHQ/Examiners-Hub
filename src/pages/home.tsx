@@ -16,7 +16,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     const [selectedProject, setSelectedProject] = useState<any | null>(null);
     const { projectId } = useParams();
     const navigate = useNavigate();
-    const { loadUserData, reset: resetMetadata } = useMetadataStore();
+    const { setFormData, reset: resetMetadata } = useMetadataStore();
 
     useEffect(() => {
         const fetchProject = async () => {
@@ -25,6 +25,11 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                     const project = await getProject(projectId);
                     if (project) {
                         setSelectedProject(project);
+                        setFormData({
+                            elr: project.elr,
+                            structureNo: project.structureNo,
+                            date: project.date,
+                        });
                     } else {
                         navigate('/projects');
                     }

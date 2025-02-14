@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Loader2, PlusCircle, Trash, XCircle } from 'lucide-react';
-import { getProject, getProjects, deleteProject, createProject } from '../lib/supabase';
+import { getProjects, deleteProject, createProject } from '../lib/supabase';
 import { useAuthStore } from '../store/authStore';
 import { useMetadataStore } from '../store/metadataStore';
 import { Header } from '../components/Header';

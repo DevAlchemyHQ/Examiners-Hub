@@ -95,7 +95,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => {
       console.error('Error saving user data:', error);
       throw error;
     }
-  }, 60000);
+  }, 60000); // Debounce for 1 minute
 
   return {
     images: [],

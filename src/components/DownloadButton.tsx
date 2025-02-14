@@ -1,20 +1,16 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Download, AlertCircle, Loader2, WalletCards } from 'lucide-react';
-import { TabType } from './layout/MainLayout';
 import { useMetadataStore } from '../store/metadataStore';
 import { useAuthStore } from '../store/authStore';
 import { createDownloadPackage } from '../utils/fileUtils';
 import { useValidation } from '../hooks/useValidation';
 import { useAnalytics } from '../hooks/useAnalytics';
 import { validateDescription } from '../utils/fileValidation';
-// import { createProject } from '../lib/supabase';
 
-interface DownloadButtonProps {
-  setActiveTab?: (tab: TabType) => void;
-  activeTab?: TabType;
-}
 
-export const DownloadButton: React.FC<DownloadButtonProps> = ({ setActiveTab }) => {
+export const DownloadButton: React.FC = () => {
+  const navigate = useNavigate();
   const { images, selectedImages, formData } = useMetadataStore();
   const { isValid } = useValidation();
   const { trackEvent } = useAnalytics();
@@ -36,7 +32,7 @@ export const DownloadButton: React.FC<DownloadButtonProps> = ({ setActiveTab }) 
   }, [images, selectedImages]);
 
   const handleUpgradeClick = () => {
-    setActiveTab?.('subscription');
+    navigate('/subscriptions');
   };
 
   const handleDownload = async () => {
