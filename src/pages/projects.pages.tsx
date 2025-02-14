@@ -132,9 +132,16 @@ export const ProjectsPage: React.FC = () => {
                                         </button>
                                     </div>
                                     <div className="absolute bottom-0 left-0 w-full bg-black bg-opacity-50 p-3 text-white text-center">
-                                        <h3 className="text-lg font-semibold truncate">{project.form_data.elr}</h3>
-                                        <p className="text-sm truncate">{project.form_data.structureNo || 'No Structure Number'}</p>
-                                    </div>
+                                    <h3 className="text-lg font-semibold truncate">{project.form_data.elr}</h3>
+                                    <p className="text-sm truncate">{project.form_data.structureNo || 'No Structure Number'}</p>
+                                    <p className="text-sm truncate">
+                                        {project.form_data.date 
+                                            ? new Date(project.form_data.date).toLocaleDateString('en-GB', {
+                                                day: '2-digit', month: 'long', year: 'numeric'
+                                            }) : 'No Date'}
+                                    </p>
+                                </div>
+
                                 </div>
                             ))}
                         </div>
