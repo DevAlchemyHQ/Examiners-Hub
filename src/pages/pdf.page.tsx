@@ -191,11 +191,15 @@ return (
 
     if (isInitialLoad) {
         return (
-        <div className="h-full flex items-center justify-center">
-            <div className="text-center">
-            <Loader2 className="w-8 h-8 animate-spin text-indigo-500 mx-auto mb-4" />
-            <p className="text-slate-600 dark:text-gray-400">Loading PDFs...</p>
-            </div>
+        <div className="min-h-screen overflow-auto p-4 bg-gray-900 text-white relative">
+            <Header /> 
+    
+            <main className="flex-1 flex items-center justify-center">
+                <div className="text-center bg-gray-900">
+                    <Loader2 className="w-8 h-8 animate-spin text-indigo-500 mx-auto mb-4" />
+                    <p className="text-slate-600 dark:text-gray-400">Loading your PDFs...</p>
+                </div>
+            </main>
         </div>
         );
     }
@@ -204,14 +208,6 @@ return (
         <div className="min-h-screen overflow-auto p-4 bg-gray-900 text-white relative">
             <Header />
 
-            {loading ? (
-                <main className="flex-1 flex items-center justify-center">
-                    <div className="text-center bg-gray-900">
-                        <Loader2 className="w-8 h-8 animate-spin text-indigo-500 mx-auto mb-4" />
-                        <p className="text-slate-600 dark:text-gray-400">Loading your PDFs...</p>
-                    </div>
-                </main>
-            ) : (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 h-full mt-4">
                 <PDFViewerSection
                     title="PDF Viewer 1"
@@ -228,7 +224,6 @@ return (
                     onZoom={(action) => handleZoom(2, action)}
                 />
                 </div>
-            )}
         </div>
     );
 };
