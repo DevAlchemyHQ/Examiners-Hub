@@ -244,7 +244,7 @@ export const getOrCreateUserProfile = async (userId: string, userEmail: string):
       email: userEmail,
       full_name: user?.user_metadata?.full_name || '',
       avatar_emoji: '😊',
-      subscription_status: 'basic',
+      subscription_status: 'Basic',
       downloads_remaining: 5
     };
 
