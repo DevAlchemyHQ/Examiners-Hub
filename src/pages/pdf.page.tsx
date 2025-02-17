@@ -119,6 +119,7 @@ return (
                 >
                     <div className="relative">
                     <Page
+                        key={`page_${index + 1}_rotate_${pageRotations[index + 1] || 0}`}
                         pageNumber={index + 1}
                         scale={scale}
                         rotate={pageRotations[index + 1] || 0}
@@ -126,9 +127,9 @@ return (
                         renderTextLayer={true}
                         renderAnnotationLayer={true}
                         loading={
-                        <div className="w-full aspect-[1/1.4] bg-slate-100 dark:bg-gray-700 animate-pulse rounded-lg" />
+                            <div className="w-full aspect-[1/1.4] bg-slate-100 dark:bg-gray-700 animate-pulse rounded-lg" />
                         }
-                    />
+                        />
                     </div>
                     <button
                     onClick={() => handleRotatePage(index + 1)}
@@ -167,8 +168,8 @@ return (
     export const PDFViewerPage: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const { file1, file2, setFile1, setFile2, loadPDFs } = usePDFStore();
-    const [scale1, setScale1] = useState(1.0);
-    const [scale2, setScale2] = useState(1.0);
+    const [scale1, setScale1] = useState(2.0);
+    const [scale2, setScale2] = useState(2.0);
     const [isInitialLoad, setIsInitialLoad] = useState(true);
 
     useEffect(() => {
