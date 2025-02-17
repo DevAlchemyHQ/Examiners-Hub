@@ -93,7 +93,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 text-center mb-6">Edit Profile</h2>
 
                 {/* Avatar Upload Section */}
-                <div className="flex flex-col items-center mb-6">
+                {/* <div className="flex flex-col items-center mb-6">
                     {avatarUrl ? (
                         <img src={avatarUrl} alt="Avatar" className="w-24 h-24 rounded-full border-2 border-gray-300 dark:border-gray-700" />
                     ) : (
@@ -104,7 +104,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
                         {uploading ? "Uploading..." : "Upload Avatar"}
                         <input type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
                     </label>
-                </div>
+                </div> */}
 
                 {/* Full Name Input */}
                 <div className="mb-4">

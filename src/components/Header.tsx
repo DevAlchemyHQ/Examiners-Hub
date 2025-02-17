@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { LogOut, Sun, Moon, Info, User, Camera, Settings, XCircle, CreditCard, Menu } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
+import { supabase } from '../lib/supabase';
 import { useThemeStore } from '../store/themeStore';
 import { WeatherDate } from './WeatherDate';
 import { EditProfileModal } from './profile/EditProfile';
@@ -44,6 +45,56 @@ export const Header: React.FC = () => {
     navigate('/subscriptions');
     setShowProfileMenu(false);
   };
+
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !user) return;
+  
+    try {
+      // Generate file path with user's id as folder name
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Date.now()}.${fileExt}`;
+      const filePath = `${user.id}/${fileName}`;
+  
+      const { data: existingFiles } = await supabase.storage
+        .from('avatars')
+        .list(user.id);
+      if (existingFiles && existingFiles.length > 0) {
+        await supabase.storage
+          .from('avatars')
+          .remove(existingFiles.map(f => `${user.id}/${f.name}`));
+      }
+  
+      // Upload file to the 'avatars' bucket
+      const { error: uploadError, data: uploadData } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: true,
+        });
+  
+      if (uploadError) throw uploadError;
+  
+      // Get the public URL for the uploaded file
+      const { data: publicUrlData } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(uploadData.path);
+  
+      if (publicUrlData) {
+        await updateUserProfile(user.id, { avatar_url: publicUrlData.publicUrl });
+        setUser({
+          ...user,
+          user_metadata: {
+            ...user.user_metadata,
+            avatar_url: publicUrlData.publicUrl,
+          },
+        });
+      }
+    } catch (error) {
+      console.error('Image upload error:', error);
+    }
+  };
+  
 
   const handleLogout = async () => {
     try {
@@ -163,22 +214,37 @@ export const Header: React.FC = () => {
                   {/* User Info Section */}
                   <div className="p-4 border-b border-gray-700">
                     <div className="flex items-center gap-3 mb-3">
-                      <div className="relative">
-                        {profileImage ? (
-                          <img
-                            src={profileImage}
-                            alt="Profile"
-                            className="w-12 h-12 rounded-full object-cover"
-                          />
-                        ) : (
-                          <div className="w-12 h-12 rounded-full bg-indigo-500 flex items-center justify-center text-xl">
-                            {profileImage}
-                          </div>
-                        )}
-                        <button className="absolute -bottom-1 -right-1 p-1 bg-gray-700 rounded-full hover:bg-gray-600 transition-colors">
-                          <Camera size={12} className="text-gray-300" />
-                        </button>
-                      </div>
+                    <div className="relative">
+  {profileImage ? (
+    <img
+      src={profileImage}
+      alt="Profile"
+      className="w-12 h-12 rounded-full object-cover"
+    />
+  ) : (
+    <div className="w-12 h-12 rounded-full bg-indigo-500 flex items-center justify-center text-xl">
+      {profileImage}
+    </div>
+  )}
+  
+  {/* Hidden File Input */}
+  <input 
+    type="file" 
+    accept="image/*" 
+    className="hidden" 
+    id="profile-upload" 
+    onChange={handleImageUpload} 
+  />
+  
+  {/* Camera Button */}
+  <button 
+    className="absolute -bottom-1 -right-1 p-1 bg-gray-700 rounded-full hover:bg-gray-600 transition-colors"
+    onClick={() => document.getElementById('profile-upload')?.click()}
+  >
+    <Camera size={12} className="text-gray-300" />
+  </button>
+</div>
+
                       <div>
                         <h3 className="text-white font-medium">{user?.user_metadata.full_name || 'User'}</h3>
                         <p className="text-sm text-gray-400">{user?.email || 'No email available'}</p>
@@ -225,10 +291,10 @@ export const Header: React.FC = () => {
                       <CreditCard size={16} />
                       Manage Subscription
                     </button>
-                    <button className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-gray-700/50 rounded-lg flex items-center gap-2">
+                    {/* <button className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-gray-700/50 rounded-lg flex items-center gap-2">
                       <Settings size={16} />
                       Settings
-                    </button>
+                    </button> */}
                     <button
                       onClick={handleLogout}
                       className="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-red-900/20 rounded-lg flex items-center gap-2"
