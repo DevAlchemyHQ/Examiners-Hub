@@ -12,7 +12,6 @@ export const Header: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { logout, user } = useAuthStore();
-  console.log("user------------------", user);
   const { setUser } = useAuthStore();
   const { isDark, toggle } = useThemeStore();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -34,8 +33,9 @@ export const Header: React.FC = () => {
 
   const profileImage = user?.user_metadata.avatar_url || '🚂';
   const subscriptionPlan = user?.user_metadata.subscription_plan || 'Basic';
-  const billingDate = new Date();
-  billingDate.setMonth(billingDate.getMonth() + 1);
+  const subscriptionStatus = user?.user_metadata.subscription_status || 'active';
+  const subscriptionEndDate = user?.user_metadata.subscription_end_date || '';
+
 
   const handleNavigation = (path: string) => {
     navigate(path);
@@ -254,28 +254,30 @@ export const Header: React.FC = () => {
 
                   {/* Subscription Info */}
                   <div className="p-4 border-b border-gray-700">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm text-gray-400">Current Plan</span>
-                      <span className={`text-xs px-2 py-1 rounded-full ${subscriptionPlan === 'Basic' ? 'bg-green-500' : 'bg-indigo-500'} text-white`}>
-                        {subscriptionPlan}
-                      </span>
-                    </div>
-                    {subscriptionPlan === 'Basic' ? (
-                      <div className="text-xs text-gray-500">Free Plan</div>
-                    ) : (
-                      <div className="text-xs text-gray-500">
-                        Next billing date: {billingDate.toLocaleDateString()}
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm text-gray-400">Current Plan</span>
+                        <span className={`text-xs px-2 py-1 rounded-full ${subscriptionPlan === 'Basic' ? 'bg-green-500' : 'bg-indigo-500'} text-white`}>
+                          {subscriptionPlan}
+                        </span>
                       </div>
-                    )}
-                    {subscriptionPlan !== 'Basic' && (
-                      <button
-                        onClick={handleUnsubscribe}
-                        className="w-full text-sm text-red-400 hover:bg-red-900/20 rounded-lg py-2 mt-2"
-                      >
-                        Unsubscribe
-                      </button>
-                    )}
-                  </div>
+                      {subscriptionPlan === 'Basic' ? (
+                        <div className="text-xs text-gray-500">Free Plan</div>
+                      ) : (
+                        <div className="text-xs text-gray-500">
+                          {subscriptionStatus === 'active' ? (
+                            subscriptionEndDate ? `Next billing date: ${subscriptionEndDate.toLocaleDateString()}` : 'Active'
+                          ) : 'Inactive'}
+                        </div>
+                      )}
+                      {subscriptionPlan !== 'Basic' && (
+                        <button
+                          onClick={handleUnsubscribe}
+                          className="w-full text-sm text-red-400 hover:bg-red-900/20 rounded-lg py-2 mt-2"
+                        >
+                          Unsubscribe
+                        </button>
+                      )}
+                    </div>
 
                   {/* Menu Items */}
                   <div className="p-2">

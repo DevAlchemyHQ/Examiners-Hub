@@ -203,7 +203,7 @@ const createProfile = async (userId: string, email: string, fullName: string) =>
       email,
       full_name: fullName,
       avatar_emoji: '😊',
-      subscription_status: 'basic',
+      subscription_status: 'Basic',
       downloads_remaining: 5
     });
 
@@ -245,7 +245,12 @@ export const getOrCreateUserProfile = async (userId: string, userEmail: string):
       full_name: user?.user_metadata?.full_name || '',
       avatar_emoji: '😊',
       subscription_status: 'Basic',
-      downloads_remaining: 5
+      downloads_remaining: 5,
+      subscription_plan: 'Basic',
+      stripe_subscription_id: "",
+      subscription_paid_date: "",
+      subscription_end_date: "",
+      cancelled_date: "",
     };
 
     const { data: createdProfile, error: insertError } = await supabase
