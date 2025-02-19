@@ -12,7 +12,6 @@ export const Header: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { logout, user } = useAuthStore();
-  console.log("user------------------", user);
   const { setUser } = useAuthStore();
   const { isDark, toggle } = useThemeStore();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -37,6 +36,44 @@ export const Header: React.FC = () => {
   const subscriptionStatus = user?.user_metadata.subscription_status || 'active';
   const subscriptionEndDate = user?.user_metadata.subscription_end_date || '';
 
+  const fetchSubscriptionDetails = async () => {
+    if (!user?.email) return;
+  
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("subscription_plan, subscription_status, subscription_end_date")
+        .eq("email", user.email)
+        .single();
+  
+      if (error) {
+        console.error("Error fetching subscription details:", error);
+        return;
+      }
+  
+      if (data) {
+        setUser({
+          ...user,
+          user_metadata: {
+            ...user.user_metadata,
+            subscription_plan: data.subscription_plan, 
+            subscription_status: data.subscription_status,
+            subscription_end_date: data.subscription_end_date,
+          },
+        });
+      }
+    } catch (err) {
+      console.error("Unexpected error fetching subscription details:", err);
+    }
+  };
+
+  const formattedSubscriptionEndDate = subscriptionEndDate
+  ? new Date(subscriptionEndDate).toLocaleDateString(undefined, {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    })
+  : '';
 
   const handleNavigation = (path: string) => {
     navigate(path);
@@ -122,6 +159,8 @@ export const Header: React.FC = () => {
           user_metadata: {
             ...user.user_metadata,
             subscription_plan: 'Basic',
+            subscription_status: 'Basic',
+            subscription_end_date: null,
           },
         });
       }
@@ -142,6 +181,11 @@ export const Header: React.FC = () => {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  React.useEffect(() => {
+    fetchSubscriptionDetails();
+  }, [user?.email]);
+  
 
   return (
     <header className="bg-white dark:bg-gray-800 shadow-sm">
@@ -265,7 +309,7 @@ export const Header: React.FC = () => {
                       ) : (
                         <div className="text-xs text-gray-500">
                           {subscriptionStatus === 'active' ? (
-                            subscriptionEndDate ? `Next billing date: ${subscriptionEndDate.toLocaleDateString()}` : 'Active'
+                            subscriptionEndDate ? `Next billing date: ${ formattedSubscriptionEndDate}` : 'Active'
                           ) : 'Inactive'}
                         </div>
                       )}
