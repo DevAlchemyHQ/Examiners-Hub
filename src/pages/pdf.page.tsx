@@ -17,21 +17,25 @@ interface PDFViewerSectionProps {
     onZoom: (action: 'in' | 'out') => void;
 }
 
-const PDFViewerSection: React.FC<PDFViewerSectionProps> = ({
-    title,
-    file,
-    scale,
-    viewerId,
-    onFileChange,
-    onZoom,
-    }) => {
+const PDFViewerSection: React.FC<PDFViewerSectionProps> = ({ title, file, scale, viewerId, onFileChange, onZoom, }) => {
     const fileInputRef = React.useRef<HTMLInputElement>(null);
     const [numPages, setNumPages] = useState<number | null>(null);
     const [isLoading, setIsLoading] = useState(false);
-    
     const store = usePDFStore();
+    
     const pageStates = viewerId === 1 ? store.pageStates1 : store.pageStates2;
     const setPageState = viewerId === 1 ? store.setPageState1 : store.setPageState2;
+
+    useEffect(() => {
+        const savedPage = localStorage.getItem(`lastViewedPage_${viewerId}`);
+        if (savedPage) {
+        console.log(`Restoring page ${savedPage} for viewer ${viewerId}`);
+        setPageState(Number(savedPage), {
+            currentPage: Number(savedPage),
+            rotation: 0,
+        });
+        }
+    }, []);
 
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -47,18 +51,19 @@ const PDFViewerSection: React.FC<PDFViewerSectionProps> = ({
 
     const handleRotatePage = (pageNumber: number) => {
         const currentRotation = pageStates[pageNumber]?.rotation || 0;
-        setPageState(pageNumber, {
-        rotation: (currentRotation + 90) % 360
-        });
+        const newRotation = (currentRotation + 90) % 360;
+        console.log(`Rotating page ${pageNumber} from ${currentRotation} to ${newRotation}`);
+        setPageState(pageNumber, { rotation: newRotation });
     };
 
     const handlePageRender = (pageNumber: number) => {
         if (!pageStates[pageNumber]) {
         setPageState(pageNumber, {
             currentPage: pageNumber,
-            rotation: 0
+            rotation: 0,
         });
         }
+        localStorage.setItem(`lastViewedPage_${viewerId}`, String(pageNumber));
     };
 
     return (
@@ -121,11 +126,11 @@ const PDFViewerSection: React.FC<PDFViewerSectionProps> = ({
                 {Array.from(new Array(numPages), (_, index) => {
                 const pageNumber = index + 1;
                 const pageState = pageStates[pageNumber] || { rotation: 0, currentPage: pageNumber };
-                
+
                 return (
                     <div 
                     key={pageNumber}
-                    className="mb-4 relative group bg-white dark:bg-gray-800"
+                    className="mb-4 relative bg-white dark:bg-gray-800"
                     data-page-number={pageNumber}
                     >
                     <div className="relative">
@@ -133,7 +138,7 @@ const PDFViewerSection: React.FC<PDFViewerSectionProps> = ({
                         key={`page_${pageNumber}_rotate_${pageState.rotation}`}
                         pageNumber={pageNumber}
                         scale={scale}
-                        rotate={pageState.rotation}
+                        rotate={pageState.rotation} 
                         className="shadow-lg bg-white"
                         renderTextLayer={true}
                         renderAnnotationLayer={true}
@@ -144,11 +149,15 @@ const PDFViewerSection: React.FC<PDFViewerSectionProps> = ({
                         />
                     </div>
                     <button
-                        onClick={() => handleRotatePage(pageNumber)}
-                        className="absolute top-2 right-2 p-2 bg-white/90 hover:bg-white rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                        onClick={() => {
+                        console.log('Rotate button clicked on page', pageNumber);
+                        handleRotatePage(pageNumber);
+                        }}
+                        className="absolute top-2 right-2 p-2 bg-blue-600 text-white rounded-full shadow-lg transition-colors cursor-pointer z-[9999]"
                         title="Rotate Page"
+                        style={{ pointerEvents: 'auto' }}
                     >
-                        <RotateCw size={16} className="text-slate-600" />
+                        <RotateCw size={16} />
                     </button>
                     </div>
                 );
@@ -170,8 +179,8 @@ const PDFViewerSection: React.FC<PDFViewerSectionProps> = ({
 export const PDFViewerPage: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const { file1, file2, setFile1, setFile2, loadPDFs } = usePDFStore();
-    const [scale1, setScale1] = useState(1.7);
-    const [scale2, setScale2] = useState(1.7);
+    const [scale1, setScale1] = useState(1.5);
+    const [scale2, setScale2] = useState(1.5);
     const [isInitialLoad, setIsInitialLoad] = useState(true);
 
     useEffect(() => {
@@ -186,10 +195,7 @@ export const PDFViewerPage: React.FC = () => {
 
     const handleZoom = (viewer: 1 | 2, action: 'in' | 'out') => {
         const setScale = viewer === 1 ? setScale1 : setScale2;
-        setScale(prev => {
-        if (action === 'in') return Math.min(prev + 0.1, 2.0);
-        return Math.max(prev - 0.1, 0.5);
-        });
+        setScale(prev => (action === 'in' ? Math.min(prev + 0.1, 2.0) : Math.max(prev - 0.1, 0.5)));
     };
 
     if (isInitialLoad) {
