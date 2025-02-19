@@ -12,6 +12,7 @@ export const Header: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { logout, user } = useAuthStore();
+  console.log("user------------------", user);
   const { setUser } = useAuthStore();
   const { isDark, toggle } = useThemeStore();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -32,7 +33,7 @@ export const Header: React.FC = () => {
   ];
 
   const profileImage = user?.user_metadata.avatar_url || '🚂';
-  const subscriptionPlan = user?.user_metadata.subscription_plan || 'Basic';
+  const subscriptionPlan = user?.user_metadata.subscription_plan;
   const subscriptionStatus = user?.user_metadata.subscription_status || 'active';
   const subscriptionEndDate = user?.user_metadata.subscription_end_date || '';
 
@@ -95,7 +96,6 @@ export const Header: React.FC = () => {
       console.error('Image upload error:', error);
     }
   };
-  
 
   const handleLogout = async () => {
     try {
