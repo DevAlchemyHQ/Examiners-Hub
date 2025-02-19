@@ -8,16 +8,34 @@ dotenv.config();
 
 const app = express();
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2025-01-27.acacia' });
-const supabase = createClient(process.env.VITE_SUPABASE_URL, process.env.VITE_SUPABASE_ANON_KEY);
+
+const supabaseUrl = process.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error('Missing Supabase environment variables');
+}
+
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // Middleware to verify Stripe signature
 app.post('/webhook', bodyParser.raw({ type: 'application/json' }), async (req, res) => {
+
     const sig = req.headers['stripe-signature'];
+    if (!sig) {
+        console.error('⚠️ No stripe-signature header received.');
+        return res.status(400).send('Webhook Error: No stripe-signature header value was provided.');
+    }
+
     const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
     let event;
     try {
-        event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
+        if (process.env.NODE_ENV === 'development' && process.env.BYPASS_STRIPE_SIGNATURE === 'true') {
+            event = JSON.parse(req.body.toString());
+        } else {
+            event = stripe.webhooks.constructEvent(req.body, req.headers['stripe-signature'], endpointSecret);
+        }
     } catch (err) {
         console.error('⚠️ Webhook signature verification failed.', err.message);
         res.status(400).send(`Webhook Error: ${err.message}`);
@@ -39,8 +57,19 @@ app.post('/webhook', bodyParser.raw({ type: 'application/json' }), async (req, r
             }
 
             let subscriptionPlan = 'Up Slow';
-            if (priceId === 'price_12345') subscriptionPlan = 'Up Fast';
-            else if (priceId === 'price_67890') subscriptionPlan = 'Business';
+            if (priceId === '4.99') subscriptionPlan = 'Up Fast';
+            else if (priceId === '9.99') subscriptionPlan = 'Business';
+
+            const { data: existingProfile, error: fetchError } = await supabase
+                .from('profiles')
+                .select('*')
+                .ilike('email', customerEmail) 
+                .maybeSingle();
+
+            if (fetchError || !existingProfile) {
+                console.error('User not found in Supabase:', fetchError);
+                return res.status(404).json({ error: 'User not found' });
+            }
 
             // Update user subscription details in Supabase
             const { error } = await supabase

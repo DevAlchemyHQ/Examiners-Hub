@@ -10,7 +10,6 @@ export const SubscriptionPage: React.FC = () => {
         setLoading(false);
     }, []);
 
-    
     const handleUpgrade = () => {
         window.location.href = 'https://buy.stripe.com/test_bIY5mug4N6sQbOUcMM';
     };
