@@ -12,6 +12,7 @@ export const Header: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { logout, user } = useAuthStore();
+  console.log("user------------------", user);
   const { setUser } = useAuthStore();
   const { isDark, toggle } = useThemeStore();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -215,36 +216,35 @@ export const Header: React.FC = () => {
                   <div className="p-4 border-b border-gray-700">
                     <div className="flex items-center gap-3 mb-3">
                     <div className="relative">
-  {profileImage ? (
-    <img
-      src={profileImage}
-      alt="Profile"
-      className="w-12 h-12 rounded-full object-cover"
-    />
-  ) : (
-    <div className="w-12 h-12 rounded-full bg-indigo-500 flex items-center justify-center text-xl">
-      {profileImage}
-    </div>
-  )}
-  
-  {/* Hidden File Input */}
-  <input 
-    type="file" 
-    accept="image/*" 
-    className="hidden" 
-    id="profile-upload" 
-    onChange={handleImageUpload} 
-  />
-  
-  {/* Camera Button */}
-  <button 
-    className="absolute -bottom-1 -right-1 p-1 bg-gray-700 rounded-full hover:bg-gray-600 transition-colors"
-    onClick={() => document.getElementById('profile-upload')?.click()}
-  >
-    <Camera size={12} className="text-gray-300" />
-  </button>
-</div>
-
+                      {profileImage ? (
+                        <img
+                          src={profileImage}
+                          alt="Profile"
+                          className="w-12 h-12 rounded-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-12 h-12 rounded-full bg-indigo-500 flex items-center justify-center text-xl">
+                          {profileImage}
+                        </div>
+                      )}
+                      
+                      {/* Hidden File Input */}
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        className="hidden" 
+                        id="profile-upload" 
+                        onChange={handleImageUpload} 
+                      />
+                      
+                      {/* Camera Button */}
+                      <button 
+                        className="absolute -bottom-1 -right-1 p-1 bg-gray-700 rounded-full hover:bg-gray-600 transition-colors"
+                        onClick={() => document.getElementById('profile-upload')?.click()}
+                      >
+                        <Camera size={12} className="text-gray-300" />
+                      </button>
+                    </div>
                       <div>
                         <h3 className="text-white font-medium">{user?.user_metadata.full_name || 'User'}</h3>
                         <p className="text-sm text-gray-400">{user?.email || 'No email available'}</p>
