@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useMetadataStore } from '../store/metadataStore';
 import { X, Trash2, ArrowUpDown, AlertTriangle, Maximize2, Minimize2, Images, FileText } from 'lucide-react';
 import { ImageZoom } from './ImageZoom';
@@ -6,18 +6,6 @@ import { validateDescription } from '../utils/fileValidation';
 import { BulkTextInput } from './BulkTextInput';
 import type { ImageMetadata } from '../types';
 
-// type ViewMode = 'images' | 'text';
-
-
-
-
-// import React, { useState } from 'react';
-// import { useMetadataStore } from '../store/metadataStore';
-// import { X, Trash2, ArrowUpDown, AlertTriangle, Maximize2, Minimize2, Images, FileText } from 'lucide-react';
-// import { ImageZoom } from './ImageZoom';
-// import { validateDescription } from '../utils/fileValidation';
-// import { BulkTextInput } from './BulkTextInput';
-// import type { ImageMetadata } from '../types';
 
 type ViewMode = 'images' | 'text';
 

@@ -1,11 +1,6 @@
-// import React from 'react';
 import { MetadataForm } from '../MetadataForm';
 import { ImageUpload } from '../ImageUpload';
 import { DownloadButton } from '../DownloadButton';
-
-// interface SidebarProps {
-//   selectedProject: any | null;
-// }
 
 
 export const Sidebar = () => {

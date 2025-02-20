@@ -1,16 +1,9 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { useMetadataStore } from '../store/metadataStore';
 import { ImageGridItem } from './ImageGridItem';
 import { GridWidthControl } from './GridWidthControl';
 import { useGridWidth } from '../hooks/useGridWidth';
 
-
-
-// import React from 'react';
-// import { useMetadataStore } from '../store/metadataStore';
-// import { ImageGridItem } from './ImageGridItem';
-// import { GridWidthControl } from './GridWidthControl';
-// import { useGridWidth } from '../hooks/useGridWidth';
 
 export const ImageGrid: React.FC = () => {
   const { images } = useMetadataStore();
