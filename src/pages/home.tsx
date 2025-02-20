@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+// import { useNavigate, useParams } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
-import { useMetadataStore } from '../store/metadataStore';
+// import { useMetadataStore } from '../store/metadataStore';
 import { Header } from '../components/Header';
 import { Sidebar } from '../components/layout/Sidebar';
 import { MainContent } from '../components/layout/MainContent';
-import { getProject } from '../lib/supabase';
+// import { getProject } from '../lib/supabase';
 
 interface MainLayoutProps {
     children?: React.ReactNode;
@@ -13,36 +13,36 @@ interface MainLayoutProps {
 
 export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     const [isLoading, setIsLoading] = useState(true);
-    const [selectedProject, setSelectedProject] = useState<any | null>(null);
-    const { projectId } = useParams();
-    const navigate = useNavigate();
-    const { setFormData, reset: resetMetadata } = useMetadataStore();
+    // const [selectedProject, setSelectedProject] = useState<any | null>(null);
+    // const { projectId } = useParams();
+    // const navigate = useNavigate();
+    // const { setFormData, reset: resetMetadata } = useMetadataStore();
 
-    useEffect(() => {
-        const fetchProject = async () => {
-            if (projectId) {
-                try {
-                    const project = await getProject(projectId);
-                    if (project) {
-                        setSelectedProject(project);
-                        setFormData({
-                            elr: project.elr,
-                            structureNo: project.structureNo,
-                            date: project.date,
-                        });
-                    } else {
-                        navigate('/projects');
-                    }
-                } catch (error) {
-                    console.error('Error fetching project:', error);
-                    resetMetadata();
-                    navigate('/projects');
-                }
-            }
-            setIsLoading(false);
-        };
-        fetchProject();
-    }, [projectId, navigate]);
+    // useEffect(() => {
+    //     const fetchProject = async () => {
+    //         if (projectId) {
+    //             try {
+    //                 const project = await getProject(projectId);
+    //                 if (project) {
+    //                     setSelectedProject(project);
+    //                     setFormData({
+    //                         elr: project.elr,
+    //                         structureNo: project.structureNo,
+    //                         date: project.date,
+    //                     });
+    //                 } else {
+    //                     navigate('/projects');
+    //                 }
+    //             } catch (error) {
+    //                 console.error('Error fetching project:', error);
+    //                 resetMetadata();
+    //                 navigate('/projects');
+    //             }
+    //         }
+    //         setIsLoading(false);
+    //     };
+    //     fetchProject();
+    // }, [projectId, navigate]);
 
     if (children) {
         return (
@@ -67,9 +67,9 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             <Header />
             <main className="flex-1 max-w-[1920px] mx-auto w-full px-2 overflow-hidden grid grid-cols-1 lg:grid-cols-12 gap-4 mt-5">
                 <div className="lg:col-span-2">
-                    <Sidebar selectedProject={selectedProject} />
+                    <Sidebar />
                 </div>
-                <MainContent selectedProject={selectedProject} />
+                <MainContent />
             </main>
         </div>
     );
