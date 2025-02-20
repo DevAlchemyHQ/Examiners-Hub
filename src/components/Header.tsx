@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { LogOut, Sun, Moon, Info, User, Camera, Settings, XCircle, CreditCard, Menu } from 'lucide-react';
+import { LogOut, Sun, Moon, Info, User, Camera, XCircle, CreditCard, Menu } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { supabase } from '../lib/supabase';
 import { useThemeStore } from '../store/themeStore';
@@ -21,7 +21,7 @@ export const Header: React.FC = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const navigationTabs = [
-    { path: '/projects', label: 'Projects' },
+    // { path: '/projects', label: 'Projects' },
     { path: '/dashboard', label: 'Images' },
     { path: '/pdf', label: 'PDF' },
     { path: '/calculator', label: 'Calc' },
@@ -199,7 +199,7 @@ export const Header: React.FC = () => {
               <Menu size={20} />
             </button>
             <h1 
-              onClick={() => navigate('/projects')}
+              onClick={() => navigate('/dashboard')}
               className="text-xl font-bold text-slate-800 dark:text-white cursor-pointer shrink-0">
               Welcome to Exametry 🙂
             </h1>

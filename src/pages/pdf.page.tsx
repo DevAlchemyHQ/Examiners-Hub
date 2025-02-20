@@ -208,19 +208,6 @@ export const PDFViewerPage: React.FC = () => {
         setScale(prev => (action === 'in' ? Math.min(prev + 0.1, 2.0) : Math.max(prev - 0.1, 0.5)));
     };
 
-    // if (isInitialLoad) {
-    //     return (
-    //     <div className="min-h-screen overflow-auto p-4 bg-gray-900 text-white relative">
-    //         <Header />
-    //         <main className="flex-1 flex items-center justify-center">
-    //         <div className="text-center bg-gray-900">
-    //             <Loader2 className="w-8 h-8 animate-spin text-indigo-500 mx-auto mb-4" />
-    //             <p className="text-slate-600 dark:text-gray-400">Loading your PDFs...</p>
-    //         </div>
-    //         </main>
-    //     </div>
-    //     );
-    // }
 
     return (
         <div className="min-h-screen overflow-auto p-4 bg-gray-900 text-white relative">
