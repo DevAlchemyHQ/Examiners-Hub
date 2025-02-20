@@ -65,10 +65,10 @@ const PDFViewerSection: React.FC<PDFViewerSectionProps> = ({ title, file, scale,
 
     const handlePageRender = (pageNumber: number) => {
         if (!pageStates[pageNumber]) {
-        setPageState(pageNumber, {
-            currentPage: pageNumber,
-            rotation: 0,
-        });
+            setPageState(pageNumber, {
+                currentPage: pageNumber,
+                rotation: 0,
+            });
         }
         localStorage.setItem(`lastViewedPage_${viewerId}`, String(pageNumber));
     };
@@ -117,73 +117,86 @@ const PDFViewerSection: React.FC<PDFViewerSectionProps> = ({ title, file, scale,
         </div>
 
         <div className="flex-1 overflow-auto custom-scrollbar bg-white dark:bg-gray-800 p-4 relative">
-    {file ? (
-        <Document
-            file={file}
-            className="flex flex-col items-center"
-            onLoadSuccess={({ numPages }) => setNumPages(numPages)}
-            loading={
-                <div className="flex items-center justify-center p-4">
-                    <Loader2 className="w-6 h-6 animate-spin text-indigo-500" />
-                </div>
-            }
-        >
-            {Array.from(new Array(numPages), (_, index) => {
-                const pageNumber = index + 1;
-                const pageState = pageStates[pageNumber] || { rotation: 0, currentPage: pageNumber };
+            {file ? (
+                <Document
+                    file={file}
+                    className="flex flex-col items-center"
+                    onLoadSuccess={async ({ numPages }) => {
+                        setNumPages(numPages);
+                        await loadPDF(file);
+                    }}
+                    loading={
+                        <div className="flex items-center justify-center p-4">
+                            <Loader2 className="w-6 h-6 animate-spin text-indigo-500" />
+                        </div>
+                    }
+                >
+                    {Array.from(new Array(numPages), (_, index) => {
+                        const pageNumber = index + 1;
+                        const pageState = pageStates[pageNumber] || { rotation: 0, currentPage: pageNumber };
 
-                return (
-                    <div 
-                        key={pageNumber}
-                        className="mb-8 relative"
-                        data-page-number={pageNumber}
-                    >
-                        {/* Page Container with Position Relative */}
-                        <div className="relative inline-block">
-                            <Page
-                                key={`page_${pageNumber}_rotate_${pageState.rotation}`}
-                                pageNumber={pageNumber}
-                                scale={scale}
-                                rotate={pageState.rotation} 
-                                className="shadow-lg bg-white"
-                                renderTextLayer={true}
-                                renderAnnotationLayer={true}
-                                onRenderSuccess={() => handlePageRender(pageNumber)}
-                                loading={
-                                    <div className="w-full aspect-[1/1.4] bg-slate-100 dark:bg-gray-700 animate-pulse rounded-lg" />
-                                }
-                            />
-                            
-                            {/* Absolute positioned button inside the page container */}
-                            <button
-                                onClick={() => handleRotatePage(pageNumber)}
-                                className="absolute top-2 right-7 p-2 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 transition-colors cursor-pointer z-50"
-                                title={`Rotate Page ${pageNumber}`}
+                        return (
+                            <div 
+                                key={pageNumber}
+                                className="mb-8 relative"
+                                data-page-number={pageNumber}
                             >
-                                <RotateCw size={16} />
-                            </button>
-                        </div>
-                        
-                        {/* Page Number Indicator */}
-                        <div className="absolute -bottom-6 left-1/2 transform -translate-x-1/2 text-xs text-gray-500">
-                            Page {pageNumber} of {numPages}
-                        </div>
+                                {/* Page Container with Position Relative */}
+                                <div className="relative inline-block">
+                                    <Page
+                                        key={`page_${pageNumber}_rotate_${pageState.rotation}`}
+                                        pageNumber={pageNumber}
+                                        scale={scale}
+                                        rotate={pageState.rotation} 
+                                        className="shadow-lg bg-white"
+                                        renderTextLayer={true}
+                                        renderAnnotationLayer={true}
+                                        onRenderSuccess={() => handlePageRender(pageNumber)}
+                                        loading={
+                                            <div className="w-full aspect-[1/1.4] bg-slate-100 dark:bg-gray-700 animate-pulse rounded-lg" />
+                                        }
+                                    />
+                                    
+                                    {/* Absolute positioned button inside the page container */}
+                                    <button
+                                        onClick={() => handleRotatePage(pageNumber)}
+                                        className="absolute top-2 right-7 p-2 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 transition-colors cursor-pointer z-50"
+                                        title={`Rotate Page ${pageNumber}`}
+                                    >
+                                        <RotateCw size={16} />
+                                    </button>
+                                </div>
+                                
+                                {/* Page Number Indicator */}
+                                <div className="absolute -bottom-6 left-1/2 transform -translate-x-1/2 text-xs text-gray-500">
+                                    Page {pageNumber} of {numPages}
+                                </div>
+                            </div>
+                        );
+                    })}
+                </Document>
+            ) : (
+                <div className="h-full flex items-center justify-center text-slate-400 dark:text-gray-500">
+                    <div className="flex flex-col items-center gap-2">
+                        <FileText size={40} />
+                        <p>Upload a PDF to view its contents</p>
                     </div>
-                );
-            })}
-        </Document>
-    ) : (
-        <div className="h-full flex items-center justify-center text-slate-400 dark:text-gray-500">
-            <div className="flex flex-col items-center gap-2">
-                <FileText size={40} />
-                <p>Upload a PDF to view its contents</p>
-            </div>
+                </div>
+            )}
         </div>
-    )}
-</div>
+    </div>
+    )
+};
 
-        </div>
-    );
+const loadPDF = async (file: File) => {
+    try {
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
+        return pdf;
+    } catch (error) {
+        console.error('Error loading PDF:', error);
+        return null;
+    }
 };
 
 export const PDFViewerPage: React.FC = () => {
