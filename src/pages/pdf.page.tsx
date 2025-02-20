@@ -51,7 +51,16 @@ const PDFViewerSection: React.FC<PDFViewerSectionProps> = ({ title, file, scale,
     const handleRotatePage = (pageNumber: number) => {
         const currentRotation = pageStates[pageNumber]?.rotation || 0;
         const newRotation = (currentRotation + 90) % 360;
+    
+        let adjustedScale = scale;
+        if (newRotation === 90 || newRotation === 270) {
+            adjustedScale = Math.max(scale * 0.3, 0.3);
+        } else {
+            adjustedScale = 1.5;
+        }
+    
         setPageState(pageNumber, { rotation: newRotation });
+        onZoom(adjustedScale > scale ? 'in' : 'out');
     };
 
     const handlePageRender = (pageNumber: number) => {
@@ -107,68 +116,72 @@ const PDFViewerSection: React.FC<PDFViewerSectionProps> = ({ title, file, scale,
             </div>
         </div>
 
-        <div className="flex-1 overflow-auto custom-scrollbar bg-white dark:bg-gray-800 p-4">
-            {file ? (
-            <Document
-                file={file}
-                className="flex flex-col items-center"
-                onLoadSuccess={({ numPages }) => {
-                setNumPages(numPages);
-                }}
-                loading={
+        <div className="flex-1 overflow-auto custom-scrollbar bg-white dark:bg-gray-800 p-4 relative">
+    {file ? (
+        <Document
+            file={file}
+            className="flex flex-col items-center"
+            onLoadSuccess={({ numPages }) => setNumPages(numPages)}
+            loading={
                 <div className="flex items-center justify-center p-4">
                     <Loader2 className="w-6 h-6 animate-spin text-indigo-500" />
                 </div>
-                }
-            >
-                {Array.from(new Array(numPages), (_, index) => {
+            }
+        >
+            {Array.from(new Array(numPages), (_, index) => {
                 const pageNumber = index + 1;
                 const pageState = pageStates[pageNumber] || { rotation: 0, currentPage: pageNumber };
 
                 return (
                     <div 
-                    key={pageNumber}
-                    className="mb-4 relative bg-white dark:bg-gray-800"
-                    data-page-number={pageNumber}
+                        key={pageNumber}
+                        className="mb-8 relative"
+                        data-page-number={pageNumber}
                     >
-                    <div className="relative">
-                        <Page
-                        key={`page_${pageNumber}_rotate_${pageState.rotation}`}
-                        pageNumber={pageNumber}
-                        scale={scale}
-                        rotate={pageState.rotation} 
-                        className="shadow-lg bg-white"
-                        renderTextLayer={true}
-                        renderAnnotationLayer={true}
-                        onRenderSuccess={() => handlePageRender(pageNumber)}
-                        loading={
-                            <div className="w-full aspect-[1/1.4] bg-slate-100 dark:bg-gray-700 animate-pulse rounded-lg" />
-                        }
-                        />
-                    </div>
-                    <button
-                        onClick={() => {
-                        handleRotatePage(pageNumber);
-                        }}
-                        className="absolute top-2 right-2 p-2 bg-blue-600 text-white rounded-full shadow-lg transition-colors cursor-pointer z-[9999]"
-                        title="Rotate Page"
-                        style={{ pointerEvents: 'auto' }}
-                    >
-                        <RotateCw size={16} />
-                    </button>
+                        {/* Page Container with Position Relative */}
+                        <div className="relative inline-block">
+                            <Page
+                                key={`page_${pageNumber}_rotate_${pageState.rotation}`}
+                                pageNumber={pageNumber}
+                                scale={scale}
+                                rotate={pageState.rotation} 
+                                className="shadow-lg bg-white"
+                                renderTextLayer={true}
+                                renderAnnotationLayer={true}
+                                onRenderSuccess={() => handlePageRender(pageNumber)}
+                                loading={
+                                    <div className="w-full aspect-[1/1.4] bg-slate-100 dark:bg-gray-700 animate-pulse rounded-lg" />
+                                }
+                            />
+                            
+                            {/* Absolute positioned button inside the page container */}
+                            <button
+                                onClick={() => handleRotatePage(pageNumber)}
+                                className="absolute top-2 right-7 p-2 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 transition-colors cursor-pointer z-50"
+                                title={`Rotate Page ${pageNumber}`}
+                            >
+                                <RotateCw size={16} />
+                            </button>
+                        </div>
+                        
+                        {/* Page Number Indicator */}
+                        <div className="absolute -bottom-6 left-1/2 transform -translate-x-1/2 text-xs text-gray-500">
+                            Page {pageNumber} of {numPages}
+                        </div>
                     </div>
                 );
-                })}
-            </Document>
-            ) : (
-            <div className="h-full flex items-center justify-center text-slate-400 dark:text-gray-500">
-                <div className="flex flex-col items-center gap-2">
+            })}
+        </Document>
+    ) : (
+        <div className="h-full flex items-center justify-center text-slate-400 dark:text-gray-500">
+            <div className="flex flex-col items-center gap-2">
                 <FileText size={40} />
                 <p>Upload a PDF to view its contents</p>
-                </div>
             </div>
-            )}
         </div>
+    )}
+</div>
+
         </div>
     );
 };
