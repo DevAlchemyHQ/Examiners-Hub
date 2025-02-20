@@ -23,7 +23,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const location = useLocation();
   const [activeTab, setActiveTab] = useState<TabType>('images');
   const { images, selectedImages, loadUserData } = useMetadataStore();
-  const { file1, file2 } = usePDFStore();
+  // const { file1, file2 } = usePDFStore();
   const { clearProject, isLoading: isClearingProject } = useProjectStore();
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [isLoadingData, setIsLoadingData] = useState(true);
