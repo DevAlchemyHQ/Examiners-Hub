@@ -4,8 +4,13 @@ export interface UserProfile {
   full_name: string;
   avatar_emoji: string | null;
   avatar_url: string | null;
-  subscription_status: 'Basic' | 'Up Fast' | 'Premium'; 
   downloads_remaining: number | null;
+  subscription_status: 'active' | 'cancelled';
+  subscription_plan: 'Basic' | 'Premium' | 'Up Fast';
+  subscription_start_date: string | null;
+  stripe_subscription_id: string | null;
+  subscription_end_date: string | null;
+  cancelled_date: string | null;
   created_at?: string;
   updated_at?: string;
 }

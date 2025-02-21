@@ -6,7 +6,7 @@ import { supabase } from '../lib/supabase';
 import { useThemeStore } from '../store/themeStore';
 import { WeatherDate } from './WeatherDate';
 import { EditProfileModal } from './profile/EditProfile';
-import { signOut, updateUserProfile } from '../lib/supabase';
+import { signOut, updateUserProfile, cancelSubscription } from '../lib/supabase';
 
 export const Header: React.FC = () => {
   const navigate = useNavigate();
@@ -153,14 +153,14 @@ export const Header: React.FC = () => {
   const confirmUnsubscribe = async () => {
     try {
       if (user) {
-        await updateUserProfile(user.id, { subscription_status: 'Basic' });
+        await cancelSubscription(user.id);
         setUser({
           ...user,
           user_metadata: {
             ...user.user_metadata,
             subscription_plan: 'Basic',
-            subscription_status: 'Basic',
-            subscription_end_date: null,
+            subscription_status: 'cancelled',
+            cancelled_date: new Date().toISOString(),
           },
         });
       }
