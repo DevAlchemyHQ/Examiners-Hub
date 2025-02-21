@@ -36,6 +36,33 @@ export const Header: React.FC = () => {
   const subscriptionStatus = user?.user_metadata.subscription_status || 'active';
   const subscriptionEndDate = user?.user_metadata.subscription_end_date || '';
 
+  // Check if subscription end date is in the future
+  const isSubscriptionEndDateFuture = subscriptionEndDate 
+    ? new Date(subscriptionEndDate) > new Date() 
+    : false;
+
+  // Calculate time remaining until subscription ends
+  const getTimeRemaining = () => {
+    if (!subscriptionEndDate) return null;
+    
+    const endDate = new Date(subscriptionEndDate);
+    const now = new Date();
+    
+    if (endDate <= now) return null;
+    
+    const diffMs = endDate.getTime() - now.getTime();
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    
+    if (diffDays > 30) {
+      const diffMonths = Math.floor(diffDays / 30);
+      return `${diffMonths} month${diffMonths > 1 ? 's' : ''}`;
+    } else {
+      return `${diffDays} day${diffDays > 1 ? 's' : ''}`;
+    }
+  };
+
+  const timeRemaining = getTimeRemaining();
+
   const fetchSubscriptionDetails = async () => {
     if (!user?.email) return;
   
@@ -203,6 +230,15 @@ export const Header: React.FC = () => {
               className="text-xl font-bold text-slate-800 dark:text-white cursor-pointer shrink-0">
               Welcome to Exametry 🙂
             </h1>
+            
+            {/* Show subscription end date info for cancelled but active subscriptions */}
+            {subscriptionStatus === 'cancelled' && isSubscriptionEndDateFuture && subscriptionPlan !== 'Basic' && (
+              <div className="hidden sm:flex items-center ml-2 px-2 py-1 bg-amber-100 dark:bg-amber-900/30 rounded-full">
+                <span className="text-xs text-amber-700 dark:text-amber-400">
+                  <span className="font-medium">{subscriptionPlan}</span> active until {formattedSubscriptionEndDate}
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Desktop Navigation */}
@@ -298,30 +334,39 @@ export const Header: React.FC = () => {
 
                   {/* Subscription Info */}
                   <div className="p-4 border-b border-gray-700">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm text-gray-400">Current Plan</span>
-                        <span className={`text-xs px-2 py-1 rounded-full ${subscriptionPlan === 'Basic' ? 'bg-green-500' : 'bg-indigo-500'} text-white`}>
-                          {subscriptionPlan}
-                        </span>
-                      </div>
-                      {subscriptionPlan === 'Basic' ? (
-                        <div className="text-xs text-gray-500">Free Plan</div>
-                      ) : (
-                        <div className="text-xs text-gray-500">
-                          {subscriptionStatus === 'active' ? (
-                            subscriptionEndDate ? `Next billing date: ${ formattedSubscriptionEndDate}` : 'Active'
-                          ) : 'Inactive'}
-                        </div>
-                      )}
-                      {subscriptionPlan !== 'Basic' && (
-                        <button
-                          onClick={handleUnsubscribe}
-                          className="w-full text-sm text-red-400 hover:bg-red-900/20 rounded-lg py-2 mt-2"
-                        >
-                          Unsubscribe
-                        </button>
-                      )}
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm text-gray-400">Current Plan</span>
+                      <span className={`text-xs px-2 py-1 rounded-full ${subscriptionPlan === 'Basic' ? 'bg-green-500' : 'bg-indigo-500'} text-white`}>
+                        {subscriptionPlan}
+                      </span>
                     </div>
+                    {subscriptionPlan === 'Basic' ? (
+                      subscriptionStatus === 'cancelled' && isSubscriptionEndDateFuture ? (
+                        <div className="text-xs text-gray-500">
+                          Access until: {formattedSubscriptionEndDate}
+                        </div>
+                      ) : (
+                        <div className="text-xs text-gray-500">Free Plan</div>
+                      )
+                    ) : (
+                      <div className="text-xs text-gray-500">
+                        {subscriptionStatus === 'active' ? (
+                          subscriptionEndDate ? `Next billing date: ${formattedSubscriptionEndDate}` : 'Active'
+                        ) : (
+                          subscriptionStatus === 'cancelled' && isSubscriptionEndDateFuture ? 
+                          `Access until: ${formattedSubscriptionEndDate}` : 'Inactive'
+                        )}
+                      </div>
+                    )}
+                    {subscriptionPlan !== 'Basic' && subscriptionStatus === 'active' && (
+                      <button
+                        onClick={handleUnsubscribe}
+                        className="w-full text-sm text-red-400 hover:bg-red-900/20 rounded-lg py-2 mt-2"
+                      >
+                        Unsubscribe
+                      </button>
+                    )}
+                  </div>
 
                   {/* Menu Items */}
                   <div className="p-2">
@@ -423,9 +468,27 @@ export const Header: React.FC = () => {
                 Confirm Unsubscribe
               </h3>
             </div>
-            <p className="text-slate-600 dark:text-gray-300 mb-6">
+            <p className="text-slate-600 dark:text-gray-300 mb-3">
               Are you sure you want to unsubscribe from {subscriptionPlan}?
             </p>
+            
+            {/* Display subscription end date and time remaining */}
+            {isSubscriptionEndDateFuture && (
+              <div className="mb-4 p-3 bg-gray-100 dark:bg-gray-700 rounded-lg">
+                <p className="text-sm text-gray-700 dark:text-gray-300 mb-1">
+                  If you unsubscribe, your {subscriptionPlan} plan will remain active until:
+                </p>
+                <p className="text-sm font-bold text-gray-900 dark:text-gray-100">
+                  {formattedSubscriptionEndDate}
+                </p>
+                {timeRemaining && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Time remaining: {timeRemaining}
+                  </p>
+                )}
+              </div>
+            )}
+
             <div className="flex justify-end gap-2">
               <button
                 onClick={() => setShowUnsubscribeModal(false)}

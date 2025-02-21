@@ -56,7 +56,7 @@ app.post('/webhook', bodyParser.raw({ type: 'application/json' }), async (req, r
                 return;
             }
 
-            let subscriptionPlan = 'Up Slow';
+            let subscriptionPlan = 'Basic';
             if (priceId === '4.99') subscriptionPlan = 'Up Fast';
             else if (priceId === '9.99') subscriptionPlan = 'Business';
 
@@ -81,6 +81,7 @@ app.post('/webhook', bodyParser.raw({ type: 'application/json' }), async (req, r
                     subscription_end_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
                     subscription_status: 'active',
                     downloads_remaining: subscriptionPlan === 'Up Fast' ? 99999 : 5,
+                    cancelled_date: "",
                     updated_at: new Date().toISOString(),
                 })
                 .eq('email', customerEmail);
@@ -95,6 +96,102 @@ app.post('/webhook', bodyParser.raw({ type: 'application/json' }), async (req, r
             break;
         }
 
+        case 'invoice.payment_failed': {
+            const invoice = event.data.object;
+            const customerEmail = invoice.customer_email;
+
+            let subscriptionPlan = 'Basic';
+            if (priceId === '4.99') subscriptionPlan = 'Up Fast';
+            else if (priceId === '9.99') subscriptionPlan = 'Business';
+
+            if (!customerEmail) {
+                res.status(400).json({ error: 'Missing customer email.' });
+                return;
+            }
+
+            // Update subscription status
+            const { error } = await supabase
+                .from('profiles')
+                .update({ 
+                    subscription_status: 'past_due',
+                    subscription_plan: subscriptionPlan,
+                    updated_at: new Date().toISOString() })
+                .eq('email', customerEmail);
+
+            if (error) {
+                console.error('Error updating subscription status:', error);
+                res.status(500).json({ error: 'Failed to update subscription status' });
+                return;
+            }
+
+            console.log(`✅ Payment failed, subscription past due for ${customerEmail}`);
+            break;
+        }
+
+        case 'invoice.payment_action_required': {
+            const invoice = event.data.object;
+            const customerEmail = invoice.customer_email;
+
+            if (!customerEmail) {
+                res.status(400).json({ error: 'Missing customer email.' });
+                return;
+            }
+
+            let subscriptionPlan = 'Basic';
+            if (priceId === '4.99') subscriptionPlan = 'Up Fast';
+            else if (priceId === '9.99') subscriptionPlan = 'Business';
+
+            // Update subscription status
+            const { error } = await supabase
+                .from('profiles')
+                .update({
+                    subscription_status: 'incomplete',
+                    subscription_plan: subscriptionPlan,
+                    updated_at: new Date().toISOString() })
+                .eq('email', customerEmail);
+
+            if (error) {
+                console.error('Error updating subscription status:', error);
+                res.status(500).json({ error: 'Failed to update subscription status' });
+                return;
+            }
+
+            console.log(`✅ Payment action required, subscription incomplete for ${customerEmail}`);
+            break;
+        }
+
+        case 'invoice.upcoming': {
+            const invoice = event.data.object;
+            const customerEmail = invoice.customer_email;
+
+            if (!customerEmail) {
+                res.status(400).json({ error: 'Missing customer email.' });
+                return;
+            }
+
+            let subscriptionPlan = 'Basic';
+            if (priceId === '4.99') subscriptionPlan = 'Up Fast';
+            else if (priceId === '9.99') subscriptionPlan = 'Business';
+
+            // Update subscription status
+            const { error } = await supabase
+                .from('profiles')
+                .update({
+                    subscription_status: 'upcoming',
+                    subscription_plan: subscriptionPlan,
+                    updated_at: new Date().toISOString() })
+                .eq('email', customerEmail);
+
+            if (error) {
+                console.error('Error updating subscription status:', error);
+                res.status(500).json({ error: 'Failed to update subscription status' });
+                return;
+            }
+
+            console.log(`✅ Upcoming invoice for ${customerEmail}`);
+            break;
+        }
+
         case 'invoice.payment_succeeded': {
             const invoice = event.data.object;
             const customerEmail = invoice.customer_email;
@@ -105,11 +202,18 @@ app.post('/webhook', bodyParser.raw({ type: 'application/json' }), async (req, r
                 return;
             }
 
+            let subscriptionPlan = 'Basic';
+            if (priceId === '4.99') subscriptionPlan = 'Up Fast';
+            else if (priceId === '9.99') subscriptionPlan = 'Business';
+
             // Update subscription status
             const { error } = await supabase
                 .from('profiles')
                 .update({ 
                     subscription_status: 'active',
+                    subscription_plan: subscriptionPlan,
+                    subscription_paid_date: new Date().toISOString(),
+                    subscription_end_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
                     stripe_subscription_id: subscriptionId,
                     updated_at: new Date().toISOString() })
                 .eq('email', customerEmail);
@@ -121,6 +225,72 @@ app.post('/webhook', bodyParser.raw({ type: 'application/json' }), async (req, r
             }
 
             console.log(`✅ Payment succeeded, subscription active for ${customerEmail}`);
+            break;
+        }
+
+        case 'customer.subscription.created': {
+            const subscription = event.data.object;
+            const customer = await stripe.customers.retrieve(subscription.customer);
+            const customerEmail = customer.email;
+
+            if (!customerEmail) {
+                res.status(400).json({ error: 'Missing customer email.' });
+                return;
+            }
+
+            // Update subscription status
+            const { error } = await supabase
+                .from('profiles')
+                .update({
+                    subscription_status: subscription.status,
+                    subscription_plan: subscription.subscription_plan,
+                    stripe_subscription_id: subscription.id,
+                    subscription_paid_date: new Date().toISOString(),
+                    subscription_end_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+                    updated_at: new Date().toISOString(),
+                })
+                .eq('email', customerEmail);
+            
+            if (error) {
+                console.error('Error updating subscription status:', error);
+                res.status(500).json({ error: 'Failed to update subscription status' });
+                return;
+            }
+
+            console.log(`✅ Subscription created for ${customerEmail}`);
+            break;
+        }
+
+        case 'customer.subscription.updated': {
+            const subscription = event.data.object;
+            const customer = await stripe.customers.retrieve(subscription.customer);
+            const customerEmail = customer.email;
+
+            if (!customerEmail) {
+                res.status(400).json({ error: 'Missing customer email.' });
+                return;
+            }
+
+            // Update subscription status
+            const { error } = await supabase
+                .from('profiles')
+                .update({
+                    subscription_status: subscription.status,
+                    subscription_plan: subscription.subscription_plan,
+                    stripe_subscription_id: subscription.id,
+                    subscription_paid_date: new Date().toISOString(),
+                    subscription_end_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+                    updated_at: new Date().toISOString(),
+                })
+                .eq('email', customerEmail);
+
+            if (error) {
+                console.error('Error updating subscription status:', error);
+                res.status(500).json({ error: 'Failed to update subscription status' });
+                return;
+            }
+
+            console.log(`✅ Subscription updated for ${customerEmail}`);
             break;
         }
 
