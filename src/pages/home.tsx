@@ -60,7 +60,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         <Header />
         <main className="flex-1 max-w-[1920px] mx-auto w-full px-2 overflow-hidden ">
             <div className="flex-shrink-0">
-                <div className="flex items-center justify-between border-b border-slate-200 dark:border-gray-700">
+                <div className="flex h-5 items-center justify-between  border-slate-200 dark:border-gray-700">
                     <div className="flex items-center gap-0.5">
                     </div>
 
@@ -81,7 +81,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                 </div>
             </div>
 
-            <div className="h-full grid grid-cols-1 lg:grid-cols-12 gap-4 mt-4">
+            <div className="h-full grid grid-cols-1 lg:grid-cols-12 gap-4">
                 <div className="lg:col-span-2 overflow-hidden">
                     <Sidebar />
                 </div>
