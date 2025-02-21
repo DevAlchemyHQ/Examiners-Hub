@@ -67,7 +67,7 @@ export const WeatherDate: React.FC = () => {
   };
 
   return (
-    <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-gray-300 w-[7svw]">
+    <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-gray-300 w-[8svw]">
       <span>{format(new Date(), 'EEE, d MMM')}</span>
       <span className=" h-3 bg-slate-200 dark:bg-gray-700" />
       {loading ? (
