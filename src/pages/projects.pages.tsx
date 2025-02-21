@@ -78,7 +78,7 @@ export const ProjectsPage: React.FC = () => {
     };
 
     return (
-        <div className="min-h-screen bg-slate-50 dark:bg-gray-900 flex flex-col">
+        <div className="h-[100vh] bg-slate-50 dark:bg-gray-900 flex flex-col">
             <Header />
 
             {loading ? (
