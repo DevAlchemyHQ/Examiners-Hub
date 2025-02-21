@@ -18,33 +18,35 @@ export const DownloadButton: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [downloadsLeft, setDownloadsLeft] = useState<number | null>(null);
   const [hasActiveSubscription, setHasActiveSubscription] = useState(false);
+  const [isSubscriptionExpired, setIsSubscriptionExpired] = useState(false);
 
   useEffect(() => {
     if (!user?.user_metadata) return;
-
+  
     const {
       subscription_plan,
       subscription_status,
       subscription_end_date,
     } = user.user_metadata;
-
+  
     const endDate = new Date(subscription_end_date);
     const today = new Date();
-
-    // Check if the user still has an active subscription
-    if (subscription_plan !== 'Basic' && today <= endDate) {
+  
+    // If the user is on Up Fast or Premium and the subscription is still valid, allow unlimited downloads
+    if ((subscription_plan === 'Up Fast' || subscription_plan === 'Premium') || today <= endDate) {
       setHasActiveSubscription(true);
       return;
     }
-
-    // If user was on Up Fast or Premium but the period has ended, reset to Basic limits
+  
+    // If the user's subscription has expired, reset them to Basic limits
     setHasActiveSubscription(false);
-
+  
     if (subscription_status === 'Basic') {
       const storedDownloads = localStorage.getItem('downloadsLeft');
       setDownloadsLeft(storedDownloads ? parseInt(storedDownloads, 10) : 5);
     }
   }, [user]);
+  
 
   const hasSpecialCharacters = React.useMemo(() => {
     const selectedImagesList = images.filter(img => selectedImages.has(img.id));
@@ -66,7 +68,7 @@ export const DownloadButton: React.FC = () => {
         throw new Error('No images selected');
       }
 
-      if (!hasActiveSubscription && downloadsLeft !== null && downloadsLeft <= 0) {
+      if (isSubscriptionExpired && downloadsLeft !== null && downloadsLeft <= 0) {
         throw new Error('You have used all 5 downloads. Upgrade to continue.');
       }
 
@@ -83,7 +85,7 @@ export const DownloadButton: React.FC = () => {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
 
-      if (!hasActiveSubscription) {
+      if (isSubscriptionExpired) {
         const newDownloadsLeft = downloadsLeft! - 1;
         setDownloadsLeft(newDownloadsLeft);
         localStorage.setItem('downloadsLeft', newDownloadsLeft.toString());
@@ -98,7 +100,7 @@ export const DownloadButton: React.FC = () => {
 
   return (
     <div className="space-y-2">
-      {!hasActiveSubscription && downloadsLeft === 0 ? (
+      {isSubscriptionExpired && downloadsLeft === 0 ? (
         <button
           onClick={handleUpgradeClick}
           className="w-full flex items-center justify-center gap-2 px-6 py-3 rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:from-purple-600 hover:to-pink-600"
@@ -109,9 +111,9 @@ export const DownloadButton: React.FC = () => {
       ) : (
         <button
           onClick={handleDownload}
-          disabled={isDownloading || (!hasActiveSubscription && downloadsLeft !== null && downloadsLeft <= 0)}
+          disabled={isDownloading || (isSubscriptionExpired && downloadsLeft !== null && downloadsLeft <= 0)}
           className={`w-full flex items-center justify-center gap-2 px-6 py-3 rounded-lg ${
-            isDownloading || (!hasActiveSubscription && downloadsLeft !== null && downloadsLeft <= 0)
+            isDownloading || (isSubscriptionExpired && downloadsLeft !== null && downloadsLeft <= 0)
               ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
               : 'bg-green-500 text-white hover:bg-green-600'
           }`}
