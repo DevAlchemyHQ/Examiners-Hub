@@ -15,7 +15,7 @@ export const SubscriptionPage: React.FC = () => {
     };
 
     return (
-        <div className="min-h-screen overflow-auto p-4 bg-gray-900 text-white relative">
+        <div className="min-h-screen overflow-auto bg-gray-900 text-white relative">
         <Header />
 
         {loading ? (

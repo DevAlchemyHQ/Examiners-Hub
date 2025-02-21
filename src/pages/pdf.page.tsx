@@ -223,7 +223,7 @@ export const PDFViewerPage: React.FC = () => {
 
 
     return (
-        <div className="min-h-screen overflow-auto p-4 bg-gray-900 text-white relative">
+        <div className="min-h-screen overflow-auto bg-gray-900 text-white relative">
         <Header />
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 h-full mt-4">
             <PDFViewerSection

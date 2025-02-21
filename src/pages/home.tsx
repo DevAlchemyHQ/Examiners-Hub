@@ -55,24 +55,24 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         );
     }
 
-    if (isInitialLoad) {
-        return (
-        <div className="min-h-screen bg-slate-50 dark:bg-gray-900 flex flex-col">
-            <Header />
-            <main className="flex-1 flex items-center justify-center">
-            <div className="text-center">
-                <Loader2 className="w-8 h-8 animate-spin text-indigo-500 mx-auto mb-4" />
-                <p className="text-slate-600 dark:text-gray-400">Just a Moment...</p>
-            </div>
-            </main>
-        </div>
-        );
-    }
+    // if (isInitialLoad) {
+    //     return (
+    //     <div className="min-h-screen bg-slate-50 dark:bg-gray-900 flex flex-col">
+    //         <Header />
+    //         <main className="flex-1 flex items-center justify-center">
+    //         <div className="text-center">
+    //             <Loader2 className="w-8 h-8 animate-spin text-indigo-500 mx-auto mb-4" />
+    //             <p className="text-slate-600 dark:text-gray-400">Just a Moment...</p>
+    //         </div>
+    //         </main>
+    //     </div>
+    //     );
+    // }
 
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-gray-900 flex flex-col">
         <Header />
-        <main className="flex-1 max-w-[1920px] mx-auto w-full px-2 overflow-hidden">
+        <main className="flex-1 max-w-[1920px] mx-auto w-full px-2 overflow-hidden ">
             <div className="flex-shrink-0">
                 <div className="flex items-center justify-between border-b border-slate-200 dark:border-gray-700">
                     <div className="flex items-center gap-0.5">
@@ -95,7 +95,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                 </div>
             </div>
 
-            <div className="h-full grid grid-cols-1 lg:grid-cols-12 gap-4 mt-5">
+            <div className="h-full grid grid-cols-1 lg:grid-cols-12 gap-4 mt-4">
                 <div className="lg:col-span-2 overflow-hidden">
                     <Sidebar />
                 </div>

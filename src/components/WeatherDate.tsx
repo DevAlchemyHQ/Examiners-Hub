@@ -67,17 +67,17 @@ export const WeatherDate: React.FC = () => {
   };
 
   return (
-    <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-gray-300">
+    <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-gray-300 w-[7svw]">
       <span>{format(new Date(), 'EEE, d MMM')}</span>
-      <span className="w-px h-3 bg-slate-200 dark:bg-gray-700" />
+      <span className=" h-3 bg-slate-200 dark:bg-gray-700" />
       {loading ? (
         <Loader2 className="w-4 h-4 animate-spin" />
       ) : error ? (
         <Cloud className="w-4 h-4" />
       ) : weather ? (
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 ">
           {getWeatherIcon()}
-          <span>{weather.temp}°C</span>
+          <span>{weather?.temp}°C</span>
         </div>
       ) : null}
     </div>
