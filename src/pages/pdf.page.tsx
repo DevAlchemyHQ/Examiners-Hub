@@ -54,7 +54,7 @@ const PDFViewerSection: React.FC<PDFViewerSectionProps> = ({ title, file, scale,
     
         let adjustedScale = scale;
         if (newRotation === 90 || newRotation === 270) {
-            adjustedScale = Math.max(scale * 0.2, 0.3);
+            adjustedScale = Math.max(scale * 0.2, 0.2);
         } else {
             adjustedScale = 1.5;
         }
@@ -202,8 +202,8 @@ const loadPDF = async (file: File) => {
 export const PDFViewerPage: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const { file1, file2, setFile1, setFile2, loadPDFs } = usePDFStore();
-    const [scale1, setScale1] = useState(1.5);
-    const [scale2, setScale2] = useState(1.5);
+    const [scale1, setScale1] = useState(1.2);
+    const [scale2, setScale2] = useState(1.2);
     const [isInitialLoad, setIsInitialLoad] = useState(true);
 
     useEffect(() => {
