@@ -49,6 +49,7 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
   const {
     images,
     selectedImages,
+    bulkSelectedImages,
     toggleImageSelection,
     updateImageMetadata,
     clearSelectedImages,
@@ -56,17 +57,44 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
     sketchSortDirection,
     setDefectSortDirection,
     setSketchSortDirection,
-    getSelectedCounts,
     viewMode,
-    setViewMode
+    setViewMode,
+    bulkDefects
   } = useMetadataStore();
   const [enlargedImage, setEnlargedImage] = useState<string | null>(null);
   
   const selectedImagesList = React.useMemo(() => {
-    return images.filter(img => selectedImages.has(img.id));
-  }, [images, selectedImages]);
+    if (viewMode === 'bulk') {
+      return images.filter(img => bulkSelectedImages.has(img.id));
+    } else {
+      return images.filter(img => selectedImages.has(img.id));
+    }
+  }, [images, selectedImages, bulkSelectedImages, viewMode]);
 
-  const { sketches, defects } = getSelectedCounts();
+  const { sketches, defects } = React.useMemo(() => ({
+    sketches: selectedImagesList.filter(img => img.isSketch).length,
+    defects: selectedImagesList.filter(img => !img.isSketch).length
+  }), [selectedImagesList]);
+
+  const getImageNumber = (img: ImageMetadata) => {
+    if (viewMode === 'bulk') {
+      // For bulk mode, get number from bulkDefects
+      const defect = bulkDefects.find(d => d.selectedFile === img.file.name);
+      return defect?.photoNumber || '';
+    }
+    // For images mode, use the image's own photoNumber
+    return img.photoNumber;
+  };
+
+  const getImageDescription = (img: ImageMetadata) => {
+    if (viewMode === 'bulk') {
+      // For bulk mode, get description from bulkDefects
+      const defect = bulkDefects.find(d => d.selectedFile === img.file.name);
+      return defect?.description || '';
+    }
+    // For images mode, use the image's own description
+    return img.description;
+  };
 
   const sortImages = (images: ImageMetadata[], direction: 'asc' | 'desc' | null) => {
     if (!direction) return images;
@@ -299,12 +327,19 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
                         </div>
                         <input
                           type="number"
-                          value={img.photoNumber}
+                          value={getImageNumber(img)}
                           onChange={(e) => updateImageMetadata(img.id, { photoNumber: e.target.value })}
                           className="w-full p-1 text-sm border border-slate-200 dark:border-gray-600 rounded focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white dark:bg-gray-800 text-slate-900 dark:text-white"
                           placeholder="#"
                         />
-                        {renderDescriptionField(img)}
+                        {!img.isSketch && (
+                          <textarea
+                            value={getImageDescription(img)}
+                            onChange={(e) => updateImageMetadata(img.id, { description: e.target.value })}
+                            className="w-full p-1.5 text-sm border rounded focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white dark:bg-gray-800 text-slate-900 dark:text-white resize-y min-h-[60px]"
+                            placeholder="Description"
+                          />
+                        )}
                       </div>
                     </div>
                   ))}

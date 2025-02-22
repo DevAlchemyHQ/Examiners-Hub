@@ -25,24 +25,27 @@ export const ImageGridItem: React.FC<ImageGridItemProps> = ({ images, gridWidth 
   const parentRef = React.useRef<HTMLDivElement>(null);
   const location = useLocation();
   
-  // Use viewMode from store instead of route
-  const isBulkMode = viewMode === 'bulk';
-
-  // Only show selections for the active mode
-  const selections = isBulkMode ? bulkSelectedImages : selectedImages;
-  const toggleSelection = isBulkMode ? toggleBulkImageSelection : toggleImageSelection;
+  // Use the correct selection set based on viewMode
+  const selections = viewMode === 'bulk' ? bulkSelectedImages : selectedImages;
+  const toggleSelection = viewMode === 'bulk' ? toggleBulkImageSelection : toggleImageSelection;
 
   const getDefectNumbers = (img: ImageMetadata) => {
     if (img.isSketch) return [];
     
-    return bulkDefects
-      .filter(defect => defect.selectedFile === img.file.name)
-      .map(defect => defect.photoNumber)
-      .sort((a, b) => {
-        const aNum = parseInt(a);
-        const bNum = parseInt(b);
-        return aNum - bNum;
-      });
+    if (viewMode === 'bulk') {
+      // In bulk mode, show bulk defect numbers
+      return bulkDefects
+        .filter(defect => defect.selectedFile === img.file.name)
+        .map(defect => defect.photoNumber)
+        .sort((a, b) => {
+          const aNum = parseInt(a);
+          const bNum = parseInt(b);
+          return aNum - bNum;
+        });
+    } else {
+      // In images mode, show the image's own number if selected
+      return selectedImages.has(img.id) && img.photoNumber ? [img.photoNumber] : [];
+    }
   };
 
   const rowVirtualizer = useVirtualizer({
@@ -129,8 +132,8 @@ export const ImageGridItem: React.FC<ImageGridItemProps> = ({ images, gridWidth 
                           draggable="false"
                         />
                         
-                        {/* Only show defect numbers for non-sketch images */}
-                        {!img.isSketch && defectNumbers.length > 0 && (
+                        {/* Show numbers based on mode */}
+                        {defectNumbers.length > 0 && (
                           <div className="absolute top-2 left-2 flex flex-wrap gap-1 max-w-[calc(100%-16px)]">
                             {defectNumbers.map((number) => (
                               <span
