@@ -7,7 +7,7 @@ import { BulkTextInput } from './BulkTextInput';
 import type { ImageMetadata } from '../types';
 
 
-type ViewMode = 'images' | 'text';
+type ViewMode = 'images' | 'text' | 'bulk';
 
 const SortButton: React.FC<{
   direction: 'asc' | 'desc' | null;
@@ -56,10 +56,11 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
     sketchSortDirection,
     setDefectSortDirection,
     setSketchSortDirection,
-    getSelectedCounts
+    getSelectedCounts,
+    viewMode,
+    setViewMode
   } = useMetadataStore();
   const [enlargedImage, setEnlargedImage] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<ViewMode>('images');
   
   const selectedImagesList = React.useMemo(() => {
     return images.filter(img => selectedImages.has(img.id));
@@ -141,7 +142,7 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
       <div className="p-4 border-b border-slate-200 dark:border-gray-700 flex items-center justify-between">
         <div className="flex-1">
           <h3 className="text-lg font-semibold text-slate-800 dark:text-white">
-            {viewMode === 'images' ? `Selected Images (${selectedImagesList.length})` : 'Bulk Defect Entry'}
+            {viewMode === 'images' ? `Selected Images (${selectedImagesList.length})` : viewMode === 'bulk' ? 'Bulk Defect Entry' : 'Bulk'}
           </h3>
           {viewMode === 'images' && <div className="text-sm text-slate-500 dark:text-gray-400 mt-1">
             {sketches} Sketches, {defects} Exam Photos
@@ -162,15 +163,15 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
               <span className="text-sm font-medium">Images</span>
             </button>
             <button
-              onClick={() => setViewMode('text')}
+              onClick={() => setViewMode('bulk')}
               className={`flex items-center gap-2 px-3 py-1.5 rounded-md transition-all ${
-                viewMode === 'text'
+                viewMode === 'bulk'
                   ? 'bg-white dark:bg-gray-600 text-indigo-600 dark:text-indigo-400 shadow-sm'
                   : 'text-slate-600 dark:text-gray-300 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
               <FileText size={18} />
-              <span className="text-sm font-medium">Coming Soon !</span>
+              <span className="text-sm font-medium">Bulk</span>
             </button>
           </div>
         </div>
@@ -311,8 +312,12 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
               )}
             </div>
           </div>
-        ) : (
+        ) : viewMode === 'bulk' ? (
           <BulkTextInput />
+        ) : (
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm h-[calc(100vh-96px)] flex items-center justify-center p-8 text-slate-400 dark:text-gray-500">
+            Coming Soon!
+          </div>
         )}
       </div>
 
