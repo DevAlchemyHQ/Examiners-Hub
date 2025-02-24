@@ -1,15 +1,12 @@
 export interface ImageMetadata {
   id: string;
   file: File;
-  fileName: string;
-  fileSize: number;
-  fileType: string;
   photoNumber: string;
   description: string;
   preview: string;
-  isSketch?: boolean;
-  publicUrl?: string;
-  userId?: string;
+  isSketch: boolean;
+  publicUrl: string;
+  userId: string;
 }
 
 export interface FormData {
@@ -17,3 +14,10 @@ export interface FormData {
   structureNo: string;
   date: string;
 }
+
+export interface BulkDefect {
+  id: string;
+  photoNumber: string;
+  description: string;
+  selectedFile: string;
+} 

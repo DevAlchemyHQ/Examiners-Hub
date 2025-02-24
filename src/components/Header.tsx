@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { LogOut, Sun, Moon, Info, User, Camera, Settings, XCircle, CreditCard, Menu } from 'lucide-react';
+import { LogOut, Sun, Moon, Info, User, Camera, XCircle, CreditCard, Menu } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
+import { supabase } from '../lib/supabase';
 import { useThemeStore } from '../store/themeStore';
 import { WeatherDate } from './WeatherDate';
-// import { EditProfileModal } from './profile/EditProfile';
-import { signOut, updateUserProfile } from '../lib/supabase';
+import { EditProfileModal } from './profile/EditProfile';
+import { signOut, updateUserProfile, cancelSubscription } from '../lib/supabase';
 
 export const Header: React.FC = () => {
   const navigate = useNavigate();
@@ -15,12 +16,12 @@ export const Header: React.FC = () => {
   const { isDark, toggle } = useThemeStore();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showBetaInfo, setShowBetaInfo] = useState(false);
-  // const [showEditProfile, setShowEditProfile] = useState(false);
+  const [showEditProfile, setShowEditProfile] = useState(false);
   const [showUnsubscribeModal, setShowUnsubscribeModal] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const navigationTabs = [
-    { path: '/projects', label: 'Projects' },
+    // { path: '/projects', label: 'Projects' },
     { path: '/dashboard', label: 'Images' },
     { path: '/pdf', label: 'PDF' },
     { path: '/calculator', label: 'Calc' },
@@ -31,9 +32,75 @@ export const Header: React.FC = () => {
   ];
 
   const profileImage = user?.user_metadata.avatar_url || '🚂';
-  const subscriptionPlan = user?.user_metadata.subscription_plan || 'Basic';
-  const billingDate = new Date();
-  billingDate.setMonth(billingDate.getMonth() + 1);
+  const subscriptionPlan = user?.user_metadata.subscription_plan;
+  const subscriptionStatus = user?.user_metadata.subscription_status || 'active';
+  const subscriptionEndDate = user?.user_metadata.subscription_end_date || '';
+
+  // Check if subscription end date is in the future
+  const isSubscriptionEndDateFuture = subscriptionEndDate 
+    ? new Date(subscriptionEndDate) > new Date() 
+    : false;
+
+  // Calculate time remaining until subscription ends
+  const getTimeRemaining = () => {
+    if (!subscriptionEndDate) return null;
+    
+    const endDate = new Date(subscriptionEndDate);
+    const now = new Date();
+    
+    if (endDate <= now) return null;
+    
+    const diffMs = endDate.getTime() - now.getTime();
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    
+    if (diffDays > 30) {
+      const diffMonths = Math.floor(diffDays / 30);
+      return `${diffMonths} month${diffMonths > 1 ? 's' : ''}`;
+    } else {
+      return `${diffDays} day${diffDays > 1 ? 's' : ''}`;
+    }
+  };
+
+  const timeRemaining = getTimeRemaining();
+
+  const fetchSubscriptionDetails = async () => {
+    if (!user?.email) return;
+  
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("subscription_plan, subscription_status, subscription_end_date")
+        .eq("email", user.email)
+        .single();
+  
+      if (error) {
+        console.error("Error fetching subscription details:", error);
+        return;
+      }
+  
+      if (data) {
+        setUser({
+          ...user,
+          user_metadata: {
+            ...user.user_metadata,
+            subscription_plan: data.subscription_plan, 
+            subscription_status: data.subscription_status,
+            subscription_end_date: data.subscription_end_date,
+          },
+        });
+      }
+    } catch (err) {
+      console.error("Unexpected error fetching subscription details:", err);
+    }
+  };
+
+  const formattedSubscriptionEndDate = subscriptionEndDate
+  ? new Date(subscriptionEndDate).toLocaleDateString(undefined, {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    })
+  : '';
 
   const handleNavigation = (path: string) => {
     navigate(path);
@@ -43,6 +110,55 @@ export const Header: React.FC = () => {
   const handleSubsciption = () => {
     navigate('/subscriptions');
     setShowProfileMenu(false);
+  };
+
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !user) return;
+  
+    try {
+      // Generate file path with user's id as folder name
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Date.now()}.${fileExt}`;
+      const filePath = `${user.id}/${fileName}`;
+  
+      const { data: existingFiles } = await supabase.storage
+        .from('avatars')
+        .list(user.id);
+      if (existingFiles && existingFiles.length > 0) {
+        await supabase.storage
+          .from('avatars')
+          .remove(existingFiles.map(f => `${user.id}/${f.name}`));
+      }
+  
+      // Upload file to the 'avatars' bucket
+      const { error: uploadError, data: uploadData } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: true,
+        });
+  
+      if (uploadError) throw uploadError;
+  
+      // Get the public URL for the uploaded file
+      const { data: publicUrlData } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(uploadData.path);
+  
+      if (publicUrlData) {
+        await updateUserProfile(user.id, { avatar_url: publicUrlData.publicUrl });
+        setUser({
+          ...user,
+          user_metadata: {
+            ...user.user_metadata,
+            avatar_url: publicUrlData.publicUrl,
+          },
+        });
+      }
+    } catch (error) {
+      console.error('Image upload error:', error);
+    }
   };
 
   const handleLogout = async () => {
@@ -64,12 +180,14 @@ export const Header: React.FC = () => {
   const confirmUnsubscribe = async () => {
     try {
       if (user) {
-        await updateUserProfile(user.id, { subscription_status: 'Basic' });
+        await cancelSubscription(user.id);
         setUser({
           ...user,
           user_metadata: {
             ...user.user_metadata,
             subscription_plan: 'Basic',
+            subscription_status: 'cancelled',
+            cancelled_date: new Date().toISOString(),
           },
         });
       }
@@ -91,6 +209,11 @@ export const Header: React.FC = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  React.useEffect(() => {
+    fetchSubscriptionDetails();
+  }, [user?.email]);
+  
+
   return (
     <header className="bg-white dark:bg-gray-800 shadow-sm">
       <div className="max-w-7xl mx-auto px-4">
@@ -107,6 +230,15 @@ export const Header: React.FC = () => {
               className="text-xl font-bold text-slate-800 dark:text-white cursor-pointer shrink-0">
               Welcome to Exametry 🙂
             </h1>
+            
+            {/* Show subscription end date info for cancelled but active subscriptions */}
+            {subscriptionStatus === 'cancelled' && isSubscriptionEndDateFuture && subscriptionPlan !== 'Basic' && (
+              <div className="hidden sm:flex items-center ml-2 px-2 py-1 bg-amber-100 dark:bg-amber-900/30 rounded-full">
+                <span className="text-xs text-amber-700 dark:text-amber-400">
+                  <span className="font-medium">{subscriptionPlan}</span> active until {formattedSubscriptionEndDate}
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Desktop Navigation */}
@@ -163,22 +295,36 @@ export const Header: React.FC = () => {
                   {/* User Info Section */}
                   <div className="p-4 border-b border-gray-700">
                     <div className="flex items-center gap-3 mb-3">
-                      <div className="relative">
-                        {profileImage ? (
-                          <img
-                            src={profileImage}
-                            alt="Profile"
-                            className="w-12 h-12 rounded-full object-cover"
-                          />
-                        ) : (
-                          <div className="w-12 h-12 rounded-full bg-indigo-500 flex items-center justify-center text-xl">
-                            {profileImage}
-                          </div>
-                        )}
-                        <button className="absolute -bottom-1 -right-1 p-1 bg-gray-700 rounded-full hover:bg-gray-600 transition-colors">
-                          <Camera size={12} className="text-gray-300" />
-                        </button>
-                      </div>
+                    <div className="relative">
+                      {profileImage ? (
+                        <img
+                          src={profileImage}
+                          alt="Profile"
+                          className="w-12 h-12 rounded-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-12 h-12 rounded-full bg-indigo-500 flex items-center justify-center text-xl">
+                          {profileImage}
+                        </div>
+                      )}
+                      
+                      {/* Hidden File Input */}
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        className="hidden" 
+                        id="profile-upload" 
+                        onChange={handleImageUpload} 
+                      />
+                      
+                      {/* Camera Button */}
+                      <button 
+                        className="absolute -bottom-1 -right-1 p-1 bg-gray-700 rounded-full hover:bg-gray-600 transition-colors"
+                        onClick={() => document.getElementById('profile-upload')?.click()}
+                      >
+                        <Camera size={12} className="text-gray-300" />
+                      </button>
+                    </div>
                       <div>
                         <h3 className="text-white font-medium">{user?.user_metadata.full_name || 'User'}</h3>
                         <p className="text-sm text-gray-400">{user?.email || 'No email available'}</p>
@@ -195,13 +341,24 @@ export const Header: React.FC = () => {
                       </span>
                     </div>
                     {subscriptionPlan === 'Basic' ? (
-                      <div className="text-xs text-gray-500">Free Plan</div>
+                      subscriptionStatus === 'cancelled' && isSubscriptionEndDateFuture ? (
+                        <div className="text-xs text-gray-500">
+                          Access until: {formattedSubscriptionEndDate}
+                        </div>
+                      ) : (
+                        <div className="text-xs text-gray-500">Free Plan</div>
+                      )
                     ) : (
                       <div className="text-xs text-gray-500">
-                        Next billing date: {billingDate.toLocaleDateString()}
+                        {subscriptionStatus === 'active' ? (
+                          subscriptionEndDate ? `Next billing date: ${formattedSubscriptionEndDate}` : 'Active'
+                        ) : (
+                          subscriptionStatus === 'cancelled' && isSubscriptionEndDateFuture ? 
+                          `Access until: ${formattedSubscriptionEndDate}` : 'Inactive'
+                        )}
                       </div>
                     )}
-                    {subscriptionPlan !== 'Basic' && (
+                    {subscriptionPlan !== 'Basic' && subscriptionStatus === 'active' && (
                       <button
                         onClick={handleUnsubscribe}
                         className="w-full text-sm text-red-400 hover:bg-red-900/20 rounded-lg py-2 mt-2"
@@ -213,22 +370,22 @@ export const Header: React.FC = () => {
 
                   {/* Menu Items */}
                   <div className="p-2">
-                    {/* <button 
+                    <button 
                       onClick={() => setShowEditProfile(true)}
                       className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-gray-700/50 rounded-lg flex items-center gap-2">
                       <User size={16} />
                       Edit Profile
-                    </button> */}
+                    </button>
                     <button 
                       onClick={handleSubsciption}
                       className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-gray-700/50 rounded-lg flex items-center gap-2">
                       <CreditCard size={16} />
                       Manage Subscription
                     </button>
-                    <button className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-gray-700/50 rounded-lg flex items-center gap-2">
+                    {/* <button className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-gray-700/50 rounded-lg flex items-center gap-2">
                       <Settings size={16} />
                       Settings
-                    </button>
+                    </button> */}
                     <button
                       onClick={handleLogout}
                       className="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-red-900/20 rounded-lg flex items-center gap-2"
@@ -300,7 +457,7 @@ export const Header: React.FC = () => {
         </div>
       )}
 
-      {/* {showEditProfile && <EditProfileModal isOpen={showEditProfile} onClose={() => setShowEditProfile(false)} />} */}
+      {showEditProfile && <EditProfileModal isOpen={showEditProfile} onClose={() => setShowEditProfile(false)} />}
 
       {showUnsubscribeModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
@@ -311,9 +468,27 @@ export const Header: React.FC = () => {
                 Confirm Unsubscribe
               </h3>
             </div>
-            <p className="text-slate-600 dark:text-gray-300 mb-6">
+            <p className="text-slate-600 dark:text-gray-300 mb-3">
               Are you sure you want to unsubscribe from {subscriptionPlan}?
             </p>
+            
+            {/* Display subscription end date and time remaining */}
+            {isSubscriptionEndDateFuture && (
+              <div className="mb-4 p-3 bg-gray-100 dark:bg-gray-700 rounded-lg">
+                <p className="text-sm text-gray-700 dark:text-gray-300 mb-1">
+                  If you unsubscribe, your {subscriptionPlan} plan will remain active until:
+                </p>
+                <p className="text-sm font-bold text-gray-900 dark:text-gray-100">
+                  {formattedSubscriptionEndDate}
+                </p>
+                {timeRemaining && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Time remaining: {timeRemaining}
+                  </p>
+                )}
+              </div>
+            )}
+
             <div className="flex justify-end gap-2">
               <button
                 onClick={() => setShowUnsubscribeModal(false)}

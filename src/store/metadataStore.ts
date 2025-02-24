@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase';
 interface BulkDefect {
   photoNumber: string;
   description: string;
-  selectedFile?: string;
+  selectedFile: string;
 }
 
 const initialFormData: FormData = {
@@ -17,16 +17,20 @@ const initialFormData: FormData = {
 interface MetadataState {
   images: ImageMetadata[];
   selectedImages: Set<string>;
+  bulkSelectedImages: Set<string>;
   formData: FormData;
   defectSortDirection: 'asc' | 'desc' | null;
   sketchSortDirection: 'asc' | 'desc' | null;
   bulkDefects: BulkDefect[];
+  viewMode: 'images' | 'bulk';
   setFormData: (data: Partial<FormData>) => void;
   addImages: (files: File[], isSketch?: boolean) => Promise<void>;
   updateImageMetadata: (id: string, data: Partial<Omit<ImageMetadata, 'id' | 'file' | 'preview'>>) => void;
   removeImage: (id: string) => Promise<void>;
   toggleImageSelection: (id: string) => void;
+  toggleBulkImageSelection: (id: string) => void;
   clearSelectedImages: () => void;
+  clearBulkSelectedImages: () => void;
   setDefectSortDirection: (direction: 'asc' | 'desc' | null) => void;
   setSketchSortDirection: (direction: 'asc' | 'desc' | null) => void;
   setBulkDefects: (defects: BulkDefect[] | ((prev: BulkDefect[]) => BulkDefect[])) => void;
@@ -34,15 +38,18 @@ interface MetadataState {
   getSelectedCounts: () => { sketches: number; defects: number };
   loadUserData: () => Promise<void>;
   saveUserData: () => Promise<void>;
+  setViewMode: (mode: 'images' | 'bulk') => void;
 }
 
 export const useMetadataStore = create<MetadataState>((set, get) => ({
   images: [],
   selectedImages: new Set(),
+  bulkSelectedImages: new Set(),
   formData: initialFormData,
   defectSortDirection: null,
   sketchSortDirection: null,
   bulkDefects: [],
+  viewMode: 'images',
 
   setFormData: (data) => {
     set((state) => ({
@@ -50,18 +57,16 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
     }));
     get().saveUserData().catch(console.error);
   },
-  
+
   addImages: async (files, isSketch = false) => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
-      // Upload files to Supabase storage and create image metadata
       const newImages = await Promise.all(files.map(async (file) => {
         const timestamp = new Date().getTime();
         const filePath = `${user.id}/${timestamp}-${file.name}`;
 
-        // Upload file to Supabase storage
         const { error: uploadError } = await supabase.storage
           .from('user-project-files')
           .upload(filePath, file, {
@@ -71,7 +76,6 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
 
         if (uploadError) throw uploadError;
 
-        // Get public URL for the file
         const { data: { publicUrl } } = supabase.storage
           .from('user-project-files')
           .getPublicUrl(filePath);
@@ -94,7 +98,6 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         images: [...state.images, ...newImages],
       }));
 
-      // Save project data after successful uploads
       await get().saveUserData();
     } catch (error) {
       console.error('Error adding images:', error);
@@ -140,11 +143,9 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
 
       const imageToRemove = get().images.find(img => img.id === id);
       if (imageToRemove?.publicUrl) {
-        // Extract file path from public URL
         const url = new URL(imageToRemove.publicUrl);
         const filePath = decodeURIComponent(url.pathname.split('/').slice(-2).join('/'));
         
-        // Delete file from storage
         const { error: deleteError } = await supabase.storage
           .from('user-project-files')
           .remove([filePath]);
@@ -155,6 +156,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       set((state) => ({
         images: state.images.filter((img) => img.id !== id),
         selectedImages: new Set([...state.selectedImages].filter(imgId => imgId !== id)),
+        bulkSelectedImages: new Set([...state.bulkSelectedImages].filter(imgId => imgId !== id)),
       }));
 
       await get().saveUserData();
@@ -172,9 +174,19 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       } else {
         newSelected.add(id);
       }
-      
-      get().saveUserData().catch(console.error);
       return { selectedImages: newSelected };
+    });
+  },
+
+  toggleBulkImageSelection: (id) => {
+    set((state) => {
+      const newSelection = new Set(state.bulkSelectedImages);
+      if (newSelection.has(id)) {
+        newSelection.delete(id);
+      } else {
+        newSelection.add(id);
+      }
+      return { bulkSelectedImages: newSelection };
     });
   },
 
@@ -192,6 +204,10 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         images: updatedImages
       };
     });
+  },
+
+  clearBulkSelectedImages: () => {
+    set({ bulkSelectedImages: new Set() });
   },
 
   setDefectSortDirection: (direction) =>
@@ -243,10 +259,12 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
     set({
       images: [],
       selectedImages: new Set(),
+      bulkSelectedImages: new Set(),
       formData: initialFormData,
       defectSortDirection: null,
       sketchSortDirection: null,
-      bulkDefects: []
+      bulkDefects: [],
+      viewMode: 'images'
     });
   },
 
@@ -262,34 +280,29 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
   loadUserData: async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        console.error('Not authenticated');
-        return;
-      }
+      if (!user) return;
 
-      // Clear existing state first
       set({
         images: [],
         selectedImages: new Set(),
+        bulkSelectedImages: new Set(),
         formData: initialFormData,
         defectSortDirection: null,
         sketchSortDirection: null,
-        bulkDefects: []
+        bulkDefects: [],
+        viewMode: 'images'
       });
 
-      // Load project data
       const { data: projects, error } = await supabase
         .from('projects')
         .select('*')
-        .eq('user_id', user.id);
+        .eq('id', user.id);
 
       if (error) throw error;
 
-      // Get the most recent project if it exists
       const projectData = projects && projects.length > 0 ? projects[0] : null;
 
       if (projectData) {
-        // Load and verify each image
         const validImages = await Promise.all(
           (projectData.images || []).map(async (imgData: any) => {
             try {
@@ -320,9 +333,8 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           })
         );
 
-        // Filter out failed loads
         const images = validImages.filter((img): img is ImageMetadata => img !== null);
-        const selectedImages = new Set(projectData.selected_images || []);
+        const selectedImages = new Set<string>(projectData.selected_images || []);
 
         set({
           formData: projectData.form_data || initialFormData,
@@ -343,7 +355,6 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
 
       const state = get();
       
-      // Prepare images data for storage
       const imagesData = state.images.map(img => ({
         id: img.id,
         photoNumber: img.photoNumber,
@@ -356,18 +367,16 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         fileSize: img.file.size
       }));
 
-      const projectId = crypto.randomUUID();
-
-      // Create new project record
       const { error } = await supabase
         .from('projects')
-        .insert({
-          id: projectId,
-          user_id: user.id,
+        .upsert({
+          id: user.id,
           form_data: state.formData,
           images: imagesData,
           selected_images: Array.from(state.selectedImages),
           updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'id'
         });
 
       if (error) throw error;
@@ -375,5 +384,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       console.error('Error saving user data:', error);
       throw error;
     }
-  }
+  },
+
+  setViewMode: (mode) => set({ viewMode: mode })
 }));

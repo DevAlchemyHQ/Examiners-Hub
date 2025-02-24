@@ -14,7 +14,7 @@ export const CalculatorPage: React.FC = () => {
     }, []);
 
     return (
-        <div className="min-h-screen overflow-auto p-4 bg-gray-900 text-white relative">
+        <div className="min-h-screen overflow-auto bg-gray-900 text-white relative">
             <Header />
 
             {loading ? (
@@ -26,7 +26,7 @@ export const CalculatorPage: React.FC = () => {
                 </main>
             ) : (
                 <div className="h-[calc(100vh-120px)] overflow-auto p-4">
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                     <AreaCalculator />
                     <ChainsConverter />
                     <UnitConverter />

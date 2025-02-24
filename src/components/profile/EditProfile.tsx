@@ -12,17 +12,17 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
     const { user, setUser } = useAuthStore();
     const [fullName, setFullName] = useState(user?.user_metadata.full_name || '');
     const [avatarUrl, setAvatarUrl] = useState(user?.user_metadata.avatar_url || '');
-    const [subscription, setSubscription] = useState(user?.user_metadata.subscription_plan || 'Up Fast');
+    // const [subscription, setSubscription] = useState(user?.user_metadata.subscription_plan || 'Basic');
     const [avatarFile, setAvatarFile] = useState<File | null>(null);
     const [uploading, setUploading] = useState(false);
 
-    const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files[0]) {
-            const file = e.target.files[0];
-            setAvatarFile(file);
-            setAvatarUrl(URL.createObjectURL(file));
-        }
-    };
+    // const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    //     if (e.target.files && e.target.files[0]) {
+    //         const file = e.target.files[0];
+    //         setAvatarFile(file);
+    //         setAvatarUrl(URL.createObjectURL(file));
+    //     }
+    // };
 
     const uploadAvatar = async (): Promise<string | null> => {
         if (!avatarFile) return null;
@@ -57,7 +57,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
         }
 
         const { data, error } = await supabase.auth.updateUser({
-            data: { full_name: fullName, avatar_url: finalAvatarUrl, subscription_plan: subscription },
+            data: { full_name: fullName },
         });
 
         if (error) {
@@ -70,9 +70,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
                 ...data.user,
                 user_metadata: {
                     ...data.user.user_metadata,
-                    full_name: fullName,
-                    avatar_url: finalAvatarUrl,
-                    subscription_plan: subscription,
+                    full_name: fullName
                 },
             });
         }
@@ -93,7 +91,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 text-center mb-6">Edit Profile</h2>
 
                 {/* Avatar Upload Section */}
-                <div className="flex flex-col items-center mb-6">
+                {/* <div className="flex flex-col items-center mb-6">
                     {avatarUrl ? (
                         <img src={avatarUrl} alt="Avatar" className="w-24 h-24 rounded-full border-2 border-gray-300 dark:border-gray-700" />
                     ) : (
@@ -104,7 +102,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
                         {uploading ? "Uploading..." : "Upload Avatar"}
                         <input type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
                     </label>
-                </div>
+                </div> */}
 
                 {/* Full Name Input */}
                 <div className="mb-4">
@@ -118,18 +116,18 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
                 </div>
 
                 {/* Subscription Dropdown */}
-                <div className="mb-6">
+                {/* <div className="mb-6">
                     <label className="block text-sm text-gray-700 dark:text-gray-300">Subscription</label>
                     <select
                         value={subscription}
                         onChange={(e) => setSubscription(e.target.value)}
                         className="w-full p-3 border rounded-lg mt-1 dark:bg-gray-800 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-blue-500"
                     >
+                        <option value="Basic">Basic</option>
                         <option value="Up Fast">Up Fast</option>
                         <option value="Premium">Premium</option>
-                        <option value="Basic">Basic</option>
                     </select>
-                </div>
+                </div> */}
 
                 {/* Buttons */}
                 <div className="flex justify-end">
