@@ -17,5 +17,6 @@ export default defineConfig({
   },
   server: {
     historyApiFallback: true,
+    allowedHosts: ['.ngrok-free.app'],
   },
 });

@@ -6,7 +6,7 @@ import { LoginScreen } from './components/LoginScreen';
 import { MainLayout } from './pages/home';
 import { FeedbackAdmin } from './pages/FeedbackAdmin';
 import { UserProfile } from './components/profile/UserProfile';
-import { ProjectsPage } from './pages/projects.pages';
+// import { ProjectsPage } from './pages/projects.pages';
 import { SubscriptionPage } from './pages/subscription.page';
 import { GamesPage } from './pages/games.page';
 import { CalculatorPage } from './pages/calculator.page';
@@ -37,7 +37,7 @@ const App: React.FC = () => {
           path="/"
           element={
             isAuthenticated ? (
-              <Navigate to={sessionStorage.getItem("lastPath") || "/projects"} replace />
+              <Navigate to={sessionStorage.getItem("lastPath") || "/dashboard"} replace />
             ) : (
               <LoginScreen />
             )
@@ -45,7 +45,8 @@ const App: React.FC = () => {
         />
         <Route element={<ProtectedRoute />}>
           <Route path="/dashboard" element={<MainLayout />} />
-          <Route path="/projects" element={<ProjectsPage />} />
+          {/* <Route path="/dashboard/:projectId" element={<MainLayout />} /> */}
+          {/* <Route path="/projects" element={<ProjectsPage />} /> */}
           <Route path="/feedback" element={<FeedbackAdmin />} />
           <Route path="/profile" element={<UserProfile />} />
           <Route path="/subscriptions" element={<SubscriptionPage />} />

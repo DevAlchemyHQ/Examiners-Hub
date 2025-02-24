@@ -2,11 +2,20 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { supabase } from '../lib/supabase';
 
+interface PageState {
+  currentPage: number;
+  rotation: number;
+}
+
 interface PDFState {
   file1: File | null;
   file2: File | null;
+  pageStates1: { [pageNumber: number]: PageState };
+  pageStates2: { [pageNumber: number]: PageState };
   setFile1: (file: File | null) => Promise<void>;
   setFile2: (file: File | null) => Promise<void>;
+  setPageState1: (pageNumber: number, state: Partial<PageState>) => void;
+  setPageState2: (pageNumber: number, state: Partial<PageState>) => void;
   clearFiles: () => void;
   loadPDFs: () => Promise<void>;
   savePDFs: () => Promise<void>;
@@ -17,12 +26,14 @@ export const usePDFStore = create<PDFState>()(
     (set, get) => ({
       file1: null,
       file2: null,
+      pageStates1: {},
+      pageStates2: {},
       setFile1: async (file) => {
         try {
           if (file) {
             await get().savePDFs();
           }
-          set({ file1: file });
+          set({ file1: file, pageStates1: {} });
         } catch (error) {
           console.error('Error setting file1:', error);
           throw error;
@@ -33,20 +44,45 @@ export const usePDFStore = create<PDFState>()(
           if (file) {
             await get().savePDFs();
           }
-          set({ file2: file });
+          set({ file2: file, pageStates2: {} });
         } catch (error) {
           console.error('Error setting file2:', error);
           throw error;
         }
       },
-      clearFiles: () => set({ file1: null, file2: null }),
-
+      setPageState1: (pageNumber, state) => {
+        set((currentState) => ({
+          pageStates1: {
+            ...currentState.pageStates1,
+            [pageNumber]: {
+              ...currentState.pageStates1[pageNumber],
+              ...state,
+            },
+          },
+        }));
+      },
+      setPageState2: (pageNumber, state) => {
+        set((currentState) => ({
+          pageStates2: {
+            ...currentState.pageStates2,
+            [pageNumber]: {
+              ...currentState.pageStates2[pageNumber],
+              ...state,
+            },
+          },
+        }));
+      },
+      clearFiles: () => set({ 
+        file1: null, 
+        file2: null,
+        pageStates1: {},
+        pageStates2: {}
+      }),
       loadPDFs: async () => {
         try {
           const { data: { user } } = await supabase.auth.getUser();
           if (!user) return;
 
-          // List PDF files in user's folder
           const { data: files } = await supabase.storage
             .from('user-project-files')
             .list(user.id, {
@@ -55,10 +91,8 @@ export const usePDFStore = create<PDFState>()(
 
           if (!files || files.length === 0) return;
 
-          // Sort files by name to maintain order (pdf1, pdf2)
           const sortedFiles = files.sort((a, b) => a.name.localeCompare(b.name));
 
-          // Load PDF files
           const loadedFiles = await Promise.all(
             sortedFiles.slice(0, 2).map(async (fileInfo) => {
               const { data } = await supabase.storage
@@ -73,7 +107,6 @@ export const usePDFStore = create<PDFState>()(
             })
           );
 
-          // Update store with loaded files
           set({
             file1: loadedFiles[0] || null,
             file2: loadedFiles[1] || null
@@ -83,7 +116,6 @@ export const usePDFStore = create<PDFState>()(
           throw error;
         }
       },
-
       savePDFs: async () => {
         try {
           const { data: { user } } = await supabase.auth.getUser();
@@ -91,7 +123,6 @@ export const usePDFStore = create<PDFState>()(
 
           const { file1, file2 } = get();
 
-          // Delete existing PDF files
           const { data: existingFiles } = await supabase.storage
             .from('user-project-files')
             .list(user.id, {
@@ -104,7 +135,6 @@ export const usePDFStore = create<PDFState>()(
               .remove(existingFiles.map(f => `${user.id}/${f.name}`));
           }
 
-          // Upload new PDF files if they exist
           const timestamp = new Date().getTime();
           
           if (file1) {
@@ -133,9 +163,8 @@ export const usePDFStore = create<PDFState>()(
     {
       name: 'pdf-storage',
       partialize: (state) => ({
-        // We don't persist the actual files since they can't be serialized
-        file1: null,
-        file2: null,
+        pageStates1: state.pageStates1,
+        pageStates2: state.pageStates2,
       }),
     }
   )

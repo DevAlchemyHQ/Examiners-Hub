@@ -10,13 +10,12 @@ export const SubscriptionPage: React.FC = () => {
         setLoading(false);
     }, []);
 
-    
     const handleUpgrade = () => {
         window.location.href = 'https://buy.stripe.com/test_bIY5mug4N6sQbOUcMM';
     };
 
     return (
-        <div className="min-h-screen overflow-auto p-4 bg-gray-900 text-white relative">
+        <div className="h-[100vh] overflow-auto bg-gray-900 text-white relative">
         <Header />
 
         {loading ? (
@@ -113,12 +112,12 @@ export const SubscriptionPage: React.FC = () => {
                     <span className="text-lg">Productive and happy examiners.</span>
                 </div>
                 </div>
-                <button 
-                onClick={handleUpgrade}
-                className="w-full py-3 px-4 rounded-lg bg-indigo-500 hover:bg-indigo-600 transition-colors text-lg font-medium cursor-pointer"
-                >
-                Upgrade Plan
-                </button>
+                <a 
+                    href="mailto:timndg@gmail.com?subject=Business Plan Inquiry&body=Hello, I'm interested in the Business Plan. Please provide more details." 
+                    className="w-full py-3 px-4 rounded-lg bg-indigo-500 hover:bg-indigo-600 transition-colors text-lg font-medium text-center block"
+                    >
+                    Contact Us
+                    </a>
             </div>
             </div>
         </div>

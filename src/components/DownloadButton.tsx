@@ -1,20 +1,15 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Download, AlertCircle, Loader2, WalletCards } from 'lucide-react';
-import { TabType } from './layout/MainLayout';
 import { useMetadataStore } from '../store/metadataStore';
 import { useAuthStore } from '../store/authStore';
 import { createDownloadPackage } from '../utils/fileUtils';
 import { useValidation } from '../hooks/useValidation';
 import { useAnalytics } from '../hooks/useAnalytics';
 import { validateDescription } from '../utils/fileValidation';
-// import { createProject } from '../lib/supabase';
 
-interface DownloadButtonProps {
-  setActiveTab?: (tab: TabType) => void;
-  activeTab?: TabType;
-}
-
-export const DownloadButton: React.FC<DownloadButtonProps> = ({ setActiveTab }) => {
+export const DownloadButton: React.FC = () => {
+  const navigate = useNavigate();
   const { images, selectedImages, formData } = useMetadataStore();
   const { isValid } = useValidation();
   const { trackEvent } = useAnalytics();
@@ -22,13 +17,36 @@ export const DownloadButton: React.FC<DownloadButtonProps> = ({ setActiveTab }) 
   const [isDownloading, setIsDownloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [downloadsLeft, setDownloadsLeft] = useState<number | null>(null);
+  const [hasActiveSubscription, setHasActiveSubscription] = useState(false);
+  const [isSubscriptionExpired, setIsSubscriptionExpired] = useState(false);
 
   useEffect(() => {
-    if (user?.user_metadata.subscription_plan === 'Basic') {
+    if (!user?.user_metadata) return;
+  
+    const {
+      subscription_plan,
+      subscription_status,
+      subscription_end_date,
+    } = user.user_metadata;
+  
+    const endDate = new Date(subscription_end_date);
+    const today = new Date();
+  
+    // If the user is on Up Fast or Premium and the subscription is still valid, allow unlimited downloads
+    if ((subscription_plan === 'Up Fast' || subscription_plan === 'Premium') || today <= endDate) {
+      setHasActiveSubscription(true);
+      return;
+    }
+  
+    // If the user's subscription has expired, reset them to Basic limits
+    setHasActiveSubscription(false);
+  
+    if (subscription_status === 'Basic') {
       const storedDownloads = localStorage.getItem('downloadsLeft');
       setDownloadsLeft(storedDownloads ? parseInt(storedDownloads, 10) : 5);
     }
   }, [user]);
+  
 
   const hasSpecialCharacters = React.useMemo(() => {
     const selectedImagesList = images.filter(img => selectedImages.has(img.id));
@@ -36,7 +54,7 @@ export const DownloadButton: React.FC<DownloadButtonProps> = ({ setActiveTab }) 
   }, [images, selectedImages]);
 
   const handleUpgradeClick = () => {
-    setActiveTab?.('subscription');
+    navigate('/subscriptions');
   };
 
   const handleDownload = async () => {
@@ -50,7 +68,7 @@ export const DownloadButton: React.FC<DownloadButtonProps> = ({ setActiveTab }) 
         throw new Error('No images selected');
       }
 
-      if (user?.user_metadata.subscription_plan === 'Basic' && (downloadsLeft === null || downloadsLeft <= 0)) {
+      if (isSubscriptionExpired && downloadsLeft !== null && downloadsLeft <= 0) {
         throw new Error('You have used all 5 downloads. Upgrade to continue.');
       }
 
@@ -67,7 +85,7 @@ export const DownloadButton: React.FC<DownloadButtonProps> = ({ setActiveTab }) 
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
 
-      if (user?.user_metadata.subscription_plan === 'Basic') {
+      if (isSubscriptionExpired) {
         const newDownloadsLeft = downloadsLeft! - 1;
         setDownloadsLeft(newDownloadsLeft);
         localStorage.setItem('downloadsLeft', newDownloadsLeft.toString());
@@ -82,9 +100,9 @@ export const DownloadButton: React.FC<DownloadButtonProps> = ({ setActiveTab }) 
 
   return (
     <div className="space-y-2">
-      {downloadsLeft === 0 ? (
+      {isSubscriptionExpired && downloadsLeft === 0 ? (
         <button
-          onClick={()=>handleUpgradeClick()}
+          onClick={handleUpgradeClick}
           className="w-full flex items-center justify-center gap-2 px-6 py-3 rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:from-purple-600 hover:to-pink-600"
         >
           <WalletCards size={20} />
@@ -93,9 +111,9 @@ export const DownloadButton: React.FC<DownloadButtonProps> = ({ setActiveTab }) 
       ) : (
         <button
           onClick={handleDownload}
-          disabled={isDownloading || (downloadsLeft !== null && downloadsLeft <= 0)}
+          disabled={isDownloading || (isSubscriptionExpired && downloadsLeft !== null && downloadsLeft <= 0)}
           className={`w-full flex items-center justify-center gap-2 px-6 py-3 rounded-lg ${
-            isDownloading || (downloadsLeft !== null && downloadsLeft <= 0)
+            isDownloading || (isSubscriptionExpired && downloadsLeft !== null && downloadsLeft <= 0)
               ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
               : 'bg-green-500 text-white hover:bg-green-600'
           }`}
@@ -103,9 +121,9 @@ export const DownloadButton: React.FC<DownloadButtonProps> = ({ setActiveTab }) 
           {isDownloading ? <Loader2 size={20} className="animate-spin" /> : <Download size={20} />}
           {isDownloading
             ? 'Creating Package...'
-            : user?.user_metadata.subscription_plan === 'Basic' && downloadsLeft !== null
-            ? `Download (${downloadsLeft} left)`
-            : 'Download Package'}
+            : hasActiveSubscription
+            ? 'Download Package'
+            : `Download (${downloadsLeft} left)`}
         </button>
       )}
 
