@@ -16,7 +16,7 @@ export interface FormData {
 }
 
 export interface BulkDefect {
-  id: string;
+  id?: string;
   photoNumber: string;
   description: string;
   selectedFile: string;

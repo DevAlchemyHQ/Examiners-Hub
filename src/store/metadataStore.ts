@@ -1,8 +1,10 @@
 import { create } from 'zustand';
 import { ImageMetadata, FormData } from '../types';
 import { supabase } from '../lib/supabase';
+import { nanoid } from 'nanoid';
 
 interface BulkDefect {
+  id?: string;
   photoNumber: string;
   description: string;
   selectedFile: string;
@@ -14,7 +16,8 @@ const initialFormData: FormData = {
   date: '',
 };
 
-interface MetadataState {
+// We need to separate the state interface from the actions
+interface MetadataStateOnly {
   images: ImageMetadata[];
   selectedImages: Set<string>;
   bulkSelectedImages: Set<string>;
@@ -23,6 +26,17 @@ interface MetadataState {
   sketchSortDirection: 'asc' | 'desc' | null;
   bulkDefects: BulkDefect[];
   viewMode: 'images' | 'bulk';
+  savedPdfs: {
+    [userId: string]: {
+      name: string;
+      url: string;
+      uploadDate: string;
+    }[];
+  };
+}
+
+// Combine state and actions
+interface MetadataState extends MetadataStateOnly {
   setFormData: (data: Partial<FormData>) => void;
   addImages: (files: File[], isSketch?: boolean) => Promise<void>;
   updateImageMetadata: (id: string, data: Partial<Omit<ImageMetadata, 'id' | 'file' | 'preview'>>) => void;
@@ -39,9 +53,16 @@ interface MetadataState {
   loadUserData: () => Promise<void>;
   saveUserData: () => Promise<void>;
   setViewMode: (mode: 'images' | 'bulk') => void;
+  saveBulkData: () => Promise<void>;
+  loadBulkData: () => Promise<void>;
+  generateBulkZip: () => Promise<void>;
+  clearBulkData: () => void;
+  savePdf: (userId: string, file: File) => Promise<void>;
+  removePdf: (userId: string, pdfName: string) => Promise<void>;
+  loadSavedPdfs: (userId: string) => Promise<void>;
 }
 
-export const useMetadataStore = create<MetadataState>((set, get) => ({
+const initialState: MetadataStateOnly = {
   images: [],
   selectedImages: new Set(),
   bulkSelectedImages: new Set(),
@@ -50,6 +71,11 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
   sketchSortDirection: null,
   bulkDefects: [],
   viewMode: 'images',
+  savedPdfs: {},
+};
+
+export const useMetadataStore = create<MetadataState>((set, get) => ({
+  ...initialState,
 
   setFormData: (data) => {
     set((state) => ({
@@ -250,10 +276,19 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       };
     }),
 
-  setBulkDefects: (defects) =>
-    set((state) => ({
-      bulkDefects: typeof defects === 'function' ? defects(state.bulkDefects) : defects
-    })),
+  setBulkDefects: (defects: BulkDefect[] | ((prev: BulkDefect[]) => BulkDefect[])) => {
+    set((state) => {
+      const newDefects = typeof defects === 'function' ? defects(state.bulkDefects) : defects;
+      // Ensure all defects have IDs
+      const defectsWithIds = newDefects.map(defect => ({
+        ...defect,
+        id: defect.id || nanoid()
+      }));
+      return { bulkDefects: defectsWithIds };
+    });
+    // Auto-save whenever defects change
+    get().saveBulkData().catch(console.error);
+  },
 
   reset: () => {
     set({
@@ -282,65 +317,82 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      set({
-        images: [],
-        selectedImages: new Set(),
-        bulkSelectedImages: new Set(),
-        formData: initialFormData,
-        defectSortDirection: null,
-        sketchSortDirection: null,
-        bulkDefects: [],
-        viewMode: 'images'
-      });
-
-      const { data: projects, error } = await supabase
+      const { data, error } = await supabase
         .from('projects')
         .select('*')
-        .eq('id', user.id);
+        .eq('id', user.id)
+        .single();
 
-      if (error) throw error;
+      if (error) {
+        if (error.code === 'PGRST116') return;
+        throw error;
+      }
 
-      const projectData = projects && projects.length > 0 ? projects[0] : null;
+      if (data?.images) {
+        // Pre-load all images before updating state
+        const imagePromises = data.images.map(async (imgData: any) => {
+          try {
+            if (!imgData.publicUrl) return null;
 
-      if (projectData) {
-        const validImages = await Promise.all(
-          (projectData.images || []).map(async (imgData: any) => {
-            try {
-              if (!imgData.publicUrl) return null;
+            // Create new Image to preload
+            await new Promise((resolve, reject) => {
+              const img = new Image();
+              img.onload = resolve;
+              img.onerror = reject;
+              img.src = imgData.publicUrl;
+            });
 
-              const response = await fetch(imgData.publicUrl);
-              if (!response.ok) return null;
+            // Create File object
+            const response = await fetch(imgData.publicUrl);
+            const blob = await response.blob();
+            const file = new File([blob], imgData.fileName || 'image.jpg', {
+              type: imgData.fileType || blob.type
+            });
 
-              const blob = await response.blob();
-              const file = new File([blob], imgData.fileName || 'image.jpg', {
-                type: imgData.fileType || blob.type
-              });
+            return {
+              id: imgData.id,
+              file,
+              photoNumber: imgData.photoNumber || '',
+              description: imgData.description || '',
+              preview: imgData.publicUrl, // Use publicUrl directly instead of creating new blob URL
+              isSketch: imgData.isSketch || false,
+              publicUrl: imgData.publicUrl,
+              userId: imgData.userId
+            };
+          } catch (error) {
+            console.error('Error loading image:', error);
+            return null;
+          }
+        });
 
-              return {
-                id: imgData.id,
-                file,
-                photoNumber: imgData.photoNumber || '',
-                description: imgData.description || '',
-                preview: URL.createObjectURL(blob),
-                isSketch: imgData.isSketch || false,
-                publicUrl: imgData.publicUrl,
-                userId: imgData.userId
-              };
-            } catch (error) {
-              console.error('Error loading image:', error);
-              return null;
-            }
-          })
-        );
-
-        const images = validImages.filter((img): img is ImageMetadata => img !== null);
-        const selectedImages = new Set<string>(projectData.selected_images || []);
+        const loadedImages = (await Promise.all(imagePromises)).filter((img): img is ImageMetadata => img !== null);
 
         set({
-          formData: projectData.form_data || initialFormData,
-          images,
-          selectedImages
+          images: loadedImages,
+          selectedImages: new Set(data.selected_images || []),
+          formData: data.form_data || initialFormData
         });
+      }
+
+      // Load saved PDFs
+      const { data: pdfData, error: pdfError } = await supabase
+        .from('user_pdfs')
+        .select('*')
+        .eq('user_id', user.id);
+
+      if (pdfError) throw pdfError;
+
+      if (pdfData) {
+        set((state) => ({
+          savedPdfs: {
+            ...state.savedPdfs,
+            [user.id]: pdfData.map(pdf => ({
+              name: pdf.name,
+              url: pdf.url,
+              uploadDate: pdf.upload_date
+            }))
+          }
+        }));
       }
     } catch (error) {
       console.error('Error loading user data:', error);
@@ -355,6 +407,15 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
 
       const state = get();
       
+      // Validate images before saving
+      const imagesWithMissingDescriptions = state.images
+        .filter(img => !img.isSketch && state.selectedImages.has(img.id) && !img.description?.trim());
+
+      if (imagesWithMissingDescriptions.length > 0) {
+        const firstMissing = imagesWithMissingDescriptions[0];
+        throw new Error(`Description is required for defect: ${firstMissing.file.name}`);
+      }
+
       const imagesData = state.images.map(img => ({
         id: img.id,
         photoNumber: img.photoNumber,
@@ -386,5 +447,277 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
     }
   },
 
-  setViewMode: (mode) => set({ viewMode: mode })
+  setViewMode: (mode) => set({ viewMode: mode }),
+
+  saveBulkData: async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
+      const state = get();
+      
+      // Only validate defects that have a file selected
+      const defectsWithMissingDescriptions = state.bulkDefects
+        .filter(defect => {
+          // Check if the file exists in the images array and has no description
+          const fileExists = state.images.some(img => img.file.name === defect.selectedFile);
+          const hasNoDescription = !defect.description?.trim();
+          return fileExists && hasNoDescription;
+        });
+
+      if (defectsWithMissingDescriptions.length > 0) {
+        const firstMissing = defectsWithMissingDescriptions[0];
+        throw new Error(`Description is required for defect number: ${firstMissing.photoNumber}`);
+      }
+
+      const { error } = await supabase
+        .from('bulk_defects')
+        .upsert({
+          id: user.id,
+          data: {
+            defects: state.bulkDefects,
+            selectedImages: Array.from(state.bulkSelectedImages),
+            updatedAt: new Date().toISOString()
+          }
+        });
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error saving bulk data:', error);
+      throw error;
+    }
+  },
+
+  loadBulkData: async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from('bulk_defects')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+
+      if (error) {
+        if (error.code === 'PGRST116') return; // No data found
+        throw error;
+      }
+
+      if (data?.data) {
+        // Ensure all defects have IDs when loading
+        const defectsWithIds = (data.data.defects || []).map((defect: BulkDefect) => ({
+          ...defect,
+          id: defect.id || nanoid()
+        }));
+
+        set({
+          bulkDefects: defectsWithIds,
+          bulkSelectedImages: new Set(data.data.selectedImages || [])
+        });
+      }
+    } catch (error) {
+      console.error('Error loading bulk data:', error);
+      throw error;
+    }
+  },
+
+  generateBulkZip: async () => {
+    try {
+      const state = get();
+      const JSZip = (await import('jszip')).default;
+      const zip = new JSZip();
+
+      // Get all selected images
+      const selectedImages = state.images.filter(img => 
+        state.bulkSelectedImages.has(img.id)
+      );
+
+      if (selectedImages.length === 0) {
+        throw new Error('No images selected. Please select at least one image.');
+      }
+
+      // Get defects that have selected files
+      const selectedDefects = state.bulkDefects.filter(defect => 
+        selectedImages.some(img => img.file.name === defect.selectedFile)
+      );
+
+      if (selectedDefects.length === 0) {
+        throw new Error('No defects found for selected images.');
+      }
+
+      // Validate descriptions only for selected defects
+      const missingDescriptions = selectedDefects.filter(defect => !defect.description?.trim());
+      if (missingDescriptions.length > 0) {
+        throw new Error(`Description is required for defect number: ${missingDescriptions[0].photoNumber}`);
+      }
+
+      // Create defects.json with selected defect data
+      const defectsData = {
+        defects: selectedDefects,
+        images: selectedImages.map(img => ({
+          fileName: img.file.name,
+          photoNumber: img.photoNumber,
+          description: img.description
+        }))
+      };
+
+      zip.file('defects.json', JSON.stringify(defectsData, null, 2));
+
+      // Add images to zip
+      for (const img of selectedImages) {
+        try {
+          const response = await fetch(img.publicUrl);
+          if (!response.ok) throw new Error(`Failed to fetch image: ${img.file.name}`);
+          const blob = await response.blob();
+          zip.file(img.file.name, blob);
+        } catch (error) {
+          console.error(`Error adding image to zip: ${img.file.name}`, error);
+          throw new Error(`Failed to add image to zip: ${img.file.name}`);
+        }
+      }
+
+      // Generate and download zip
+      const content = await zip.generateAsync({ type: 'blob' });
+      const url = window.URL.createObjectURL(content);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'bulk-defects.zip';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error generating zip:', error);
+      throw error;
+    }
+  },
+
+  clearBulkData: () => {
+    set({
+      bulkDefects: [],
+      bulkSelectedImages: new Set()
+    });
+  },
+
+  savePdf: async (userId: string, file: File) => {
+    try {
+      const timestamp = new Date().getTime();
+      const filePath = `${userId}/pdfs/${timestamp}-${file.name}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('user-pdfs')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false
+        });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('user-pdfs')
+        .getPublicUrl(filePath);
+
+      if (!publicUrl) throw new Error('Failed to get public URL');
+
+      // Save PDF metadata to Supabase database
+      const { error: dbError } = await supabase
+        .from('user_pdfs')
+        .insert({
+          user_id: userId,
+          name: file.name,
+          url: publicUrl,
+          upload_date: new Date().toISOString()
+        });
+
+      if (dbError) throw dbError;
+
+      // Update local state
+      set((state) => ({
+        savedPdfs: {
+          ...state.savedPdfs,
+          [userId]: [
+            ...(state.savedPdfs[userId] || []),
+            {
+              name: file.name,
+              url: publicUrl,
+              uploadDate: new Date().toISOString(),
+            },
+          ],
+        },
+      }));
+    } catch (error) {
+      console.error('Error saving PDF:', error);
+      throw error;
+    }
+  },
+
+  removePdf: async (userId: string, pdfName: string) => {
+    try {
+      // Get the PDF record from the database
+      const { data: pdfRecord, error: fetchError } = await supabase
+        .from('user_pdfs')
+        .select('url')
+        .eq('user_id', userId)
+        .eq('name', pdfName)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      // Delete from storage
+      const url = new URL(pdfRecord.url);
+      const filePath = decodeURIComponent(url.pathname.split('/').slice(-2).join('/'));
+      
+      const { error: storageError } = await supabase.storage
+        .from('user-pdfs')
+        .remove([filePath]);
+
+      if (storageError) throw storageError;
+
+      // Delete from database
+      const { error: dbError } = await supabase
+        .from('user_pdfs')
+        .delete()
+        .eq('user_id', userId)
+        .eq('name', pdfName);
+
+      if (dbError) throw dbError;
+
+      // Update local state
+      set((state) => ({
+        savedPdfs: {
+          ...state.savedPdfs,
+          [userId]: state.savedPdfs[userId]?.filter((pdf) => pdf.name !== pdfName) || [],
+        },
+      }));
+    } catch (error) {
+      console.error('Error removing PDF:', error);
+      throw error;
+    }
+  },
+
+  loadSavedPdfs: async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('user_pdfs')
+        .select('*')
+        .eq('user_id', userId);
+
+      if (error) throw error;
+
+      set((state) => ({
+        savedPdfs: {
+          ...state.savedPdfs,
+          [userId]: data.map(pdf => ({
+            name: pdf.name,
+            url: pdf.url,
+            uploadDate: pdf.upload_date
+          }))
+        }
+      }));
+    } catch (error) {
+      console.error('Error loading PDFs:', error);
+      throw error;
+    }
+  },
 }));

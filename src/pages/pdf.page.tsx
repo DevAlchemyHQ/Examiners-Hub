@@ -1,8 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { FileText, ZoomIn, ZoomOut, Upload, RotateCw, Loader2 } from 'lucide-react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import { Header } from '../components/Header';
 import { usePDFStore } from '../store/pdfStore';
+import { useThemeStore } from '../store/themeStore';
+import { useMetadataStore } from '../store/metadataStore';
+import { useAuthStore } from '../store/authStore';
 import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
 import 'react-pdf/dist/esm/Page/TextLayer.css';
 
@@ -18,33 +21,66 @@ interface PDFViewerSectionProps {
 }
 
 const PDFViewerSection: React.FC<PDFViewerSectionProps> = ({ title, file, scale, viewerId, onFileChange, onZoom, }) => {
-    const fileInputRef = React.useRef<HTMLInputElement>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const observerRef = useRef<IntersectionObserver | null>(null);
     const [numPages, setNumPages] = useState<number | null>(null);
     const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
     const store = usePDFStore();
     
     const pageStates = viewerId === 1 ? store.pageStates1 : store.pageStates2;
     const setPageState = viewerId === 1 ? store.setPageState1 : store.setPageState2;
+    const currentPage = viewerId === 1 ? store.currentPage1 : store.currentPage2;
 
     useEffect(() => {
-        const savedPage = localStorage.getItem(`lastViewedPage_${viewerId}`);
+        const savedPage = localStorage.getItem(`currentPage${viewerId}`);
         if (savedPage) {
-        setPageState(Number(savedPage), {
-            currentPage: Number(savedPage),
-            rotation: 0,
-        });
+            store.setCurrentPage(viewerId, parseInt(savedPage));
         }
-    }, []);
+    }, [viewerId]);
+
+    // Setup intersection observer to track current page
+    useEffect(() => {
+        observerRef.current = new IntersectionObserver(
+            (entries) => {
+                entries.forEach((entry) => {
+                    if (entry.isIntersecting) {
+                        const pageNumber = parseInt(entry.target.getAttribute('data-page-number') || '1');
+                        store.setCurrentPage(viewerId, pageNumber);
+                    }
+                });
+            },
+            { threshold: 0.5 }
+        );
+
+        return () => observerRef.current?.disconnect();
+    }, [viewerId, store]);
+
+    // Attach observer to page elements
+    useEffect(() => {
+        const observer = observerRef.current;
+        if (!observer) return;
+
+        document.querySelectorAll(`[data-page-number]`).forEach((element) => {
+            observer.observe(element);
+        });
+
+        return () => observer.disconnect();
+    }, [numPages]);
 
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file && file.type === 'application/pdf') {
-        setIsLoading(true);
-        try {
-            await onFileChange(file);
-        } finally {
-            setIsLoading(false);
-        }
+        const selectedFile = e.target.files?.[0];
+        if (selectedFile && selectedFile.type === 'application/pdf') {
+            setIsLoading(true);
+            setError(null);
+            try {
+                await onFileChange(selectedFile);
+            } catch (err) {
+                console.error('Upload error:', err);
+                setError(err instanceof Error ? err.message : 'Failed to upload PDF. Please try again.');
+            } finally {
+                setIsLoading(false);
+            }
         }
     };
 
@@ -72,6 +108,80 @@ const PDFViewerSection: React.FC<PDFViewerSectionProps> = ({ title, file, scale,
         }
         localStorage.setItem(`lastViewedPage_${viewerId}`, String(pageNumber));
     };
+
+    // Memoize the Document component to prevent unnecessary re-renders
+    const documentComponent = useMemo(() => {
+        if (!file) return null;
+
+        return (
+            <Document
+                file={file}
+                className="flex flex-col items-center"
+                onLoadSuccess={({ numPages }) => {
+                    setNumPages(numPages);
+                    // Immediately scroll to saved page
+                    const currentPage = viewerId === 1 ? store.currentPage1 : store.currentPage2;
+                    if (currentPage > 1 && currentPage <= numPages) {
+                        requestAnimationFrame(() => {
+                            const element = document.querySelector(`[data-page-number="${currentPage}"]`);
+                            if (element) {
+                                element.scrollIntoView({ block: 'center', behavior: 'auto' });
+                            }
+                        });
+                    }
+                }}
+                loading={
+                    <div className="w-full h-full flex items-center justify-center">
+                        <div className="w-full aspect-[1/1.4] bg-slate-100 dark:bg-gray-700 animate-pulse rounded-lg" />
+                    </div>
+                }
+            >
+                {numPages && Array.from(new Array(numPages), (_, index) => {
+                    const pageNumber = index + 1;
+                    const pageState = pageStates[pageNumber] || { rotation: 0, currentPage: pageNumber };
+
+                    return (
+                        <div 
+                            key={pageNumber}
+                            className="mb-8 relative"
+                            data-page-number={pageNumber}
+                            ref={(el) => {
+                                if (el) {
+                                    observerRef.current?.observe(el);
+                                }
+                            }}
+                        >
+                            <div className="relative inline-block">
+                                <Page
+                                    key={`page_${pageNumber}_rotate_${pageState.rotation}`}
+                                    pageNumber={pageNumber}
+                                    scale={scale}
+                                    rotate={pageState.rotation} 
+                                    className="shadow-lg bg-white"
+                                    renderTextLayer={true}
+                                    renderAnnotationLayer={true}
+                                    onRenderSuccess={() => handlePageRender(pageNumber)}
+                                    loading={
+                                        <div className="w-full aspect-[1/1.4] bg-slate-100 dark:bg-gray-700 animate-pulse rounded-lg" />
+                                    }
+                                />
+                                <button
+                                    onClick={() => handleRotatePage(pageNumber)}
+                                    className="absolute top-2 right-7 p-2 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 transition-colors cursor-pointer z-50"
+                                    title={`Rotate Page ${pageNumber}`}
+                                >
+                                    <RotateCw size={16} />
+                                </button>
+                            </div>
+                            <div className="absolute -bottom-6 left-1/2 transform -translate-x-1/2 text-xs text-gray-500">
+                                Page {pageNumber} of {numPages}
+                            </div>
+                        </div>
+                    );
+                })}
+            </Document>
+        );
+    }, [file, scale, pageStates, numPages, currentPage, viewerId]);
 
     return (
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm h-[calc(100vh-96px)] flex flex-col">
@@ -114,72 +224,17 @@ const PDFViewerSection: React.FC<PDFViewerSectionProps> = ({ title, file, scale,
                 </button>
             </div>
             </div>
+            {error && (
+                <p className="text-sm text-red-500 mt-1">{error}</p>
+            )}
         </div>
 
         <div className="flex-1 overflow-auto custom-scrollbar bg-white dark:bg-gray-800 p-4 relative">
-            {file ? (
-                <Document
-                    file={file}
-                    className="flex flex-col items-center"
-                    onLoadSuccess={async ({ numPages }) => {
-                        setNumPages(numPages);
-                        await loadPDF(file);
-                    }}
-                    loading={
-                        <div className="flex items-center justify-center p-4">
-                            <Loader2 className="w-6 h-6 animate-spin text-indigo-500" />
-                        </div>
-                    }
-                >
-                    {Array.from(new Array(numPages), (_, index) => {
-                        const pageNumber = index + 1;
-                        const pageState = pageStates[pageNumber] || { rotation: 0, currentPage: pageNumber };
-
-                        return (
-                            <div 
-                                key={pageNumber}
-                                className="mb-8 relative"
-                                data-page-number={pageNumber}
-                            >
-                                {/* Page Container with Position Relative */}
-                                <div className="relative inline-block">
-                                    <Page
-                                        key={`page_${pageNumber}_rotate_${pageState.rotation}`}
-                                        pageNumber={pageNumber}
-                                        scale={scale}
-                                        rotate={pageState.rotation} 
-                                        className="shadow-lg bg-white"
-                                        renderTextLayer={true}
-                                        renderAnnotationLayer={true}
-                                        onRenderSuccess={() => handlePageRender(pageNumber)}
-                                        loading={
-                                            <div className="w-full aspect-[1/1.4] bg-slate-100 dark:bg-gray-700 animate-pulse rounded-lg" />
-                                        }
-                                    />
-                                    
-                                    {/* Absolute positioned button inside the page container */}
-                                    <button
-                                        onClick={() => handleRotatePage(pageNumber)}
-                                        className="absolute top-2 right-7 p-2 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 transition-colors cursor-pointer z-50"
-                                        title={`Rotate Page ${pageNumber}`}
-                                    >
-                                        <RotateCw size={16} />
-                                    </button>
-                                </div>
-                                
-                                {/* Page Number Indicator */}
-                                <div className="absolute -bottom-6 left-1/2 transform -translate-x-1/2 text-xs text-gray-500">
-                                    Page {pageNumber} of {numPages}
-                                </div>
-                            </div>
-                        );
-                    })}
-                </Document>
-            ) : (
+            {file ? documentComponent : (
                 <div className="h-full flex items-center justify-center text-slate-400 dark:text-gray-500">
                     <div className="flex flex-col items-center gap-2">
                         <FileText size={40} />
-                        <p>Upload a PDF to view its contents</p>
+                        <p>{isLoading ? "Loading PDF..." : "Upload a PDF to view its contents"}</p>
                     </div>
                 </div>
             )}
@@ -200,49 +255,60 @@ const loadPDF = async (file: File) => {
 };
 
 export const PDFViewerPage: React.FC = () => {
-    const [loading, setLoading] = useState(true);
-    const { file1, file2, setFile1, setFile2, loadPDFs } = usePDFStore();
-    const [scale1, setScale1] = useState(1.2);
-    const [scale2, setScale2] = useState(1.2);
-    const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const { file1, file2, initializePDFs, isInitialized, setFile1, setFile2 } = usePDFStore();
+  const [scale1, setScale1] = useState(() => 
+    parseFloat(localStorage.getItem('pdfScale1') || '1.2')
+  );
+  const [scale2, setScale2] = useState(() => 
+    parseFloat(localStorage.getItem('pdfScale2') || '1.2')
+  );
+  const isDark = useThemeStore((state) => state.isDark);
 
-    useEffect(() => {
-        const loadPDFFiles = async () => {
-        await loadPDFs();
-        setLoading(false);
-        setIsInitialLoad(false);
-        };
+  // Initialize PDFs on mount
+  useEffect(() => {
+    initializePDFs();
+  }, []);
 
-        loadPDFFiles();
-    }, [loadPDFs]);
+  // Save scales
+  useEffect(() => {
+    localStorage.setItem('pdfScale1', scale1.toString());
+  }, [scale1]);
 
-    const handleZoom = (viewer: 1 | 2, action: 'in' | 'out') => {
-        const setScale = viewer === 1 ? setScale1 : setScale2;
-        setScale(prev => (action === 'in' ? Math.min(prev + 0.1, 2.0) : Math.max(prev - 0.1, 0.5)));
-    };
+  useEffect(() => {
+    localStorage.setItem('pdfScale2', scale2.toString());
+  }, [scale2]);
 
+  const handleZoom = (viewer: 1 | 2, action: 'in' | 'out') => {
+    const setScale = viewer === 1 ? setScale1 : setScale2;
+    setScale(prev => {
+      const newScale = action === 'in' ? 
+        Math.min(prev + 0.1, 2.0) : 
+        Math.max(prev - 0.1, 0.5);
+      return Number(newScale.toFixed(1));
+    });
+  };
 
-    return (
-        <div className="min-h-screen overflow-auto bg-gray-900 text-white relative">
-        <Header />
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 h-full mt-4">
-            <PDFViewerSection
-            title="PDF Viewer 1"
-            file={file1}
-            scale={scale1}
-            viewerId={1}
-            onFileChange={setFile1}
-            onZoom={(action) => handleZoom(1, action)}
-            />
-            <PDFViewerSection
-            title="PDF Viewer 2"
-            file={file2}
-            scale={scale2}
-            viewerId={2}
-            onFileChange={setFile2}
-            onZoom={(action) => handleZoom(2, action)}
-            />
-        </div>
-        </div>
-    );
+  return (
+    <div className={`min-h-screen overflow-auto ${isDark ? 'bg-gray-900' : 'bg-gray-100'} relative`}>
+      <Header />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 h-full mt-4 px-4">
+        <PDFViewerSection
+          title="PDF Viewer 1"
+          file={file1}
+          scale={scale1}
+          viewerId={1}
+          onFileChange={setFile1}
+          onZoom={(action) => handleZoom(1, action)}
+        />
+        <PDFViewerSection
+          title="PDF Viewer 2"
+          file={file2}
+          scale={scale2}
+          viewerId={2}
+          onFileChange={setFile2}
+          onZoom={(action) => handleZoom(2, action)}
+        />
+      </div>
+    </div>
+  );
 };

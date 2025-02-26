@@ -11,8 +11,8 @@ interface DefectTileProps {
   availableFiles: string[];
   onDelete: () => void;
   onDescriptionChange: (value: string) => void;
-  onFileChange: (value: string) => void;
-  onPhotoNumberChange: (value: string) => void;
+  onFileChange: (fileName: string) => void;
+  onPhotoNumberChange: (oldNumber: string, newNumber: string) => void;
 }
 
 export const DefectTile: React.FC<DefectTileProps> = ({
@@ -27,7 +27,7 @@ export const DefectTile: React.FC<DefectTileProps> = ({
   onPhotoNumberChange,
 }) => {
   const [isDropdownOpen, setIsDropdownOpen] = React.useState(false);
-  const [localPhotoNumber, setLocalPhotoNumber] = React.useState(photoNumber);
+  const [localPhotoNumber, setLocalPhotoNumber] = useState(photoNumber);
   const [isEditing, setIsEditing] = React.useState(false);
   const dropdownRef = React.useRef<HTMLDivElement>(null);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -35,11 +35,10 @@ export const DefectTile: React.FC<DefectTileProps> = ({
   // Add auto-resize for textarea
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  React.useEffect(() => {
-    if (!isEditing) {
-      setLocalPhotoNumber(photoNumber);
-    }
-  }, [photoNumber, isEditing]);
+  // Update local state when prop changes
+  useEffect(() => {
+    setLocalPhotoNumber(photoNumber);
+  }, [photoNumber]);
 
   // Add click outside handler
   React.useEffect(() => {
@@ -63,13 +62,14 @@ export const DefectTile: React.FC<DefectTileProps> = ({
   }, [description]);
 
   const handleNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setLocalPhotoNumber(value);
+    setLocalPhotoNumber(e.target.value);
   };
 
   const handleNumberBlur = () => {
     setIsEditing(false);
-    onPhotoNumberChange(localPhotoNumber);
+    if (localPhotoNumber !== photoNumber) {
+      onPhotoNumberChange(photoNumber, localPhotoNumber);
+    }
   };
 
   const handleNumberFocus = () => {

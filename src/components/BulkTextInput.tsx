@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { AlertCircle, FileText, Upload, Plus, ArrowUpDown } from 'lucide-react';
+import { AlertCircle, FileText, Upload, Plus, ArrowUpDown, Loader2, Download, Trash2 } from 'lucide-react';
 import { useMetadataStore } from '../store/metadataStore';
 import { validateDescription } from '../utils/fileValidation';
 import {
@@ -21,6 +21,8 @@ import { DefectTile } from './DefectTile';
 import { BulkDefect } from '../types';
 import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
 import { nanoid } from 'nanoid';
+import { useAuthStore } from '../store/authStore';
+import { toast } from 'react-hot-toast';
 
 interface ParsedEntry {
   photoNumber: string;
@@ -29,12 +31,47 @@ interface ParsedEntry {
 }
 
 export const BulkTextInput: React.FC = () => {
+  const { 
+    bulkDefects, 
+    setBulkDefects, 
+    loadBulkData,
+    images,
+    toggleBulkImageSelection,
+    savePdf,
+    loadSavedPdfs
+  } = useMetadataStore();
+  const { user } = useAuthStore();
+  
   const [error, setError] = useState<string | null>(null);
-  const { updateImageMetadata, images, bulkDefects, setBulkDefects, toggleBulkImageSelection } = useMetadataStore();
+  const [isLoading, setIsLoading] = useState(false);
   const [bulkText, setBulkText] = useState('');
   const [showBulkPaste, setShowBulkPaste] = useState(false);
   const [isSortingEnabled, setIsSortingEnabled] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Load bulk data on mount
+  useEffect(() => {
+    const loadData = async () => {
+      setIsLoading(true);
+      try {
+        await loadBulkData();
+      } catch (err) {
+        console.error('Error loading bulk data:', err);
+        setError('Failed to load saved defects. Please refresh the page.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadData();
+  }, [loadBulkData]);
+
+  // Clear error after 5 seconds
+  useEffect(() => {
+    if (error) {
+      const timer = setTimeout(() => setError(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [error]);
 
   // Show bulk paste on first load if no defects exist
   useEffect(() => {
@@ -42,6 +79,12 @@ export const BulkTextInput: React.FC = () => {
       setShowBulkPaste(true);
     }
   }, []);
+
+  useEffect(() => {
+    if (user?.id) {
+      loadSavedPdfs(user.id).catch(console.error);
+    }
+  }, [user?.id]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -56,7 +99,7 @@ export const BulkTextInput: React.FC = () => {
 
   const reorderDefects = (defects: BulkDefect[]) => {
     // First sort by base number and letters
-    const sorted = [...defects].sort((a, b) => {
+    return [...defects].sort((a, b) => {
       const aMatch = a.photoNumber.match(/^(\d+)([a-zA-Z]*)$/);
       const bMatch = b.photoNumber.match(/^(\d+)([a-zA-Z]*)$/);
       
@@ -71,53 +114,9 @@ export const BulkTextInput: React.FC = () => {
       const numDiff = parseInt(aNum) - parseInt(bNum);
       if (numDiff !== 0) return numDiff;
 
-      // Base number comes before letters
-      if (!aLetter && bLetter) return -1;
-      if (aLetter && !bLetter) return 1;
+      // If numbers are same, compare letters
       return aLetter.localeCompare(bLetter);
     });
-
-    // Then renumber them sequentially, preserving letter variants
-    let currentBaseNumber = 1;
-    let lastBaseNumber = currentBaseNumber;
-    let currentLetterGroup: BulkDefect[] = [];
-    let result: BulkDefect[] = [];
-
-    sorted.forEach((defect, index) => {
-      const match = defect.photoNumber.match(/^(\d+)([a-zA-Z]*)$/);
-      if (!match) return;
-
-      const [, , letter = ''] = match;
-
-      if (!letter) {
-        // Process any pending letter group
-        if (currentLetterGroup.length > 0) {
-          result.push(...currentLetterGroup);
-          currentLetterGroup = [];
-        }
-        // Start new base number
-        lastBaseNumber = currentBaseNumber++;
-        result.push({
-          ...defect,
-          id: defect.id,
-          photoNumber: String(lastBaseNumber)
-        });
-      } else {
-        // Add to current letter group
-        currentLetterGroup.push({
-          ...defect,
-          id: defect.id,
-          photoNumber: `${lastBaseNumber}${letter}`
-        });
-      }
-    });
-
-    // Add any remaining letter group
-    if (currentLetterGroup.length > 0) {
-      result.push(...currentLetterGroup);
-    }
-
-    return result;
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -266,31 +265,75 @@ export const BulkTextInput: React.FC = () => {
   };
 
   const handlePhotoNumberChange = (oldNumber: string, newNumber: string) => {
-    if (newNumber.trim() === '') return;
-    
-    // Allow numbers followed by optional letters
-    if (!/^\d+[a-zA-Z]*$/.test(newNumber)) return;
+    try {
+      if (newNumber.trim() === '') return;
+      
+      // Allow numbers followed by optional letters
+      if (!/^\d+[a-zA-Z]*$/.test(newNumber)) {
+        setError('Photo number must start with numbers and can end with letters');
+        return;
+      }
 
-    setBulkDefects((items) =>
-      items.map((item) =>
-        item.photoNumber === oldNumber ? { ...item, photoNumber: newNumber } : item
-      )
-    );
+      // Check for duplicates using ID to ensure we don't match the current defect
+      const currentDefect = bulkDefects.find(d => d.photoNumber === oldNumber);
+      if (!currentDefect) return;
+
+      const isDuplicate = bulkDefects.some(d => 
+        d.photoNumber === newNumber && d.id !== currentDefect.id
+      );
+
+      if (isDuplicate) {
+        setError('This photo number already exists');
+        return;
+      }
+
+      setBulkDefects(prevDefects => 
+        prevDefects.map(defect => 
+          defect.id === currentDefect.id 
+            ? { ...defect, photoNumber: newNumber }
+            : defect
+        )
+      );
+    } catch (err) {
+      console.error('Error updating photo number:', err);
+      setError('Failed to update photo number');
+    }
   };
 
   const toggleSorting = () => {
     setIsSortingEnabled(!isSortingEnabled);
     if (!isSortingEnabled) {
-      setBulkDefects(defects => reorderDefects([...defects]));
+      setBulkDefects(defects => [...reorderDefects(defects)]);
+    }
+  };
+
+  const handleFileUpload = async (file: File) => {
+    if (file.type !== 'application/pdf') {
+      toast.error('Please upload a PDF file');
+      return;
+    }
+
+    try {
+      if (!user?.id) {
+        throw new Error('User not authenticated');
+      }
+
+      await savePdf(user.id, file);
+      toast.success('PDF uploaded successfully');
+    } catch (error) {
+      console.error('Upload error:', error);
+      toast.error('Failed to upload PDF');
     }
   };
 
   return (
     <div className="h-full flex flex-col p-4 space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold text-slate-800 dark:text-white">
-          Defect List
-        </h2>
+        <div className="flex items-center gap-2">
+          <h2 className="text-xl font-semibold text-slate-800 dark:text-white">
+            Defect List
+          </h2>
+        </div>
         <div className="flex items-center gap-3">
           <button
             onClick={() => setShowBulkPaste(!showBulkPaste)}
@@ -373,7 +416,7 @@ export const BulkTextInput: React.FC = () => {
                       onDelete={() => deleteDefect(defect.photoNumber)}
                       onDescriptionChange={(value) => updateDefectDescription(defect.photoNumber, value)}
                       onFileChange={(fileName) => handleFileSelect(defect.photoNumber, fileName)}
-                      onPhotoNumberChange={(value) => handlePhotoNumberChange(defect.photoNumber, value)}
+                      onPhotoNumberChange={(oldNumber, newNumber) => handlePhotoNumberChange(oldNumber, newNumber)}
                     />
                   ))}
                 </div>
@@ -402,12 +445,13 @@ export const BulkTextInput: React.FC = () => {
       </div>
 
       {error && (
-        <div className="flex items-center gap-2 text-red-600 bg-red-50/50 dark:bg-red-900/10 
-          p-4 rounded-full backdrop-blur-sm">
+        <div className="flex items-center gap-2 text-red-500 bg-red-100/10 p-3 rounded-lg">
           <AlertCircle size={18} />
-          <p className="text-sm">{error}</p>
+          <span>{error}</span>
         </div>
       )}
     </div>
   );
 };
+
+export default BulkTextInput;

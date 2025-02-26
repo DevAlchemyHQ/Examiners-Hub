@@ -1,5 +1,6 @@
+// authStore.ts
 import { create } from 'zustand';
-import { User,  } from '@supabase/supabase-js';
+import { User } from '@supabase/supabase-js';
 
 interface AuthState {
   isAuthenticated: boolean;
@@ -10,9 +11,19 @@ interface AuthState {
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
-  isAuthenticated: false,
-  user: null,
-  setAuth: (isAuthenticated) => set({ isAuthenticated }),
-  setUser: (user) => set({ user }),
-  logout: () => set({ isAuthenticated: false, user: null })
+  isAuthenticated: JSON.parse(localStorage.getItem('isAuthenticated') || 'false'),
+  user: JSON.parse(localStorage.getItem('user') || 'null'),
+  setAuth: (isAuthenticated) => {
+    localStorage.setItem('isAuthenticated', JSON.stringify(isAuthenticated));
+    set({ isAuthenticated });
+  },
+  setUser: (user) => {
+    localStorage.setItem('user', JSON.stringify(user));
+    set({ user });
+  },
+  logout: () => {
+    localStorage.removeItem('isAuthenticated');
+    localStorage.removeItem('user');
+    set({ isAuthenticated: false, user: null });
+  }
 }));

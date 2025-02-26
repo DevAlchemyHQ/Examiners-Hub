@@ -12,6 +12,10 @@ import { GamesPage } from './pages/games.page';
 import { CalculatorPage } from './pages/calculator.page';
 import { GridReferenceFinderPage } from './pages/grid.page';
 import { PDFViewerPage } from './pages/pdf.page';
+import { LandingPage } from './pages/LandingPage';
+import MainApp from './pages/MainApp';
+import { useMetadataStore } from './store/metadataStore';
+import { usePDFStore } from './store/pdfStore';
 
 const ProtectedRoute: React.FC = () => {
   const { isAuthenticated } = useAuthStore();
@@ -21,6 +25,8 @@ const ProtectedRoute: React.FC = () => {
 const App: React.FC = () => {
   const { isAuthenticated } = useAuthStore();
   const isDark = useThemeStore((state) => state.isDark);
+  const { viewMode, setViewMode } = useMetadataStore();
+  const preloadPDFs = usePDFStore(state => state.preloadPDFs);
 
   useEffect(() => {
     if (isDark) {
@@ -30,19 +36,54 @@ const App: React.FC = () => {
     }
   }, [isDark]);
 
+  // Persist view mode in localStorage
+  useEffect(() => {
+    const savedMode = localStorage.getItem('viewMode');
+    if (savedMode === 'bulk' || savedMode === 'images') {
+      setViewMode(savedMode);
+    }
+  }, []);
+
+  // Save view mode changes
+  useEffect(() => {
+    localStorage.setItem('viewMode', viewMode);
+  }, [viewMode]);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      useMetadataStore.getState().loadUserData().catch(console.error);
+      usePDFStore.getState().initializePDFs().catch(console.error);
+    }
+  }, [isAuthenticated]);
+
   return (
     <BrowserRouter>
       <Routes>
-        <Route
-          path="/"
-          element={
-            isAuthenticated ? (
-              <Navigate to={sessionStorage.getItem("lastPath") || "/dashboard"} replace />
-            ) : (
-              <LoginScreen />
-            )
-          }
-        />
+        {/* Public routes */}
+        <Route path="/" element={
+          isAuthenticated ? (
+            <Navigate to="/app/dashboard" replace />
+          ) : (
+            <LandingPage />
+          )
+        } />
+        <Route path="/login" element={
+          isAuthenticated ? (
+            <Navigate to="/app/dashboard" replace />
+          ) : (
+            <LoginScreen />
+          )
+        } />
+
+        {/* Protected routes */}
+        <Route path="/app/*" element={
+          isAuthenticated ? (
+            <MainApp />
+          ) : (
+            <Navigate to="/login" replace />
+          )
+        } />
+
         <Route element={<ProtectedRoute />}>
           <Route path="/dashboard" element={<MainLayout />} />
           {/* <Route path="/dashboard/:projectId" element={<MainLayout />} /> */}
@@ -55,6 +96,8 @@ const App: React.FC = () => {
           <Route path="/grid" element={<GridReferenceFinderPage />} />
           <Route path="/pdf" element={<PDFViewerPage />} />
         </Route>
+
+        {/* Catch all */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

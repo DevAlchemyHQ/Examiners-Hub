@@ -6,6 +6,7 @@ import { OTPVerification } from "./auth/OTPVerification";
 import { SetNewPassword } from "./auth/SetNewPassword";
 import { TermsModal } from "./auth/TermsModal";
 import { useMetadataStore } from "../store/metadataStore";
+import { useNavigate } from "react-router-dom";
 
 const SUPPORT_EMAIL = 'infor@exametry.xyz';
 
@@ -24,6 +25,7 @@ export const LoginScreen: React.FC = () => {
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const setAuth = useAuthStore((state) => state.setAuth);
   const loadUserData = useMetadataStore((state) => state.loadUserData);
+  const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,6 +45,7 @@ export const LoginScreen: React.FC = () => {
           await signInWithEmail(email, password);
           await loadUserData(); // Load user data after successful sign in
           setAuth(true);
+          navigate('/app/dashboard');
           break;
         case 'signup':
           await signUpWithEmail(email, password, fullName);
@@ -68,6 +71,7 @@ export const LoginScreen: React.FC = () => {
         await verifyOTP(email, otp);
         await loadUserData(); // Load user data after successful verification
         setAuth(true);
+        navigate('/app/dashboard');
       } else if (mode === 'verify-reset') {
         await verifyResetOTP(email, otp);
         setMode('set-password');
