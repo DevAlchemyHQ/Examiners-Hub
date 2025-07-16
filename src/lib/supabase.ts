@@ -327,6 +327,67 @@ export const updateUserProfile = async (userId: string, updates: Partial<UserPro
   }
 };
 
+// Defect Sets Functions
+export const saveDefectSet = async (title: string, data: any) => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+
+    const { data: savedSet, error } = await supabase
+      .from('defect_sets')
+      .insert({
+        user_id: user.id,
+        title,
+        data
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return savedSet;
+  } catch (error) {
+    console.error('Error saving defect set:', error);
+    throw error;
+  }
+};
+
+export const loadDefectSets = async () => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+
+    const { data: defectSets, error } = await supabase
+      .from('defect_sets')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return defectSets;
+  } catch (error) {
+    console.error('Error loading defect sets:', error);
+    throw error;
+  }
+};
+
+export const deleteDefectSet = async (id: string) => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+
+    const { error } = await supabase
+      .from('defect_sets')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', user.id);
+
+    if (error) throw error;
+  } catch (error) {
+    console.error('Error deleting defect set:', error);
+    throw error;
+  }
+};
+
 export const uploadAvatar = async (userId: string, file: File): Promise<string> => {
   try {
     console.log(`Uploading avatar for user: ${userId}`);

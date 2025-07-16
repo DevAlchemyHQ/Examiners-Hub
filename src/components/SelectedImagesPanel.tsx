@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
 import { useMetadataStore } from '../store/metadataStore';
+import { useProjectStore } from '../store/projectStore';
 import { X, Trash2, ArrowUpDown, AlertTriangle, Maximize2, Minimize2, Images, FileText } from 'lucide-react';
 import { ImageZoom } from './ImageZoom';
 import { validateDescription } from '../utils/fileValidation';
 import { BulkTextInput } from './BulkTextInput';
+import { saveDefectSet, loadDefectSets, deleteDefectSet } from '../lib/supabase';
+import { toast } from 'react-hot-toast';
 import type { ImageMetadata } from '../types';
 
 
@@ -50,6 +53,7 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
     images,
     selectedImages,
     bulkSelectedImages,
+    formData,
     toggleImageSelection,
     updateImageMetadata,
     clearSelectedImages,
@@ -59,9 +63,93 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
     setSketchSortDirection,
     viewMode,
     setViewMode,
-    bulkDefects
+    bulkDefects,
+    setBulkDefects,
+    setFormData,
+    setSelectedImages
   } = useMetadataStore();
   const [enlargedImage, setEnlargedImage] = useState<string | null>(null);
+  const [showLoadTray, setShowLoadTray] = useState(false);
+  const [savedSets, setSavedSets] = useState<{id: string, title: string, data: any, created_at: string}[]>([]);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  // Helper to format project details as title
+  const getDefectSetTitle = () => {
+    const elr = formData?.elr || 'ELR';
+    const struct = formData?.structureNo || 'STRUCT';
+    const date = formData?.date || new Date().toISOString().slice(0,10);
+    return `${elr}_${struct}_${date}`;
+  };
+
+  // Save defect set to Supabase
+  const handleSaveDefectSet = async () => {
+    try {
+      // Validate project details
+      if (!formData.elr?.trim()) {
+        toast.error('Please enter the ELR before saving.');
+        return;
+      }
+      if (!formData.structureNo?.trim()) {
+        toast.error('Please enter the Structure Number before saving.');
+        return;
+      }
+      if (!formData.date?.trim()) {
+        toast.error('Please enter the Date before saving.');
+        return;
+      }
+
+      const title = getDefectSetTitle();
+      const data = {
+        defects: bulkDefects,
+        selectedImages: Array.from(selectedImages),
+        formData,
+      };
+      
+      await saveDefectSet(title, data);
+      toast.success(`Defect set '${title}' saved to cloud!`);
+      
+      // Refresh the saved sets list
+      await handleShowLoadTray();
+    } catch (error) {
+      console.error('Error saving defect set:', error);
+      toast.error('Failed to save defect set. Please try again.');
+    }
+  };
+
+  // Load defect sets from Supabase
+  const handleShowLoadTray = async () => {
+    try {
+      const sets = await loadDefectSets();
+      setSavedSets(sets || []);
+      setShowLoadTray(true);
+    } catch (error) {
+      console.error('Error loading defect sets:', error);
+      toast.error('Failed to load defect sets. Please try again.');
+    }
+  };
+
+  // Apply a saved defect set
+  const handleLoadDefectSet = (set: {title: string, data: any, created_at: string}) => {
+    setBulkDefects(set.data.defects);
+    setFormData(set.data.formData);
+    // Repopulate selected images
+    setTimeout(() => {
+      setSelectedImages(new Set(set.data.selectedImages));
+    }, 0);
+    setShowLoadTray(false);
+  };
+
+  // Delete a saved defect set
+  const handleDeleteDefectSet = async (id: string) => {
+    try {
+      await deleteDefectSet(id);
+      // Refresh the saved sets list
+      await handleShowLoadTray();
+    } catch (error) {
+      console.error('Error deleting defect set:', error);
+      toast.error('Failed to delete defect set. Please try again.');
+    }
+  };
   
   const selectedImagesList = React.useMemo(() => {
     if (viewMode === 'bulk') {
@@ -301,6 +389,13 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
                       >
                         <Trash2 size={18} />
                       </button>
+                      <button
+                        onClick={() => setShowDeleteConfirm(true)}
+                        className="p-1.5 text-slate-500 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                        title="Delete all images from Supabase"
+                      >
+                        <X size={18} />
+                      </button>
                     </div>
                   </div>
                   {defectImages.map((img) => (
@@ -355,6 +450,106 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
           </div>
         )}
       </div>
+
+      <div className="flex items-center gap-2 p-2 border-t border-slate-200 dark:border-gray-700">
+        <button
+          onClick={handleSaveDefectSet}
+          className="px-3 py-1 rounded bg-indigo-500 text-white hover:bg-indigo-600 text-sm"
+        >
+          Save Defect Set
+        </button>
+        <button
+          onClick={handleShowLoadTray}
+          className="px-3 py-1 rounded bg-slate-200 dark:bg-gray-700 text-slate-700 dark:text-gray-200 hover:bg-slate-300 dark:hover:bg-gray-600 text-sm"
+        >
+          Load Defect Set
+        </button>
+      </div>
+      {/* Load tray/modal */}
+      {showLoadTray && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-end justify-center">
+          <div className="bg-white dark:bg-gray-800 rounded-t-2xl shadow-xl w-full max-w-md p-6 max-h-[60vh] overflow-y-auto">
+            <h3 className="text-lg font-semibold mb-4">Load Defect Set</h3>
+            {savedSets.length === 0 ? (
+              <div className="text-slate-500 dark:text-gray-400">No saved sets found.</div>
+            ) : (
+              <ul className="space-y-2">
+                {savedSets.map((set) => (
+                  <li key={set.id} className="flex items-center justify-between p-2 rounded hover:bg-slate-100 dark:hover:bg-gray-700">
+                    <div className="flex flex-col">
+                      <span className="font-mono text-sm">{set.title}</span>
+                      <span className="text-xs text-slate-500 dark:text-gray-400">
+                        {new Date(set.created_at).toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleLoadDefectSet(set)}
+                        className="px-2 py-1 rounded bg-indigo-500 text-white hover:bg-indigo-600 text-xs"
+                      >
+                        Load
+                      </button>
+                      <button
+                        onClick={() => handleDeleteDefectSet(set.id)}
+                        className="px-2 py-1 rounded bg-red-500 text-white hover:bg-red-600 text-xs"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <button
+              onClick={() => setShowLoadTray(false)}
+              className="mt-4 w-full px-3 py-2 rounded bg-slate-200 dark:bg-gray-700 text-slate-700 dark:text-gray-200 hover:bg-slate-300 dark:hover:bg-gray-600 text-sm"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Modern Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full p-6 border border-slate-200/50 dark:border-gray-700/50">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 bg-red-100 dark:bg-red-900/20 rounded-full flex items-center justify-center">
+                <X size={24} className="text-red-600 dark:text-red-400" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
+                  Delete All Images
+                </h3>
+                <p className="text-sm text-slate-600 dark:text-gray-400">
+                  This will permanently delete all images from Supabase
+                </p>
+              </div>
+            </div>
+            <p className="text-slate-700 dark:text-gray-300 mb-6">
+              Are you sure you want to delete ALL images from Supabase? This action cannot be undone.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                className="flex-1 px-4 py-2 text-slate-700 dark:text-gray-300 hover:text-slate-900 dark:hover:text-white transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  useProjectStore.getState().clearProject();
+                  setShowDeleteConfirm(false);
+                }}
+                className="flex-1 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+              >
+                Delete All
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {enlargedImage && (
         <div className="fixed inset-0 bg-black/75 z-[9999] flex items-center justify-center">

@@ -16,6 +16,7 @@ import { LandingPage } from './pages/LandingPage';
 import MainApp from './pages/MainApp';
 import { useMetadataStore } from './store/metadataStore';
 import { usePDFStore } from './store/pdfStore';
+import { supabase } from './lib/supabase';
 
 const ProtectedRoute: React.FC = () => {
   const { isAuthenticated } = useAuthStore();
@@ -26,7 +27,6 @@ const App: React.FC = () => {
   const { isAuthenticated } = useAuthStore();
   const isDark = useThemeStore((state) => state.isDark);
   const { viewMode, setViewMode } = useMetadataStore();
-  const preloadPDFs = usePDFStore(state => state.preloadPDFs);
 
   useEffect(() => {
     if (isDark) {
@@ -48,6 +48,46 @@ const App: React.FC = () => {
   useEffect(() => {
     localStorage.setItem('viewMode', viewMode);
   }, [viewMode]);
+
+  // Initialize Supabase session and sync auth state
+  useEffect(() => {
+    const initializeAuth = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (error) {
+          console.error('Error getting session:', error);
+          return;
+        }
+        
+        if (session?.user) {
+          useAuthStore.getState().setUser(session.user);
+          useAuthStore.getState().setAuth(true);
+        } else {
+          useAuthStore.getState().setAuth(false);
+          useAuthStore.getState().setUser(null);
+        }
+      } catch (error) {
+        console.error('Error initializing auth:', error);
+      }
+    };
+
+    initializeAuth();
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (event === 'SIGNED_IN' && session?.user) {
+          useAuthStore.getState().setUser(session.user);
+          useAuthStore.getState().setAuth(true);
+        } else if (event === 'SIGNED_OUT') {
+          useAuthStore.getState().setAuth(false);
+          useAuthStore.getState().setUser(null);
+        }
+      }
+    );
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   useEffect(() => {
     if (isAuthenticated) {

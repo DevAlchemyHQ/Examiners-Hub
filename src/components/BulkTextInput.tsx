@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { AlertCircle, FileText, Upload, Plus, ArrowUpDown, Loader2, Download, Trash2, CheckCircle, X, Maximize2 } from 'lucide-react';
+import { AlertCircle, FileText, Upload, Plus, ArrowUpDown, Loader2, Download, Trash2, CheckCircle, X, Maximize2, Upload as UploadIcon } from 'lucide-react';
 import { useMetadataStore } from '../store/metadataStore';
 import { validateDescription } from '../utils/fileValidation';
+import { parseDefectText, findMatchingImages } from '../utils/defectParser';
 import {
   DndContext,
   closestCenter,
@@ -41,7 +42,8 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean }> = ({ isExpanded =
     savePdf,
     loadSavedPdfs,
     bulkSelectedImages,
-    generateBulkZip
+    generateBulkZip,
+    setFormData
   } = useMetadataStore();
   const { user } = useAuthStore();
   
@@ -54,6 +56,10 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean }> = ({ isExpanded =
   const [isDownloading, setIsDownloading] = useState(false);
   const [enlargedImage, setEnlargedImage] = useState<string | null>(null);
   const [showImages, setShowImages] = useState(isExpanded);
+  const [showDefectImport, setShowDefectImport] = useState(false);
+  const [defectImportText, setDefectImportText] = useState('');
+  const [missingImages, setMissingImages] = useState<string[]>([]);
+  const [deletedDefects, setDeletedDefects] = useState<BulkDefect[]>([]);
 
   // Load bulk data on mount
   useEffect(() => {
@@ -170,40 +176,209 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean }> = ({ isExpanded =
     // Get the defect being deleted
     const defect = bulkDefects.find(d => d.photoNumber === photoNumber);
     
-    // If the defect had a selected file, deselect it
-    if (defect?.selectedFile) {
-      const selectedImage = images.find(img => img.file.name === defect.selectedFile);
-      if (selectedImage) {
-        toggleBulkImageSelection(selectedImage.id);
+    if (defect) {
+      // Store the deleted defect for undo with original photo number
+      setDeletedDefects(prev => [...prev, { ...defect, originalPhotoNumber: defect.photoNumber }]);
+      
+      // If the defect had a selected file, deselect it
+      if (defect.selectedFile) {
+        const selectedImage = images.find(img => img.file.name === defect.selectedFile);
+        if (selectedImage) {
+          toggleBulkImageSelection(selectedImage.id);
+        }
+      }
+
+      setBulkDefects((items) => {
+        const filteredItems = items.filter((item) => item.photoNumber !== photoNumber);
+        return isSortingEnabled ? reorderAndRenumberDefects(filteredItems) : filteredItems;
+      });
+    }
+  };
+
+  const undoDelete = () => {
+    if (deletedDefects.length > 0) {
+      const lastDeleted = deletedDefects[deletedDefects.length - 1];
+      setDeletedDefects(prev => prev.slice(0, -1));
+      
+      setBulkDefects(prev => {
+        // Add the deleted defect back
+        const newDefects = [...prev, lastDeleted];
+        
+        // If auto sorting is enabled, reorder and renumber properly
+        if (isSortingEnabled) {
+          // First, sort by the original photo numbers to maintain order
+          const sorted = reorderDefects(newDefects);
+          // Then renumber sequentially
+          return sorted.map((defect, index) => ({
+            ...defect,
+            photoNumber: String(index + 1)
+          }));
+        } else {
+          // If not auto-sorting, restore the original photo number
+          return newDefects.map(defect => 
+            defect.id === lastDeleted.id 
+              ? { ...defect, photoNumber: lastDeleted.originalPhotoNumber || defect.photoNumber }
+              : defect
+          );
+        }
+      });
+      
+      // Re-select the image if it was selected
+      if (lastDeleted.selectedFile) {
+        const image = images.find(img => img.file.name === lastDeleted.selectedFile);
+        if (image) {
+          toggleBulkImageSelection(image.id);
+        }
       }
     }
+  };
 
-    setBulkDefects((items) => {
-      const filteredItems = items.filter((item) => item.photoNumber !== photoNumber);
-      return isSortingEnabled ? reorderDefects(filteredItems) : filteredItems;
+  // Function to check for duplicate photo numbers
+  const getDuplicatePhotoNumbers = () => {
+    const photoNumbers = bulkDefects.map(d => d.photoNumber);
+    const duplicates = new Set<string>();
+    const seen = new Set<string>();
+    
+    photoNumbers.forEach(num => {
+      if (seen.has(num)) {
+        duplicates.add(num);
+      } else {
+        seen.add(num);
+      }
     });
+    
+    return duplicates;
   };
 
   const handleBulkPaste = () => {
-    // Split pasted text into separate defects by any kind of line break (robust)
-    const lines = bulkText.split(/(?:\r\n|\r|\n|\u2028|\u2029)/).filter(line => line.trim());
+    // Check if the text looks like defect format (contains ^ and file extensions)
+    const hasDefectFormat = bulkText.includes('^') && (bulkText.includes('.JPG') || bulkText.includes('.jpg'));
     
-    const invalidLines = lines.filter(line => !validateDescription(line.trim()).isValid);
-    if (invalidLines.length > 0) {
-      setError('Some descriptions contain invalid characters (/ or \\). Please remove them before proceeding.');
-      return;
+    if (hasDefectFormat) {
+      // Parse as defect format
+      try {
+        const parseResult = parseDefectText(bulkText);
+        
+        if (parseResult.defects.length === 0) {
+          setError('No valid defects found in the text. Please check the format.');
+          return;
+        }
+
+        // Check for missing images
+        const availableImageNames = images.map(img => img.file.name);
+        const missing = findMatchingImages(parseResult.defects, availableImageNames);
+        
+        if (missing.length > 0) {
+          setError(`Missing images: ${missing.join(', ')}. Please upload these images first.`);
+          return;
+        }
+
+        // Convert parsed defects to bulk defects format
+        const newDefects = parseResult.defects.map(defect => ({
+          id: nanoid(),
+          photoNumber: defect.photoNumber,
+          description: defect.description,
+          selectedFile: defect.fileName
+        }));
+
+        // Update project date if available - ensure it's properly set
+        if (parseResult.projectDate) {
+          setFormData({ date: parseResult.projectDate });
+        }
+
+        // Add defects and select corresponding images
+        setBulkDefects(prev => [...prev, ...newDefects]);
+        
+        // Select the images for the imported defects
+        newDefects.forEach(defect => {
+          const image = images.find(img => img.file.name === defect.selectedFile);
+          if (image) {
+            toggleBulkImageSelection(image.id);
+          }
+        });
+
+        setBulkText('');
+        setShowBulkPaste(false);
+        toast.success(`Imported ${newDefects.length} defects successfully!`);
+      } catch (error) {
+        console.error('Error parsing defect text:', error);
+        setError('Failed to parse defect text. Please check the format.');
+      }
+    } else {
+      // Original bulk paste behavior for simple text
+      const lines = bulkText.split(/(?:\r\n|\r|\n|\u2028|\u2029)/).filter(line => line.trim());
+      
+      const invalidLines = lines.filter(line => !validateDescription(line.trim()).isValid);
+      if (invalidLines.length > 0) {
+        setError('Some descriptions contain invalid characters (/ or \\). Please remove them before proceeding.');
+        return;
+      }
+      
+      const newDefects = lines.map((line, index) => ({
+        id: nanoid(),
+        photoNumber: String(bulkDefects.length + index + 1),
+        description: line.trim(),
+        selectedFile: ''
+      }));
+      
+      setBulkDefects(prev => [...prev, ...newDefects]);
+      setBulkText('');
+      setShowBulkPaste(false);
     }
-    
-    const newDefects = lines.map((line, index) => ({
-      id: nanoid(),
-      photoNumber: String(bulkDefects.length + index + 1),
-      description: line.trim(),
-      selectedFile: ''
-    }));
-    
-    setBulkDefects(prev => [...prev, ...newDefects]);
-    setBulkText('');
-    setShowBulkPaste(false);
+  };
+
+  const handleDefectImport = () => {
+    try {
+      const parseResult = parseDefectText(defectImportText);
+      
+      if (parseResult.defects.length === 0) {
+        setError('No valid defects found in the text. Please check the format.');
+        return;
+      }
+
+      // Check for missing images
+      const availableImageNames = images.map(img => img.file.name);
+      const missing = findMatchingImages(parseResult.defects, availableImageNames);
+      setMissingImages(missing);
+
+      if (missing.length > 0) {
+        setMissingImages(missing);
+        setError(`Missing images: ${missing.join(', ')}. Please upload these images first.`);
+        return;
+      }
+
+      // Convert parsed defects to bulk defects format
+      const newDefects = parseResult.defects.map(defect => ({
+        id: nanoid(),
+        photoNumber: defect.photoNumber,
+        description: defect.description,
+        selectedFile: defect.fileName
+      }));
+
+      // Update project date if available - ensure it's properly set
+      if (parseResult.projectDate) {
+        setFormData({ date: parseResult.projectDate });
+      }
+
+      // Add defects and select corresponding images
+      setBulkDefects(prev => [...prev, ...newDefects]);
+      
+      // Select the images for the imported defects
+      newDefects.forEach(defect => {
+        const image = images.find(img => img.file.name === defect.selectedFile);
+        if (image) {
+          toggleBulkImageSelection(image.id);
+        }
+      });
+
+      setDefectImportText('');
+      setShowDefectImport(false);
+      setMissingImages([]);
+      toast.success(`Imported ${newDefects.length} defects successfully!`);
+    } catch (error) {
+      console.error('Error importing defects:', error);
+      setError('Failed to parse defect text. Please check the format.');
+    }
   };
 
   const updateDefectDescription = (photoNumber: string, description: string) => {
@@ -369,12 +544,9 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean }> = ({ isExpanded =
     <div className="h-full flex flex-col p-4 space-y-4">
       {/* Remove the old top-level Show Images toggle */}
       {/* --- Tab bar and controls row --- */}
-      <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
-        <div className="flex items-center gap-2">
-          <h2 className="text-xl font-semibold text-slate-800 dark:text-white">
-            Defect List
-          </h2>
-        </div>
+              <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
+          <div className="flex items-center gap-2">
+          </div>
         <div className="flex items-center gap-2 flex-wrap">
           {/* Show Images toggle moved here */}
           {isExpanded && (
@@ -393,6 +565,7 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean }> = ({ isExpanded =
             <FileText size={16} />
             <span className="text-sm font-medium">Bulk Paste</span>
           </button>
+
           <button
             onClick={toggleSorting}
             className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all shadow-sm hover:shadow-md ${isSortingEnabled ? 'bg-indigo-500/90 text-white hover:bg-indigo-500' : 'bg-white/50 dark:bg-gray-800/50 text-slate-700 dark:text-gray-300 border border-slate-200/50 dark:border-gray-700/50 hover:bg-white dark:hover:bg-gray-800'}`}
@@ -400,6 +573,31 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean }> = ({ isExpanded =
             <ArrowUpDown size={16} />
             <span className="text-sm font-medium">{isSortingEnabled ? 'Auto Sorting' : 'Manual Order'}</span>
           </button>
+          {deletedDefects.length > 0 && (
+            <button
+              onClick={undoDelete}
+              className="flex items-center gap-2 px-4 py-2 bg-green-500/90 text-white rounded-full border border-green-500/50 hover:bg-green-500 transition-all shadow-sm hover:shadow backdrop-blur-sm"
+              title="Undo last deletion"
+            >
+              <CheckCircle size={16} />
+              <span className="text-sm font-medium">Undo</span>
+            </button>
+          )}
+          {bulkDefects.length > 0 && (
+            <button
+              onClick={() => {
+                if (window.confirm('Are you sure you want to delete ALL bulk defects? This action cannot be undone.')) {
+                  setBulkDefects([]);
+                  setDeletedDefects([]);
+                  toast.success('All bulk defects deleted');
+                }
+              }}
+              className="p-2 bg-red-500/90 text-white rounded-full border border-red-500/50 hover:bg-red-500 transition-all shadow-sm hover:shadow backdrop-blur-sm"
+              title="Delete all bulk defects"
+            >
+              <Trash2 size={16} />
+            </button>
+          )}
         </div>
       </div>
       {/* --- Bulk Paste Modal --- */}
@@ -408,7 +606,12 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean }> = ({ isExpanded =
           <div className="bg-white/50 dark:bg-gray-800/50 rounded-2xl p-4 border border-slate-200/50 dark:border-gray-700/50 backdrop-blur-sm shadow-sm">
             {/* --- Single instructional helper text location --- */}
             <div className="mb-2 text-xs text-slate-500 dark:text-slate-400">
-              Paste or type each defect on a separate line. <b>Each line will become a separate defect.</b>
+              <div className="mb-2">
+                <b>Simple format:</b> Paste each defect on a separate line. Each line becomes a separate defect.
+              </div>
+              <div>
+                <b>Defect format:</b> Paste in format: <code className="bg-slate-100 dark:bg-gray-700 px-1 rounded">Photo 01 ^ description ^ date filename.JPG</code>
+              </div>
             </div>
             <textarea
               ref={textareaRef}
@@ -473,6 +676,7 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean }> = ({ isExpanded =
                         showImages={showImages}
                         images={images}
                         setEnlargedImage={setEnlargedImage}
+                        isDuplicate={getDuplicatePhotoNumbers().has(defect.photoNumber)}
                       />
                     ))}
                   </div>
@@ -503,38 +707,124 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean }> = ({ isExpanded =
                     <X size={16} />
                   </button>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-                  {images
-                    .filter(img => bulkDefects.some(d => d.selectedFile === img.file.name))
-                    .map((img) => {
-                      const defect = bulkDefects.find(d => d.selectedFile === img.file.name);
-                      return (
-                        <div key={img.id} className="relative group">
-                          <div className="aspect-square rounded-lg overflow-hidden bg-slate-100 dark:bg-gray-700">
-                            <img
-                              src={img.preview}
-                              alt={img.file.name}
-                              className="w-full h-full object-cover cursor-pointer hover:opacity-95 transition-opacity select-none"
-                              onClick={() => setEnlargedImage(img.preview)}
-                              draggable="false"
-                            />
-                            <button
-                              onClick={() => toggleBulkImageSelection(img.id)}
-                              className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors shadow-sm opacity-0 group-hover:opacity-100"
-                            >
-                              <X size={12} />
-                            </button>
-                          </div>
-                          <div className="mt-2 text-center">
-                            <div className="text-xs text-slate-500 dark:text-gray-400 truncate mb-1">{img.file.name}</div>
-                            {defect && (
-                              <div className="inline-flex items-center px-2 py-1 text-xs font-medium bg-indigo-500 text-white rounded-full">Defect {defect.photoNumber}</div>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                </div>
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={(event) => {
+                    const { active, over } = event;
+                    if (over && active.id !== over.id) {
+                      // Find the defects being reordered
+                      const activeDefect = bulkDefects.find(d => d.photoNumber === active.id);
+                      const overDefect = bulkDefects.find(d => d.photoNumber === over.id);
+                      
+                      if (activeDefect && overDefect) {
+                        setBulkDefects(prev => {
+                          const oldIndex = prev.findIndex(d => d.photoNumber === active.id);
+                          const newIndex = prev.findIndex(d => d.photoNumber === over.id);
+                          const reorderedItems = arrayMove(prev, oldIndex, newIndex);
+                          
+                          // If auto-sorting is enabled, renumber all defects
+                          if (isSortingEnabled) {
+                            return reorderAndRenumberDefects(reorderedItems);
+                          }
+                          return reorderedItems;
+                        });
+                      }
+                    }
+                  }}
+                  modifiers={[restrictToVerticalAxis]}
+                >
+                  <SortableContext
+                    items={bulkDefects.filter(d => d.selectedFile).map(d => d.photoNumber)}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                      {images
+                        .filter(img => bulkDefects.some(d => d.selectedFile === img.file.name))
+                        .map((img) => {
+                          const defect = bulkDefects.find(d => d.selectedFile === img.file.name);
+                          return (
+                            <div key={img.id} className="relative group bg-white/80 dark:bg-gray-800/80 rounded-lg border border-slate-200/50 dark:border-gray-700/50 p-3">
+                              {/* Image at top */}
+                              <div 
+                                className="aspect-square rounded-lg overflow-hidden bg-slate-100 dark:bg-gray-700 mb-3 relative"
+                                onDrop={(e) => {
+                                  e.preventDefault();
+                                  try {
+                                    const data = JSON.parse(e.dataTransfer.getData('application/json'));
+                                    if (data.type === 'image' && defect) {
+                                      handleFileSelect(defect.photoNumber, data.fileName);
+                                    }
+                                  } catch (error) {
+                                    console.error('Error handling drop:', error);
+                                  }
+                                }}
+                                onDragOver={(e) => {
+                                  e.preventDefault();
+                                  e.dataTransfer.dropEffect = 'copy';
+                                }}
+                                onDragLeave={(e) => {
+                                  e.preventDefault();
+                                }}
+                              >
+                                <img
+                                  src={img.preview}
+                                  alt={img.file.name}
+                                  className="w-full h-full object-cover cursor-pointer hover:opacity-95 transition-opacity select-none"
+                                  onClick={() => setEnlargedImage(img.preview)}
+                                  draggable="false"
+                                />
+                                <button
+                                  onClick={() => toggleBulkImageSelection(img.id)}
+                                  className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors shadow-sm opacity-0 group-hover:opacity-100"
+                                >
+                                  <X size={12} />
+                                </button>
+                              </div>
+                              
+                              {/* Filename below image */}
+                              <div className="text-xs text-slate-500 dark:text-gray-400 truncate mb-2">
+                                {img.file.name}
+                              </div>
+                              
+                              {/* Defect number input */}
+                              {defect && (
+                                <div className="mb-2">
+                                  <input
+                                    type="text"
+                                    value={defect.photoNumber}
+                                    onChange={(e) => handlePhotoNumberChange(defect.photoNumber, e.target.value)}
+                                    className={`w-full p-2 text-sm border rounded-lg focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 
+                                      bg-white/50 dark:bg-gray-800/50 text-slate-900 dark:text-white text-center
+                                      ${!/^\d+[a-zA-Z]*$/.test(defect.photoNumber) && defect.photoNumber ? 'border-red-300 dark:border-red-600' : 
+                                        getDuplicatePhotoNumbers().has(defect.photoNumber) ? 'border-orange-400 dark:border-orange-500 bg-orange-50 dark:bg-orange-900/20' : 
+                                        'border-slate-200/50 dark:border-gray-600/50'}`}
+                                    placeholder="#"
+                                  />
+                                </div>
+                              )}
+                              
+                              {/* Description textarea at bottom */}
+                              {defect && (
+                                <div>
+                                  <textarea
+                                    value={defect.description}
+                                    onChange={(e) => updateDefectDescription(defect.photoNumber, e.target.value)}
+                                    className={`w-full p-2 text-sm border rounded-lg focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 
+                                      bg-white/50 dark:bg-gray-800/50 text-slate-900 dark:text-white resize-none
+                                      ${defect.description && !validateDescription(defect.description).isValid ? 'border-red-300 dark:border-red-600' : 'border-slate-200/50 dark:border-gray-600/50'}`}
+                                    placeholder="Description"
+                                    rows={2}
+                                    style={{ minHeight: '48px' }}
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                    </div>
+                  </SortableContext>
+                </DndContext>
               </div>
             )}
           </div>
@@ -556,6 +846,8 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean }> = ({ isExpanded =
           <span>{error}</span>
         </div>
       )}
+
+
 
       {/* Show validation errors for bulk mode */}
       {/* (Removed: error panel for bulk mode, now only shown below download button) */}

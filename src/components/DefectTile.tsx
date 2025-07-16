@@ -18,6 +18,7 @@ interface DefectTileProps {
   showImages?: boolean;
   images?: any[];
   setEnlargedImage?: (url: string) => void;
+  isDuplicate?: boolean;
 }
 
 export const DefectTile: React.FC<DefectTileProps> = ({
@@ -34,6 +35,7 @@ export const DefectTile: React.FC<DefectTileProps> = ({
   showImages = true,
   images = [],
   setEnlargedImage,
+  isDuplicate = false,
 }) => {
   const [isDropdownOpen, setIsDropdownOpen] = React.useState(false);
   const [localPhotoNumber, setLocalPhotoNumber] = useState(photoNumber);
@@ -226,7 +228,9 @@ export const DefectTile: React.FC<DefectTileProps> = ({
                 onFocus={handleNumberFocus}
                 className={`w-full px-1 py-1 text-sm border rounded-full focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 
                   bg-white/50 dark:bg-gray-800/50 text-slate-900 dark:text-white text-center
-                  ${!/^\d+[a-zA-Z]*$/.test(photoNumber) && photoNumber ? 'border-red-300 dark:border-red-600' : 'border-slate-200/50 dark:border-gray-600/50'}`}
+                  ${!/^\d+[a-zA-Z]*$/.test(photoNumber) && photoNumber ? 'border-red-300 dark:border-red-600' : 
+                    isDuplicate ? 'border-orange-400 dark:border-orange-500 bg-orange-50 dark:bg-orange-900/20' : 
+                    'border-slate-200/50 dark:border-gray-600/50'}`}
                 placeholder="#"
                 onClick={(e) => e.stopPropagation()}
               />
@@ -277,7 +281,7 @@ export const DefectTile: React.FC<DefectTileProps> = ({
               </button>
               {isDropdownOpen && (
                 <div className="absolute right-0 top-full mt-1 w-48 max-h-48 bg-white dark:bg-gray-800 
-                  rounded-lg shadow-xl border border-slate-200 dark:border-gray-700 overflow-hidden z-[100]">
+                  rounded-lg shadow-xl border border-slate-200 dark:border-gray-700 overflow-hidden z-[99999]">
                   <div className="overflow-y-auto max-h-48 py-1">
                     <button
                       type="button"
@@ -353,14 +357,21 @@ export const DefectTile: React.FC<DefectTileProps> = ({
                   onFocus={handleNumberFocus}
                   className={`w-full p-1.5 text-sm border rounded-full focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 
                     bg-white/50 dark:bg-gray-800/50 text-slate-900 dark:text-white text-center
-                    ${!/^\d+[a-zA-Z]*$/.test(photoNumber) && photoNumber ? 'border-red-300 dark:border-red-600' : 'border-slate-200/50 dark:border-gray-600/50'}`}
+                    ${!/^\d+[a-zA-Z]*$/.test(photoNumber) && photoNumber ? 'border-red-300 dark:border-red-600' : 
+                      isDuplicate ? 'border-orange-400 dark:border-orange-500 bg-orange-50 dark:bg-orange-900/20' : 
+                      'border-slate-200/50 dark:border-gray-600/50'}`}
                   placeholder="#"
                   onClick={(e) => e.stopPropagation()}
                 />
                 {!/^\d+[a-zA-Z]*$/.test(photoNumber) && photoNumber && (
                   <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full flex items-center justify-center">
                     <AlertCircle size={8} className="text-white" />
-        </div>
+                  </div>
+                )}
+                {isDuplicate && (
+                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-orange-500 rounded-full flex items-center justify-center">
+                    <AlertCircle size={8} className="text-white" />
+                  </div>
                 )}
         </div>
         <div className="flex-1">
@@ -409,7 +420,7 @@ export const DefectTile: React.FC<DefectTileProps> = ({
           {isDropdownOpen && (
                   <div 
                     className="absolute right-0 top-full mt-1 w-64 max-h-48 bg-white dark:bg-gray-800 
-                      rounded-lg shadow-xl border border-slate-200 dark:border-gray-700 overflow-hidden z-[100]"
+                      rounded-lg shadow-xl border border-slate-200 dark:border-gray-700 overflow-hidden z-[99999]"
                   >
                     <div className="overflow-y-auto max-h-48 py-1">
                       <button

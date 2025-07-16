@@ -10,10 +10,19 @@ export interface ImageMetadata {
   isSketch?: boolean;
   publicUrl?: string;
   userId?: string;
+  uploadTimestamp?: number;
 }
 
 export interface FormData {
   elr: string;
   structureNo: string;
   date: string;
+}
+
+export interface BulkDefect {
+  id?: string;
+  photoNumber: string;
+  description: string;
+  selectedFile: string;
+  originalPhotoNumber?: string;
 }

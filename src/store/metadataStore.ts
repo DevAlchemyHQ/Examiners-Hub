@@ -8,6 +8,7 @@ interface BulkDefect {
   photoNumber: string;
   description: string;
   selectedFile: string;
+  originalPhotoNumber?: string;
 }
 
 // Make sure initialFormData is truly empty
@@ -44,6 +45,7 @@ interface MetadataState extends MetadataStateOnly {
   removeImage: (id: string) => Promise<void>;
   toggleImageSelection: (id: string) => void;
   toggleBulkImageSelection: (id: string) => void;
+  setSelectedImages: (selectedImages: Set<string>) => void;
   clearSelectedImages: () => void;
   clearBulkSelectedImages: () => void;
   setDefectSortDirection: (direction: 'asc' | 'desc' | null) => void;
@@ -117,7 +119,8 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           preview: URL.createObjectURL(file),
           isSketch,
           publicUrl,
-          userId: user.id
+          userId: user.id,
+          uploadTimestamp: Date.now()
         };
       }));
 
@@ -240,6 +243,10 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       }
       return { selectedImages: newSelected };
     });
+  },
+
+  setSelectedImages: (selectedImages) => {
+    set({ selectedImages });
   },
 
   toggleBulkImageSelection: (id) => {
