@@ -161,7 +161,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           </div>
         </div>
 
-        <div className="flex-1 h-[calc(100vh-96px)] overflow-hidden">
+        <div className="flex-1 h-[calc(100vh-96px)] overflow-auto">
           <div className={`transition-opacity duration-300 ${isLoading ? 'opacity-50' : 'opacity-100'}`}>
             {activeTab === 'images' ? (
               <div className="h-full grid grid-cols-1 lg:grid-cols-12 gap-4">

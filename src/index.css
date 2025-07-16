@@ -15,13 +15,11 @@ html {
   text-rendering: optimizeLegibility;
 }
 
-html, body {
-  background-color: #111827 !important;
-  width: 100%;
-  height: 100%;
-  overflow-x: hidden;
-  font-size: 1rem;
-  min-height: -webkit-fill-available;
+html, body, #root {
+  background: #111827 !important;
+  min-height: 100vh !important;
+  width: 100vw !important;
+  overflow: hidden !important;
 }
 
 /* Fix mobile viewport height */
