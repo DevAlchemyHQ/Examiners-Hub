@@ -168,17 +168,24 @@ export const PDFViewer: React.FC = () => {
   const [scale1, setScale1] = useState(1.0);
   const [scale2, setScale2] = useState(1.0);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
 
-  // Load PDFs on initial mount
+  // Load PDFs only on very first mount
   useEffect(() => {
-    const loadFiles = async () => {
-      try {
-        await loadPDFs();
-      } finally {
-        setIsInitialLoad(false);
-      }
-    };
-    loadFiles();
+    if (!hasLoadedOnce) {
+      const loadFiles = async () => {
+        try {
+          await loadPDFs();
+        } finally {
+          setIsInitialLoad(false);
+          setHasLoadedOnce(true);
+        }
+      };
+      loadFiles();
+    } else {
+      setIsInitialLoad(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleZoom = (viewer: 1 | 2, action: 'in' | 'out') => {
@@ -195,6 +202,18 @@ export const PDFViewer: React.FC = () => {
         <div className="text-center">
           <Loader2 className="w-8 h-8 animate-spin text-indigo-500 mx-auto mb-4" />
           <p className="text-slate-600 dark:text-gray-400">Loading PDFs...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // If both files are null, show empty state
+  if (!file1 && !file2) {
+    return (
+      <div className="h-full flex items-center justify-center text-slate-400 dark:text-gray-500">
+        <div className="flex flex-col items-center gap-2">
+          <FileText size={40} />
+          <p>Upload a PDF to view its contents</p>
         </div>
       </div>
     );

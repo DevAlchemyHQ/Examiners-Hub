@@ -1,21 +1,12 @@
-import { useState, useCallback } from 'react';
+import { useImageLayoutStore, MIN_GRID_WIDTH, MAX_GRID_WIDTH } from '../store/layoutStore';
 
-const MIN_WIDTH = 3;
-const MAX_WIDTH = 8;
-
-export const useGridWidth = (initialWidth = 3) => { // Changed default from 5 to 3
-  const [gridWidth, setGridWidth] = useState(
-    Math.min(Math.max(initialWidth, MIN_WIDTH), MAX_WIDTH)
-  );
-  
-  const updateGridWidth = useCallback((newWidth: number) => {
-    setGridWidth(Math.min(Math.max(newWidth, MIN_WIDTH), MAX_WIDTH));
-  }, []);
-  
+export const useGridWidth = () => {
+  const gridWidth = useImageLayoutStore((state) => state.gridWidth);
+  const setGridWidth = useImageLayoutStore((state) => state.setGridWidth);
   return {
     gridWidth,
-    setGridWidth: updateGridWidth,
-    MIN_WIDTH,
-    MAX_WIDTH,
+    setGridWidth,
+    MIN_WIDTH: MIN_GRID_WIDTH,
+    MAX_WIDTH: MAX_GRID_WIDTH,
   };
 };

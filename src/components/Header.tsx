@@ -20,13 +20,15 @@ export const Header: React.FC = () => {
   const [showUnsubscribeModal, setShowUnsubscribeModal] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  const navItems = [
-    { name: 'Images', href: '/app/dashboard' },
-    { name: 'PDF', href: '/app/pdf' },
-    { name: 'Calc', href: '/app/calculator' },
-    { name: 'Grid', href: '/app/grid' },
-    { name: 'Games', href: '/app/games' },
-    { name: 'Subscription', href: '/app/subscriptions' },
+  const navigationTabs = [
+    // { path: '/projects', label: 'Projects' },
+    { path: '/dashboard', label: 'Images' },
+    { path: '/pdf', label: 'PDF' },
+    { path: '/calculator', label: 'Calc' },
+    { path: '/grid', label: 'Grid' },
+    { path: '/bscm-ai', label: 'BSCM & AI' },
+    { path: '/games', label: 'Games' },
+    { path: '/subscriptions', label: 'Subscription' },
   ];
 
   const profileImage = user?.user_metadata.avatar_url || '🚂';
@@ -241,19 +243,19 @@ export const Header: React.FC = () => {
 
           {/* Desktop Navigation */}
           <nav className="hidden lg:flex items-center space-x-1 overflow-x-auto">
-            {navItems.map((tab) => (
+            {navigationTabs.map((tab) => (
               <button
-                key={tab.href}
-                onClick={() => handleNavigation(tab.href)}
+                key={tab.path}
+                onClick={() => handleNavigation(tab.path)}
                 className={`
                   px-3 py-1.5 whitespace-nowrap rounded-lg text-sm font-medium transition-colors shrink-0
-                  ${location.pathname === tab.href
+                  ${location.pathname === tab.path
                     ? 'bg-indigo-500 text-white'
                     : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
                   }
                 `}
               >
-                {tab.name}
+                {tab.label}
               </button>
             ))}
           </nav>
@@ -409,20 +411,20 @@ export const Header: React.FC = () => {
         {/* Mobile Navigation Menu */}
         {isMobileMenuOpen && (
           <div className="lg:hidden py-4 space-y-1">
-            {navItems.map((tab) => (
+            {navigationTabs.map((tab) => (
               <button
-                key={tab.href}
-                onClick={() => handleNavigation(tab.href)}
+                key={tab.path}
+                onClick={() => handleNavigation(tab.path)}
                 className={`
                   w-full px-4 py-2 text-left text-sm font-medium transition-colors
-                  ${location.pathname === tab.href
+                  ${location.pathname === tab.path
                     ? 'bg-indigo-500 text-white'
                     : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
                   }
                   rounded-lg
                 `}
               >
-                {tab.name}
+                {tab.label}
               </button>
             ))}
           </div>

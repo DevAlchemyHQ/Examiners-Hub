@@ -17,6 +17,7 @@ interface PDFState {
   setPageState2: (pageNumber: number, state: { rotation: number; currentPage: number }) => void;
   setCurrentPage: (viewer: 1 | 2, page: number) => void;
   initializePDFs: () => Promise<void>;
+  reset: () => void;
 }
 
 export const usePDFStore = create<PDFState>()(
@@ -56,13 +57,13 @@ export const usePDFStore = create<PDFState>()(
                   const response = await fetch(state.public_url);
                   const blob = await response.blob();
                   const file = new File([blob], state.file_name, { type: 'application/pdf' });
-                  
+
                   if (state.viewer === 1) {
                     set({ file1: file });
                   } else {
                     set({ file2: file });
                   }
-                  
+
                   // Store the URL for future use
                   set(state => ({
                     pdfUrls: {
@@ -190,6 +191,25 @@ export const usePDFStore = create<PDFState>()(
           pageStates2: { ...s.pageStates2, [pageNumber]: state }
         }));
         localStorage.setItem('pageStates2', JSON.stringify(get().pageStates2));
+      },
+
+      // Add reset method to clear all PDF state and persisted keys
+      reset: () => {
+        set({
+          file1: null,
+          file2: null,
+          pageStates1: {},
+          pageStates2: {},
+          currentPage1: 1,
+          currentPage2: 1,
+          pdfUrls: {},
+          isInitialized: false,
+        });
+        localStorage.removeItem('pdf1Name');
+        localStorage.removeItem('pdf2Name');
+        localStorage.removeItem('pageStates1');
+        localStorage.removeItem('pageStates2');
+        // Remove any other PDF-related keys if needed
       }
     }),
     {

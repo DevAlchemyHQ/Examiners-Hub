@@ -28,6 +28,9 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [clearResult, setClearResult] = useState<'success' | 'error' | null>(null);
+  const [clearError, setClearError] = useState<string | null>(null);
+  const [dummy, setDummy] = useState(0); // Used to force re-render
 
   // Load user data only on initial mount
   useEffect(() => {
@@ -60,12 +63,37 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const handleClearProject = async () => {
     try {
       setIsLoadingData(true);
+      setClearResult(null);
+      setClearError(null);
       await clearProject();
-      // Force reload user data after clearing
-      await loadUserData();
+      // Reset all relevant stores to ensure UI is empty immediately
+      useMetadataStore.getState().reset();
+      usePDFStore.getState().reset && usePDFStore.getState().reset();
+      // Clear Zustand persisted storage for pdfStore and rehydrate
+      if (usePDFStore.persist && usePDFStore.persist.clearStorage && usePDFStore.persist.rehydrate) {
+        await usePDFStore.persist.clearStorage();
+        await usePDFStore.persist.rehydrate();
+        console.log('pdfStore persisted storage cleared and rehydrated');
+      }
+      // Clear Zustand persisted storage for relevant keys
+      localStorage.removeItem('pdf-storage');
+      localStorage.removeItem('metadata-storage');
+      // Add other keys if needed
+      // Log state after reset
+      console.log('After reset:', {
+        images: useMetadataStore.getState().images,
+        formData: useMetadataStore.getState().formData,
+        pdf1: usePDFStore.getState().file1,
+        pdf2: usePDFStore.getState().file2
+      });
+      // Force a re-render
+      setDummy(d => d + 1);
       setShowClearConfirm(false);
+      setClearResult('success');
     } catch (error) {
       console.error('Error clearing project:', error);
+      setClearResult('error');
+      setClearError(error instanceof Error ? error.message : 'Failed to clear project');
     } finally {
       setIsLoadingData(false);
     }
@@ -84,20 +112,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 
   const isLoading = isClearingProject || isLoadingData;
 
-  // Show loading screen on initial load
-  if (isInitialLoad) {
-    return (
-      <div className="min-h-screen bg-slate-50 dark:bg-gray-900 flex flex-col">
-        <Header />
-        <main className="flex-1 flex items-center justify-center">
-          <div className="text-center">
-            <Loader2 className="w-8 h-8 animate-spin text-indigo-500 mx-auto mb-4" />
-            <p className="text-slate-600 dark:text-gray-400">Loading your project...</p>
-          </div>
-        </main>
-      </div>
-    );
-  }
+  // --- REMOVED: Full-page skeleton loader ---
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-gray-900 flex flex-col">
@@ -151,9 +166,11 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             {activeTab === 'images' ? (
               <div className="h-full grid grid-cols-1 lg:grid-cols-12 gap-4">
                 <div className="lg:col-span-2 overflow-hidden">
-                  <Sidebar />
+                  {/* Pass isLoadingData to Sidebar for skeletons */}
+                  <Sidebar isLoading={isLoadingData} />
                 </div>
-                <MainContent />
+                {/* Pass isLoadingData to MainContent for skeletons */}
+                <MainContent isLoading={isLoadingData} />
               </div>
             ) : activeTab === 'pdf' ? (
               <div className="h-full">
@@ -195,10 +212,10 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               </button>
               <button
                 onClick={handleClearProject}
-                disabled={isLoading}
+                disabled={isClearingProject || isLoadingData}
                 className="px-4 py-2 text-sm bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50 flex items-center gap-2"
               >
-                {isLoading ? (
+                {isClearingProject || isLoadingData ? (
                   <>
                     <Loader2 size={14} className="animate-spin" />
                     Clearing...
@@ -208,6 +225,46 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                 )}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {clearResult && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full p-6">
+            {clearResult === 'success' ? (
+              <>
+                <h3 className="text-lg font-semibold text-green-700 dark:text-green-400 mb-4">Project Data Deleted</h3>
+                <p className="text-slate-600 dark:text-gray-300 mb-6">All project data, images, PDFs, and cached data have been deleted. The canvas is now empty.</p>
+                <div className="flex justify-end">
+                  <button
+                    onClick={() => setClearResult(null)}
+                    className="px-4 py-2 text-sm bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
+                  >
+                    OK
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <h3 className="text-lg font-semibold text-red-700 dark:text-red-400 mb-4">Failed to Delete Project Data</h3>
+                <p className="text-slate-600 dark:text-gray-300 mb-6">{clearError || 'An unknown error occurred. Please try again.'}</p>
+                <div className="flex justify-end gap-2">
+                  <button
+                    onClick={() => setClearResult(null)}
+                    className="px-4 py-2 text-sm bg-gray-300 text-gray-800 rounded-lg hover:bg-gray-400 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleClearProject}
+                    className="px-4 py-2 text-sm bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+                  >
+                    Try Again
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

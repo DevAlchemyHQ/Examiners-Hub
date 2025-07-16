@@ -10,6 +10,7 @@ interface BulkDefect {
   selectedFile: string;
 }
 
+// Make sure initialFormData is truly empty
 const initialFormData: FormData = {
   elr: '',
   structureNo: '',
@@ -120,9 +121,19 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         };
       }));
 
-      set((state) => ({
-        images: [...state.images, ...newImages],
-      }));
+      set((state) => {
+        // Combine and sort images by photoNumber (asc), fallback to filename
+        const combined = [...state.images, ...newImages];
+        combined.sort((a, b) => {
+          const aNum = parseInt(a.photoNumber);
+          const bNum = parseInt(b.photoNumber);
+          if (!isNaN(aNum) && !isNaN(bNum)) return aNum - bNum;
+          if (!isNaN(aNum)) return -1;
+          if (!isNaN(bNum)) return 1;
+          return a.file.name.localeCompare(b.file.name);
+        });
+        return { images: combined };
+      });
 
       await get().saveUserData();
     } catch (error) {
@@ -136,29 +147,8 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       const updatedImages = state.images.map((img) =>
         img.id === id ? { ...img, ...data } : img
       );
-      
-      const sortedImages = [...updatedImages].sort((a, b) => {
-        if (a.isSketch !== b.isSketch) {
-          return a.isSketch ? -1 : 1;
-        }
-        
-        if (a.isSketch && b.isSketch && state.sketchSortDirection) {
-          const numA = parseInt(a.photoNumber || '0');
-          const numB = parseInt(b.photoNumber || '0');
-          return state.sketchSortDirection === 'asc' ? numA - numB : numB - numA;
-        }
-        
-        if (!a.isSketch && !b.isSketch && state.defectSortDirection) {
-          const numA = parseInt(a.photoNumber || '0');
-          const numB = parseInt(b.photoNumber || '0');
-          return state.defectSortDirection === 'asc' ? numA - numB : numB - numA;
-        }
-        
-        return 0;
-      });
-
       get().saveUserData().catch(console.error);
-      return { images: sortedImages };
+      return { images: updatedImages };
     });
   },
 
@@ -194,11 +184,59 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
 
   toggleImageSelection: (id) => {
     set((state) => {
-      const newSelected = new Set(state.selectedImages);
+      let newSelected = new Set(state.selectedImages);
       if (newSelected.has(id)) {
         newSelected.delete(id);
       } else {
-        newSelected.add(id);
+        // Get the image being selected
+        const selectedImage = state.images.find(img => img.id === id);
+        if (!selectedImage) return { selectedImages: newSelected };
+
+        // Convert Set to Array for manipulation
+        const selectedArray = Array.from(newSelected);
+        
+        // Determine sort direction for defects (since this is for defect images)
+        const sortDirection = state.defectSortDirection;
+        
+        if (sortDirection) {
+          // Find the correct position based on sort direction
+          const selectedImageNumber = parseInt(selectedImage.photoNumber) || 0;
+          
+          let insertIndex = selectedArray.length; // Default to end
+          
+          if (sortDirection === 'asc') {
+            // Low to High: find position where image should go
+            for (let i = 0; i < selectedArray.length; i++) {
+              const existingImage = state.images.find(img => img.id === selectedArray[i]);
+              if (existingImage) {
+                const existingNumber = parseInt(existingImage.photoNumber) || 0;
+                if (selectedImageNumber < existingNumber) {
+                  insertIndex = i;
+                  break;
+                }
+              }
+            }
+          } else if (sortDirection === 'desc') {
+            // High to Low: find position where image should go
+            for (let i = 0; i < selectedArray.length; i++) {
+              const existingImage = state.images.find(img => img.id === selectedArray[i]);
+              if (existingImage) {
+                const existingNumber = parseInt(existingImage.photoNumber) || 0;
+                if (selectedImageNumber > existingNumber) {
+                  insertIndex = i;
+                  break;
+                }
+              }
+            }
+          }
+          
+          // Insert at the correct position
+          selectedArray.splice(insertIndex, 0, id);
+          newSelected = new Set(selectedArray);
+        } else {
+          // No sorting: add to end
+          newSelected.add(id);
+        }
       }
       return { selectedImages: newSelected };
     });
@@ -237,44 +275,14 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
   },
 
   setDefectSortDirection: (direction) =>
-    set((state) => {
-      const sortedImages = [...state.images].sort((a, b) => {
-        if (a.isSketch !== b.isSketch) {
-          return a.isSketch ? -1 : 1;
-        }
-        if (!a.isSketch && !b.isSketch && direction) {
-          const numA = parseInt(a.photoNumber || '0');
-          const numB = parseInt(b.photoNumber || '0');
-          return direction === 'asc' ? numA - numB : numB - numA;
-        }
-        return 0;
-      });
-
-      return {
-        defectSortDirection: direction,
-        images: sortedImages
-      };
-    }),
+    set(() => ({
+      defectSortDirection: direction
+    })),
 
   setSketchSortDirection: (direction) =>
-    set((state) => {
-      const sortedImages = [...state.images].sort((a, b) => {
-        if (a.isSketch !== b.isSketch) {
-          return a.isSketch ? -1 : 1;
-        }
-        if (a.isSketch && b.isSketch && direction) {
-          const numA = parseInt(a.photoNumber || '0');
-          const numB = parseInt(b.photoNumber || '0');
-          return direction === 'asc' ? numA - numB : numB - numA;
-        }
-        return 0;
-      });
-
-      return {
-        sketchSortDirection: direction,
-        images: sortedImages
-      };
-    }),
+    set(() => ({
+      sketchSortDirection: direction
+    })),
 
   setBulkDefects: (defects: BulkDefect[] | ((prev: BulkDefect[]) => BulkDefect[])) => {
     set((state) => {
@@ -295,7 +303,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       images: [],
       selectedImages: new Set(),
       bulkSelectedImages: new Set(),
-      formData: initialFormData,
+      formData: { elr: '', structureNo: '', date: '' }, // force empty
       defectSortDirection: null,
       sketchSortDirection: null,
       bulkDefects: [],
@@ -525,64 +533,34 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
   generateBulkZip: async () => {
     try {
       const state = get();
-      const JSZip = (await import('jszip')).default;
-      const zip = new JSZip();
-
-      // Get all selected images
-      const selectedImages = state.images.filter(img => 
-        state.bulkSelectedImages.has(img.id)
-      );
-
-      if (selectedImages.length === 0) {
-        throw new Error('No images selected. Please select at least one image.');
+      // 1. Build a list of ImageMetadata for all images referenced by bulkDefects with a selectedFile
+      const defectsWithImages = state.bulkDefects.filter(defect => defect.selectedFile);
+      if (defectsWithImages.length === 0) {
+        throw new Error('No defects with images selected');
       }
-
-      // Get defects that have selected files
-      const selectedDefects = state.bulkDefects.filter(defect => 
-        selectedImages.some(img => img.file.name === defect.selectedFile)
-      );
-
-      if (selectedDefects.length === 0) {
-        throw new Error('No defects found for selected images.');
+      // 2. Map to ImageMetadata, setting photoNumber/description from defect
+      const imagesToDownload = defectsWithImages.map(defect => {
+        const img = state.images.find(img => img.file.name === defect.selectedFile);
+        if (!img) throw new Error(`Image not found for defect ${defect.photoNumber}`);
+        return {
+          ...img,
+          photoNumber: defect.photoNumber,
+          description: defect.description
+        };
+      });
+      // 3. Use the same validation and packaging as the images tab
+      const { formData } = state;
+      const { createDownloadPackage } = await import('../utils/fileUtils');
+      const { validateImages } = await import('../utils/fileValidation');
+      const imagesError = validateImages(imagesToDownload);
+      if (imagesError) {
+        throw new Error(imagesError);
       }
-
-      // Validate descriptions only for selected defects
-      const missingDescriptions = selectedDefects.filter(defect => !defect.description?.trim());
-      if (missingDescriptions.length > 0) {
-        throw new Error(`Description is required for defect number: ${missingDescriptions[0].photoNumber}`);
-      }
-
-      // Create defects.json with selected defect data
-      const defectsData = {
-        defects: selectedDefects,
-        images: selectedImages.map(img => ({
-          fileName: img.file.name,
-          photoNumber: img.photoNumber,
-          description: img.description
-        }))
-      };
-
-      zip.file('defects.json', JSON.stringify(defectsData, null, 2));
-
-      // Add images to zip
-      for (const img of selectedImages) {
-        try {
-          const response = await fetch(img.publicUrl);
-          if (!response.ok) throw new Error(`Failed to fetch image: ${img.file.name}`);
-          const blob = await response.blob();
-          zip.file(img.file.name, blob);
-        } catch (error) {
-          console.error(`Error adding image to zip: ${img.file.name}`, error);
-          throw new Error(`Failed to add image to zip: ${img.file.name}`);
-        }
-      }
-
-      // Generate and download zip
-      const content = await zip.generateAsync({ type: 'blob' });
-      const url = window.URL.createObjectURL(content);
+      const zipBlob = await createDownloadPackage(imagesToDownload, formData);
+      const url = window.URL.createObjectURL(zipBlob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = 'bulk-defects.zip';
+      link.download = `${formData.elr.trim().toUpperCase()}_${formData.structureNo.trim()}.zip`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);

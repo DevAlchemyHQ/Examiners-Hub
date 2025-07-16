@@ -67,7 +67,7 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
     if (viewMode === 'bulk') {
       return images.filter(img => bulkSelectedImages.has(img.id));
     } else {
-      return images.filter(img => selectedImages.has(img.id));
+    return images.filter(img => selectedImages.has(img.id));
     }
   }, [images, selectedImages, bulkSelectedImages, viewMode]);
 
@@ -266,7 +266,7 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
                       </div>
                       
                       <div className="p-2">
-                        <div className="text-xs text-slate-500 dark:text-gray-400 truncate mb-1">
+                        <div className="text-xs text-slate-500 dark:text-gray-400 truncate mb-1 min-h-[1rem]">
                           {img.file.name}
                         </div>
                         <input
@@ -322,7 +322,7 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
                       </div>
                       
                       <div className="p-2 space-y-1">
-                        <div className="text-xs text-slate-500 dark:text-gray-400 truncate">
+                        <div className="text-xs text-slate-500 dark:text-gray-400 truncate min-h-[1rem]">
                           {img.file.name}
                         </div>
                         <input
@@ -348,7 +348,7 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
             </div>
           </div>
         ) : viewMode === 'bulk' ? (
-          <BulkTextInput />
+          <BulkTextInput isExpanded={isExpanded} />
         ) : (
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm h-[calc(100vh-96px)] flex items-center justify-center p-8 text-slate-400 dark:text-gray-500">
             Coming Soon!

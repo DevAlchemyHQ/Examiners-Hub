@@ -24,6 +24,7 @@ export const ImageGridItem: React.FC<ImageGridItemProps> = ({ images, gridWidth 
   const [enlargedImage, setEnlargedImage] = useState<string | null>(null);
   const parentRef = React.useRef<HTMLDivElement>(null);
   const location = useLocation();
+  const [draggedImage, setDraggedImage] = useState<ImageMetadata | null>(null);
   
   // Use the correct selection set based on viewMode
   const selections = viewMode === 'bulk' ? bulkSelectedImages : selectedImages;
@@ -81,6 +82,24 @@ export const ImageGridItem: React.FC<ImageGridItemProps> = ({ images, gridWidth 
     return images; // Return images without sorting
   };
 
+  // Handle drag start for images
+  const handleDragStart = (e: React.DragEvent, img: ImageMetadata) => {
+    if (viewMode === 'bulk') {
+      e.dataTransfer.setData('application/json', JSON.stringify({
+        type: 'image',
+        imageId: img.id,
+        fileName: img.file.name,
+        imageData: img
+      }));
+      e.dataTransfer.effectAllowed = 'copy';
+      setDraggedImage(img);
+    }
+  };
+
+  const handleDragEnd = () => {
+    setDraggedImage(null);
+  };
+
   return (
     <>
       <div 
@@ -120,10 +139,13 @@ export const ImageGridItem: React.FC<ImageGridItemProps> = ({ images, gridWidth 
                       key={img.id} 
                       className="relative aspect-square cursor-pointer group touch-manipulation"
                       onClick={() => toggleSelection(img.id)}
+                      draggable={viewMode === 'bulk'}
+                      onDragStart={(e) => handleDragStart(e, img)}
+                      onDragEnd={handleDragEnd}
                     >
                       <div className={`relative rounded-lg overflow-hidden h-full ${
                         isSelected ? 'ring-2 ring-indigo-500' : ''
-                      }`}>
+                      } ${draggedImage?.id === img.id ? 'opacity-50 scale-95' : ''}`}>
                         <img
                           src={img.preview}
                           alt={img.file.name}
@@ -150,6 +172,13 @@ export const ImageGridItem: React.FC<ImageGridItemProps> = ({ images, gridWidth 
                         <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white p-1.5 text-xs truncate">
                           {img.file.name}
                         </div>
+                        
+                        {/* Drag indicator for bulk mode */}
+                        {viewMode === 'bulk' && (
+                          <div className="absolute top-2 right-2 bg-blue-500 text-white px-2 py-1 rounded-full text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+                            Drag
+                          </div>
+                        )}
                         
                         <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all">
                           <button
