@@ -16,7 +16,21 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     persistSession: true,
     detectSessionInUrl: true,
     flowType: 'pkce',
-  }
+  },
+  global: {
+    headers: {
+      'X-Client-Info': 'supabase-js/2.39.3',
+    },
+  },
+  realtime: {
+    params: {
+      eventsPerSecond: 10,
+    },
+  },
+  // Add timeout configuration for large uploads
+  db: {
+    schema: 'public',
+  },
 });
 
 // Auth Functions with enhanced security and logging
@@ -570,6 +584,40 @@ export const deleteProject = async (projectId: string) => {
     }
   } catch (error) {
     console.error('Delete project error:', error);
+    throw error;
+  }
+};
+
+// Custom upload function with timeout handling for large files
+export const uploadFileWithTimeout = async (file: File, filePath: string, timeoutMs: number = 300000) => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const { error } = await supabase.storage
+      .from('user-project-files')
+      .upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: false,
+        duplex: 'half'
+      });
+
+    clearTimeout(timeoutId);
+    
+    if (error) throw error;
+    
+    const { data: { publicUrl } } = supabase.storage
+      .from('user-project-files')
+      .getPublicUrl(filePath);
+
+    if (!publicUrl) throw new Error('Failed to get public URL');
+    
+    return publicUrl;
+  } catch (error: any) {
+    clearTimeout(timeoutId);
+    if (error.name === 'AbortError') {
+      throw new Error(`Upload timeout after ${timeoutMs / 1000} seconds`);
+    }
     throw error;
   }
 };

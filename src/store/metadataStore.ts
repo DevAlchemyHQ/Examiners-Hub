@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { ImageMetadata, FormData } from '../types';
-import { supabase } from '../lib/supabase';
+import { supabase, uploadFileWithTimeout } from '../lib/supabase';
 import { nanoid } from 'nanoid';
 
 interface BulkDefect {
@@ -92,54 +92,90 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
-      const newImages = await Promise.all(files.map(async (file) => {
-        const timestamp = new Date().getTime();
-        const filePath = `${user.id}/${timestamp}-${file.name}`;
+      const totalSize = files.reduce((sum, file) => sum + file.size, 0);
+      const isLargeUpload = files.length > 5 || totalSize > 100 * 1024 * 1024; // 100MB or >5 files
 
-        const { error: uploadError } = await supabase.storage
-          .from('user-project-files')
-          .upload(filePath, file, {
-            cacheControl: '3600',
-            upsert: false
+      let newImages: ImageMetadata[] = [];
+      
+      if (isLargeUpload) {
+        // Sequential upload for large batches to avoid timeouts
+        for (let i = 0; i < files.length; i++) {
+          const file = files[i];
+          const timestamp = new Date().getTime();
+          const filePath = `${user.id}/${timestamp}-${file.name}`;
+
+          try {
+            const publicUrl = await uploadFileWithTimeout(file, filePath, 300000); // 5 minute timeout
+
+            newImages.push({
+              id: crypto.randomUUID(),
+              file,
+              photoNumber: '',
+              description: '',
+              preview: URL.createObjectURL(file),
+              isSketch,
+              publicUrl,
+              userId: user.id,
+              uploadTimestamp: Date.now()
+            });
+
+            // Update state after each successful upload for large batches
+            set((state) => {
+              const combined = [...state.images, newImages[newImages.length - 1]];
+              combined.sort((a, b) => {
+                const aNum = parseInt(a.photoNumber);
+                const bNum = parseInt(b.photoNumber);
+                if (!isNaN(aNum) && !isNaN(bNum)) return aNum - bNum;
+                if (!isNaN(aNum)) return -1;
+                if (!isNaN(bNum)) return 1;
+                return a.file.name.localeCompare(b.file.name);
+              });
+              return { images: combined };
+            });
+
+          } catch (error: any) {
+            console.error(`Error uploading ${file.name}:`, error);
+            throw new Error(`Failed to upload ${file.name}: ${error.message}`);
+          }
+        }
+      } else {
+        // Parallel upload for small batches
+        newImages = await Promise.all(files.map(async (file) => {
+          const timestamp = new Date().getTime();
+          const filePath = `${user.id}/${timestamp}-${file.name}`;
+
+          const publicUrl = await uploadFileWithTimeout(file, filePath, 120000); // 2 minute timeout
+
+          return {
+            id: crypto.randomUUID(),
+            file,
+            photoNumber: '',
+            description: '',
+            preview: URL.createObjectURL(file),
+            isSketch,
+            publicUrl,
+            userId: user.id,
+            uploadTimestamp: Date.now()
+          };
+        }));
+
+        set((state) => {
+          // Combine and sort images by photoNumber (asc), fallback to filename
+          const combined = [...state.images, ...newImages];
+          combined.sort((a, b) => {
+            const aNum = parseInt(a.photoNumber);
+            const bNum = parseInt(b.photoNumber);
+            if (!isNaN(aNum) && !isNaN(bNum)) return aNum - bNum;
+            if (!isNaN(aNum)) return -1;
+            if (!isNaN(bNum)) return 1;
+            return a.file.name.localeCompare(b.file.name);
           });
-
-        if (uploadError) throw uploadError;
-
-        const { data: { publicUrl } } = supabase.storage
-          .from('user-project-files')
-          .getPublicUrl(filePath);
-
-        if (!publicUrl) throw new Error('Failed to get public URL');
-
-        return {
-          id: crypto.randomUUID(),
-          file,
-          photoNumber: '',
-          description: '',
-          preview: URL.createObjectURL(file),
-          isSketch,
-          publicUrl,
-          userId: user.id,
-          uploadTimestamp: Date.now()
-        };
-      }));
-
-      set((state) => {
-        // Combine and sort images by photoNumber (asc), fallback to filename
-        const combined = [...state.images, ...newImages];
-        combined.sort((a, b) => {
-          const aNum = parseInt(a.photoNumber);
-          const bNum = parseInt(b.photoNumber);
-          if (!isNaN(aNum) && !isNaN(bNum)) return aNum - bNum;
-          if (!isNaN(aNum)) return -1;
-          if (!isNaN(bNum)) return 1;
-          return a.file.name.localeCompare(b.file.name);
+          return { images: combined };
         });
-        return { images: combined };
-      });
+      }
 
       await get().saveUserData();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error adding images:', error);
       throw error;
     }
