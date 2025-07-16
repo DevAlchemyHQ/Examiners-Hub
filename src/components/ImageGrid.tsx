@@ -24,14 +24,13 @@ export const ImageGrid: React.FC<{ isLoading?: boolean }> = ({ isLoading = false
           <GridWidthControl value={gridWidth} onChange={setGridWidth} />
         </div>
       </div>
-      <div className="flex-1 min-h-0">
-        <div 
-          className="h-full overflow-y-auto scrollbar-thin"
-          style={{ 
-            overscrollBehavior: 'contain',
-            WebkitOverflowScrolling: 'touch'
-          }}
-        >
+      <div 
+        className="flex-1 min-h-0 overflow-y-auto scrollbar-thin"
+        style={{ 
+          overscrollBehavior: 'contain',
+          WebkitOverflowScrolling: 'touch'
+        }}
+      >
           {isLoading ? (
             <div className="h-full flex items-center justify-center">
               <div className="grid grid-cols-3 gap-4 w-full p-8">
@@ -64,7 +63,6 @@ export const ImageGrid: React.FC<{ isLoading?: boolean }> = ({ isLoading = false
               )}
             </div>
           )}
-        </div>
       </div>
     </div>
   );
