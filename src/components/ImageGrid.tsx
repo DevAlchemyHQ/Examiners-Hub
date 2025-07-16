@@ -14,36 +14,6 @@ export const ImageGrid: React.FC<{ isLoading?: boolean }> = ({ isLoading = false
   const sketchImages = images.filter(img => img.isSketch);
   const defectImages = images.filter(img => !img.isSketch);
 
-  // Group defect images by upload timestamp (within 5 seconds = same upload)
-  const groupImagesByUpload = (images: any[]) => {
-    if (images.length === 0) return [];
-    
-    const groups = [];
-    let currentGroup = [images[0]];
-    let lastTimestamp = images[0].uploadTimestamp || 0;
-    
-    for (let i = 1; i < images.length; i++) {
-      const img = images[i];
-      const timestamp = img.uploadTimestamp || 0;
-      
-      // If images were uploaded within 5 seconds of each other, group them
-      if (Math.abs(timestamp - lastTimestamp) < 5000) {
-        currentGroup.push(img);
-      } else {
-        // New upload group
-        groups.push(currentGroup);
-        currentGroup = [img];
-        lastTimestamp = timestamp;
-      }
-    }
-    
-    // Add the last group
-    groups.push(currentGroup);
-    return groups;
-  };
-
-  const defectImageGroups = groupImagesByUpload(defectImages);
-
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm h-full flex flex-col">
       <div className="p-4 border-b border-slate-200 dark:border-gray-700">
@@ -83,23 +53,12 @@ export const ImageGrid: React.FC<{ isLoading?: boolean }> = ({ isLoading = false
                   <ImageGridItem images={sketchImages} gridWidth={gridWidth} />
                 </div>
               )}
-              {defectImageGroups.length > 0 && (
+              {defectImages.length > 0 && (
                 <div>
                   <h3 className="text-sm font-medium text-slate-500 dark:text-gray-400 px-2 py-2 sticky top-0 bg-white dark:bg-gray-800 z-10">
                     EXAM PHOTOS ({defectImages.length})
                   </h3>
-                  {defectImageGroups.map((group, groupIndex) => (
-                    <div key={groupIndex}>
-                      {groupIndex > 0 && (
-                        <div className="my-4 border-t border-slate-200 dark:border-gray-700">
-                          <div className="text-xs text-slate-400 dark:text-gray-500 px-2 py-1 bg-slate-50 dark:bg-gray-800 rounded-lg inline-block mt-2">
-                            New Upload
-                          </div>
-                        </div>
-                      )}
-                      <ImageGridItem images={group} gridWidth={gridWidth} />
-                    </div>
-                  ))}
+                  <ImageGridItem images={defectImages} gridWidth={gridWidth} />
                 </div>
               )}
             </div>
