@@ -15,7 +15,7 @@ export const ImageGrid: React.FC<{ isLoading?: boolean }> = ({ isLoading = false
   const defectImages = images.filter(img => !img.isSketch);
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm h-full flex flex-col">
+    <div className="bg-gray-900 rounded-lg shadow-sm h-full flex flex-col">
       <div className="p-4 border-b border-slate-200 dark:border-gray-700">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-slate-800 dark:text-white">
@@ -25,7 +25,7 @@ export const ImageGrid: React.FC<{ isLoading?: boolean }> = ({ isLoading = false
         </div>
       </div>
       <div className="flex-1 min-h-0">
-        <div className="h-full overflow-y-auto">
+        <div className="h-full overflow-y-auto bg-gray-900">
           {isLoading ? (
             <div className="h-full flex items-center justify-center">
               <div className="grid grid-cols-3 gap-4 w-full p-8">
