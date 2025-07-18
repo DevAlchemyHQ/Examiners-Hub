@@ -70,13 +70,16 @@ export const ImageUpload: React.FC = () => {
 
       try {
         setIsLoadingExam(true);
+        console.log('Starting upload of', valid.length, 'files');
         
         // For large uploads, show progress
         if (valid.length > 5 || valid.reduce((sum, file) => sum + file.size, 0) > 100 * 1024 * 1024) {
           toast.success(`Starting upload of ${valid.length} files (${formatFileSize(valid.reduce((sum, file) => sum + file.size, 0))})`);
         }
 
+        console.log('Calling addImages...');
         await addImages(valid, false);
+        console.log('Upload completed successfully');
         toast.success(`Successfully uploaded ${valid.length} files!`);
       } catch (error) {
         console.error('Upload error:', error);

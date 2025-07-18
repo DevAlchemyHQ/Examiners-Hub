@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
+import { DatabaseService } from '../lib/services';
 // import { useAuthStore } from './authStore';
 import { useMetadataStore } from './metadataStore';
 import { usePDFStore } from './pdfStore';
@@ -69,40 +70,28 @@ export const useProjectStore = create<ProjectState>((set) => ({
         }
       }
 
-      // --- Delete from projects table ---
-      const { error: projectError } = await supabase
-        .from('projects')
-        .delete()
-        .eq('id', userId); // Correct key is 'id'
-      if (projectError) {
-        throw new Error(`Failed to delete project data: ${projectError.message}`);
+      // --- Delete from projects table using DatabaseService ---
+      const projectResult = await DatabaseService.clearUserProject(userId, userId);
+      if (projectResult.error) {
+        throw new Error(`Failed to delete project data: ${projectResult.error}`);
       }
 
-      // --- Delete from bulk_defects table ---
-      const { error: bulkDefectsError } = await supabase
-        .from('bulk_defects')
-        .delete()
-        .eq('id', userId); // Correct key is 'id'
-      if (bulkDefectsError) {
-        throw new Error(`Failed to delete bulk defects: ${bulkDefectsError.message}`);
+      // --- Delete from bulk_defects table using DatabaseService ---
+      const bulkDefectsResult = await DatabaseService.updateBulkDefects(userId, []);
+      if (bulkDefectsResult.error) {
+        throw new Error(`Failed to delete bulk defects: ${bulkDefectsResult.error}`);
       }
 
-      // --- Delete from user_pdfs table ---
-      const { error: userPdfsError } = await supabase
-        .from('user_pdfs')
-        .delete()
-        .eq('user_id', userId); // Correct key is 'user_id'
-      if (userPdfsError) {
-        throw new Error(`Failed to delete user PDFs: ${userPdfsError.message}`);
+      // --- Delete from user_pdfs table using DatabaseService ---
+      const userPdfsResult = await DatabaseService.updatePdfState(userId, 'clear', {});
+      if (userPdfsResult.error) {
+        throw new Error(`Failed to delete user PDFs: ${userPdfsResult.error}`);
       }
 
-      // --- Delete from user_pdf_state table ---
-      const { error: userPdfStateError } = await supabase
-        .from('user_pdf_state')
-        .delete()
-        .eq('user_id', userId); // Correct key is 'user_id'
-      if (userPdfStateError) {
-        throw new Error(`Failed to delete user PDF state: ${userPdfStateError.message}`);
+      // --- Delete from user_pdf_state table using DatabaseService ---
+      const userPdfStateResult = await DatabaseService.updatePdfState(userId, 'clear', {});
+      if (userPdfStateResult.error) {
+        throw new Error(`Failed to delete user PDF state: ${userPdfStateResult.error}`);
       }
 
       // --- Reset all relevant Zustand stores ---

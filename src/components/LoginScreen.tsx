@@ -48,9 +48,17 @@ export const LoginScreen: React.FC = () => {
           navigate('/app/dashboard');
           break;
         case 'signup':
-          await signUpWithEmail(email, password, fullName);
-          setMode('verify-signup');
-          setMessage('Please enter the verification code sent to your email.');
+          const signupResult = await signUpWithEmail(email, password, fullName);
+          if (signupResult?.user) {
+            // If we have a user, skip verification and go directly to app
+            await loadUserData();
+            setAuth(true);
+            navigate('/app/dashboard');
+          } else {
+            // If no user returned, go to verification step
+            setMode('verify-signup');
+            setMessage('Please enter the verification code sent to your email.');
+          }
           break;
         case 'reset':
           await resetPassword(email);

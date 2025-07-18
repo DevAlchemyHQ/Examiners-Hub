@@ -1,10 +1,8 @@
 import React from 'react';
 import { useMetadataStore } from '../store/metadataStore';
-import { ImageGridItem } from './ImageGridItem';
-import { GridWidthControl } from './GridWidthControl';
 import { useGridWidth } from '../hooks/useGridWidth';
 import { Loader2 } from 'lucide-react';
-
+import { ImageGridItem } from './ImageGridItem';
 
 export const ImageGrid: React.FC<{ isLoading?: boolean }> = ({ isLoading = false }) => {
   const { images } = useMetadataStore();
@@ -14,6 +12,23 @@ export const ImageGrid: React.FC<{ isLoading?: boolean }> = ({ isLoading = false
   const sketchImages = images.filter(img => img.isSketch);
   const defectImages = images.filter(img => !img.isSketch);
 
+  if (isLoading) {
+    return (
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm h-full flex flex-col">
+        <div className="p-4 border-b border-slate-200 dark:border-gray-700">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-slate-800 dark:text-white">
+              Images
+            </h2>
+          </div>
+        </div>
+        <div className="flex-1 flex items-center justify-center">
+          <Loader2 className="animate-spin text-indigo-500" size={32} />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm h-full flex flex-col">
       <div className="p-4 border-b border-slate-200 dark:border-gray-700">
@@ -21,48 +36,41 @@ export const ImageGrid: React.FC<{ isLoading?: boolean }> = ({ isLoading = false
           <h2 className="text-lg font-semibold text-slate-800 dark:text-white">
             Images ({images.length})
           </h2>
-          <GridWidthControl value={gridWidth} onChange={setGridWidth} />
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-slate-500 dark:text-gray-400">
+              Grid: {gridWidth}
+            </span>
+            <button
+              onClick={() => setGridWidth(Math.max(3, gridWidth - 1))}
+              className="px-2 py-1 text-sm bg-slate-100 dark:bg-gray-700 rounded hover:bg-slate-200 dark:hover:bg-gray-600"
+            >
+              -
+            </button>
+            <button
+              onClick={() => setGridWidth(Math.min(8, gridWidth + 1))}
+              className="px-2 py-1 text-sm bg-slate-100 dark:bg-gray-700 rounded hover:bg-slate-200 dark:hover:bg-gray-600"
+            >
+              +
+            </button>
+          </div>
+        </div>
+        <div className="text-sm text-slate-500 dark:text-gray-400 mt-1">
+          {sketchImages.length} Sketches, {defectImages.length} Exam Photos
         </div>
       </div>
-      <div 
-        className="flex-1 min-h-0 overflow-y-auto scrollbar-thin"
-        style={{ 
-          overscrollBehavior: 'contain',
-          WebkitOverflowScrolling: 'touch'
-        }}
-      >
-          {isLoading ? (
-            <div className="h-full flex items-center justify-center">
-              <div className="grid grid-cols-3 gap-4 w-full p-8">
-                {[...Array(9)].map((_, i) => (
-                  <div key={i} className="aspect-square bg-slate-200 dark:bg-gray-700 animate-pulse rounded-lg" />
-                ))}
-              </div>
-            </div>
-          ) : images.length === 0 ? (
-            <div className="h-full flex items-center justify-center text-slate-400 dark:text-gray-500">
-              Please upload your Sketch or Exam photos to the canvas.
+
+      <div className="flex-1">
+        {images.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full text-slate-500 dark:text-gray-400 p-8">
+            <div className="text-6xl mb-4">📷</div>
+            <p className="text-lg font-medium mb-2">No images uploaded yet</p>
+            <p className="text-sm text-center">
+              Upload some images to get started with your project
+            </p>
             </div>
           ) : (
-            <div className="p-2">
-              {sketchImages.length > 0 && (
-                <div className="mb-4">
-                  <h3 className="text-sm font-medium text-slate-500 dark:text-gray-400 px-2 py-2 sticky top-0 bg-white dark:bg-gray-800 z-10">
-                    SKETCHES ({sketchImages.length})
-                  </h3>
-                  <ImageGridItem images={sketchImages} gridWidth={gridWidth} />
-                </div>
+          <ImageGridItem images={images} gridWidth={gridWidth} />
               )}
-              {defectImages.length > 0 && (
-                <div>
-                  <h3 className="text-sm font-medium text-slate-500 dark:text-gray-400 px-2 py-2 sticky top-0 bg-white dark:bg-gray-800 z-10">
-                    EXAM PHOTOS ({defectImages.length})
-                  </h3>
-                  <ImageGridItem images={defectImages} gridWidth={gridWidth} />
-                </div>
-              )}
-            </div>
-          )}
       </div>
     </div>
   );

@@ -1,12 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { LogOut, Sun, Moon, Info, User, Camera, XCircle, CreditCard, Menu } from 'lucide-react';
+import { Menu, Sun, Moon, User, Settings, LogOut, CreditCard, Calendar, Bell } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
-import { supabase } from '../lib/supabase';
 import { useThemeStore } from '../store/themeStore';
+import { useLayoutStore } from '../store/layoutStore';
 import { WeatherDate } from './WeatherDate';
-import { EditProfileModal } from './profile/EditProfile';
-import { signOut, updateUserProfile, cancelSubscription } from '../lib/supabase';
+import { StorageService } from '../lib/services';
+import { updateUserProfile } from '../lib/supabase';
 
 export const Header: React.FC = () => {
   const navigate = useNavigate();
@@ -67,6 +67,21 @@ export const Header: React.FC = () => {
     if (!user?.email) return;
   
     try {
+      // If using mock Supabase, use mock subscription data
+      if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY) {
+        console.log('Using mock subscription details for local testing');
+        setUser({
+          ...user,
+          user_metadata: {
+            ...user.user_metadata,
+            subscription_plan: 'Basic',
+            subscription_status: 'active',
+            subscription_end_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days from now
+          },
+        });
+        return;
+      }
+  
       const { data, error } = await supabase
         .from("profiles")
         .select("subscription_plan, subscription_status, subscription_end_date")
@@ -108,54 +123,37 @@ export const Header: React.FC = () => {
   };
 
   const handleSubsciption = () => {
-    navigate('/subscriptions');
+    navigate('/app/subscriptions');
     setShowProfileMenu(false);
   };
 
   const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file || !user) return;
-  
     try {
+      const file = event.target.files?.[0];
+      if (!file || !user) return;
+
       // Generate file path with user's id as folder name
       const fileExt = file.name.split('.').pop();
       const fileName = `${Date.now()}.${fileExt}`;
-      const filePath = `${user.id}/${fileName}`;
-  
-      const { data: existingFiles } = await supabase.storage
-        .from('avatars')
-        .list(user.id);
-      if (existingFiles && existingFiles.length > 0) {
-        await supabase.storage
-          .from('avatars')
-          .remove(existingFiles.map(f => `${user.id}/${f.name}`));
+      const filePath = `avatars/${user.id}/${fileName}`;
+
+      // Upload to S3 using StorageService
+      const uploadResult = await StorageService.uploadFile(file, filePath);
+      
+      if (uploadResult.error) {
+        console.error('Upload error:', uploadResult.error);
+        throw uploadResult.error;
       }
-  
-      // Upload file to the 'avatars' bucket
-      const { error: uploadError, data: uploadData } = await supabase.storage
-        .from('avatars')
-        .upload(filePath, file, {
-          cacheControl: '3600',
-          upsert: true,
-        });
-  
-      if (uploadError) throw uploadError;
-  
-      // Get the public URL for the uploaded file
-      const { data: publicUrlData } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(uploadData.path);
-  
-      if (publicUrlData) {
-        await updateUserProfile(user.id, { avatar_url: publicUrlData.publicUrl });
-        setUser({
-          ...user,
-          user_metadata: {
-            ...user.user_metadata,
-            avatar_url: publicUrlData.publicUrl,
-          },
-        });
-      }
+
+      // Update user profile with new avatar URL
+      await updateUserProfile(user.id, { avatar_url: uploadResult.url });
+      setUser({
+        ...user,
+        user_metadata: {
+          ...user.user_metadata,
+          avatar_url: uploadResult.url,
+        },
+      });
     } catch (error) {
       console.error('Image upload error:', error);
     }
@@ -370,6 +368,15 @@ export const Header: React.FC = () => {
 
                   {/* Menu Items */}
                   <div className="p-2">
+                    <button 
+                      onClick={() => {
+                        setShowProfileMenu(false);
+                        navigate('/app/profile');
+                      }}
+                      className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-gray-700/50 rounded-lg flex items-center gap-2">
+                      <User size={16} />
+                      View Profile
+                    </button>
                     <button 
                       onClick={() => setShowEditProfile(true)}
                       className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-gray-700/50 rounded-lg flex items-center gap-2">

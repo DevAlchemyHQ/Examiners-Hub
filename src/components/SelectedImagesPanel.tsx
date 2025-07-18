@@ -5,7 +5,34 @@ import { X, Trash2, ArrowUpDown, AlertTriangle, Maximize2, Minimize2, Images, Fi
 import { ImageZoom } from './ImageZoom';
 import { validateDescription } from '../utils/fileValidation';
 import { BulkTextInput } from './BulkTextInput';
-import { saveDefectSet, loadDefectSets, deleteDefectSet } from '../lib/supabase';
+// REMOVE: import { saveDefectSet, loadDefectSets, deleteDefectSet } from '../lib/supabase';
+// ADD: Local defect set storage helpers
+
+// Helper to get all defect sets from localStorage
+function getLocalDefectSets() {
+  return JSON.parse(localStorage.getItem('defectSets') || '[]');
+}
+// Helper to save all defect sets to localStorage
+function setLocalDefectSets(sets: any[]) {
+  localStorage.setItem('defectSets', JSON.stringify(sets));
+}
+// Save a new defect set
+async function saveDefectSet(title: string, data: any) {
+  const sets = getLocalDefectSets();
+  const id = Math.random().toString(36).slice(2) + Date.now();
+  const created_at = new Date().toISOString();
+  sets.push({ id, title, data, created_at });
+  setLocalDefectSets(sets);
+}
+// Load all defect sets
+async function loadDefectSets() {
+  return getLocalDefectSets();
+}
+// Delete a defect set by id
+async function deleteDefectSet(id: string) {
+  const sets = getLocalDefectSets();
+  setLocalDefectSets(sets.filter((s: any) => s.id !== id));
+}
 import { toast } from 'react-hot-toast';
 import type { ImageMetadata } from '../types';
 
@@ -81,7 +108,7 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
     return `${elr}_${struct}_${date}`;
   };
 
-  // Save defect set to Supabase
+  // Save defect set to localStorage
   const handleSaveDefectSet = async () => {
     try {
       // Validate project details
@@ -103,10 +130,20 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
         defects: bulkDefects,
         selectedImages: Array.from(selectedImages),
         formData,
+        // Also save the current state of selected images with their metadata
+        selectedImagesMetadata: images
+          .filter(img => selectedImages.has(img.id))
+          .map(img => ({
+            id: img.id,
+            fileName: img.file.name,
+            photoNumber: img.photoNumber,
+            description: img.description,
+            isSketch: img.isSketch
+          }))
       };
       
       await saveDefectSet(title, data);
-      toast.success(`Defect set '${title}' saved to cloud!`);
+      toast.success(`Defect set '${title}' saved!`);
       
       // Refresh the saved sets list
       await handleShowLoadTray();
@@ -132,10 +169,25 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
   const handleLoadDefectSet = (set: {title: string, data: any, created_at: string}) => {
     setBulkDefects(set.data.defects);
     setFormData(set.data.formData);
-    // Repopulate selected images
+    
+    // Restore selected images
     setTimeout(() => {
       setSelectedImages(new Set(set.data.selectedImages));
     }, 0);
+    
+    // Restore selected images metadata (photo numbers, descriptions)
+    if (set.data.selectedImagesMetadata) {
+      set.data.selectedImagesMetadata.forEach((imgMeta: any) => {
+        const image = images.find(img => img.id === imgMeta.id);
+        if (image) {
+          updateImageMetadata(imgMeta.id, {
+            photoNumber: imgMeta.photoNumber,
+            description: imgMeta.description
+          });
+        }
+      });
+    }
+    
     setShowLoadTray(false);
   };
 
@@ -392,7 +444,7 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
                       <button
                         onClick={() => setShowDeleteConfirm(true)}
                         className="p-1.5 text-slate-500 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                        title="Delete all images from Supabase"
+                        title="Delete all images"
                       >
                         <X size={18} />
                       </button>
@@ -448,6 +500,16 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm h-[calc(100vh-96px)] flex items-center justify-center p-8 text-slate-400 dark:text-gray-500">
             Coming Soon!
           </div>
+        )}
+
+        {/* ImageZoom positioned within the panel */}
+      {enlargedImage && (
+          <ImageZoom
+            src={enlargedImage}
+            alt="Enlarged view"
+            title="Enlarged view"
+            onClose={() => setEnlargedImage(null)}
+          />
         )}
       </div>
 
@@ -523,12 +585,12 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
                   Delete All Images
                 </h3>
                 <p className="text-sm text-slate-600 dark:text-gray-400">
-                  This will permanently delete all images from Supabase
+                  This will permanently delete all images
                 </p>
               </div>
             </div>
             <p className="text-slate-700 dark:text-gray-300 mb-6">
-              Are you sure you want to delete ALL images from Supabase? This action cannot be undone.
+              Are you sure you want to delete ALL images? This action cannot be undone.
             </p>
             <div className="flex gap-3">
               <button
@@ -548,16 +610,6 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
               </button>
             </div>
           </div>
-        </div>
-      )}
-
-      {enlargedImage && (
-        <div className="fixed inset-0 bg-black/75 z-[9999] flex items-center justify-center">
-          <ImageZoom
-            src={enlargedImage}
-            alt="Enlarged view"
-            onClose={() => setEnlargedImage(null)}
-          />
         </div>
       )}
     </div>

@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { supabase } from '../../lib/supabase';
+import { X, Camera, Save, Loader2 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
-import { X, Upload, UserCircle } from 'lucide-react';
+import { StorageService } from '../../lib/services';
+import { updateUserProfile } from '../../lib/supabase';
 
 interface EditProfileModalProps {
     isOpen: boolean;
@@ -32,20 +33,23 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
         const fileName = `${user?.id}.${fileExt}`;
         const filePath = `avatars/${fileName}`;
 
-        // Upload to Supabase storage (overwrite existing)
-        const { error } = await supabase.storage.from('avatars').upload(filePath, avatarFile, { upsert: true });
+        try {
+            // Upload to S3 using StorageService
+            const uploadResult = await StorageService.uploadFile(avatarFile, filePath);
+            
+            if (uploadResult.error) {
+                console.error('Error uploading avatar:', uploadResult.error);
+                setUploading(false);
+                return null;
+            }
 
-        if (error) {
+            setUploading(false);
+            return uploadResult.url;
+        } catch (error) {
             console.error('Error uploading avatar:', error);
             setUploading(false);
             return null;
         }
-
-        // Get the public URL of the uploaded avatar
-        const { data } = supabase.storage.from('avatars').getPublicUrl(filePath);
-
-        setUploading(false);
-        return data.publicUrl;
     };
 
     const handleUpdateProfile = async () => {

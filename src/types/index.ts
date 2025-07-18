@@ -11,6 +11,7 @@ export interface ImageMetadata {
   publicUrl?: string;
   userId?: string;
   uploadTimestamp?: number;
+  base64?: string; // For localStorage storage
 }
 
 export interface FormData {

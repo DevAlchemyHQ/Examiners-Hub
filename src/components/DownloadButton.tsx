@@ -44,12 +44,24 @@ export const DownloadButton: React.FC = () => {
 
   const handleDownload = async () => {
     try {
+      console.log('Download button clicked');
+      console.log('Current state:', { 
+        viewMode, 
+        selectedImages: selectedImages.size, 
+        bulkDefects: bulkDefects.length,
+        formData,
+        isBulkValid: isBulkValid(),
+        isValid: isValid()
+      });
+      
       setIsDownloading(true);
       setError(null);
 
       if (viewMode === 'bulk') {
         // Handle bulk mode download
+        console.log('Bulk mode download');
         const defectsWithImages = bulkDefects.filter(defect => defect.selectedFile);
+        console.log('Defects with images:', defectsWithImages.length);
         
         if (defectsWithImages.length === 0) {
           throw new Error('No defects with images selected');
@@ -59,34 +71,41 @@ export const DownloadButton: React.FC = () => {
           throw new Error('Your subscription has expired. Please upgrade to continue.');
         }
 
+        console.log('Calling generateBulkZip...');
         await generateBulkZip();
+        console.log('Bulk zip generated successfully');
         
         trackEvent({ action: 'download_bulk_package', category: 'user_action', value: defectsWithImages.length });
 
       } else {
         // Handle images mode download
-      const selectedImagesList = images.filter(img => selectedImages.has(img.id));
+        console.log('Images mode download');
+        const selectedImagesList = images.filter(img => selectedImages.has(img.id));
+        console.log('Selected images:', selectedImagesList.length);
 
-      if (selectedImagesList.length === 0) {
-        throw new Error('No images selected');
-      }
+        if (selectedImagesList.length === 0) {
+          throw new Error('No images selected');
+        }
 
         if (isSubscriptionExpired) {
           throw new Error('Your subscription has expired. Please upgrade to continue.');
-      }
+        }
 
-      const zipBlob = await createDownloadPackage(selectedImagesList, formData);
-      const url = URL.createObjectURL(zipBlob);
+        console.log('Calling createDownloadPackage...');
+        const blob = await createDownloadPackage(selectedImagesList, formData);
+        console.log('Download package created, size:', blob.size);
+        const url = URL.createObjectURL(blob);
 
-      trackEvent({ action: 'download_package', category: 'user_action', value: selectedImagesList.length });
+        trackEvent({ action: 'download_package', category: 'user_action', value: selectedImagesList.length });
 
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${formData.elr.trim().toUpperCase()}_${formData.structureNo.trim()}.zip`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${formData.elr.trim().toUpperCase()}_${formData.structureNo.trim()}_${formData.date ? new Date(formData.date).toISOString().slice(0,10).split('-').reverse().join('-') : 'date'}.zip`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        console.log('Download completed');
 
       }
     } catch (error) {

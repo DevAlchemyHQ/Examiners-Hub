@@ -1,10 +1,8 @@
 import React, { useState } from 'react';
-import { useVirtualizer } from '@tanstack/react-virtual';
 import { useMetadataStore } from '../store/metadataStore';
 import { Maximize2 } from 'lucide-react';
 import { ImageZoom } from './ImageZoom';
 import { ImageMetadata } from '../types';
-import { useLocation } from 'react-router-dom';
 
 interface ImageGridItemProps {
   images: ImageMetadata[];
@@ -21,9 +19,8 @@ export const ImageGridItem: React.FC<ImageGridItemProps> = ({ images, gridWidth 
     bulkDefects,
     setBulkDefects 
   } = useMetadataStore();
-  const [enlargedImage, setEnlargedImage] = useState<string | null>(null);
-  const parentRef = React.useRef<HTMLDivElement>(null);
-  const location = useLocation();
+  const [enlargedImageIndex, setEnlargedImageIndex] = useState<number | null>(null);
+  const [clickPosition, setClickPosition] = useState<{ x: number; y: number } | null>(null);
   const [draggedImage, setDraggedImage] = useState<ImageMetadata | null>(null);
   
   // Use the correct selection set based on viewMode
@@ -49,13 +46,6 @@ export const ImageGridItem: React.FC<ImageGridItemProps> = ({ images, gridWidth 
     }
   };
 
-  const rowVirtualizer = useVirtualizer({
-    count: Math.ceil(images.length / gridWidth),
-    getScrollElement: () => parentRef.current,
-    estimateSize: () => 200,
-    overscan: 5,
-  });
-
   const handleDefectNumberChange = (fileName: string, newNumber: string) => {
     setBulkDefects((prevDefects) => {
       const defectIndex = prevDefects.findIndex(d => d.selectedFile === fileName);
@@ -77,11 +67,6 @@ export const ImageGridItem: React.FC<ImageGridItemProps> = ({ images, gridWidth 
     });
   };
 
-  // Remove or comment out the sorting logic for images
-  const sortImages = (images: ImageMetadata[]) => {
-    return images; // Return images without sorting
-  };
-
   // Handle drag start for images
   const handleDragStart = (e: React.DragEvent, img: ImageMetadata) => {
     if (viewMode === 'bulk') {
@@ -100,37 +85,48 @@ export const ImageGridItem: React.FC<ImageGridItemProps> = ({ images, gridWidth 
     setDraggedImage(null);
   };
 
+  const handleImageEnlarge = (imageIndex: number, clickEvent: React.MouseEvent) => {
+    const rect = document.body.getBoundingClientRect();
+    setClickPosition({
+      x: clickEvent.clientX - rect.left,
+      y: clickEvent.clientY - rect.top
+    });
+    setEnlargedImageIndex(imageIndex);
+  };
+
+  const handlePreviousImage = () => {
+    if (enlargedImageIndex !== null && enlargedImageIndex > 0) {
+      setEnlargedImageIndex(enlargedImageIndex - 1);
+    }
+  };
+
+  const handleNextImage = () => {
+    if (enlargedImageIndex !== null && enlargedImageIndex < images.length - 1) {
+      setEnlargedImageIndex(enlargedImageIndex + 1);
+    }
+  };
+
+  const handleCloseEnlarged = () => {
+    setEnlargedImageIndex(null);
+    setClickPosition(null);
+  };
+
   return (
     <>
       <div 
-        ref={parentRef} 
-        className="h-full overflow-y-auto scrollbar-thin"
+        className="h-full overflow-y-auto scrollbar-thin relative p-2"
         style={{ 
           overscrollBehavior: 'contain',
           WebkitOverflowScrolling: 'touch'
         }}
       >
         <div
+          className="grid gap-2"
           style={{
-            height: `${rowVirtualizer.getTotalSize()}px`,
-            width: '100%',
-            position: 'relative',
-          }}
-        >
-          {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-            const startIndex = virtualRow.index * gridWidth;
-            const rowImages = images.slice(startIndex, startIndex + gridWidth);
-
-            return (
-              <div
-                key={virtualRow.index}
-                className="absolute top-0 left-0 w-full grid gap-2 p-2"
-                style={{
-                  transform: `translateY(${virtualRow.start}px)`,
-                  gridTemplateColumns: `repeat(${gridWidth}, 1fr)`,
+            gridTemplateColumns: `repeat(${gridWidth}, 1fr)`,
                 }}
               >
-                {rowImages.map((img) => {
+          {images.map((img, index) => {
                   const isSelected = selections.has(img.id);
                   const defectNumbers = getDefectNumbers(img);
                   
@@ -184,7 +180,7 @@ export const ImageGridItem: React.FC<ImageGridItemProps> = ({ images, gridWidth 
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              setEnlargedImage(img.preview);
+                        handleImageEnlarge(index, e);
                             }}
                             className="absolute bottom-2 right-2 bg-white text-gray-800 p-2 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
                           >
@@ -195,21 +191,23 @@ export const ImageGridItem: React.FC<ImageGridItemProps> = ({ images, gridWidth 
                     </div>
                   );
                 })}
-              </div>
-            );
-          })}
-        </div>
       </div>
 
-      {enlargedImage && (
-        <div className="fixed inset-0 bg-black/75 z-[9999] flex items-center justify-center">
+        {/* ImageZoom positioned within the images section */}
+        {enlargedImageIndex !== null && (
           <ImageZoom
-            src={enlargedImage}
-            alt="Enlarged view"
-            onClose={() => setEnlargedImage(null)}
+            src={images[enlargedImageIndex].preview}
+            alt={images[enlargedImageIndex].file.name}
+            title={images[enlargedImageIndex].file.name}
+            onClose={handleCloseEnlarged}
+            onPrevious={handlePreviousImage}
+            onNext={handleNextImage}
+            hasPrevious={enlargedImageIndex > 0}
+            hasNext={enlargedImageIndex < images.length - 1}
+            position={clickPosition}
           />
+        )}
         </div>
-      )}
     </>
   );
 };

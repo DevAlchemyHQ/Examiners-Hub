@@ -26,7 +26,7 @@ export const ImageGridItem: React.FC<ImageGridItemProps> = ({ images, gridWidth 
     <>
       <div 
         ref={parentRef} 
-        className="h-[70vh] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600"
+        className="h-[70vh] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 relative"
         style={{ 
           overscrollBehavior: 'contain',
           WebkitOverflowScrolling: 'touch'
@@ -102,18 +102,18 @@ export const ImageGridItem: React.FC<ImageGridItemProps> = ({ images, gridWidth 
               </div>
             );
           })}
-        </div>
       </div>
 
+        {/* ImageZoom positioned within the images section */}
       {enlargedImage && (
-        <div className="fixed inset-0 bg-black/75 z-[9999] flex items-center justify-center">
           <ImageZoom
             src={enlargedImage}
             alt="Enlarged view"
+            title="Enlarged view"
             onClose={() => setEnlargedImage(null)}
           />
+        )}
         </div>
-      )}
     </>
   );
 };

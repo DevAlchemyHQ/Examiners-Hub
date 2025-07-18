@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
 import { UserProfile } from '../types/profile';
+import { StorageService } from '../lib/services';
 
 interface ProfileState {
   profile: UserProfile | null;
@@ -68,23 +69,18 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
-      // Upload avatar
+      // Upload avatar to S3
       const fileExt = file.name.split('.').pop();
-      const filePath = `avatars/${user.id}.${fileExt}`;
+      const filePath = `avatars/${user.id}/${Date.now()}.${fileExt}`;
 
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(filePath, file, { upsert: true });
+      const uploadResult = await StorageService.uploadFile(file, filePath);
 
-      if (uploadError) throw uploadError;
-
-      // Get public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(filePath);
+      if (uploadResult.error) {
+        throw uploadResult.error;
+      }
 
       // Update profile with new avatar URL
-      await get().updateProfile({ avatar_url: publicUrl });
+      await get().updateProfile({ avatar_url: uploadResult.url });
     } catch (error) {
       set({ error: error instanceof Error ? error.message : 'Failed to update avatar' });
     } finally {

@@ -1,15 +1,9 @@
 import { create } from 'zustand';
-import { ImageMetadata, FormData } from '../types';
-import { supabase, uploadFileWithTimeout } from '../lib/supabase';
+import { persist } from 'zustand/middleware';
+import { StorageService } from '../lib/services';
+import { ImageMetadata, FormData, BulkDefect } from '../types';
+import { createZipFile } from '../utils/zipUtils';
 import { nanoid } from 'nanoid';
-
-interface BulkDefect {
-  id?: string;
-  photoNumber: string;
-  description: string;
-  selectedFile: string;
-  originalPhotoNumber?: string;
-}
 
 // Make sure initialFormData is truly empty
 const initialFormData: FormData = {
@@ -28,20 +22,13 @@ interface MetadataStateOnly {
   sketchSortDirection: 'asc' | 'desc' | null;
   bulkDefects: BulkDefect[];
   viewMode: 'images' | 'bulk';
-  savedPdfs: {
-    [userId: string]: {
-      name: string;
-      url: string;
-      uploadDate: string;
-    }[];
-  };
 }
 
 // Combine state and actions
 interface MetadataState extends MetadataStateOnly {
   setFormData: (data: Partial<FormData>) => void;
   addImages: (files: File[], isSketch?: boolean) => Promise<void>;
-  updateImageMetadata: (id: string, data: Partial<Omit<ImageMetadata, 'id' | 'file' | 'preview'>>) => void;
+  updateImageMetadata: (id: string, data: Partial<Omit<ImageMetadata, 'id' | 'file' | 'preview'>>) => Promise<void>;
   removeImage: (id: string) => Promise<void>;
   toggleImageSelection: (id: string) => void;
   toggleBulkImageSelection: (id: string) => void;
@@ -60,9 +47,9 @@ interface MetadataState extends MetadataStateOnly {
   loadBulkData: () => Promise<void>;
   generateBulkZip: () => Promise<void>;
   clearBulkData: () => void;
-  savePdf: (userId: string, file: File) => Promise<void>;
-  removePdf: (userId: string, pdfName: string) => Promise<void>;
-  loadSavedPdfs: (userId: string) => Promise<void>;
+  savePdf: (userId: string, pdfData: any) => Promise<void>;
+  loadSavedPdfs: (userId: string) => Promise<any[]>;
+  processImageForDownload: (imageFile: File) => Promise<Blob>;
 }
 
 const initialState: MetadataStateOnly = {
@@ -74,7 +61,6 @@ const initialState: MetadataStateOnly = {
   sketchSortDirection: null,
   bulkDefects: [],
   viewMode: 'images',
-  savedPdfs: {},
 };
 
 export const useMetadataStore = create<MetadataState>((set, get) => ({
@@ -84,137 +70,98 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
     set((state) => ({
       formData: { ...state.formData, ...data },
     }));
-    get().saveUserData().catch(console.error);
+    // For local testing, save to localStorage
+    const state = get();
+    localStorage.setItem('clean-app-form-data', JSON.stringify(state.formData));
   },
 
   addImages: async (files, isSketch = false) => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
-
-      const totalSize = files.reduce((sum, file) => sum + file.size, 0);
-      const isLargeUpload = files.length > 5 || totalSize > 100 * 1024 * 1024; // 100MB or >5 files
-
-      let newImages: ImageMetadata[] = [];
+      console.log('addImages called with', files.length, 'files');
       
-      if (isLargeUpload) {
-        // Sequential upload for large batches to avoid timeouts
-        for (let i = 0; i < files.length; i++) {
-          const file = files[i];
-          const timestamp = new Date().getTime();
-          const filePath = `${user.id}/${timestamp}-${file.name}`;
-
-          try {
-            const publicUrl = await uploadFileWithTimeout(file, filePath, 300000); // 5 minute timeout
-
-            newImages.push({
-              id: crypto.randomUUID(),
-              file,
-              photoNumber: '',
-              description: '',
-              preview: URL.createObjectURL(file),
-              isSketch,
-              publicUrl,
-              userId: user.id,
-              uploadTimestamp: Date.now()
-            });
-
-            // Update state after each successful upload for large batches
-            set((state) => {
-              const combined = [...state.images, newImages[newImages.length - 1]];
-              combined.sort((a, b) => {
-                const aNum = parseInt(a.photoNumber);
-                const bNum = parseInt(b.photoNumber);
-                if (!isNaN(aNum) && !isNaN(bNum)) return aNum - bNum;
-                if (!isNaN(aNum)) return -1;
-                if (!isNaN(bNum)) return 1;
-                return a.file.name.localeCompare(b.file.name);
-              });
-              return { images: combined };
-            });
-
-          } catch (error: any) {
-            console.error(`Error uploading ${file.name}:`, error);
-            throw new Error(`Failed to upload ${file.name}: ${error.message}`);
-          }
+      // Upload files to S3 and create image metadata
+      const newImages: ImageMetadata[] = [];
+      
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        console.log(`Processing file ${i + 1}/${files.length}:`, file.name);
+        
+        // Create unique file path
+        const timestamp = Date.now();
+        const filePath = `images/${timestamp}-${file.name}`;
+        
+        // Upload to S3 using StorageService
+        const uploadResult = await StorageService.uploadFile(file, filePath);
+        
+        if (uploadResult.error) {
+          console.error('Upload failed for', file.name, uploadResult.error);
+          throw new Error(`Failed to upload ${file.name}: ${uploadResult.error}`);
         }
-      } else {
-        // Parallel upload for small batches
-        newImages = await Promise.all(files.map(async (file) => {
-          const timestamp = new Date().getTime();
-          const filePath = `${user.id}/${timestamp}-${file.name}`;
-
-          const publicUrl = await uploadFileWithTimeout(file, filePath, 120000); // 2 minute timeout
-
-          return {
-            id: crypto.randomUUID(),
-            file,
-            photoNumber: '',
-            description: '',
-            preview: URL.createObjectURL(file),
-            isSketch,
-            publicUrl,
-            userId: user.id,
-            uploadTimestamp: Date.now()
-          };
-        }));
-
-        set((state) => {
-          // Combine and sort images by photoNumber (asc), fallback to filename
-          const combined = [...state.images, ...newImages];
-          combined.sort((a, b) => {
-            const aNum = parseInt(a.photoNumber);
-            const bNum = parseInt(b.photoNumber);
-            if (!isNaN(aNum) && !isNaN(bNum)) return aNum - bNum;
-            if (!isNaN(aNum)) return -1;
-            if (!isNaN(bNum)) return 1;
-            return a.file.name.localeCompare(b.file.name);
-          });
-          return { images: combined };
-        });
+        
+        const imageMetadata: ImageMetadata = {
+          id: crypto.randomUUID(),
+          file,
+          fileName: file.name,
+          fileSize: file.size,
+          fileType: file.type,
+          photoNumber: '',
+          description: '',
+          preview: URL.createObjectURL(file), // Local preview
+          isSketch,
+          publicUrl: uploadResult.url!, // S3 signed URL
+          userId: 'local-user',
+          uploadTimestamp: timestamp
+        };
+        
+        newImages.push(imageMetadata);
+        console.log(`✅ Uploaded ${file.name} to S3`);
       }
 
-      await get().saveUserData();
+      console.log('All files uploaded to S3, updating state...');
+      set((state) => {
+        // Combine and sort images by photoNumber (asc), fallback to filename
+        const combined = [...state.images, ...newImages];
+        combined.sort((a, b) => {
+          const aNum = parseInt(a.photoNumber);
+          const bNum = parseInt(b.photoNumber);
+          if (!isNaN(aNum) && !isNaN(bNum)) return aNum - bNum;
+          if (!isNaN(aNum)) return -1;
+          if (!isNaN(bNum)) return 1;
+          return a.file.name.localeCompare(b.file.name);
+        });
+        console.log('State updated with', combined.length, 'total images');
+        return { images: combined };
+      });
+
+      console.log('Upload process completed successfully');
     } catch (error: any) {
       console.error('Error adding images:', error);
       throw error;
     }
   },
 
-  updateImageMetadata: (id, data) => {
+  updateImageMetadata: async (id, data) => {
     set((state) => {
       const updatedImages = state.images.map((img) =>
         img.id === id ? { ...img, ...data } : img
       );
-      get().saveUserData().catch(console.error);
       return { images: updatedImages };
     });
   },
 
   removeImage: async (id) => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
-
-      const imageToRemove = get().images.find(img => img.id === id);
-      if (imageToRemove?.publicUrl) {
-        const url = new URL(imageToRemove.publicUrl);
-        const filePath = decodeURIComponent(url.pathname.split('/').slice(-2).join('/'));
+      set((state) => {
+        const updatedImages = state.images.filter((img) => img.id !== id);
+        const updatedSelected = new Set([...state.selectedImages].filter(imgId => imgId !== id));
+        const updatedBulkSelected = new Set([...state.bulkSelectedImages].filter(imgId => imgId !== id));
         
-        const { error: deleteError } = await supabase.storage
-          .from('user-project-files')
-          .remove([filePath]);
-
-        if (deleteError) throw deleteError;
-      }
-
-      set((state) => ({
-        images: state.images.filter((img) => img.id !== id),
-        selectedImages: new Set([...state.selectedImages].filter(imgId => imgId !== id)),
-        bulkSelectedImages: new Set([...state.bulkSelectedImages].filter(imgId => imgId !== id)),
-      }));
-
-      await get().saveUserData();
+        return { 
+          images: updatedImages,
+          selectedImages: updatedSelected,
+          bulkSelectedImages: updatedBulkSelected,
+        };
+      });
     } catch (error) {
       console.error('Error removing image:', error);
       throw error;
@@ -273,11 +220,24 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           selectedArray.splice(insertIndex, 0, id);
           newSelected = new Set(selectedArray);
         } else {
-          // No sorting: add to end
+          // No sort direction, just add to the end
           newSelected.add(id);
         }
       }
+      
       return { selectedImages: newSelected };
+    });
+  },
+
+  toggleBulkImageSelection: (id) => {
+    set((state) => {
+      let newSelected = new Set(state.bulkSelectedImages);
+      if (newSelected.has(id)) {
+        newSelected.delete(id);
+      } else {
+        newSelected.add(id);
+      }
+      return { bulkSelectedImages: newSelected };
     });
   },
 
@@ -285,460 +245,236 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
     set({ selectedImages });
   },
 
-  toggleBulkImageSelection: (id) => {
-    set((state) => {
-      const newSelection = new Set(state.bulkSelectedImages);
-      if (newSelection.has(id)) {
-        newSelection.delete(id);
-      } else {
-        newSelection.add(id);
-      }
-      return { bulkSelectedImages: newSelection };
-    });
-  },
-
   clearSelectedImages: () => {
-    set((state) => {
-      const updatedImages = state.images.map((img) =>
-        state.selectedImages.has(img.id) && !img.isSketch
-          ? { ...img, photoNumber: '', description: '' }
-          : img
-      );
-      
-      get().saveUserData().catch(console.error);
-      return {
-        selectedImages: new Set(),
-        images: updatedImages
-      };
-    });
+    set({ selectedImages: new Set() });
   },
 
   clearBulkSelectedImages: () => {
     set({ bulkSelectedImages: new Set() });
   },
 
-  setDefectSortDirection: (direction) =>
-    set(() => ({
-      defectSortDirection: direction
-    })),
+  setDefectSortDirection: (direction) => {
+    set({ defectSortDirection: direction });
+  },
 
-  setSketchSortDirection: (direction) =>
-    set(() => ({
-      sketchSortDirection: direction
-    })),
+  setSketchSortDirection: (direction) => {
+    set({ sketchSortDirection: direction });
+  },
 
-  setBulkDefects: (defects: BulkDefect[] | ((prev: BulkDefect[]) => BulkDefect[])) => {
-    set((state) => {
-      const newDefects = typeof defects === 'function' ? defects(state.bulkDefects) : defects;
-      // Ensure all defects have IDs
-      const defectsWithIds = newDefects.map(defect => ({
-        ...defect,
-        id: defect.id || nanoid()
-      }));
-      return { bulkDefects: defectsWithIds };
-    });
-    // Auto-save whenever defects change
-    get().saveBulkData().catch(console.error);
+  setBulkDefects: (defects) => {
+    set((state) => ({
+      bulkDefects: typeof defects === 'function' ? defects(state.bulkDefects) : defects,
+    }));
   },
 
   reset: () => {
-    set({
-      images: [],
-      selectedImages: new Set(),
-      bulkSelectedImages: new Set(),
-      formData: { elr: '', structureNo: '', date: '' }, // force empty
-      defectSortDirection: null,
-      sketchSortDirection: null,
-      bulkDefects: [],
-      viewMode: 'images'
-    });
+    set(initialState);
+    // Clear localStorage for local testing
+    localStorage.removeItem('clean-app-images');
+    localStorage.removeItem('clean-app-form-data');
   },
 
   getSelectedCounts: () => {
     const state = get();
     const selectedImagesList = state.images.filter(img => state.selectedImages.has(img.id));
-    return {
-      sketches: selectedImagesList.filter(img => img.isSketch).length,
-      defects: selectedImagesList.filter(img => !img.isSketch).length
-    };
+    const sketches = selectedImagesList.filter(img => img.isSketch).length;
+    const defects = selectedImagesList.filter(img => !img.isSketch).length;
+    return { sketches, defects };
   },
 
   loadUserData: async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      // For local testing, load from localStorage
+      const savedFormData = localStorage.getItem('clean-app-form-data');
 
-      const { data, error } = await supabase
-        .from('projects')
-        .select('*')
-        .eq('id', user.id)
-        .single();
-
-      if (error) {
-        if (error.code === 'PGRST116') return;
-        throw error;
-      }
-
-      if (data?.images) {
-        // Pre-load all images before updating state
-        const imagePromises = data.images.map(async (imgData: any) => {
-          try {
-            if (!imgData.publicUrl) return null;
-
-            // Create new Image to preload
-            await new Promise((resolve, reject) => {
-              const img = new Image();
-              img.onload = resolve;
-              img.onerror = reject;
-              img.src = imgData.publicUrl;
-            });
-
-            // Create File object
-            const response = await fetch(imgData.publicUrl);
-            const blob = await response.blob();
-            const file = new File([blob], imgData.fileName || 'image.jpg', {
-              type: imgData.fileType || blob.type
-            });
-
-            return {
-              id: imgData.id,
-              file,
-              photoNumber: imgData.photoNumber || '',
-              description: imgData.description || '',
-              preview: imgData.publicUrl, // Use publicUrl directly instead of creating new blob URL
-              isSketch: imgData.isSketch || false,
-              publicUrl: imgData.publicUrl,
-              userId: imgData.userId
-            };
-          } catch (error) {
-            console.error('Error loading image:', error);
-            return null;
-          }
-        });
-
-        const loadedImages = (await Promise.all(imagePromises)).filter((img): img is ImageMetadata => img !== null);
-
-        set({
-          images: loadedImages,
-          selectedImages: new Set(data.selected_images || []),
-          formData: data.form_data || initialFormData
-        });
-      }
-
-      // Load saved PDFs
-      const { data: pdfData, error: pdfError } = await supabase
-        .from('user_pdfs')
-        .select('*')
-        .eq('user_id', user.id);
-
-      if (pdfError) throw pdfError;
-
-      if (pdfData) {
-        set((state) => ({
-          savedPdfs: {
-            ...state.savedPdfs,
-            [user.id]: pdfData.map(pdf => ({
-              name: pdf.name,
-              url: pdf.url,
-              uploadDate: pdf.upload_date
-            }))
-          }
-        }));
+      // Don't load images from localStorage - they need to be re-uploaded
+      set({ images: [] });
+      
+      if (savedFormData) {
+        const formData = JSON.parse(savedFormData);
+        set({ formData });
       }
     } catch (error) {
       console.error('Error loading user data:', error);
-      throw error;
     }
   },
 
   saveUserData: async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
-
       const state = get();
-      
-      // Validate images before saving
-      const imagesWithMissingDescriptions = state.images
-        .filter(img => !img.isSketch && state.selectedImages.has(img.id) && !img.description?.trim());
-
-      if (imagesWithMissingDescriptions.length > 0) {
-        const firstMissing = imagesWithMissingDescriptions[0];
-        throw new Error(`Description is required for defect: ${firstMissing.file.name}`);
-      }
-
-      const imagesData = state.images.map(img => ({
-        id: img.id,
-        photoNumber: img.photoNumber,
-        description: img.description,
-        isSketch: img.isSketch,
-        publicUrl: img.publicUrl,
-        userId: img.userId,
-        fileName: img.file.name,
-        fileType: img.file.type,
-        fileSize: img.file.size
-      }));
-
-      const { error } = await supabase
-        .from('projects')
-        .upsert({
-          id: user.id,
-          form_data: state.formData,
-          images: imagesData,
-          selected_images: Array.from(state.selectedImages),
-          updated_at: new Date().toISOString()
-        }, {
-          onConflict: 'id'
-        });
-
-      if (error) throw error;
+      // Only save form data, not images
+      localStorage.setItem('clean-app-form-data', JSON.stringify(state.formData));
     } catch (error) {
       console.error('Error saving user data:', error);
-      throw error;
     }
   },
 
-  setViewMode: (mode) => set({ viewMode: mode }),
+  setViewMode: (mode) => {
+    set({ viewMode: mode });
+  },
 
   saveBulkData: async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
-
       const state = get();
-      
-      // Only validate defects that have a file selected
-      const defectsWithMissingDescriptions = state.bulkDefects
-        .filter(defect => {
-          // Check if the file exists in the images array and has no description
-          const fileExists = state.images.some(img => img.file.name === defect.selectedFile);
-          const hasNoDescription = !defect.description?.trim();
-          return fileExists && hasNoDescription;
-        });
-
-      if (defectsWithMissingDescriptions.length > 0) {
-        const firstMissing = defectsWithMissingDescriptions[0];
-        throw new Error(`Description is required for defect number: ${firstMissing.photoNumber}`);
-      }
-
-      const { error } = await supabase
-        .from('bulk_defects')
-        .upsert({
-          id: user.id,
-          data: {
-            defects: state.bulkDefects,
-            selectedImages: Array.from(state.bulkSelectedImages),
-            updatedAt: new Date().toISOString()
-          }
-        });
-
-      if (error) throw error;
+      // For local testing, save to localStorage
+      localStorage.setItem('clean-app-bulk-data', JSON.stringify(state.bulkDefects));
     } catch (error) {
       console.error('Error saving bulk data:', error);
-      throw error;
     }
   },
 
   loadBulkData: async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data, error } = await supabase
-        .from('bulk_defects')
-        .select('*')
-        .eq('id', user.id)
-        .single();
-
-      if (error) {
-        if (error.code === 'PGRST116') return; // No data found
-        throw error;
-      }
-
-      if (data?.data) {
-        // Ensure all defects have IDs when loading
-        const defectsWithIds = (data.data.defects || []).map((defect: BulkDefect) => ({
-          ...defect,
-          id: defect.id || nanoid()
-        }));
-
-        set({
-          bulkDefects: defectsWithIds,
-          bulkSelectedImages: new Set(data.data.selectedImages || [])
-        });
+      // For local testing, load from localStorage
+      const savedBulkData = localStorage.getItem('clean-app-bulk-data');
+      
+      if (savedBulkData) {
+        const bulkDefects = JSON.parse(savedBulkData);
+        set({ bulkDefects });
       }
     } catch (error) {
       console.error('Error loading bulk data:', error);
-      throw error;
     }
   },
 
   generateBulkZip: async () => {
     try {
       const state = get();
-      // 1. Build a list of ImageMetadata for all images referenced by bulkDefects with a selectedFile
-      const defectsWithImages = state.bulkDefects.filter(defect => defect.selectedFile);
+      const { bulkDefects, images, formData } = state;
+      
+      if (bulkDefects.length === 0) {
+        throw new Error('No bulk defects to download');
+      }
+
+      // Filter defects that have selected files
+      const defectsWithImages = bulkDefects.filter(defect => defect.selectedFile);
+      
       if (defectsWithImages.length === 0) {
         throw new Error('No defects with images selected');
       }
-      // 2. Map to ImageMetadata, setting photoNumber/description from defect
-      const imagesToDownload = defectsWithImages.map(defect => {
-        const img = state.images.find(img => img.file.name === defect.selectedFile);
-        if (!img) throw new Error(`Image not found for defect ${defect.photoNumber}`);
+
+      // Get the actual image metadata for selected files
+      const selectedImageMetadata = defectsWithImages.map(defect => {
+        const image = images.find(img => img.file.name === defect.selectedFile);
+        if (!image) {
+          throw new Error(`Image not found for defect ${defect.photoNumber || 'unknown'}`);
+        }
+        
+        // Create a copy of the image metadata with bulk defect data
         return {
-          ...img,
-          photoNumber: defect.photoNumber,
-          description: defect.description
+          ...image,
+          photoNumber: defect.photoNumber || image.photoNumber,
+          description: defect.description || image.description
         };
       });
-      // 3. Use the same validation and packaging as the images tab
-      const { formData } = state;
-      const { createDownloadPackage } = await import('../utils/fileUtils');
-      const { validateImages } = await import('../utils/fileValidation');
-      const imagesError = validateImages(imagesToDownload);
-      if (imagesError) {
-        throw new Error(imagesError);
-      }
-      const zipBlob = await createDownloadPackage(imagesToDownload, formData);
-      const url = window.URL.createObjectURL(zipBlob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `${formData.elr.trim().toUpperCase()}_${formData.structureNo.trim()}.zip`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
+
+      // Create metadata content for bulk defects
+      const metadataContent = defectsWithImages.map(defect => {
+        const image = images.find(img => img.file.name === defect.selectedFile);
+        if (!image) {
+          throw new Error(`Image not found for defect ${defect.photoNumber || 'unknown'}`);
+        }
+        
+        return `Photo ${defect.photoNumber?.padStart(2, '0') || '00'} ^ ${defect.description || ''} ^ ${formData.date || new Date().toISOString().slice(0,10)}    ${defect.selectedFile}`;
+      }).join('\n');
+
+      // Generate filenames
+      const metadataFileName = `${formData.elr?.trim().toUpperCase() || 'ELR'}_${formData.structureNo?.trim() || 'STRUCT'}_bulk_defects.txt`;
+      const zipFileName = `${formData.elr?.trim().toUpperCase() || 'ELR'}_${formData.structureNo?.trim() || 'STRUCT'}_bulk_defects.zip`;
+
+      // Create ZIP file with metadata and processed images
+      const zipBlob = await createZipFile(
+        selectedImageMetadata,
+        metadataFileName,
+        metadataContent,
+        formData.date || new Date().toISOString().slice(0,10),
+        zipFileName
+      );
+
+      const url = URL.createObjectURL(zipBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = zipFileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      console.log('Bulk defects downloaded successfully');
     } catch (error) {
-      console.error('Error generating zip:', error);
+      console.error('Error generating bulk zip:', error);
       throw error;
     }
   },
 
-  clearBulkData: () => {
-    set({
-      bulkDefects: [],
-      bulkSelectedImages: new Set()
+  // Helper function to process images for download
+  processImageForDownload: async (imageFile: File): Promise<Blob> => {
+    return new Promise((resolve, reject) => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const img = new Image();
+      
+      img.onload = () => {
+        try {
+          // Set canvas size (maintain aspect ratio, max 1920x1080)
+          const maxWidth = 1920;
+          const maxHeight = 1080;
+          let { width, height } = img;
+          
+          if (width > maxWidth || height > maxHeight) {
+            const ratio = Math.min(maxWidth / width, maxHeight / height);
+            width *= ratio;
+            height *= ratio;
+          }
+          
+          canvas.width = width;
+          canvas.height = height;
+          
+          // Draw image with proper quality
+          ctx?.drawImage(img, 0, 0, width, height);
+          
+          // Convert to blob with high quality JPEG
+          canvas.toBlob((blob) => {
+            if (blob) {
+              resolve(blob);
+            } else {
+              reject(new Error('Failed to convert image'));
+            }
+          }, 'image/jpeg', 0.9);
+        } catch (error) {
+          reject(error);
+        }
+      };
+      
+      img.onerror = () => reject(new Error('Failed to load image'));
+      img.src = URL.createObjectURL(imageFile);
     });
   },
 
-  savePdf: async (userId: string, file: File) => {
+  clearBulkData: () => {
+    set({ bulkDefects: [] });
+    // Clear localStorage for local testing
+    localStorage.removeItem('clean-app-bulk-data');
+  },
+
+  savePdf: async (userId, pdfData) => {
     try {
-      const timestamp = new Date().getTime();
-      const filePath = `${userId}/pdfs/${timestamp}-${file.name}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('user-pdfs')
-        .upload(filePath, file, {
-          cacheControl: '3600',
-          upsert: false
-        });
-
-      if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('user-pdfs')
-        .getPublicUrl(filePath);
-
-      if (!publicUrl) throw new Error('Failed to get public URL');
-
-      // Save PDF metadata to Supabase database
-      const { error: dbError } = await supabase
-        .from('user_pdfs')
-        .insert({
-          user_id: userId,
-          name: file.name,
-          url: publicUrl,
-          upload_date: new Date().toISOString()
-        });
-
-      if (dbError) throw dbError;
-
-      // Update local state
-      set((state) => ({
-        savedPdfs: {
-          ...state.savedPdfs,
-          [userId]: [
-            ...(state.savedPdfs[userId] || []),
-            {
-              name: file.name,
-              url: publicUrl,
-              uploadDate: new Date().toISOString(),
-            },
-          ],
-        },
-      }));
+      const savedPdfs = localStorage.getItem(`${userId}-saved-pdfs`);
+      const existingPdfs = savedPdfs ? JSON.parse(savedPdfs) : [];
+      existingPdfs.push(pdfData);
+      localStorage.setItem(`${userId}-saved-pdfs`, JSON.stringify(existingPdfs));
     } catch (error) {
       console.error('Error saving PDF:', error);
-      throw error;
     }
   },
 
-  removePdf: async (userId: string, pdfName: string) => {
+  loadSavedPdfs: async (userId) => {
     try {
-      // Get the PDF record from the database
-      const { data: pdfRecord, error: fetchError } = await supabase
-        .from('user_pdfs')
-        .select('url')
-        .eq('user_id', userId)
-        .eq('name', pdfName)
-        .single();
-
-      if (fetchError) throw fetchError;
-
-      // Delete from storage
-      const url = new URL(pdfRecord.url);
-      const filePath = decodeURIComponent(url.pathname.split('/').slice(-2).join('/'));
-      
-      const { error: storageError } = await supabase.storage
-        .from('user-pdfs')
-        .remove([filePath]);
-
-      if (storageError) throw storageError;
-
-      // Delete from database
-      const { error: dbError } = await supabase
-        .from('user_pdfs')
-        .delete()
-        .eq('user_id', userId)
-        .eq('name', pdfName);
-
-      if (dbError) throw dbError;
-
-      // Update local state
-      set((state) => ({
-        savedPdfs: {
-          ...state.savedPdfs,
-          [userId]: state.savedPdfs[userId]?.filter((pdf) => pdf.name !== pdfName) || [],
-        },
-      }));
+      const savedPdfs = localStorage.getItem(`${userId}-saved-pdfs`);
+      return savedPdfs ? JSON.parse(savedPdfs) : [];
     } catch (error) {
-      console.error('Error removing PDF:', error);
-      throw error;
-    }
-  },
-
-  loadSavedPdfs: async (userId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('user_pdfs')
-        .select('*')
-        .eq('user_id', userId);
-
-      if (error) throw error;
-
-      set((state) => ({
-        savedPdfs: {
-          ...state.savedPdfs,
-          [userId]: data.map(pdf => ({
-            name: pdf.name,
-            url: pdf.url,
-            uploadDate: pdf.upload_date
-          }))
-        }
-      }));
-    } catch (error) {
-      console.error('Error loading PDFs:', error);
-      throw error;
+      console.error('Error loading saved PDFs:', error);
+      return [];
     }
   },
 }));

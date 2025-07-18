@@ -251,22 +251,29 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean }> = ({ isExpanded =
   };
 
   const handleBulkPaste = () => {
+    console.log('Processing text:', bulkText);
+    
     // Check if the text looks like defect format (contains ^ and file extensions)
     const hasDefectFormat = bulkText.includes('^') && (bulkText.includes('.JPG') || bulkText.includes('.jpg'));
+    console.log('Has defect format:', hasDefectFormat);
     
     if (hasDefectFormat) {
       // Parse as defect format
       try {
+        console.log('Attempting to parse as defect format...');
         const parseResult = parseDefectText(bulkText);
+        console.log('Parse result:', parseResult);
         
         if (parseResult.defects.length === 0) {
-          setError('No valid defects found in the text. Please check the format.');
+          setError('No valid defects found in the text. Please check the format. Expected format: "Photo 01 ^ description ^ date filename.JPG"');
           return;
         }
 
         // Check for missing images
         const availableImageNames = images.map(img => img.file.name);
+        console.log('Available images:', availableImageNames);
         const missing = findMatchingImages(parseResult.defects, availableImageNames);
+        console.log('Missing images:', missing);
         
         if (missing.length > 0) {
           setError(`Missing images: ${missing.join(', ')}. Please upload these images first.`);
@@ -280,6 +287,8 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean }> = ({ isExpanded =
           description: defect.description,
           selectedFile: defect.fileName
         }));
+
+        console.log('New defects to add:', newDefects);
 
         // Update project date if available - ensure it's properly set
         if (parseResult.projectDate) {
@@ -302,11 +311,13 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean }> = ({ isExpanded =
         toast.success(`Imported ${newDefects.length} defects successfully!`);
       } catch (error) {
         console.error('Error parsing defect text:', error);
-        setError('Failed to parse defect text. Please check the format.');
+        setError(`Failed to parse defect text: ${error instanceof Error ? error.message : 'Unknown error'}. Please check the format.`);
       }
     } else {
+      console.log('Processing as simple text format...');
       // Original bulk paste behavior for simple text
       const lines = bulkText.split(/(?:\r\n|\r|\n|\u2028|\u2029)/).filter(line => line.trim());
+      console.log('Lines to process:', lines);
       
       const invalidLines = lines.filter(line => !validateDescription(line.trim()).isValid);
       if (invalidLines.length > 0) {
@@ -321,9 +332,11 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean }> = ({ isExpanded =
         selectedFile: ''
       }));
       
+      console.log('New defects from simple text:', newDefects);
       setBulkDefects(prev => [...prev, ...newDefects]);
       setBulkText('');
       setShowBulkPaste(false);
+      toast.success(`Added ${newDefects.length} defects from text!`);
     }
   };
 
@@ -695,7 +708,7 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean }> = ({ isExpanded =
             </button>
             {/* --- Selected Images Display --- */}
             {defectsWithImagesCount > 0 && (
-              <div className="rounded-2xl border border-slate-200/50 dark:border-gray-700/50 bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm shadow-sm p-4">
+              <div className="rounded-2xl border border-slate-200/50 dark:border-gray-700/50 bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm shadow-sm p-4 relative">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-semibold text-slate-800 dark:text-white">
                     Selected Images ({defectsWithImagesCount})
@@ -825,20 +838,23 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean }> = ({ isExpanded =
                     </div>
                   </SortableContext>
                 </DndContext>
+
+                {/* ImageZoom positioned within the selected images section */}
+                {enlargedImage && (
+                  <ImageZoom
+                    src={enlargedImage}
+                    alt="Selected image"
+                    title="Selected image"
+                    onClose={() => setEnlargedImage(null)}
+                  />
+                )}
               </div>
             )}
           </div>
         )}
       </div>
 
-      {/* Image Zoom Modal */}
-      {enlargedImage && (
-        <ImageZoom
-          src={enlargedImage}
-          alt="Selected image"
-          onClose={() => setEnlargedImage(null)}
-        />
-      )}
+
 
       {error && (
         <div className="flex items-center gap-2 text-red-500 bg-red-100/10 p-3 rounded-lg">

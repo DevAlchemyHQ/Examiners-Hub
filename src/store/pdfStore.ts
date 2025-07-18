@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { supabase } from '../lib/supabase';
+import { DatabaseService } from '../lib/services';
+import { StorageService } from '../lib/services';
 
 interface PDFState {
   file1: File | null;
@@ -18,6 +20,7 @@ interface PDFState {
   setCurrentPage: (viewer: 1 | 2, page: number) => void;
   initializePDFs: () => Promise<void>;
   reset: () => void;
+  clearFiles?: () => void;
 }
 
 export const usePDFStore = create<PDFState>()(
@@ -45,35 +48,45 @@ export const usePDFStore = create<PDFState>()(
           const { data: { user } } = await supabase.auth.getUser();
           if (!user) return;
 
-          const { data: pdfStates } = await supabase
-            .from('user_pdf_state')
-            .select('*')
-            .eq('user_id', user.id);
+          // Use DatabaseService to get PDF state
+          const { pdfState, error } = await DatabaseService.getPdfState(user.id, 'all');
+          
+          if (error) {
+            console.error('Error getting PDF state:', error);
+            return;
+          }
 
-          if (pdfStates) {
+          if (pdfState) {
             const loadPDFs = async () => {
-              for (const state of pdfStates) {
+              // Handle PDF state data from AWS
+              if (pdfState.viewer === 1 && pdfState.public_url) {
                 try {
-                  const response = await fetch(state.public_url);
+                  const response = await fetch(pdfState.public_url);
                   const blob = await response.blob();
-                  const file = new File([blob], state.file_name, { type: 'application/pdf' });
-
-                  if (state.viewer === 1) {
-                    set({ file1: file });
-                  } else {
-                    set({ file2: file });
-                  }
-
-                  // Store the URL for future use
-                  set(state => ({
-                    pdfUrls: {
-                      ...state.pdfUrls,
-                      [state.file_path]: state.public_url
-                    }
-                  }));
+                  const file = new File([blob], pdfState.file_name, { type: 'application/pdf' });
+                  set({ file1: file });
                 } catch (error) {
-                  console.error(`Error loading PDF ${state.file_name}:`, error);
+                  console.error(`Error loading PDF ${pdfState.file_name}:`, error);
                 }
+              } else if (pdfState.viewer === 2 && pdfState.public_url) {
+                try {
+                  const response = await fetch(pdfState.public_url);
+                  const blob = await response.blob();
+                  const file = new File([blob], pdfState.file_name, { type: 'application/pdf' });
+                  set({ file2: file });
+                } catch (error) {
+                  console.error(`Error loading PDF ${pdfState.file_name}:`, error);
+                }
+              }
+
+              // Store the URL for future use
+              if (pdfState.file_path && pdfState.public_url) {
+                set(state => ({
+                  pdfUrls: {
+                    ...state.pdfUrls,
+                    [pdfState.file_path]: pdfState.public_url
+                  }
+                }));
               }
             };
 
@@ -93,39 +106,29 @@ export const usePDFStore = create<PDFState>()(
 
           if (file) {
             const timestamp = new Date().getTime();
-            const filePath = `${user.id}/pdfs/${timestamp}-${file.name}`;
+            const filePath = `pdfs/${user.id}/${timestamp}-${file.name}`;
 
-            console.log('Attempting to upload file:', filePath);
+            console.log('Attempting to upload file to S3:', filePath);
 
-            const { error: uploadError } = await supabase.storage
-              .from('user-pdfs')
-              .upload(filePath, file, {
-                cacheControl: '3600',
-                upsert: false
-              });
+            // Upload to S3 using StorageService
+            const uploadResult = await StorageService.uploadFile(file, filePath);
 
-            if (uploadError) {
-              console.error('Upload error details:', uploadError);
-              throw uploadError;
+            if (uploadResult.error) {
+              console.error('Upload error details:', uploadResult.error);
+              throw uploadResult.error;
             }
 
-            console.log('File uploaded successfully');
+            console.log('File uploaded successfully to S3');
 
-            const { data: { publicUrl } } = supabase.storage
-              .from('user-pdfs')
-              .getPublicUrl(filePath);
-
-            if (!publicUrl) throw new Error('Failed to get public URL');
-
-            console.log('Got public URL:', publicUrl);
-
-            const { error: dbError } = await supabase.from('user_pdf_state').upsert({
-              user_id: user.id,
+            // Use DatabaseService to save PDF state
+            const pdfStateData = {
               viewer: 1,
               file_path: filePath,
-              public_url: publicUrl,
+              public_url: uploadResult.url,
               file_name: file.name
-            });
+            };
+
+            const { error: dbError } = await DatabaseService.updatePdfState(user.id, filePath, pdfStateData);
 
             if (dbError) {
               console.error('Database error:', dbError);
@@ -150,25 +153,32 @@ export const usePDFStore = create<PDFState>()(
 
           if (file) {
             const timestamp = new Date().getTime();
-            const filePath = `${user.id}/pdfs/${timestamp}-${file.name}`;
+            const filePath = `pdfs/${user.id}/${timestamp}-${file.name}`;
 
-            const { error: uploadError } = await supabase.storage
-              .from('user-pdfs')
-              .upload(filePath, file);
+            // Upload to S3 using StorageService
+            const uploadResult = await StorageService.uploadFile(file, filePath);
 
-            if (uploadError) throw uploadError;
+            if (uploadResult.error) {
+              console.error('Upload error details:', uploadResult.error);
+              throw uploadResult.error;
+            }
 
-            const { data: { publicUrl } } = supabase.storage
-              .from('user-pdfs')
-              .getPublicUrl(filePath);
+            console.log('File uploaded successfully to S3');
 
-            await supabase.from('user_pdf_state').upsert({
-              user_id: user.id,
+            // Use DatabaseService to save PDF state
+            const pdfStateData = {
               viewer: 2,
               file_path: filePath,
-              public_url: publicUrl,
+              public_url: uploadResult.url,
               file_name: file.name
-            });
+            };
+
+            const { error: dbError } = await DatabaseService.updatePdfState(user.id, filePath, pdfStateData);
+
+            if (dbError) {
+              console.error('Database error:', dbError);
+              throw dbError;
+            }
           }
 
           set({ file2: file });
@@ -210,6 +220,15 @@ export const usePDFStore = create<PDFState>()(
         localStorage.removeItem('pageStates1');
         localStorage.removeItem('pageStates2');
         // Remove any other PDF-related keys if needed
+      },
+
+      clearFiles: () => {
+        set({
+          file1: null,
+          file2: null,
+          pdfUrls: {},
+          isInitialized: false,
+        });
       }
     }),
     {

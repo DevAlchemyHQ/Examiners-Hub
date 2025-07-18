@@ -98,20 +98,11 @@ export const createDownloadPackage = async (
       throw new Error('Failed to generate metadata content');
     }
 
-    // Generate file names
-    const metadataFileName = generateMetadataFileName(
-      formData.elr.trim(),
-      formData.structureNo.trim(),
-      formData.date
-    );
+    // Generate filenames
+    const metadataFileName = generateMetadataFileName(formData.elr, formData.structureNo, formData.date);
+    const zipFileName = generateZipFileName(formData.elr, formData.structureNo, formData.date);
 
-    const zipFileName = generateZipFileName(
-      formData.elr.trim(),
-      formData.structureNo.trim(),
-      formData.date
-    );
-
-    // Create and return zip file
+    // Create ZIP file with metadata and processed images
     const zipBlob = await createZipFile(
       images,
       metadataFileName,
@@ -119,10 +110,6 @@ export const createDownloadPackage = async (
       formData.date,
       zipFileName
     );
-
-    if (!zipBlob) {
-      throw new Error('Failed to create zip file');
-    }
 
     return zipBlob;
   } catch (error) {

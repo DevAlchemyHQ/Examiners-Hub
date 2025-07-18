@@ -366,7 +366,7 @@ export const DefectTile: React.FC<DefectTileProps> = ({
                 {!/^\d+[a-zA-Z]*$/.test(photoNumber) && photoNumber && (
                   <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full flex items-center justify-center">
                     <AlertCircle size={8} className="text-white" />
-                  </div>
+        </div>
                 )}
                 {isDuplicate && (
                   <div className="absolute -top-1 -right-1 w-3 h-3 bg-orange-500 rounded-full flex items-center justify-center">

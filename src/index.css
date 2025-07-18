@@ -2,116 +2,31 @@
 @tailwind components;
 @tailwind utilities;
 
-@keyframes slideDown {
-  from {
-    opacity: 0;
-    transform: translateY(-10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.animate-slideDown {
-  animation: slideDown 0.2s ease-out;
-}
-
-/* Fix layout scaling issues */
-:root {
-  --vh: 1vh;
-  font-size: 16px;
-  -webkit-text-size-adjust: 100%;
-}
-
-html {
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  text-rendering: optimizeLegibility;
-}
-
-html, body, #root {
-  background: #111827 !important;
-  min-height: 100vh !important;
-  width: 100vw !important;
-  overflow: hidden !important;
-}
-
-/* Fix mobile viewport height */
-@supports (-webkit-touch-callout: none) {
-  .min-h-screen {
-    min-height: -webkit-fill-available;
-  }
-}
-
 /* Custom scrollbar styles */
-.scrollbar-thin {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(156, 163, 175, 0.5) transparent;
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
-.scrollbar-thin::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
 }
 
-.scrollbar-thin::-webkit-scrollbar-track {
-  background: transparent;
+/* Custom scroll behavior */
+.overflow-container {
+  overflow-y: auto;
+  overflow-x: hidden;
+  scroll-behavior: smooth;
 }
 
-.scrollbar-thin::-webkit-scrollbar-thumb {
-  background-color: rgba(156, 163, 175, 0.5);
-  border-radius: 3px;
-}
-
-.scrollbar-thin::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(156, 163, 175, 0.7);
-}
-
-/* Dark mode scrollbar */
-.dark .scrollbar-thin {
-  scrollbar-color: rgba(75, 85, 99, 0.5) transparent;
-}
-
-.dark .scrollbar-thin::-webkit-scrollbar-thumb {
-  background-color: rgba(75, 85, 99, 0.5);
-}
-
-.dark .scrollbar-thin::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(75, 85, 99, 0.7);
-}
-
-/* Improve scrolling performance */
-* {
+/* Prevent scroll bounce on Mac */
+.overflow-container {
   -webkit-overflow-scrolling: touch;
 }
 
-/* Prevent unwanted scrolling */
-.overflow-container {
-  max-height: 100%;
-  overflow: hidden;
-  overscroll-behavior: contain;
-}
-
-/* Make buttons and UI elements scale properly */
-button {
-  touch-action: manipulation;
-}
-
-/* Improve touch targets on mobile */
-@media (max-width: 768px) {
-  button, 
-  input, 
-  select {
-    min-height: 44px;
-  }
-}
-
-/* Fix zoom issues */
-@media screen and (-webkit-min-device-pixel-ratio: 0) {
-  select,
-  textarea,
-  input {
-    font-size: 16px;
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  html {
+    color-scheme: dark;
   }
 }
