@@ -19,10 +19,10 @@ import { CognitoIdentityProviderClient, InitiateAuthCommand, SignUpCommand, Conf
 
 // Feature flags to control which service to use
 const FEATURE_FLAGS = {
-  AUTH_USE_AWS: true, // Use AWS Cognito for authentication
-  STORAGE_USE_AWS: true, // Use AWS S3 for storage
+  AUTH_USE_AWS: false, // Temporarily disable AWS Cognito
+  STORAGE_USE_AWS: false, // Temporarily disable AWS S3
   PROFILE_USE_AWS: false, // Start with Supabase profile
-  DATABASE_USE_AWS: true, // Use AWS DynamoDB for database
+  DATABASE_USE_AWS: false, // Temporarily disable AWS DynamoDB
 };
 
 // Initialize DynamoDB client
