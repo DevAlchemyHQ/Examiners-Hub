@@ -49,7 +49,6 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     if (children) {
         return (
         <>
-            <Header />
             {children}
         </>
         );
@@ -57,7 +56,6 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-gray-900 flex flex-col">
-        <Header />
         <main className="flex-1 max-w-[1920px] mx-auto w-full px-2 overflow-hidden ">
             <div className="flex-shrink-0">
                 <div className="flex h-5 items-center justify-between  border-slate-200 dark:border-gray-700">
