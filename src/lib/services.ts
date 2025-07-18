@@ -9,7 +9,18 @@ import {
   verifyResetOTP as verifySupabaseResetOTP,
   updateUserProfile as updateSupabaseProfile,
   getOrCreateUserProfile as getSupabaseProfile,
-  uploadFileWithTimeout as uploadSupabaseFile
+  uploadFileWithTimeout as uploadSupabaseFile,
+  getSupabaseProject,
+  updateSupabaseProject,
+  getSupabaseBulkDefects,
+  updateSupabaseBulkDefects,
+  getSupabaseDefectSets,
+  saveSupabaseDefectSet,
+  getSupabasePdfState,
+  updateSupabasePdfState,
+  getSupabaseFeedback,
+  saveSupabaseFeedback,
+  clearSupabaseUserProject
 } from './supabase';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, GetCommand, PutCommand, UpdateCommand, DeleteCommand, QueryCommand, ScanCommand } from '@aws-sdk/lib-dynamodb';
@@ -115,7 +126,7 @@ export class AuthService {
         return { user: null, error };
       }
     } else {
-      return signUpWithEmail(email, password, fullName);
+      return signUp(email, password, fullName || '');
     }
   }
 
@@ -147,10 +158,10 @@ export class AuthService {
           
           return {
             user: {
-              id: userResponse.User?.Username || '',
+              id: userResponse.Username || '',
               email: email,
               user_metadata: {
-                full_name: userResponse.User?.Attributes?.find(attr => attr.Name === 'name')?.Value
+                full_name: userResponse.UserAttributes?.find((attr: any) => attr.Name === 'name')?.Value
               }
             },
             session: {
@@ -167,7 +178,7 @@ export class AuthService {
         return { user: null, session: null, error };
       }
     } else {
-      return signInWithEmail(email, password);
+      return signIn(email, password);
     }
   }
 
@@ -274,7 +285,7 @@ export class StorageService {
         return { url: null, error };
       }
     } else {
-      return uploadSupabaseFile(file, filePath);
+      return uploadSupabaseFile(file, filePath, 300000); // 5 minute timeout
     }
   }
 

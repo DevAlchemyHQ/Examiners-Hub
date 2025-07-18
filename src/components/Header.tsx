@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Menu, Sun, Moon, User, Settings, LogOut, CreditCard, Calendar, Bell } from 'lucide-react';
+import { Menu, Sun, Moon, User, Settings, LogOut, CreditCard, Calendar, Bell, Info } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useThemeStore } from '../store/themeStore';
 import { useLayoutStore } from '../store/layoutStore';
