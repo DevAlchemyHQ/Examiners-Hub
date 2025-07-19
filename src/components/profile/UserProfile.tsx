@@ -372,7 +372,7 @@ export const UserProfile: React.FC = () => {
               </button>
               
               <button
-                onClick={() => navigate('/app/dashboard')}
+                onClick={() => navigate('/dashboard')}
                 className="flex items-center gap-2 px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
               >
                 <User size={16} />

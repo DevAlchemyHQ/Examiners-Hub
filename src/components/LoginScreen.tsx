@@ -45,7 +45,7 @@ export const LoginScreen: React.FC = () => {
           await signInWithEmail(email, password);
           await loadUserData(); // Load user data after successful sign in
           setAuth(true);
-          navigate('/app/dashboard');
+          navigate('/dashboard');
           break;
         case 'signup':
           const signupResult = await signUpWithEmail(email, password, fullName);
@@ -53,7 +53,7 @@ export const LoginScreen: React.FC = () => {
             // If we have a user, skip verification and go directly to app
             await loadUserData();
             setAuth(true);
-            navigate('/app/dashboard');
+            navigate('/dashboard');
           } else {
             // If no user returned, go to verification step
             setMode('verify-signup');
@@ -79,7 +79,7 @@ export const LoginScreen: React.FC = () => {
         await verifyOTP(email, otp);
         await loadUserData(); // Load user data after successful verification
         setAuth(true);
-        navigate('/app/dashboard');
+        navigate('/dashboard');
       } else if (mode === 'verify-reset') {
         await verifyResetOTP(email, otp);
         setMode('set-password');
