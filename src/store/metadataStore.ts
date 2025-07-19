@@ -640,59 +640,19 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       }
       
       if (selectionsResult.status === 'fulfilled' && selectionsResult.value.length > 0) {
-        // Match selected images by filename instead of ID for cross-session persistence
+        // Convert selections to Set of IDs (same as bulk data approach)
         const selectedImageIds = new Set<string>();
         
-        if (updates.images && updates.images.length > 0) {
-          // Handle both old format (just IDs) and new format (objects with id and fileName)
-          selectionsResult.value.forEach((selectedItem: any) => {
-            let selectedId: string;
-            let fileName: string;
-            
-            if (typeof selectedItem === 'string') {
-              // Old format: just ID
-              selectedId = selectedItem;
-              fileName = '';
-            } else {
-              // New format: object with id and fileName (from localStorage) or DynamoDB format
-              selectedId = selectedItem.id || selectedItem.imageId;
-              fileName = selectedItem.fileName || '';
-            }
-            
-            // Try to find by ID first (for same session)
-            const imageById = updates.images.find(img => img.id === selectedId);
-            if (imageById) {
-              selectedImageIds.add(imageById.id);
-              console.log('✅ Matched selected image by ID:', selectedId);
-            } else if (fileName && fileName !== 'unknown') {
-              // If not found by ID, try to match by filename
-              const imageByFileName = updates.images.find(img => 
-                (img.fileName || img.file?.name || '') === fileName
-              );
-              if (imageByFileName) {
-                selectedImageIds.add(imageByFileName.id);
-                console.log('✅ Matched selected image by filename:', fileName);
-              } else {
-                console.log('⚠️ Selected image not found by ID or filename:', selectedId, fileName);
-              }
-            } else {
-              console.log('⚠️ Selected image ID not found in current images:', selectedId);
-            }
-          });
-        } else {
-          // If images aren't loaded yet, store the IDs for later matching
-          const ids = selectionsResult.value.map((item: any) => 
-            typeof item === 'string' ? item : item.id
-          );
-          updates.selectedImages = new Set(ids);
-        }
+        selectionsResult.value.forEach((selectedItem: any) => {
+          // Handle both localStorage format (id) and DynamoDB format (imageId)
+          const selectedId = typeof selectedItem === 'string' ? selectedItem : (selectedItem.id || selectedItem.imageId);
+          if (selectedId) {
+            selectedImageIds.add(selectedId);
+          }
+        });
         
-        if (selectedImageIds.size > 0) {
-          updates.selectedImages = selectedImageIds;
-          console.log('📱 Selected images matched and restored:', Array.from(selectedImageIds));
-        } else if (selectionsResult.value.length > 0) {
-          console.log('⚠️ No selected images could be matched to current images');
-        }
+        updates.selectedImages = selectedImageIds;
+        console.log('📱 Selected images loaded and restored:', Array.from(selectedImageIds));
       }
       
       // Single state update to prevent flickering
