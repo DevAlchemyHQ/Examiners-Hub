@@ -334,14 +334,16 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
                 // Create image metadata with real S3 URL
                 const imageMetadata: ImageMetadata = {
                   id: crypto.randomUUID(),
-                  file: null as any, // We'll handle this differently
+                  file: undefined, // No file object for S3-loaded images
+                  fileName: file.name,
+                  fileSize: file.size || 0,
+                  fileType: 'image/jpeg', // Default type
                   photoNumber: '',
                   description: '',
                   preview: file.url, // Use S3 URL directly as preview
                   isSketch: false,
                   publicUrl: file.url,
-                  userId: userId,
-                  fileName: file.name // Add fileName for reference
+                  userId: userId
                 };
                 
                 loadedImages.push(imageMetadata);
