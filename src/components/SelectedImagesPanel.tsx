@@ -272,12 +272,41 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
     if (viewMode === 'bulk') {
       return images.filter(img => bulkSelectedImages.has(img.id));
     } else {
-      const filtered = images.filter(img => selectedImages.has(img.id));
+      // Try to match by ID first, then by filename for cross-session persistence
+      const filtered = images.filter(img => {
+        // Direct ID match
+        if (selectedImages.has(img.id)) {
+          return true;
+        }
+        
+        // Try to match by filename for cross-session persistence
+        const fileName = img.fileName || img.file?.name || '';
+        if (fileName) {
+          // Check if any selected image ID contains this filename
+          const hasMatchingFilename = Array.from(selectedImages).some(selectedId => {
+            // Handle both old format (just ID) and new format (object with id and fileName)
+            let selectedFileName = '';
+            if (typeof selectedId === 'string') {
+              // Old format: try to extract filename from ID
+              selectedFileName = selectedId.includes('-') ? selectedId.split('-').slice(1).join('-') : '';
+            } else {
+              // New format: object with fileName
+              selectedFileName = selectedId.fileName || '';
+            }
+            return selectedFileName === fileName;
+          });
+          return hasMatchingFilename;
+        }
+        
+        return false;
+      });
+      
       console.log('🔍 SelectedImagesPanel debug:', {
         totalImages: images.length,
         selectedImageIds: Array.from(selectedImages),
         filteredImages: filtered.length,
-        imageIds: images.map(img => img.id)
+        imageIds: images.map(img => img.id),
+        imageFilenames: images.map(img => img.fileName || img.file?.name || 'unknown')
       });
       return filtered;
     }
