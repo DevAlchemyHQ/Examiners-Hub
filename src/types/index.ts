@@ -26,4 +26,5 @@ export interface BulkDefect {
   description: string;
   selectedFile: string;
   originalPhotoNumber?: string;
+  severity?: string;
 }
