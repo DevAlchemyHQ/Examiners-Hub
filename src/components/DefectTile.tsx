@@ -194,7 +194,7 @@ export const DefectTile: React.FC<DefectTileProps> = ({
   };
 
   // Find the image for this defect if expanded
-  const defectImage = isExpanded && showImages && selectedFile ? images.find(img => img.file.name === selectedFile) : null;
+  const defectImage = isExpanded && showImages && selectedFile ? images.find(img => (img.fileName || img.file?.name || '') === selectedFile) : null;
 
   return (
     <div className="relative">
@@ -340,7 +340,7 @@ export const DefectTile: React.FC<DefectTileProps> = ({
               <div className="aspect-square max-w-[120px] w-full h-full flex-shrink-0 rounded-lg overflow-hidden bg-slate-100 dark:bg-gray-700 mr-3 cursor-pointer" onClick={() => setEnlargedImage && setEnlargedImage(defectImage.preview)}>
                 <img
                   src={defectImage.preview}
-                  alt={defectImage.file.name}
+                  alt={defectImage.fileName || defectImage.file?.name || 'Image'}
                   className="w-full h-full object-cover hover:opacity-90 transition-opacity"
                   draggable="false"
                 />

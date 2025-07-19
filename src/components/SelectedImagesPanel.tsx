@@ -135,7 +135,7 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
           .filter(img => selectedImages.has(img.id))
           .map(img => ({
             id: img.id,
-            fileName: img.file.name,
+            fileName: img.fileName || img.file?.name || '',
             photoNumber: img.photoNumber,
             description: img.description,
             isSketch: img.isSketch
@@ -219,7 +219,7 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
   const getImageNumber = (img: ImageMetadata) => {
     if (viewMode === 'bulk') {
       // For bulk mode, get number from bulkDefects
-      const defect = bulkDefects.find(d => d.selectedFile === img.file.name);
+      const defect = bulkDefects.find(d => d.selectedFile === (img.fileName || img.file?.name || ''));
       return defect?.photoNumber || '';
     }
     // For images mode, use the image's own photoNumber
@@ -229,7 +229,7 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
   const getImageDescription = (img: ImageMetadata) => {
     if (viewMode === 'bulk') {
       // For bulk mode, get description from bulkDefects
-      const defect = bulkDefects.find(d => d.selectedFile === img.file.name);
+      const defect = bulkDefects.find(d => d.selectedFile === (img.fileName || img.file?.name || ''));
       return defect?.description || '';
     }
     // For images mode, use the image's own description
@@ -392,7 +392,7 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
                       <div className="relative aspect-square">
                         <img
                           src={img.preview}
-                          alt={img.file.name}
+                          alt={img.fileName || img.file?.name || 'Image'}
                           className="w-full h-full object-cover cursor-pointer hover:opacity-95 transition-opacity select-none"
                           onClick={() => setEnlargedImage(img.preview)}
                           draggable="false"
@@ -407,7 +407,7 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
                       
                       <div className="p-2">
                         <div className="text-xs text-slate-500 dark:text-gray-400 truncate mb-1 min-h-[1rem]">
-                          {img.file.name}
+                          {img.fileName || img.file?.name || 'Unknown file'}
                         </div>
                         <input
                           type="number"
@@ -455,7 +455,7 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
                       <div className="relative aspect-square">
                         <img
                           src={img.preview}
-                          alt={img.file.name}
+                          alt={img.fileName || img.file?.name || 'Image'}
                           className="w-full h-full object-cover cursor-pointer hover:opacity-95 transition-opacity select-none"
                           onClick={() => setEnlargedImage(img.preview)}
                           draggable="false"
@@ -470,7 +470,7 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
                       
                       <div className="p-2 space-y-1">
                         <div className="text-xs text-slate-500 dark:text-gray-400 truncate min-h-[1rem]">
-                          {img.file.name}
+                          {img.fileName || img.file?.name || 'Unknown file'}
                         </div>
                         <input
                           type="number"

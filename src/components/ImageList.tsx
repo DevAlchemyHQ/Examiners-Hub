@@ -66,7 +66,7 @@ export const ImageGridItem: React.FC<ImageGridItemProps> = ({ images, gridWidth 
                       }`}>
                         <img
                           src={img.preview}
-                          alt={img.file.name}
+                          alt={img.fileName || img.file?.name || 'Image'}
                           className="w-full h-full object-cover select-none"
                           loading="lazy"
                           draggable="false"
@@ -80,8 +80,24 @@ export const ImageGridItem: React.FC<ImageGridItemProps> = ({ images, gridWidth 
                             )}
                           </div>
                         )}
+                        
+                        {/* Show numbers based on mode */}
+                        {defectNumbers.length > 0 && (
+                          <div className="absolute top-2 left-2 flex flex-wrap gap-1 max-w-[calc(100%-16px)]">
+                            {defectNumbers.map((number) => (
+                              <span
+                                key={number}
+                                className="px-2 py-0.5 text-xs font-medium bg-indigo-500 text-white 
+                                  rounded-full shadow-sm backdrop-blur-sm"
+                              >
+                                {number}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+
                         <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white p-1.5 text-xs truncate">
-                          {img.file.name}
+                          {img.fileName || img.file?.name || 'Unknown file'}
                         </div>
                         
                         <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all">

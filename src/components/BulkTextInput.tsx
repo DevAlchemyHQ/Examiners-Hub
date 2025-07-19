@@ -182,7 +182,7 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean }> = ({ isExpanded =
       
       // If the defect had a selected file, deselect it
       if (defect.selectedFile) {
-        const selectedImage = images.find(img => img.file.name === defect.selectedFile);
+        const selectedImage = images.find(img => (img.fileName || img.file?.name || '') === defect.selectedFile);
         if (selectedImage) {
           toggleBulkImageSelection(selectedImage.id);
         }
@@ -225,7 +225,7 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean }> = ({ isExpanded =
       
       // Re-select the image if it was selected
       if (lastDeleted.selectedFile) {
-        const image = images.find(img => img.file.name === lastDeleted.selectedFile);
+        const image = images.find(img => (img.fileName || img.file?.name || '') === lastDeleted.selectedFile);
         if (image) {
           toggleBulkImageSelection(image.id);
         }
@@ -270,7 +270,7 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean }> = ({ isExpanded =
         }
 
         // Check for missing images
-        const availableImageNames = images.map(img => img.file.name);
+        const availableImageNames = images.map(img => (img.fileName || img.file?.name || ''));
         console.log('Available images:', availableImageNames);
         const missing = findMatchingImages(parseResult.defects, availableImageNames);
         console.log('Missing images:', missing);
@@ -300,7 +300,7 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean }> = ({ isExpanded =
         
         // Select the images for the imported defects
         newDefects.forEach(defect => {
-          const image = images.find(img => img.file.name === defect.selectedFile);
+          const image = images.find(img => (img.fileName || img.file?.name || '') === defect.selectedFile);
           if (image) {
             toggleBulkImageSelection(image.id);
           }
@@ -350,7 +350,7 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean }> = ({ isExpanded =
       }
 
       // Check for missing images
-      const availableImageNames = images.map(img => img.file.name);
+      const availableImageNames = images.map(img => (img.fileName || img.file?.name || ''));
       const missing = findMatchingImages(parseResult.defects, availableImageNames);
       setMissingImages(missing);
 
@@ -378,7 +378,7 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean }> = ({ isExpanded =
       
       // Select the images for the imported defects
       newDefects.forEach(defect => {
-        const image = images.find(img => img.file.name === defect.selectedFile);
+        const image = images.find(img => (img.fileName || img.file?.name || '') === defect.selectedFile);
         if (image) {
           toggleBulkImageSelection(image.id);
         }
@@ -417,14 +417,14 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean }> = ({ isExpanded =
 
       // If there was a previously selected file, deselect it
       if (previousFile) {
-        const previousImage = images.find(img => img.file.name === previousFile);
+        const previousImage = images.find(img => (img.fileName || img.file?.name || '') === previousFile);
         if (previousImage) {
           toggleBulkImageSelection(previousImage.id);
         }
       }
 
       // Select the new file
-      const newImage = images.find(img => img.file.name === fileName);
+      const newImage = images.find(img => (img.fileName || img.file?.name || '') === fileName);
       if (newImage) {
         toggleBulkImageSelection(newImage.id);
       }
@@ -521,7 +521,7 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean }> = ({ isExpanded =
       // Get the image IDs that need to be included
       const imageIds = defectsWithImages
         .map(defect => {
-          const image = images.find(img => img.file.name === defect.selectedFile);
+          const image = images.find(img => (img.fileName || img.file?.name || '') === defect.selectedFile);
           return image?.id;
         })
         .filter((id): id is string => id !== undefined);
@@ -542,7 +542,7 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean }> = ({ isExpanded =
     // Sync all selected files in bulk defects with bulkSelectedImages
     bulkDefects.forEach(defect => {
       if (defect.selectedFile) {
-        const image = images.find(img => img.file.name === defect.selectedFile);
+        const image = images.find(img => (img.fileName || img.file?.name || '') === defect.selectedFile);
         if (image && !bulkSelectedImages.has(image.id)) {
           toggleBulkImageSelection(image.id);
         }
@@ -680,7 +680,7 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean }> = ({ isExpanded =
                         photoNumber={defect.photoNumber}
                         description={defect.description}
                         selectedFile={defect.selectedFile || ''}
-                        availableFiles={images.filter(img => !img.isSketch).map((img) => img.file.name)}
+                        availableFiles={images.filter(img => !img.isSketch).map((img) => (img.fileName || img.file?.name || ''))}
                         onDelete={() => deleteDefect(defect.photoNumber)}
                         onDescriptionChange={(value) => updateDefectDescription(defect.photoNumber, value)}
                         onFileChange={(fileName) => handleFileSelect(defect.photoNumber, fileName)}
@@ -753,9 +753,9 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean }> = ({ isExpanded =
                   >
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                       {images
-                        .filter(img => bulkDefects.some(d => d.selectedFile === img.file.name))
+                        .filter(img => bulkDefects.some(d => d.selectedFile === (img.fileName || img.file?.name || '')))
                         .map((img) => {
-                          const defect = bulkDefects.find(d => d.selectedFile === img.file.name);
+                          const defect = bulkDefects.find(d => d.selectedFile === (img.fileName || img.file?.name || ''));
                           return (
                             <div key={img.id} className="relative group bg-white/80 dark:bg-gray-800/80 rounded-lg border border-slate-200/50 dark:border-gray-700/50 p-3">
                               {/* Image at top */}
@@ -782,7 +782,7 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean }> = ({ isExpanded =
                               >
                                 <img
                                   src={img.preview}
-                                  alt={img.file.name}
+                                  alt={img.fileName || img.file?.name || 'Image'}
                                   className="w-full h-full object-cover cursor-pointer hover:opacity-95 transition-opacity select-none"
                                   onClick={() => setEnlargedImage(img.preview)}
                                   draggable="false"
@@ -797,7 +797,7 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean }> = ({ isExpanded =
                               
                               {/* Filename below image */}
                               <div className="text-xs text-slate-500 dark:text-gray-400 truncate mb-2">
-                                {img.file.name}
+                                {img.fileName || img.file?.name || 'Unknown file'}
                               </div>
                               
                               {/* Defect number input */}
