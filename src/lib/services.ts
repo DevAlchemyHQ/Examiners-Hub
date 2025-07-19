@@ -138,13 +138,33 @@ export class StorageService {
     try {
       console.log('🗄️ AWS S3 upload:', filePath);
       
-      // For now, return mock success
-      const mockUrl = `https://${BUCKET_NAME}.s3.${AWS_CONFIG.region}.amazonaws.com/${filePath}`;
-      console.log('✅ Mock upload successful:', mockUrl);
+      // Create the S3 upload command
+      const uploadCommand = new PutObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: filePath,
+        Body: file,
+        ContentType: file.type,
+        ACL: 'public-read'
+      });
       
-      return { url: mockUrl, error: null };
+      // Upload to S3
+      await s3Client.send(uploadCommand);
+      
+      // Generate the public URL
+      const url = `https://${BUCKET_NAME}.s3.${AWS_CONFIG.region}.amazonaws.com/${filePath}`;
+      console.log('✅ Real S3 upload successful:', url);
+      
+      return { url, error: null };
     } catch (error) {
       console.error('AWS S3 upload error:', error);
+      
+      // Fallback to mock URL for development
+      if (import.meta.env.DEV) {
+        const mockUrl = `https://${BUCKET_NAME}.s3.${AWS_CONFIG.region}.amazonaws.com/${filePath}`;
+        console.log('⚠️ Using mock URL for development:', mockUrl);
+        return { url: mockUrl, error: null };
+      }
+      
       return { url: null, error };
     }
   }
@@ -152,8 +172,8 @@ export class StorageService {
   static async getFileUrl(filePath: string) {
     try {
       console.log('🗄️ AWS S3 getFileUrl:', filePath);
-      const mockUrl = `https://${BUCKET_NAME}.s3.${AWS_CONFIG.region}.amazonaws.com/${filePath}`;
-      return { url: mockUrl, error: null };
+      const url = `https://${BUCKET_NAME}.s3.${AWS_CONFIG.region}.amazonaws.com/${filePath}`;
+      return { url, error: null };
     } catch (error) {
       console.error('AWS S3 getFileUrl error:', error);
       return { url: null, error };
@@ -163,6 +183,13 @@ export class StorageService {
   static async deleteFile(filePath: string) {
     try {
       console.log('🗄️ AWS S3 deleteFile:', filePath);
+      
+      const deleteCommand = new DeleteObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: filePath
+      });
+      
+      await s3Client.send(deleteCommand);
       return { success: true, error: null };
     } catch (error) {
       console.error('AWS S3 delete error:', error);

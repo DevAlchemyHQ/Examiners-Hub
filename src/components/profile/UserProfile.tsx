@@ -364,7 +364,7 @@ export const UserProfile: React.FC = () => {
             {/* Action Buttons */}
             <div className="flex gap-4 pt-6 border-t border-gray-200 dark:border-gray-700">
               <button
-                onClick={() => navigate('/app/subscriptions')}
+                onClick={() => navigate('/subscriptions')}
                 className="flex items-center gap-2 px-6 py-3 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition-colors"
               >
                 <Crown size={16} />

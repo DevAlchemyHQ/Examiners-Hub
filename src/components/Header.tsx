@@ -123,7 +123,7 @@ export const Header: React.FC = () => {
   };
 
   const handleSubsciption = () => {
-    navigate('/app/subscriptions');
+    navigate('/subscriptions');
     setShowProfileMenu(false);
   };
 
@@ -371,7 +371,7 @@ export const Header: React.FC = () => {
                     <button 
                       onClick={() => {
                         setShowProfileMenu(false);
-                        navigate('/app/profile');
+                        navigate('/profile');
                       }}
                       className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-gray-700/50 rounded-lg flex items-center gap-2">
                       <User size={16} />
