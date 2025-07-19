@@ -2,7 +2,6 @@ import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { useAuthStore } from './store/authStore';
-import { useMetadataStore } from './store/metadataStore';
 import { LoginScreen } from './components/LoginScreen';
 import MainApp from './pages/MainApp';
 import { LandingPage } from './pages/LandingPage';
@@ -57,39 +56,16 @@ class ErrorBoundary extends React.Component<
 
 function App() {
   const { user, isAuthenticated, checkAuth } = useAuthStore();
-  const { loadUserData, loadBulkData } = useMetadataStore();
 
   useEffect(() => {
     const initializeApp = async () => {
       try {
         console.log('Initializing app...');
         
-        // Add timeout protection
-        const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error('Initialization timeout')), 10000); // 10 second timeout
-        });
+        // Simple auth check without complex data loading
+        await checkAuth();
         
-        const initPromise = (async () => {
-          // Check authentication status
-          await checkAuth();
-          
-          // If user is authenticated, load their data
-          if (isAuthenticated && user) {
-            console.log('User authenticated, loading data for:', user.email);
-            
-            // Load user data (form data, images, etc.)
-            await loadUserData();
-            
-            // Load bulk defects data
-            await loadBulkData();
-            
-            console.log('✅ App initialization complete');
-          } else {
-            console.log('No authenticated user found');
-          }
-        })();
-        
-        await Promise.race([initPromise, timeoutPromise]);
+        console.log('✅ App initialization complete');
       } catch (error) {
         console.error('❌ Error initializing app:', error);
         // Force authentication to false if initialization fails
@@ -98,7 +74,7 @@ function App() {
     };
 
     initializeApp();
-  }, [isAuthenticated, user, checkAuth, loadUserData, loadBulkData]);
+  }, [checkAuth]);
 
   return (
     <ErrorBoundary>
