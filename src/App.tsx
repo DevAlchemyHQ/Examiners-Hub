@@ -94,7 +94,21 @@ function App() {
       <div className="App">
         <Toaster position="top-right" />
         <Routes>
-          <Route path="/" element={isAuthenticated ? <MainApp /> : <LandingPage />} />
+          <Route path="/" element={
+            isAuthenticated === null ? (
+              // Show loading while checking auth
+              <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+                <div className="text-center text-white">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500 mx-auto mb-4"></div>
+                  <p>Loading...</p>
+                </div>
+              </div>
+            ) : isAuthenticated ? (
+              <MainApp />
+            ) : (
+              <LandingPage />
+            )
+          } />
           <Route path="/login" element={<LoginScreen />} />
           <Route path="/app" element={<MainApp />} />
           <Route path="/feedback-admin" element={<FeedbackAdmin />} />

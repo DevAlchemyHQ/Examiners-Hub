@@ -35,13 +35,20 @@ export const LoginScreen: React.FC = () => {
         case 'signin':
           const signinResult = await AuthService.signInWithEmail(email, password);
           if (signinResult.user && !signinResult.error) {
-            setAuth(true);
-            setUser(signinResult.user);
             // Store session data for persistence
             if (signinResult.session) {
               localStorage.setItem('session', JSON.stringify(signinResult.session));
             }
             localStorage.setItem('userEmail', email);
+            
+            // Update auth state first
+            setAuth(true);
+            setUser(signinResult.user);
+            
+            // Force a small delay to ensure state updates
+            await new Promise(resolve => setTimeout(resolve, 100));
+            
+            // Then navigate
             navigate('/');
           } else {
             setError('Invalid email or password');
@@ -54,13 +61,20 @@ export const LoginScreen: React.FC = () => {
           }
           const signupResult = await AuthService.signUpWithEmail(email, password, fullName);
           if (signupResult.user && !signupResult.error) {
-            setAuth(true);
-            setUser(signupResult.user);
             // Store session data for persistence
             if (signupResult.session) {
               localStorage.setItem('session', JSON.stringify(signupResult.session));
             }
             localStorage.setItem('userEmail', email);
+            
+            // Update auth state first
+            setAuth(true);
+            setUser(signupResult.user);
+            
+            // Force a small delay to ensure state updates
+            await new Promise(resolve => setTimeout(resolve, 100));
+            
+            // Then navigate
             navigate('/');
           } else {
             setError('Signup failed. Please try again.');
@@ -84,8 +98,14 @@ export const LoginScreen: React.FC = () => {
       if (mode === 'verify-signup') {
         const result = await AuthService.verifyOTP(email, otp);
         if (result.user && !result.error) {
+          // Update auth state first
           setAuth(true);
           setUser(result.user);
+          
+          // Force a small delay to ensure state updates
+          await new Promise(resolve => setTimeout(resolve, 100));
+          
+          // Then navigate
           navigate('/');
         } else {
           throw new Error('Verification failed');
