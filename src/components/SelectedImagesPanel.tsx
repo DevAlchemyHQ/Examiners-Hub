@@ -272,7 +272,14 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
     if (viewMode === 'bulk') {
       return images.filter(img => bulkSelectedImages.has(img.id));
     } else {
-    return images.filter(img => selectedImages.has(img.id));
+      const filtered = images.filter(img => selectedImages.has(img.id));
+      console.log('🔍 SelectedImagesPanel debug:', {
+        totalImages: images.length,
+        selectedImageIds: Array.from(selectedImages),
+        filteredImages: filtered.length,
+        imageIds: images.map(img => img.id)
+      });
+      return filtered;
     }
   }, [images, selectedImages, bulkSelectedImages, viewMode]);
 
