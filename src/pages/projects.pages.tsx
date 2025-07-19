@@ -46,7 +46,7 @@ export const ProjectsPage: React.FC = () => {
                 const newProject = newProjects[0];
                 setProjects((prev) => [...prev, newProject]);
                 resetMetadata();
-                navigate(`/dashboard/${newProject.id}`);
+                navigate(`/`);
             }
         } catch (error) {
             console.error("Error creating project:", error);
@@ -58,7 +58,7 @@ export const ProjectsPage: React.FC = () => {
         //     const projectData = await getProject(projectId);
         //     if (projectData) {
                 // resetMetadata();
-                navigate(`/dashboard/${projectId}`);
+                navigate(`/`);
         //     }
         // } catch (error) {
         //     console.error("Error fetching project:", error);

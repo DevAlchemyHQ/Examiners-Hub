@@ -39,13 +39,15 @@ function App() {
         <Routes>
           {isAuthenticated ? (
             <>
-              <Route path="/" element={<Navigate to="/dashboard" replace />} />
+              <Route path="/" element={<MainApp />} />
               <Route path="/dashboard" element={<MainApp />} />
-              <Route path="/*" element={<Navigate to="/dashboard" replace />} />
+              <Route path="/dashboard/*" element={<MainApp />} />
+              <Route path="/*" element={<Navigate to="/" replace />} />
             </>
           ) : (
             <>
               <Route path="/" element={<LoginScreen />} />
+              <Route path="/dashboard" element={<Navigate to="/" replace />} />
               <Route path="/*" element={<Navigate to="/" replace />} />
             </>
           )}

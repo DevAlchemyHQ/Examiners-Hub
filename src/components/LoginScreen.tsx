@@ -37,7 +37,7 @@ export const LoginScreen: React.FC = () => {
           if (signinResult.user && !signinResult.error) {
             setAuth(true);
             setUser(signinResult.user);
-            navigate('/dashboard');
+            navigate('/');
           } else {
             setError('Invalid email or password');
           }
@@ -51,7 +51,7 @@ export const LoginScreen: React.FC = () => {
           if (signupResult.user && !signupResult.error) {
             setAuth(true);
             setUser(signupResult.user);
-            navigate('/dashboard');
+            navigate('/');
           } else {
             setError('Signup failed. Please try again.');
           }
@@ -76,7 +76,7 @@ export const LoginScreen: React.FC = () => {
         if (result.user && !result.error) {
           setAuth(true);
           setUser(result.user);
-          navigate('/dashboard');
+          navigate('/');
         } else {
           throw new Error('Verification failed');
         }
