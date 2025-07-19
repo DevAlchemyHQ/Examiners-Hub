@@ -3,7 +3,7 @@ import { ImageUpload } from '../ImageUpload';
 import { DownloadButton } from '../DownloadButton';
 
 
-export const Sidebar = () => {
+export const Sidebar: React.FC<{ isLoading?: boolean }> = ({ isLoading }) => {
   return (
     <div className="lg:col-span-2 space-y-4 overflow-container">
       <div className="space-y-4 h-full overflow-y-auto p-0.5">
