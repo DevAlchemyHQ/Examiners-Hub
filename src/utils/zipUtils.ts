@@ -141,7 +141,7 @@ export const createZipFile = async (
         console.error(`Error processing image ${i + 1}:`, error);
         
         // Add a placeholder file with error information
-        const errorFileName = `Photo ${image.photoNumber?.padStart(2, '0') || '00}^${image.description || 'error'}^ ${date}.txt`;
+        const errorFileName = `Photo ${image.photoNumber?.padStart(2, '0') || '00'}^${image.description || 'error'}^ ${date}.txt`;
         const errorContent = `Error processing image: ${image.fileName || image.file?.name || 'unknown'}\nOriginal URL: ${image.publicUrl || 'N/A'}\nError: ${error}`;
         zip.file(errorFileName, errorContent);
       }
