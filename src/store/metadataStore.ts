@@ -329,15 +329,6 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           const user = storedUser ? JSON.parse(storedUser) : null;
           
           if (user?.email) {
-            // Save selected images with filenames for cross-session matching
-            const selectedWithFilenames = Array.from(newSelected).map(id => {
-              const image = state.images.find(img => img.id === id);
-              return {
-                id,
-                fileName: image?.fileName || image?.file?.name || 'unknown'
-              };
-            });
-            
             await DatabaseService.updateSelectedImages(user.email, selectedWithFilenames);
             console.log('✅ Selected images auto-saved to AWS for user:', user.email);
           }
