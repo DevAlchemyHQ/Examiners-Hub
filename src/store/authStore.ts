@@ -86,7 +86,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           console.log('Found stored user session:', user.email);
           
           // Validate the session is still valid by checking with AWS
-          const { AuthService } = await import('../lib/services');
           const { user: currentUser } = await AuthService.getCurrentUser();
           
           if (currentUser && currentUser.email === user.email) {

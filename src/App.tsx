@@ -64,25 +64,36 @@ function App() {
       try {
         console.log('Initializing app...');
         
-        // Check authentication status
-        await checkAuth();
+        // Add timeout protection
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('Initialization timeout')), 10000); // 10 second timeout
+        });
         
-        // If user is authenticated, load their data
-        if (isAuthenticated && user) {
-          console.log('User authenticated, loading data for:', user.email);
+        const initPromise = (async () => {
+          // Check authentication status
+          await checkAuth();
           
-          // Load user data (form data, images, etc.)
-          await loadUserData();
-          
-          // Load bulk defects data
-          await loadBulkData();
-          
-          console.log('✅ App initialization complete');
-        } else {
-          console.log('No authenticated user found');
-        }
+          // If user is authenticated, load their data
+          if (isAuthenticated && user) {
+            console.log('User authenticated, loading data for:', user.email);
+            
+            // Load user data (form data, images, etc.)
+            await loadUserData();
+            
+            // Load bulk defects data
+            await loadBulkData();
+            
+            console.log('✅ App initialization complete');
+          } else {
+            console.log('No authenticated user found');
+          }
+        })();
+        
+        await Promise.race([initPromise, timeoutPromise]);
       } catch (error) {
         console.error('❌ Error initializing app:', error);
+        // Force authentication to false if initialization fails
+        useAuthStore.getState().setAuth(false);
       }
     };
 
@@ -90,37 +101,39 @@ function App() {
   }, [isAuthenticated, user, checkAuth, loadUserData, loadBulkData]);
 
   return (
-    <Router>
-      <div className="App">
-        <Toaster position="top-right" />
-        <Routes>
-          <Route path="/" element={
-            isAuthenticated === null ? (
-              // Show loading while checking auth
-              <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-                <div className="text-center text-white">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500 mx-auto mb-4"></div>
-                  <p>Loading...</p>
+    <ErrorBoundary>
+      <Router>
+        <div className="App">
+          <Toaster position="top-right" />
+          <Routes>
+            <Route path="/" element={
+              isAuthenticated === null ? (
+                // Show loading while checking auth
+                <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+                  <div className="text-center text-white">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500 mx-auto mb-4"></div>
+                    <p>Loading...</p>
+                  </div>
                 </div>
-              </div>
-            ) : isAuthenticated ? (
-              <MainApp />
-            ) : (
-              <LandingPage />
-            )
-          } />
-          <Route path="/login" element={<LoginScreen />} />
-          <Route path="/app" element={<MainApp />} />
-          <Route path="/feedback-admin" element={<FeedbackAdmin />} />
-          <Route path="/calculator" element={<CalculatorPage />} />
-          <Route path="/games" element={<GamesPage />} />
-          <Route path="/grid" element={<GridReferenceFinderPage />} />
-          <Route path="/pdf" element={<PDFViewerPage />} />
-          <Route path="/projects" element={<ProjectsPage />} />
-          <Route path="/subscription" element={<SubscriptionPage />} />
-        </Routes>
-      </div>
-    </Router>
+              ) : isAuthenticated ? (
+                <MainApp />
+              ) : (
+                <LandingPage />
+              )
+            } />
+            <Route path="/login" element={<LoginScreen />} />
+            <Route path="/app" element={<MainApp />} />
+            <Route path="/feedback-admin" element={<FeedbackAdmin />} />
+            <Route path="/calculator" element={<CalculatorPage />} />
+            <Route path="/games" element={<GamesPage />} />
+            <Route path="/grid" element={<GridReferenceFinderPage />} />
+            <Route path="/pdf" element={<PDFViewerPage />} />
+            <Route path="/projects" element={<ProjectsPage />} />
+            <Route path="/subscription" element={<SubscriptionPage />} />
+          </Routes>
+        </div>
+      </Router>
+    </ErrorBoundary>
   );
 }
 
