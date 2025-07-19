@@ -1,67 +1,63 @@
 import React, { useState } from "react";
 import { Eye, EyeOff, Loader2, AlertCircle, Mail, User, FileText } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "../store/authStore";
-import { signInWithEmail, signUpWithEmail, resetPassword, verifyOTP, verifyResetOTP } from "../lib/supabase";
+import { AuthService } from "../lib/services";
 import { OTPVerification } from "./auth/OTPVerification";
 import { SetNewPassword } from "./auth/SetNewPassword";
 import { TermsModal } from "./auth/TermsModal";
-import { useMetadataStore } from "../store/metadataStore";
-import { useNavigate } from "react-router-dom";
 
 const SUPPORT_EMAIL = 'infor@exametry.xyz';
 
 type AuthMode = 'signin' | 'signup' | 'reset' | 'verify-signup' | 'verify-reset' | 'set-password';
 
 export const LoginScreen: React.FC = () => {
+  const navigate = useNavigate();
+  const { setAuth, setUser } = useAuthStore();
   const [mode, setMode] = useState<AuthMode>('signin');
-  const [email, setEmail] = useState("");
-  const [fullName, setFullName] = useState("");
-  const [password, setPassword] = useState("");
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [fullName, setFullName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const [showTerms, setShowTerms] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
-  const setAuth = useAuthStore((state) => state.setAuth);
-  const loadUserData = useMetadataStore((state) => state.loadUserData);
-  const navigate = useNavigate();
+  const [showTerms, setShowTerms] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    setMessage(null);
-
-    if (mode === 'signup' && !acceptedTerms) {
-      setError('Please accept the terms and conditions');
-      return;
-    }
-
     setIsLoading(true);
 
     try {
       switch (mode) {
         case 'signin':
-          await signInWithEmail(email, password);
-          await loadUserData(); // Load user data after successful sign in
-          setAuth(true);
-          navigate('/dashboard');
-          break;
-        case 'signup':
-          const signupResult = await signUpWithEmail(email, password, fullName);
-          if (signupResult?.user) {
-            // If we have a user, skip verification and go directly to app
-            await loadUserData();
+          const signinResult = await AuthService.signInWithEmail(email, password);
+          if (signinResult.user && !signinResult.error) {
             setAuth(true);
+            setUser(signinResult.user);
             navigate('/dashboard');
           } else {
-            // If no user returned, go to verification step
-            setMode('verify-signup');
-            setMessage('Please enter the verification code sent to your email.');
+            setError('Invalid email or password');
+          }
+          break;
+        case 'signup':
+          if (!acceptedTerms) {
+            setError('Please accept the terms and conditions');
+            return;
+          }
+          const signupResult = await AuthService.signUpWithEmail(email, password, fullName);
+          if (signupResult.user && !signupResult.error) {
+            setAuth(true);
+            setUser(signupResult.user);
+            navigate('/dashboard');
+          } else {
+            setError('Signup failed. Please try again.');
           }
           break;
         case 'reset':
-          await resetPassword(email);
+          await AuthService.resetPassword(email);
           setMode('verify-reset');
           setMessage('Please enter the verification code sent to your email.');
           break;
@@ -76,12 +72,16 @@ export const LoginScreen: React.FC = () => {
   const handleVerifyOTP = async (otp: string) => {
     try {
       if (mode === 'verify-signup') {
-        await verifyOTP(email, otp);
-        await loadUserData(); // Load user data after successful verification
-        setAuth(true);
-        navigate('/dashboard');
+        const result = await AuthService.verifyOTP(email, otp);
+        if (result.user && !result.error) {
+          setAuth(true);
+          setUser(result.user);
+          navigate('/dashboard');
+        } else {
+          throw new Error('Verification failed');
+        }
       } else if (mode === 'verify-reset') {
-        await verifyResetOTP(email, otp);
+        await AuthService.verifyResetOTP(email, otp, password);
         setMode('set-password');
       }
     } catch (err) {
@@ -238,41 +238,49 @@ export const LoginScreen: React.FC = () => {
               >
                 Forgot your password?
               </button>
-              <button
-                onClick={() => setMode('signup')}
-                className="text-sm text-gray-400 hover:text-gray-300 transition"
-              >
-                Don't have an account? Sign up
-              </button>
+              <div className="text-gray-400 text-sm">
+                Don't have an account?{' '}
+                <button
+                  onClick={() => setMode('signup')}
+                  className="text-indigo-400 hover:text-indigo-300 transition"
+                >
+                  Sign up
+                </button>
+              </div>
             </>
           ) : mode === 'signup' ? (
-            <button
-              onClick={() => setMode('signin')}
-              className="text-sm text-gray-400 hover:text-gray-300 transition"
-            >
-              Already have an account? Sign in
-            </button>
+            <div className="text-gray-400 text-sm">
+              Already have an account?{' '}
+              <button
+                onClick={() => setMode('signin')}
+                className="text-indigo-400 hover:text-indigo-300 transition"
+              >
+                Sign in
+              </button>
+            </div>
           ) : (
-            <button
-              onClick={() => setMode('signin')}
-              className="text-sm text-gray-400 hover:text-gray-300 transition"
-            >
-              Back to sign in
-            </button>
+            <div className="text-gray-400 text-sm">
+              Remember your password?{' '}
+              <button
+                onClick={() => setMode('signin')}
+                className="text-indigo-400 hover:text-indigo-300 transition"
+              >
+                Sign in
+              </button>
+            </div>
           )}
         </div>
 
-        <div className="mt-6 p-4 bg-gray-700/50 rounded-lg">
-          <p className="text-sm text-gray-300 text-center">
-            Need assistance or have suggestions? <br /> We'd love to hear from you.
-          </p>
-          <button
-            onClick={handleEmailClick}
-            className="mt-3 w-full flex items-center justify-center gap-2 bg-indigo-500 text-white px-4 py-2 rounded-lg hover:bg-indigo-600 transition-colors"
-          >
-            <Mail size={18} />
-            Email Support
-          </button>
+        <div className="mt-8 pt-6 border-t border-gray-700">
+          <div className="text-center text-gray-400 text-sm">
+            Need help?{' '}
+            <button
+              onClick={handleEmailClick}
+              className="text-indigo-400 hover:text-indigo-300 transition"
+            >
+              Contact support
+            </button>
+          </div>
         </div>
       </div>
 

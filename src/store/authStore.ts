@@ -1,7 +1,19 @@
 // authStore.ts
 import { create } from 'zustand';
-import { User } from '@supabase/supabase-js';
 import { AuthService, ServiceManager } from '../lib/services';
+
+// Define our own User type to match AWS service response
+interface User {
+  id: string;
+  email: string;
+  user_metadata: {
+    full_name?: string;
+    avatar_url?: string;
+    subscription_plan?: string;
+    subscription_status?: string;
+    subscription_end_date?: string;
+  };
+}
 
 interface AuthState {
   isAuthenticated: boolean;
@@ -16,7 +28,7 @@ interface AuthState {
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
-  isAuthenticated: JSON.parse(localStorage.getItem('isAuthenticated') || 'false'), // Start as not authenticated
+  isAuthenticated: false, // Start as not authenticated
   user: null, // Start with no user
   isLoading: false,
   
@@ -51,8 +63,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   checkAuth: async () => {
     set({ isLoading: true });
     try {
-      const user = await AuthService.getCurrentUser();
-      if (user) {
+      const { user, error } = await AuthService.getCurrentUser();
+      if (user && !error) {
         set({ isAuthenticated: true, user });
         localStorage.setItem('isAuthenticated', 'true');
         localStorage.setItem('user', JSON.stringify(user));

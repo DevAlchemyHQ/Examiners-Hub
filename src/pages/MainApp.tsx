@@ -15,8 +15,7 @@ const MainApp = () => {
     <div className="min-h-screen bg-gray-900">
       <Header />
       <Routes>
-        <Route path="/" element={<Navigate to="dashboard" replace />} />
-        <Route path="dashboard" element={<MainLayout />} />
+        <Route path="/" element={<MainLayout />} />
         <Route path="feedback" element={<FeedbackAdmin />} />
         <Route path="profile" element={<UserProfile />} />
         <Route path="subscriptions" element={<SubscriptionPage />} />
@@ -24,7 +23,7 @@ const MainApp = () => {
         <Route path="games" element={<GamesPage />} />
         <Route path="grid" element={<GridReferenceFinderPage />} />
         <Route path="pdf" element={<PDFViewerPage />} />
-        <Route path="*" element={<Navigate to="dashboard" replace />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </div>
   );
