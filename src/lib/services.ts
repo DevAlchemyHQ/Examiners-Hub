@@ -1,7 +1,7 @@
 // AWS Services Configuration
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, GetCommand, PutCommand, UpdateCommand, DeleteCommand, QueryCommand, ScanCommand } from '@aws-sdk/lib-dynamodb';
-import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { CognitoIdentityProviderClient, InitiateAuthCommand, SignUpCommand, ConfirmSignUpCommand, AdminCreateUserCommand, AdminGetUserCommand, AdminInitiateAuthCommand } from '@aws-sdk/client-cognito-identity-provider';
 
@@ -206,7 +206,7 @@ export class StorageService {
       const uploadCommand = new PutObjectCommand({
         Bucket: BUCKET_NAME,
         Key: filePath,
-        Body: arrayBuffer,
+        Body: new Uint8Array(arrayBuffer),
         ContentType: file.type
         // Removed ACL since bucket doesn't support it
       });
@@ -250,6 +250,37 @@ export class StorageService {
     } catch (error) {
       console.error('AWS S3 delete error:', error);
       return { success: false, error };
+    }
+  }
+
+  static async listFiles(prefix: string) {
+    try {
+      console.log('🗄️ AWS S3 listFiles:', prefix);
+      
+      const listCommand = new ListObjectsV2Command({
+        Bucket: BUCKET_NAME,
+        Prefix: prefix
+      });
+      
+      const result = await s3Client.send(listCommand);
+      console.log('✅ AWS S3 listFiles result:', result);
+      
+      if (!result.Contents) {
+        return { files: [], error: null };
+      }
+      
+      // Convert S3 objects to file objects with URLs
+      const files = result.Contents.map(obj => ({
+        name: obj.Key?.split('/').pop() || '',
+        url: `https://${BUCKET_NAME}.s3.${AWS_CONFIG.region}.amazonaws.com/${obj.Key}`,
+        size: obj.Size || 0,
+        lastModified: obj.LastModified
+      }));
+      
+      return { files, error: null };
+    } catch (error) {
+      console.error('AWS S3 listFiles error:', error);
+      return { files: [], error };
     }
   }
 }

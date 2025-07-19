@@ -289,18 +289,83 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
 
   loadUserData: async () => {
     try {
-      // For local testing, load from localStorage
-      const savedFormData = localStorage.getItem('clean-app-form-data');
-
-      // Don't load images from localStorage - they need to be re-uploaded
-      set({ images: [] });
+      console.log('Loading user data...');
       
+      // Get user from localStorage
+      const storedUser = localStorage.getItem('user');
+      const user = storedUser ? JSON.parse(storedUser) : null;
+      const userId = user?.email || localStorage.getItem('userEmail') || 'anonymous';
+      
+      console.log('Loading data for user:', userId);
+      
+      // Load form data from localStorage
+      const savedFormData = localStorage.getItem('clean-app-form-data');
       if (savedFormData) {
         const formData = JSON.parse(savedFormData);
         set({ formData });
+        console.log('Loaded form data:', formData);
+      }
+      
+      // Load images from S3 for the user
+      if (userId !== 'anonymous') {
+        try {
+          console.log('Loading images from S3 for user:', userId);
+          
+          // List files in user's S3 folder
+          const { files, error } = await StorageService.listFiles(`users/${userId}/images/`);
+          
+          if (error) {
+            console.error('Error listing S3 files:', error);
+            set({ images: [] });
+            return;
+          }
+          
+          if (files && files.length > 0) {
+            console.log('Found', files.length, 'images in S3');
+            
+            // Create image metadata for each file
+            const loadedImages: ImageMetadata[] = [];
+            
+            for (const file of files) {
+              try {
+                // Create a mock File object for the image
+                const mockFile = new File([''], file.name, { type: 'image/jpeg' });
+                
+                const imageMetadata: ImageMetadata = {
+                  id: crypto.randomUUID(),
+                  file: mockFile,
+                  photoNumber: '',
+                  description: '',
+                  preview: file.url, // Use S3 URL as preview
+                  isSketch: false,
+                  publicUrl: file.url,
+                  userId: userId
+                };
+                
+                loadedImages.push(imageMetadata);
+                console.log('Loaded image:', file.name);
+              } catch (error) {
+                console.error('Error processing image:', file.name, error);
+              }
+            }
+            
+            set({ images: loadedImages });
+            console.log('Successfully loaded', loadedImages.length, 'images');
+          } else {
+            console.log('No images found in S3 for user:', userId);
+            set({ images: [] });
+          }
+        } catch (error) {
+          console.error('Error loading images from S3:', error);
+          set({ images: [] });
+        }
+      } else {
+        console.log('Anonymous user, not loading images from S3');
+        set({ images: [] });
       }
     } catch (error) {
       console.error('Error loading user data:', error);
+      set({ images: [] });
     }
   },
 

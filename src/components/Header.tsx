@@ -5,6 +5,7 @@ import { useAuthStore } from '../store/authStore';
 import { useThemeStore } from '../store/themeStore';
 import { StorageService, DatabaseService, AuthService } from '../lib/services';
 import { WeatherDate } from './WeatherDate';
+import { EditProfileModal } from './profile/EditProfile';
 
 export const Header: React.FC = () => {
   const navigate = useNavigate();
@@ -370,15 +371,6 @@ export const Header: React.FC = () => {
 
                   {/* Menu Items */}
                   <div className="p-2">
-                    <button 
-                      onClick={() => {
-                        setShowProfileMenu(false);
-                        navigate('/profile');
-                      }}
-                      className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-gray-700/50 rounded-lg flex items-center gap-2">
-                      <User size={16} />
-                      View Profile
-                    </button>
                     <button 
                       onClick={() => setShowEditProfile(true)}
                       className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-gray-700/50 rounded-lg flex items-center gap-2">

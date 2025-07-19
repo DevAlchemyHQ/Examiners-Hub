@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import { X, Camera, Save, Loader2 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
-import { StorageService } from '../../lib/services';
-import { AuthService } from '../../lib/services/AuthService';
+import { StorageService, AuthService } from '../../lib/services';
 
 interface EditProfileModalProps {
     isOpen: boolean;
