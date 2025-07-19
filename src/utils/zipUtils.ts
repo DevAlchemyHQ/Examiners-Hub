@@ -58,7 +58,7 @@ const processImageForDownload = async (imageFile: File | string): Promise<Blob> 
       reject(new Error(`Failed to load image: ${typeof imageFile === 'string' ? 'S3 URL' : imageFile.name}`));
     };
     
-    // Set image source
+    // Set image source with CORS handling
     if (typeof imageFile === 'string') {
       // S3 URL - use direct loading with CORS
       img.crossOrigin = 'anonymous';
@@ -75,6 +75,78 @@ const processImageForDownload = async (imageFile: File | string): Promise<Blob> 
       };
     }
   });
+};
+
+// Helper function to fetch image with CORS fallback
+const fetchImageWithFallback = async (imageUrl: string): Promise<Blob> => {
+  try {
+    console.log('Fetching image with CORS handling:', imageUrl);
+    
+    // Try direct fetch first
+    const response = await fetch(imageUrl, {
+      mode: 'cors',
+      credentials: 'omit'
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    
+    const blob = await response.blob();
+    console.log('Successfully fetched image, size:', blob.size);
+    return blob;
+    
+  } catch (error) {
+    console.error('Direct fetch failed, trying canvas approach:', error);
+    
+    // Fallback: use canvas to load image
+    return new Promise((resolve, reject) => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const img = new Image();
+      
+      img.onload = () => {
+        try {
+          // Set canvas size (maintain aspect ratio, max 1920x1080)
+          const maxWidth = 1920;
+          const maxHeight = 1080;
+          let { width, height } = img;
+          
+          if (width > maxWidth || height > maxHeight) {
+            const ratio = Math.min(maxWidth / width, maxHeight / height);
+            width *= ratio;
+            height *= ratio;
+          }
+          
+          canvas.width = width;
+          canvas.height = height;
+          
+          // Draw image with proper quality
+          ctx?.drawImage(img, 0, 0, width, height);
+          
+          // Convert to blob with high quality JPEG
+          canvas.toBlob((blob) => {
+            if (blob) {
+              console.log('Successfully processed image via canvas, size:', blob.size);
+              resolve(blob);
+            } else {
+              reject(new Error('Failed to convert canvas to blob'));
+            }
+          }, 'image/jpeg', 0.9);
+        } catch (error) {
+          reject(error);
+        }
+      };
+      
+      img.onerror = () => {
+        reject(new Error('Failed to load image from URL'));
+      };
+      
+      // Load image from URL with CORS
+      img.crossOrigin = 'anonymous';
+      img.src = imageUrl;
+    });
+  }
 };
 
 export const createZipFile = async (
@@ -105,75 +177,47 @@ export const createZipFile = async (
           // Local file - process directly
           imageBlob = await processImageForDownload(image.file);
         } else if (image.preview || image.publicUrl) {
-          // S3 image - fetch the image data directly
+          // S3 image - use improved CORS handling
           const imageUrl = image.preview || image.publicUrl;
-          console.log('Fetching S3 image:', imageUrl);
+          console.log('Processing S3 image with CORS handling:', imageUrl);
           
           try {
-            // Fetch the image data
-            const response = await fetch(imageUrl);
-            if (!response.ok) {
-              throw new Error(`Failed to fetch image: ${response.status}`);
-            }
-            
-            const imageData = await response.blob();
-            console.log('Fetched image data, size:', imageData.size);
+            // Use the improved fetch function with CORS fallback
+            const imageData = await fetchImageWithFallback(imageUrl);
+            console.log('Successfully fetched S3 image, size:', imageData.size);
             
             // Process the fetched image through canvas to ensure JPG format
             imageBlob = await processImageForDownload(imageData);
             
-          } catch (fetchError) {
-            console.error('Error fetching S3 image:', fetchError);
+          } catch (error) {
+            console.error('Error processing S3 image:', error);
             
-            // Fallback: try to create a canvas-based approach
+            // Create a placeholder image with error information
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
-            const img = new Image();
+            canvas.width = 400;
+            canvas.height = 300;
             
-            const imageBlobPromise = new Promise<Blob>((resolve, reject) => {
-              img.onload = () => {
-                try {
-                  // Set canvas size (maintain aspect ratio, max 1920x1080)
-                  const maxWidth = 1920;
-                  const maxHeight = 1080;
-                  let { width, height } = img;
-                  
-                  if (width > maxWidth || height > maxHeight) {
-                    const ratio = Math.min(maxWidth / width, maxHeight / height);
-                    width *= ratio;
-                    height *= ratio;
-                  }
-                  
-                  canvas.width = width;
-                  canvas.height = height;
-                  
-                  // Draw image with proper quality
-                  ctx?.drawImage(img, 0, 0, width, height);
-                  
-                  // Convert to blob with high quality JPEG
-                  canvas.toBlob((blob) => {
-                    if (blob) {
-                      console.log('Successfully processed S3 image via canvas, size:', blob.size);
-                      resolve(blob);
-                    } else {
-                      reject(new Error('Failed to convert canvas to blob'));
-                    }
-                  }, 'image/jpeg', 0.9);
-                } catch (error) {
-                  reject(error);
+            // Draw error message on canvas
+            ctx!.fillStyle = '#f0f0f0';
+            ctx!.fillRect(0, 0, 400, 300);
+            ctx!.fillStyle = '#666';
+            ctx!.font = '16px Arial';
+            ctx!.textAlign = 'center';
+            ctx!.fillText('Image not available', 200, 140);
+            ctx!.fillText('CORS or network error', 200, 170);
+            ctx!.fillText(imageUrl, 200, 200);
+            
+            // Convert to blob
+            imageBlob = await new Promise<Blob>((resolve, reject) => {
+              canvas.toBlob((blob) => {
+                if (blob) {
+                  resolve(blob);
+                } else {
+                  reject(new Error('Failed to create error placeholder'));
                 }
-              };
-              
-              img.onerror = () => {
-                reject(new Error('Failed to load image from URL'));
-              };
-              
-              // Load image from URL
-              img.crossOrigin = 'anonymous';
-              img.src = imageUrl;
+              }, 'image/jpeg', 0.9);
             });
-            
-            imageBlob = await imageBlobPromise;
           }
         } else {
           throw new Error('No file or preview URL available for image');
