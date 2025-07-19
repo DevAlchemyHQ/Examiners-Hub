@@ -132,8 +132,11 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             // Convert image to JPG and store as base64 in localStorage
             const jpgBase64 = await convertImageToJpgBase64(file);
             
+            // Generate consistent ID based on filename to maintain selections across browsers
+            const consistentId = `local-${file.name.replace(/[^a-zA-Z0-9]/g, '-')}`;
+            
             const imageMetadata: ImageMetadata = {
-              id: crypto.randomUUID(),
+              id: consistentId,
               file: file, // Keep the original file for new uploads
               fileName: file.name,
               fileSize: file.size,
@@ -554,7 +557,14 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             if (savedImages) {
               const images = JSON.parse(savedImages);
               console.log('📱 Images loaded from localStorage (fallback):', images.length);
-              return images;
+              
+              // Ensure all localStorage images have consistent IDs
+              const imagesWithConsistentIds = images.map((img: any) => ({
+                ...img,
+                id: img.id || `local-${(img.fileName || img.file?.name || 'unknown').replace(/[^a-zA-Z0-9]/g, '-')}`
+              }));
+              
+              return imagesWithConsistentIds;
             }
             
             console.log('No images found in S3 or localStorage');
