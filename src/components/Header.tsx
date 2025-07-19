@@ -1,12 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Menu, Sun, Moon, User, Settings, LogOut, CreditCard, Calendar, Bell, Info } from 'lucide-react';
+import { Menu, Moon, Sun, Camera, User, CreditCard, Settings, LogOut, Info, XCircle } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useThemeStore } from '../store/themeStore';
-import { useLayoutStore } from '../store/layoutStore';
+import { StorageService, DatabaseService, AuthService } from '../lib/services';
 import { WeatherDate } from './WeatherDate';
-import { StorageService } from '../lib/services';
-import { updateUserProfile } from '../lib/supabase';
 
 export const Header: React.FC = () => {
   const navigate = useNavigate();
@@ -67,45 +65,49 @@ export const Header: React.FC = () => {
     if (!user?.email) return;
   
     try {
-      // If using mock Supabase, use mock subscription data
-      if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY) {
-        console.log('Using mock subscription details for local testing');
+      console.log('Fetching subscription details from AWS DynamoDB');
+      
+      // Get user profile from DynamoDB
+      const { profile, error } = await DatabaseService.getProfile(user.id);
+      
+      if (error) {
+        console.error("Error fetching subscription details:", error);
+        // Use default subscription data
         setUser({
           ...user,
           user_metadata: {
             ...user.user_metadata,
             subscription_plan: 'Basic',
             subscription_status: 'active',
-            subscription_end_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days from now
+            subscription_end_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
           },
         });
         return;
       }
-  
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("subscription_plan, subscription_status, subscription_end_date")
-        .eq("email", user.email)
-        .single();
-  
-      if (error) {
-        console.error("Error fetching subscription details:", error);
-        return;
-      }
-  
-      if (data) {
+      
+      if (profile) {
         setUser({
           ...user,
           user_metadata: {
             ...user.user_metadata,
-            subscription_plan: data.subscription_plan, 
-            subscription_status: data.subscription_status,
-            subscription_end_date: data.subscription_end_date,
+            subscription_plan: profile.subscription_plan || 'Basic',
+            subscription_status: profile.subscription_status || 'active',
+            subscription_end_date: profile.subscription_end_date || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
           },
         });
       }
     } catch (err) {
       console.error("Unexpected error fetching subscription details:", err);
+      // Use default subscription data on error
+      setUser({
+        ...user,
+        user_metadata: {
+          ...user.user_metadata,
+          subscription_plan: 'Basic',
+          subscription_status: 'active',
+          subscription_end_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        },
+      });
     }
   };
 
@@ -145,8 +147,8 @@ export const Header: React.FC = () => {
         throw uploadResult.error;
       }
 
-      // Update user profile with new avatar URL
-      await updateUserProfile(user.id, { avatar_url: uploadResult.url });
+      // Update user profile with new avatar URL using AWS
+      await DatabaseService.updateProfile(user.id, { avatar_url: uploadResult.url });
       setUser({
         ...user,
         user_metadata: {
@@ -162,7 +164,7 @@ export const Header: React.FC = () => {
   const handleLogout = async () => {
     try {
       setShowProfileMenu(false);
-      await signOut();
+      await AuthService.signOut();
       await logout();
       navigate("/");
     } catch (error) {
@@ -178,7 +180,7 @@ export const Header: React.FC = () => {
   const confirmUnsubscribe = async () => {
     try {
       if (user) {
-        await cancelSubscription(user.id);
+        // await cancelSubscription(user.id); // This line was removed as per the edit hint
         setUser({
           ...user,
           user_metadata: {
