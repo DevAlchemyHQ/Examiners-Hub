@@ -104,10 +104,13 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           } else {
             const imageMetadata: ImageMetadata = {
               id: crypto.randomUUID(),
-              file,
+              file: file, // Keep the original file for new uploads
+              fileName: file.name,
+              fileSize: file.size,
+              fileType: file.type,
               photoNumber: '',
               description: '',
-              preview: URL.createObjectURL(file), // Local preview
+              preview: URL.createObjectURL(file), // Local preview for new uploads
               isSketch,
               publicUrl: uploadResult.url!, // S3 signed URL
               userId: userId // Use actual user ID
@@ -132,7 +135,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           if (!isNaN(aNum) && !isNaN(bNum)) return aNum - bNum;
           if (!isNaN(aNum)) return -1;
           if (!isNaN(bNum)) return 1;
-          return a.file.name.localeCompare(b.file.name);
+          return (a.fileName || a.file?.name || '').localeCompare(b.fileName || b.file?.name || '');
         });
         console.log('State updated with', combined.length, 'total images');
         return { images: combined };
@@ -323,31 +326,26 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           if (files && files.length > 0) {
             console.log('Found', files.length, 'images in S3');
             
-            // Create image metadata for each file
+            // Create image metadata for each file using real S3 URLs
             const loadedImages: ImageMetadata[] = [];
             
             for (const file of files) {
               try {
-                // Fetch the actual image data from S3
-                const response = await fetch(file.url);
-                const blob = await response.blob();
-                
-                // Create a proper File object with the actual image data
-                const imageFile = new File([blob], file.name, { type: blob.type || 'image/jpeg' });
-                
+                // Create image metadata with real S3 URL
                 const imageMetadata: ImageMetadata = {
                   id: crypto.randomUUID(),
-                  file: imageFile,
+                  file: null as any, // We'll handle this differently
                   photoNumber: '',
                   description: '',
-                  preview: URL.createObjectURL(imageFile), // Create proper preview URL
+                  preview: file.url, // Use S3 URL directly as preview
                   isSketch: false,
                   publicUrl: file.url,
-                  userId: userId
+                  userId: userId,
+                  fileName: file.name // Add fileName for reference
                 };
                 
                 loadedImages.push(imageMetadata);
-                console.log('Loaded image:', file.name);
+                console.log('Loaded image:', file.name, 'from URL:', file.url);
               } catch (error) {
                 console.error('Error processing image:', file.name, error);
               }

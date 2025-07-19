@@ -1,9 +1,9 @@
 export interface ImageMetadata {
   id: string;
-  file: File;
-  fileName: string;
-  fileSize: number;
-  fileType: string;
+  file?: File; // Make file optional for S3-loaded images
+  fileName?: string; // Add fileName for S3-loaded images
+  fileSize?: number;
+  fileType?: string;
   photoNumber: string;
   description: string;
   preview: string;
