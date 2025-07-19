@@ -307,9 +307,16 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         }
       }
       
-      // Auto-save selections to localStorage immediately
-      localStorage.setItem('clean-app-selected-images', JSON.stringify(Array.from(newSelected)));
-      console.log('📱 Selected images saved to localStorage:', Array.from(newSelected));
+      // Auto-save selections to localStorage immediately with filenames for cross-session matching
+      const selectedWithFilenames = Array.from(newSelected).map(id => {
+        const image = state.images.find(img => img.id === id);
+        return {
+          id,
+          fileName: image?.fileName || image?.file?.name || 'unknown'
+        };
+      });
+      localStorage.setItem('clean-app-selected-images', JSON.stringify(selectedWithFilenames));
+      console.log('📱 Selected images saved to localStorage:', selectedWithFilenames);
       
       // Auto-save to AWS in background (only small data)
       (async () => {
@@ -624,8 +631,58 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       }
       
       if (selectionsResult.status === 'fulfilled' && selectionsResult.value.length > 0) {
-        updates.selectedImages = new Set(selectionsResult.value);
-        console.log('📱 Selected images restored from localStorage:', selectionsResult.value);
+        // Match selected images by filename instead of ID for cross-session persistence
+        const selectedImageIds = new Set<string>();
+        
+        if (updates.images && updates.images.length > 0) {
+          // Handle both old format (just IDs) and new format (objects with id and fileName)
+          selectionsResult.value.forEach((selectedItem: any) => {
+            let selectedId: string;
+            let fileName: string;
+            
+            if (typeof selectedItem === 'string') {
+              // Old format: just ID
+              selectedId = selectedItem;
+              fileName = '';
+            } else {
+              // New format: object with id and fileName
+              selectedId = selectedItem.id;
+              fileName = selectedItem.fileName || '';
+            }
+            
+            // Try to find by ID first (for same session)
+            const imageById = updates.images.find(img => img.id === selectedId);
+            if (imageById) {
+              selectedImageIds.add(imageById.id);
+            } else if (fileName && fileName !== 'unknown') {
+              // If not found by ID, try to match by filename
+              const imageByFileName = updates.images.find(img => 
+                (img.fileName || img.file?.name || '') === fileName
+              );
+              if (imageByFileName) {
+                selectedImageIds.add(imageByFileName.id);
+                console.log('✅ Matched selected image by filename:', fileName);
+              } else {
+                console.log('⚠️ Selected image not found by ID or filename:', selectedId, fileName);
+              }
+            } else {
+              console.log('⚠️ Selected image ID not found in current images:', selectedId);
+            }
+          });
+        } else {
+          // If images aren't loaded yet, store the IDs for later matching
+          const ids = selectionsResult.value.map((item: any) => 
+            typeof item === 'string' ? item : item.id
+          );
+          updates.selectedImages = new Set(ids);
+        }
+        
+        if (selectedImageIds.size > 0) {
+          updates.selectedImages = selectedImageIds;
+          console.log('📱 Selected images matched and restored:', Array.from(selectedImageIds));
+        } else if (selectionsResult.value.length > 0) {
+          console.log('⚠️ No selected images could be matched to current images');
+        }
       }
       
       // Single state update to prevent flickering
