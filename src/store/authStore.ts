@@ -16,7 +16,7 @@ interface User {
 }
 
 interface AuthState {
-  isAuthenticated: boolean;
+  isAuthenticated: boolean | null; // null = loading, true = authenticated, false = not authenticated
   user: User | null;
   isLoading: boolean;
   setAuth: (isAuthenticated: boolean) => void;
@@ -28,7 +28,7 @@ interface AuthState {
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
-  isAuthenticated: false, // Start as not authenticated
+  isAuthenticated: null, // Start as null (loading)
   user: null, // Start with no user
   isLoading: false,
   
@@ -38,7 +38,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
   
   setUser: (user) => {
-    localStorage.setItem('user', JSON.stringify(user));
+    if (user) {
+      localStorage.setItem('user', JSON.stringify(user));
+      localStorage.setItem('userEmail', user.email);
+    } else {
+      localStorage.removeItem('user');
+      localStorage.removeItem('userEmail');
+    }
     set({ user });
   },
   
@@ -63,15 +69,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   
   checkAuth: async () => {
     try {
-      const { user, error } = await AuthService.getCurrentUser();
+      // Check localStorage for stored user session
+      const storedUser = localStorage.getItem('user');
+      const storedAuth = localStorage.getItem('isAuthenticated');
       
-      if (error) {
-        console.error('Auth check error:', error);
-        set({ isAuthenticated: false, user: null });
-        return;
-      }
-      
-      if (user) {
+      if (storedUser && storedAuth === 'true') {
+        const user = JSON.parse(storedUser);
         set({ isAuthenticated: true, user });
       } else {
         set({ isAuthenticated: false, user: null });
@@ -84,7 +87,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   
   getServiceInfo: () => {
     return {
-      isUsingAWS: false, // Removed ServiceManager.isUsingAWS
+      isUsingAWS: true, // Always using AWS now
       featureFlags: {} // Placeholder, as ServiceManager is removed
     };
   }

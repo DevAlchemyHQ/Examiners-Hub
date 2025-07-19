@@ -1,5 +1,7 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
+import { useAuthStore } from '../store/authStore';
+import { LoginScreen } from '../components/LoginScreen';
 import { Header } from '../components/Header';
 import { MainLayout } from './home';
 import { FeedbackAdmin } from './FeedbackAdmin';
@@ -11,6 +13,27 @@ import { GridReferenceFinderPage } from './grid.page';
 import { PDFViewerPage } from './pdf.page';
 
 const MainApp = () => {
+  const { isAuthenticated, checkAuth } = useAuthStore();
+
+  useEffect(() => {
+    checkAuth();
+  }, [checkAuth]);
+
+  // Show loading while checking auth
+  if (isAuthenticated === null) {
+    return (
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+        <div className="text-white">Loading...</div>
+      </div>
+    );
+  }
+
+  // Show login if not authenticated
+  if (!isAuthenticated) {
+    return <LoginScreen />;
+  }
+
+  // Show app if authenticated
   return (
     <div className="min-h-screen bg-gray-900">
       <Header />
