@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { StorageService } from '../lib/services';
+import { StorageService, DatabaseService } from '../lib/services';
 import { ImageMetadata, FormData, BulkDefect } from '../types';
 import { createZipFile } from '../utils/zipUtils';
 import { nanoid } from 'nanoid';
@@ -73,7 +73,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       // Auto-save to localStorage immediately
       localStorage.setItem('clean-app-form-data', JSON.stringify(newFormData));
       
-      // Auto-save to AWS in background (simplified to avoid dynamic imports)
+      // Auto-save to AWS in background (using static import)
       (async () => {
         try {
           // Get user from localStorage to avoid circular import
@@ -81,8 +81,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           const user = storedUser ? JSON.parse(storedUser) : null;
           
           if (user?.email) {
-            // Use the already imported services
-            const { DatabaseService } = await import('../lib/services');
+            // Use static import
             await DatabaseService.updateProject(user.email, 'current', { formData: newFormData });
             console.log('✅ Form data auto-saved to AWS for user:', user.email);
           } else {
@@ -176,7 +175,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         img.id === id ? { ...img, ...data } : img
       );
       
-      // Auto-save images to AWS in background (simplified to avoid dynamic imports)
+      // Auto-save images to AWS in background (using static import)
       (async () => {
         try {
           // Get user from localStorage to avoid circular import
@@ -184,8 +183,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           const user = storedUser ? JSON.parse(storedUser) : null;
           
           if (user?.email) {
-            // Use the already imported services
-            const { DatabaseService } = await import('../lib/services');
+            // Use static import
             await DatabaseService.updateProject(user.email, 'current', { images: updatedImages });
             console.log('✅ Images auto-saved to AWS for user:', user.email);
           }
@@ -324,7 +322,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           const user = storedUser ? JSON.parse(storedUser) : null;
           
           if (user?.email) {
-            const { DatabaseService } = await import('../lib/services');
+            // Use static import
             await DatabaseService.updateBulkDefects(user.email, newBulkDefects);
             console.log('✅ Bulk defects auto-saved to AWS for user:', user.email);
           }
@@ -366,8 +364,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       // Load form data from AWS first, then fallback to localStorage
       if (userId !== 'anonymous') {
         try {
-          // Use the already imported services
-          const { DatabaseService } = await import('../lib/services');
+          // Use static import
           const { project } = await DatabaseService.getProject(userId, 'current');
           
           if (project?.formData) {
@@ -477,8 +474,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       const user = storedUser ? JSON.parse(storedUser) : null;
       
       if (user?.email) {
-        // Use the already imported services
-        const { DatabaseService } = await import('../lib/services');
+        // Use static import
         await DatabaseService.updateProject(user.email, 'current', { formData });
         console.log('Form data saved to AWS for user:', user.email);
       }
@@ -504,8 +500,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       const user = storedUser ? JSON.parse(storedUser) : null;
       
       if (user?.email) {
-        // Use the already imported services
-        const { DatabaseService } = await import('../lib/services');
+        // Use static import
         await DatabaseService.updateBulkDefects(user.email, bulkDefects);
         console.log('Bulk defects saved to AWS for user:', user.email);
       }
@@ -524,8 +519,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       
       if (user?.email) {
         try {
-          // Use the already imported services
-          const { DatabaseService } = await import('../lib/services');
+          // Use static import
           const { defects } = await DatabaseService.getBulkDefects(user.email);
           if (defects && defects.length > 0) {
             set({ bulkDefects: defects });
