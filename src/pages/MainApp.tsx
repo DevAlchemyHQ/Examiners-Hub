@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { LoginScreen } from '../components/LoginScreen';
@@ -14,16 +14,27 @@ import { PDFViewerPage } from './pdf.page';
 
 const MainApp = () => {
   const { isAuthenticated, checkAuth } = useAuthStore();
+  const [isInitialized, setIsInitialized] = useState(false);
 
   useEffect(() => {
-    checkAuth();
+    const initializeAuth = async () => {
+      try {
+        await checkAuth();
+      } catch (error) {
+        console.error('Auth initialization failed:', error);
+      } finally {
+        setIsInitialized(true);
+      }
+    };
+
+    initializeAuth();
   }, [checkAuth]);
 
-  // Show loading while checking auth
-  if (isAuthenticated === null) {
+  // Show loading while initializing
+  if (!isInitialized || isAuthenticated === null) {
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-        <div className="text-white">Loading...</div>
+        <div className="text-white text-lg">Loading...</div>
       </div>
     );
   }

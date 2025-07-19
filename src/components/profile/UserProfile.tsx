@@ -28,6 +28,11 @@ export const UserProfile: React.FC = () => {
       setIsLoading(true);
       setError(null);
 
+      // Use user from auth store instead of calling AuthService
+      if (!user) {
+        throw new Error('Not authenticated');
+      }
+
       // For testing mode, create a mock profile
       if (user?.id === 'test-user-id' || user?.id?.startsWith('mock-user-')) {
         const mockProfile: UserProfileType = {
@@ -44,11 +49,6 @@ export const UserProfile: React.FC = () => {
         setSelectedEmoji(mockProfile.avatar_emoji);
         setEditName(mockProfile.full_name);
         return;
-      }
-
-      const user = await AuthService.getCurrentUser();
-      if (!user) {
-        throw new Error('Not authenticated');
       }
 
       // Use getOrCreateUserProfile to ensure we always have a valid profile
@@ -96,11 +96,13 @@ export const UserProfile: React.FC = () => {
 
   const handleLogout = async () => {
     try {
-      await AuthService.signOut();
       await logout();
+      // Navigate to login after logout
       navigate("/login");
     } catch (error) {
       console.error('Logout error:', error);
+      // Even if logout fails, try to navigate to login
+      navigate("/login");
     }
   };
 

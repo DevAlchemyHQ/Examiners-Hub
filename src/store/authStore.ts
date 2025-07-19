@@ -62,6 +62,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ isAuthenticated: false, user: null });
     } catch (error) {
       console.error('Logout error:', error);
+      // Even if signOut fails, clear local state
+      localStorage.removeItem('isAuthenticated');
+      localStorage.removeItem('user');
+      localStorage.removeItem('userEmail');
+      set({ isAuthenticated: false, user: null });
     } finally {
       set({ isLoading: false });
     }
@@ -74,8 +79,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const storedAuth = localStorage.getItem('isAuthenticated');
       
       if (storedUser && storedAuth === 'true') {
-        const user = JSON.parse(storedUser);
-        set({ isAuthenticated: true, user });
+        try {
+          const user = JSON.parse(storedUser);
+          set({ isAuthenticated: true, user });
+        } catch (parseError) {
+          console.error('Error parsing stored user:', parseError);
+          // Clear invalid data
+          localStorage.removeItem('user');
+          localStorage.removeItem('isAuthenticated');
+          localStorage.removeItem('userEmail');
+          set({ isAuthenticated: false, user: null });
+        }
       } else {
         set({ isAuthenticated: false, user: null });
       }
