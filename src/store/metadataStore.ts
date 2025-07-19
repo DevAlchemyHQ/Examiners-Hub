@@ -70,10 +70,10 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
     set((state) => {
       const newFormData = { ...state.formData, ...data };
       
-      // Auto-save to localStorage and AWS
+      // Auto-save to localStorage immediately
       localStorage.setItem('clean-app-form-data', JSON.stringify(newFormData));
       
-      // Save to AWS in background
+      // Auto-save to AWS in background
       (async () => {
         try {
           const { AuthService } = await import('../lib/services');
@@ -82,10 +82,10 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           if (user?.email) {
             const { DatabaseService } = await import('../lib/services');
             await DatabaseService.updateProject(user.email, 'current', { formData: newFormData });
-            console.log('Form data auto-saved to AWS for user:', user.email);
+            console.log('✅ Form data auto-saved to AWS for user:', user.email);
           }
         } catch (error) {
-          console.error('Error auto-saving form data:', error);
+          console.error('❌ Error auto-saving form data:', error);
         }
       })();
       
@@ -171,6 +171,23 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       const updatedImages = state.images.map((img) =>
         img.id === id ? { ...img, ...data } : img
       );
+      
+      // Auto-save images to AWS in background
+      (async () => {
+        try {
+          const { AuthService } = await import('../lib/services');
+          const { user } = await AuthService.getCurrentUser();
+          
+          if (user?.email) {
+            const { DatabaseService } = await import('../lib/services');
+            await DatabaseService.updateProject(user.email, 'current', { images: updatedImages });
+            console.log('✅ Images auto-saved to AWS for user:', user.email);
+          }
+        } catch (error) {
+          console.error('❌ Error auto-saving images:', error);
+        }
+      })();
+      
       return { images: updatedImages };
     });
   },
@@ -291,10 +308,10 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
     set((state) => {
       const newBulkDefects = typeof defects === 'function' ? defects(state.bulkDefects) : defects;
       
-      // Auto-save to localStorage and AWS
+      // Auto-save to localStorage immediately
       localStorage.setItem('clean-app-bulk-data', JSON.stringify(newBulkDefects));
       
-      // Save to AWS in background
+      // Auto-save to AWS in background
       (async () => {
         try {
           const { AuthService } = await import('../lib/services');
@@ -303,10 +320,10 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           if (user?.email) {
             const { DatabaseService } = await import('../lib/services');
             await DatabaseService.updateBulkDefects(user.email, newBulkDefects);
-            console.log('Bulk defects auto-saved to AWS for user:', user.email);
+            console.log('✅ Bulk defects auto-saved to AWS for user:', user.email);
           }
         } catch (error) {
-          console.error('Error auto-saving bulk defects:', error);
+          console.error('❌ Error auto-saving bulk defects:', error);
         }
       })();
       
