@@ -80,6 +80,18 @@ const tables = [
       { AttributeName: 'feedback_id', AttributeType: 'S' }
     ],
     BillingMode: 'PAY_PER_REQUEST'
+  },
+  {
+    TableName: 'mvp-labeler-selected-images',
+    KeySchema: [
+      { AttributeName: 'user_id', KeyType: 'HASH' },
+      { AttributeName: 'selection_id', KeyType: 'RANGE' }
+    ],
+    AttributeDefinitions: [
+      { AttributeName: 'user_id', AttributeType: 'S' },
+      { AttributeName: 'selection_id', AttributeType: 'S' }
+    ],
+    BillingMode: 'PAY_PER_REQUEST'
   }
 ];
 

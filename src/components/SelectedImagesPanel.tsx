@@ -314,7 +314,13 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
         selectedImageIds: Array.from(selectedImages),
         filteredImages: filtered.length,
         imageIds: images.map(img => img.id),
-        imageFilenames: images.map(img => img.fileName || img.file?.name || 'unknown')
+        imageFilenames: images.map(img => img.fileName || img.file?.name || 'unknown'),
+        // Add detailed matching info
+        matchingDetails: filtered.map(img => ({
+          id: img.id,
+          fileName: img.fileName || img.file?.name || 'unknown',
+          matchedBy: selectedImages.has(img.id) ? 'ID' : 'filename'
+        }))
       });
       return filtered;
     }
