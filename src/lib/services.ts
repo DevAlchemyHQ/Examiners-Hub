@@ -1,6 +1,6 @@
 // AWS Services Configuration
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, GetCommand, PutCommand, UpdateCommand, DeleteCommand, QueryCommand, ScanCommand } from '@aws-sdk/lib-dynamodb';
+import { DynamoDBDocumentClient, GetCommand, PutCommand, UpdateCommand, DeleteCommand, QueryCommand, ScanCommand, BatchWriteCommand } from '@aws-sdk/lib-dynamodb';
 import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { CognitoIdentityProviderClient, InitiateAuthCommand, SignUpCommand, ConfirmSignUpCommand, AdminCreateUserCommand, AdminGetUserCommand, AdminInitiateAuthCommand } from '@aws-sdk/client-cognito-identity-provider';
@@ -446,27 +446,74 @@ export class DatabaseService {
     try {
       console.log('🗄️ AWS DynamoDB updateBulkDefects:', userId);
       
-      // Delete existing defects
-      const deleteCommand = new DeleteCommand({
+      // First, get existing defects to delete them
+      const queryCommand = new QueryCommand({
         TableName: 'mvp-labeler-bulk-defects',
-        Key: { user_id: userId }
+        KeyConditionExpression: 'user_id = :userId',
+        ExpressionAttributeValues: {
+          ':userId': userId
+        }
       });
       
-      await docClient.send(deleteCommand);
+      const existingDefects = await docClient.send(queryCommand);
       
-      // Add new defects
-      for (const defect of defects) {
-        const putCommand = new PutCommand({
-          TableName: 'mvp-labeler-bulk-defects',
-          Item: {
-            user_id: userId,
-            defect_id: defect.id || Date.now().toString(),
-            ...defect,
-            created_at: new Date().toISOString()
+      // Delete existing defects using batch operations
+      if (existingDefects.Items && existingDefects.Items.length > 0) {
+        const deleteRequests = existingDefects.Items.map(item => ({
+          DeleteRequest: {
+            Key: {
+              user_id: item.user_id,
+              defect_id: item.defect_id
+            }
           }
-        });
+        }));
         
-        await docClient.send(putCommand);
+        // DynamoDB batch operations are limited to 25 items
+        const batchSize = 25;
+        for (let i = 0; i < deleteRequests.length; i += batchSize) {
+          const batch = deleteRequests.slice(i, i + batchSize);
+          const batchDeleteCommand = new BatchWriteCommand({
+            RequestItems: {
+              'mvp-labeler-bulk-defects': batch
+            }
+          });
+          
+          await docClient.send(batchDeleteCommand);
+        }
+        
+        console.log(`🗑️ Deleted ${existingDefects.Items.length} existing defects`);
+      }
+      
+      // Add new defects using batch operations
+      if (defects.length > 0) {
+        const putRequests = defects.map(defect => ({
+          PutRequest: {
+            Item: {
+              user_id: userId,
+              defect_id: defect.id || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+              photoNumber: defect.photoNumber || '',
+              description: defect.description || '',
+              selectedFile: defect.selectedFile || null,
+              severity: defect.severity || 'medium',
+              created_at: new Date().toISOString()
+            }
+          }
+        }));
+        
+        // DynamoDB batch operations are limited to 25 items
+        const batchSize = 25;
+        for (let i = 0; i < putRequests.length; i += batchSize) {
+          const batch = putRequests.slice(i, i + batchSize);
+          const batchPutCommand = new BatchWriteCommand({
+            RequestItems: {
+              'mvp-labeler-bulk-defects': batch
+            }
+          });
+          
+          await docClient.send(batchPutCommand);
+        }
+        
+        console.log(`✅ Added ${defects.length} new defects`);
       }
       
       console.log('✅ AWS DynamoDB updateBulkDefects successful');
