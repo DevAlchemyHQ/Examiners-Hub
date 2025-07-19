@@ -214,7 +214,8 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
               id: img.id,
               photoNumber: img.photoNumber,
               description: img.description,
-              isSketch: img.isSketch
+              isSketch: img.isSketch,
+              fileName: img.fileName || img.file?.name || 'unknown'
             }));
             
             await DatabaseService.updateProject(user.email, 'current', { 
@@ -325,8 +326,17 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           const user = storedUser ? JSON.parse(storedUser) : null;
           
           if (user?.email) {
+            // Save selected images with filenames for cross-session matching
+            const selectedWithFilenames = Array.from(newSelected).map(id => {
+              const image = state.images.find(img => img.id === id);
+              return {
+                id,
+                fileName: image?.fileName || image?.file?.name || 'unknown'
+              };
+            });
+            
             await DatabaseService.updateProject(user.email, 'current', { 
-              selectedImages: Array.from(newSelected),
+              selectedImages: selectedWithFilenames,
               formData: get().formData
             });
             console.log('✅ Selected images auto-saved to AWS for user:', user.email);
@@ -654,6 +664,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             const imageById = updates.images.find(img => img.id === selectedId);
             if (imageById) {
               selectedImageIds.add(imageById.id);
+              console.log('✅ Matched selected image by ID:', selectedId);
             } else if (fileName && fileName !== 'unknown') {
               // If not found by ID, try to match by filename
               const imageByFileName = updates.images.find(img => 
