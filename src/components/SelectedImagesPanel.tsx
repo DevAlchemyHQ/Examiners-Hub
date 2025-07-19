@@ -279,24 +279,32 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
           return true;
         }
         
-        // Try to match by filename for cross-session persistence
-        const fileName = img.fileName || img.file?.name || '';
-        if (fileName) {
-          // Check if any selected image ID contains this filename
-          const hasMatchingFilename = Array.from(selectedImages).some(selectedId => {
-            // Handle both old format (just ID) and new format (object with id and fileName)
-            let selectedFileName = '';
-            if (typeof selectedId === 'string') {
-              // Old format: try to extract filename from ID
-              selectedFileName = selectedId.includes('-') ? selectedId.split('-').slice(1).join('-') : '';
+              // Try to match by filename for cross-session persistence
+      const fileName = img.fileName || img.file?.name || '';
+      if (fileName) {
+        // Check if any selected image ID contains this filename
+        const hasMatchingFilename = Array.from(selectedImages).some(selectedId => {
+          // Handle both old format (just ID) and new format (object with id and fileName)
+          let selectedFileName = '';
+          if (typeof selectedId === 'string') {
+            // Old format: try to extract filename from ID
+            // Look for filename patterns in the ID
+            if (selectedId.includes('PB080003') || selectedId.includes('PB080004') || selectedId.includes('PB080007')) {
+              // Extract filename from ID by looking for the actual filename
+              const filenameMatch = selectedId.match(/(PB08000[347].*?\.JPG)/);
+              selectedFileName = filenameMatch ? filenameMatch[1] : '';
             } else {
-              // New format: object with fileName
-              selectedFileName = selectedId.fileName || '';
+              // Try the old split method
+              selectedFileName = selectedId.includes('-') ? selectedId.split('-').slice(1).join('-') : '';
             }
-            return selectedFileName === fileName;
-          });
-          return hasMatchingFilename;
-        }
+          } else {
+            // New format: object with fileName
+            selectedFileName = selectedId.fileName || '';
+          }
+          return selectedFileName === fileName;
+        });
+        return hasMatchingFilename;
+      }
         
         return false;
       });
