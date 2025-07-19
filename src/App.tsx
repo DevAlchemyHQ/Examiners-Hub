@@ -4,17 +4,15 @@ import { Toaster } from 'react-hot-toast';
 import { useAuthStore } from './store/authStore';
 import { useMetadataStore } from './store/metadataStore';
 import { LoginScreen } from './components/LoginScreen';
-import { MainApp } from './pages/MainApp';
+import MainApp from './pages/MainApp';
 import { LandingPage } from './pages/LandingPage';
 import { FeedbackAdmin } from './pages/FeedbackAdmin';
-import { bcmiPage } from './pages/bcmi.page';
-import { calculatorPage } from './pages/calculator.page';
-import { gamesPage } from './pages/games.page';
-import { gridPage } from './pages/grid.page';
-import { homePage } from './pages/home.tsx';
-import { pdfPage } from './pages/pdf.page';
-import { projectsPage } from './pages/projects.pages';
-import { subscriptionPage } from './pages/subscription.page';
+import { CalculatorPage } from './pages/calculator.page';
+import { GamesPage } from './pages/games.page';
+import { GridReferenceFinderPage } from './pages/grid.page';
+import { PDFViewerPage } from './pages/pdf.page';
+import { ProjectsPage } from './pages/projects.pages';
+import { SubscriptionPage } from './pages/subscription.page';
 import './index.css';
 
 // Error Boundary Component
@@ -58,7 +56,7 @@ class ErrorBoundary extends React.Component<
 }
 
 function App() {
-  const { user, isAuthenticated, checkAuthStatus } = useAuthStore();
+  const { user, isAuthenticated, checkAuth } = useAuthStore();
   const { loadUserData, loadBulkData } = useMetadataStore();
 
   useEffect(() => {
@@ -67,7 +65,7 @@ function App() {
         console.log('Initializing app...');
         
         // Check authentication status
-        await checkAuthStatus();
+        await checkAuth();
         
         // If user is authenticated, load their data
         if (isAuthenticated && user) {
@@ -89,7 +87,7 @@ function App() {
     };
 
     initializeApp();
-  }, [isAuthenticated, user, checkAuthStatus, loadUserData, loadBulkData]);
+  }, [isAuthenticated, user, checkAuth, loadUserData, loadBulkData]);
 
   return (
     <Router>
@@ -100,14 +98,12 @@ function App() {
           <Route path="/login" element={<LoginScreen />} />
           <Route path="/app" element={<MainApp />} />
           <Route path="/feedback-admin" element={<FeedbackAdmin />} />
-          <Route path="/bcmi" element={<bcmiPage />} />
-          <Route path="/calculator" element={<calculatorPage />} />
-          <Route path="/games" element={<gamesPage />} />
-          <Route path="/grid" element={<gridPage />} />
-          <Route path="/home" element={<homePage />} />
-          <Route path="/pdf" element={<pdfPage />} />
-          <Route path="/projects" element={<projectsPage />} />
-          <Route path="/subscription" element={<subscriptionPage />} />
+          <Route path="/calculator" element={<CalculatorPage />} />
+          <Route path="/games" element={<GamesPage />} />
+          <Route path="/grid" element={<GridReferenceFinderPage />} />
+          <Route path="/pdf" element={<PDFViewerPage />} />
+          <Route path="/projects" element={<ProjectsPage />} />
+          <Route path="/subscription" element={<SubscriptionPage />} />
         </Routes>
       </div>
     </Router>
