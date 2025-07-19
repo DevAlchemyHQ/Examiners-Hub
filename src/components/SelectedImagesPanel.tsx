@@ -18,20 +18,81 @@ function setLocalDefectSets(sets: any[]) {
 }
 // Save a new defect set
 async function saveDefectSet(title: string, data: any) {
-  const sets = getLocalDefectSets();
-  const id = Math.random().toString(36).slice(2) + Date.now();
-  const created_at = new Date().toISOString();
-  sets.push({ id, title, data, created_at });
-  setLocalDefectSets(sets);
+  try {
+    // Save to localStorage for immediate access
+    const sets = getLocalDefectSets();
+    const id = Math.random().toString(36).slice(2) + Date.now();
+    const created_at = new Date().toISOString();
+    const defectSet = { id, title, data, created_at };
+    sets.push(defectSet);
+    setLocalDefectSets(sets);
+    
+    // Save to AWS DynamoDB for cross-device persistence
+    const { AuthService } = await import('../lib/services');
+    const { user } = await AuthService.getCurrentUser();
+    
+    if (user?.email) {
+      const { DatabaseService } = await import('../lib/services');
+      await DatabaseService.saveDefectSet(user.email, defectSet);
+      console.log('Defect set saved to AWS for user:', user.email);
+    }
+  } catch (error) {
+    console.error('Error saving defect set:', error);
+    throw error;
+  }
 }
+
 // Load all defect sets
 async function loadDefectSets() {
-  return getLocalDefectSets();
+  try {
+    // Try to load from AWS first, then fallback to localStorage
+    const { AuthService } = await import('../lib/services');
+    const { user } = await AuthService.getCurrentUser();
+    
+    if (user?.email) {
+      try {
+        const { DatabaseService } = await import('../lib/services');
+        const awsSets = await DatabaseService.getDefectSets(user.email);
+        if (awsSets && awsSets.length > 0) {
+          console.log('Defect sets loaded from AWS for user:', user.email);
+          return awsSets;
+        }
+      } catch (error) {
+        console.log('No defect sets found in AWS, trying localStorage');
+      }
+    }
+    
+    // Fallback to localStorage
+    const localSets = getLocalDefectSets();
+    console.log('Defect sets loaded from localStorage');
+    return localSets;
+  } catch (error) {
+    console.error('Error loading defect sets:', error);
+    return getLocalDefectSets();
+  }
 }
+
 // Delete a defect set by id
 async function deleteDefectSet(id: string) {
-  const sets = getLocalDefectSets();
-  setLocalDefectSets(sets.filter((s: any) => s.id !== id));
+  try {
+    // Delete from localStorage
+    const sets = getLocalDefectSets();
+    const updatedSets = sets.filter((s: any) => s.id !== id);
+    setLocalDefectSets(updatedSets);
+    
+    // Delete from AWS DynamoDB
+    const { AuthService } = await import('../lib/services');
+    const { user } = await AuthService.getCurrentUser();
+    
+    if (user?.email) {
+      const { DatabaseService } = await import('../lib/services');
+      await DatabaseService.clearUserProject(user.email, id);
+      console.log('Defect set deleted from AWS for user:', user.email);
+    }
+  } catch (error) {
+    console.error('Error deleting defect set:', error);
+    throw error;
+  }
 }
 import { toast } from 'react-hot-toast';
 import type { ImageMetadata } from '../types';

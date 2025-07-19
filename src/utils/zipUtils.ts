@@ -3,13 +3,13 @@ import { ImageMetadata } from '../types';
 import { generateImageFileName } from './fileNaming';
 
 // Helper function to convert image to proper format and size
-const processImageForDownload = async (imageFile: File): Promise<Blob> => {
+const processImageForDownload = async (imageFile: File | string): Promise<Blob> => {
   return new Promise((resolve, reject) => {
-    console.log('Processing image for download:', imageFile.name, 'Size:', imageFile.size, 'Type:', imageFile.type);
+    console.log('Processing image for download:', typeof imageFile === 'string' ? 'S3 URL' : imageFile.name);
     
-    // Validate file
-    if (!imageFile || imageFile.size === 0) {
-      reject(new Error(`Invalid file: ${imageFile?.name || 'unknown'}`));
+    // Validate input
+    if (!imageFile) {
+      reject(new Error('Invalid image data'));
       return;
     }
 
@@ -55,18 +55,25 @@ const processImageForDownload = async (imageFile: File): Promise<Blob> => {
     
     img.onerror = (error) => {
       console.error('Image load error:', error);
-      reject(new Error(`Failed to load image: ${imageFile.name}`));
+      reject(new Error(`Failed to load image: ${typeof imageFile === 'string' ? 'S3 URL' : imageFile.name}`));
     };
     
-    // Create object URL and set source
-    const objectUrl = URL.createObjectURL(imageFile);
-    console.log('Created object URL:', objectUrl);
-    img.src = objectUrl;
-    
-    // Clean up object URL after processing
-    img.onload = () => {
-      URL.revokeObjectURL(objectUrl);
-    };
+    // Set image source
+    if (typeof imageFile === 'string') {
+      // S3 URL - load directly
+      img.crossOrigin = 'anonymous';
+      img.src = imageFile;
+    } else {
+      // File object - create object URL
+      const objectUrl = URL.createObjectURL(imageFile);
+      console.log('Created object URL:', objectUrl);
+      img.src = objectUrl;
+      
+      // Clean up object URL after processing
+      img.onload = () => {
+        URL.revokeObjectURL(objectUrl);
+      };
+    }
   });
 };
 
@@ -107,28 +114,36 @@ export const createZipFile = async (
     // Add images with appropriate naming and processing
     for (let i = 0; i < images.length; i++) {
       const img = images[i];
-      console.log(`Processing image ${i + 1}/${images.length}:`, img.file?.name);
+      console.log(`Processing image ${i + 1}/${images.length}:`, img.fileName || img.file?.name);
       
-      if (!img.file) {
-        throw new Error(`Invalid image entry: missing file data`);
+      // Handle S3-loaded images (no file object) vs local files
+      let imageSource: File | string;
+      if (img.file) {
+        // Local file
+        imageSource = img.file;
+      } else if (img.preview) {
+        // S3 image - use preview URL
+        imageSource = img.preview;
+      } else {
+        throw new Error(`Invalid image entry: missing file data and preview URL`);
       }
 
       try {
         const fileName = generateImageFileName(img, date);
         if (!fileName) {
-          throw new Error(`Failed to generate filename for image: ${img.file.name}`);
+          throw new Error(`Failed to generate filename for image: ${img.fileName || img.file?.name || 'unknown'}`);
         }
         
         console.log('Generated filename:', fileName);
         
         // Process image for download (convert format, resize if needed)
-        const processedImageBlob = await processImageForDownload(img.file);
+        const processedImageBlob = await processImageForDownload(imageSource);
         
         zip.file(fileName, processedImageBlob);
         console.log('Added image to ZIP:', fileName);
       } catch (error) {
         console.error('Error processing image:', error);
-        throw new Error(`Failed to process image: ${img.file.name}`);
+        throw new Error(`Failed to process image: ${img.fileName || img.file?.name || 'unknown'}`);
       }
     }
     
