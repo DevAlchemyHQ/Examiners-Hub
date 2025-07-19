@@ -654,8 +654,8 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
               selectedId = selectedItem;
               fileName = '';
             } else {
-              // New format: object with id and fileName
-              selectedId = selectedItem.id;
+              // New format: object with id and fileName (from localStorage) or DynamoDB format
+              selectedId = selectedItem.id || selectedItem.imageId;
               fileName = selectedItem.fileName || '';
             }
             
