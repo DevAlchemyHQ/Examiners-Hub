@@ -60,9 +60,32 @@ const processImageForDownload = async (imageFile: File | string): Promise<Blob> 
     
     // Set image source
     if (typeof imageFile === 'string') {
-      // S3 URL - load directly
+      // S3 URL - load directly with CORS handling
       img.crossOrigin = 'anonymous';
-      img.src = imageFile;
+      
+      // For S3 URLs, we need to handle CORS properly
+      // Try to load with fetch first to get a blob
+      fetch(imageFile, { mode: 'cors' })
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+          }
+          return response.blob();
+        })
+        .then(blob => {
+          const objectUrl = URL.createObjectURL(blob);
+          img.src = objectUrl;
+          
+          // Clean up object URL after processing
+          img.onload = () => {
+            URL.revokeObjectURL(objectUrl);
+          };
+        })
+        .catch(error => {
+          console.error('Fetch error for S3 image:', error);
+          // Fallback to direct loading
+          img.src = imageFile;
+        });
     } else {
       // File object - create object URL
       const objectUrl = URL.createObjectURL(imageFile);

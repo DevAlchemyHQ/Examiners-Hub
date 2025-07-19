@@ -67,12 +67,30 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
   ...initialState,
 
   setFormData: (data) => {
-    set((state) => ({
-      formData: { ...state.formData, ...data },
-    }));
-    // For local testing, save to localStorage
-    const state = get();
-    localStorage.setItem('clean-app-form-data', JSON.stringify(state.formData));
+    set((state) => {
+      const newFormData = { ...state.formData, ...data };
+      
+      // Auto-save to localStorage and AWS
+      localStorage.setItem('clean-app-form-data', JSON.stringify(newFormData));
+      
+      // Save to AWS in background
+      (async () => {
+        try {
+          const { AuthService } = await import('../lib/services');
+          const { user } = await AuthService.getCurrentUser();
+          
+          if (user?.email) {
+            const { DatabaseService } = await import('../lib/services');
+            await DatabaseService.updateProject(user.email, 'current', { formData: newFormData });
+            console.log('Form data auto-saved to AWS for user:', user.email);
+          }
+        } catch (error) {
+          console.error('Error auto-saving form data:', error);
+        }
+      })();
+      
+      return { formData: newFormData };
+    });
   },
 
   addImages: async (files, isSketch = false) => {
@@ -270,9 +288,30 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
   },
 
   setBulkDefects: (defects) => {
-    set((state) => ({
-      bulkDefects: typeof defects === 'function' ? defects(state.bulkDefects) : defects,
-    }));
+    set((state) => {
+      const newBulkDefects = typeof defects === 'function' ? defects(state.bulkDefects) : defects;
+      
+      // Auto-save to localStorage and AWS
+      localStorage.setItem('clean-app-bulk-data', JSON.stringify(newBulkDefects));
+      
+      // Save to AWS in background
+      (async () => {
+        try {
+          const { AuthService } = await import('../lib/services');
+          const { user } = await AuthService.getCurrentUser();
+          
+          if (user?.email) {
+            const { DatabaseService } = await import('../lib/services');
+            await DatabaseService.updateBulkDefects(user.email, newBulkDefects);
+            console.log('Bulk defects auto-saved to AWS for user:', user.email);
+          }
+        } catch (error) {
+          console.error('Error auto-saving bulk defects:', error);
+        }
+      })();
+      
+      return { bulkDefects: newBulkDefects };
+    });
   },
 
   reset: () => {
@@ -331,11 +370,14 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             
             for (const file of files) {
               try {
+                // Extract original filename from S3 path (remove timestamp prefix)
+                const originalFileName = file.name.split('-').slice(1).join('-'); // Remove timestamp prefix
+                
                 // Create image metadata with real S3 URL
                 const imageMetadata: ImageMetadata = {
                   id: crypto.randomUUID(),
                   file: undefined, // No file object for S3-loaded images
-                  fileName: file.name,
+                  fileName: originalFileName, // Use original filename without timestamp
                   fileSize: file.size || 0,
                   fileType: 'image/jpeg', // Default type
                   photoNumber: '',
@@ -347,7 +389,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
                 };
                 
                 loadedImages.push(imageMetadata);
-                console.log('Loaded image:', file.name, 'from URL:', file.url);
+                console.log('Loaded image:', originalFileName, 'from URL:', file.url);
               } catch (error) {
                 console.error('Error processing image:', file.name, error);
               }
