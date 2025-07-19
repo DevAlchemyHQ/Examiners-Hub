@@ -269,13 +269,36 @@ export class StorageService {
         return { files: [], error: null };
       }
       
-      // Convert S3 objects to file objects with URLs
-      const files = result.Contents.map(obj => ({
-        name: obj.Key?.split('/').pop() || '',
-        url: `https://${BUCKET_NAME}.s3.${AWS_CONFIG.region}.amazonaws.com/${obj.Key}`,
-        size: obj.Size || 0,
-        lastModified: obj.LastModified
-      }));
+      // Convert S3 objects to file objects with signed URLs
+      const files = await Promise.all(
+        result.Contents.map(async (obj) => {
+          try {
+            // Generate signed URL for each file
+            const getObjectCommand = new GetObjectCommand({
+              Bucket: BUCKET_NAME,
+              Key: obj.Key!
+            });
+            
+            const signedUrl = await getSignedUrl(s3Client, getObjectCommand, { expiresIn: 3600 });
+            
+            return {
+              name: obj.Key?.split('/').pop() || '',
+              url: signedUrl,
+              size: obj.Size || 0,
+              lastModified: obj.LastModified
+            };
+          } catch (error) {
+            console.error('Error generating signed URL for:', obj.Key, error);
+            // Fallback to public URL
+            return {
+              name: obj.Key?.split('/').pop() || '',
+              url: `https://${BUCKET_NAME}.s3.${AWS_CONFIG.region}.amazonaws.com/${obj.Key}`,
+              size: obj.Size || 0,
+              lastModified: obj.LastModified
+            };
+          }
+        })
+      );
       
       return { files, error: null };
     } catch (error) {

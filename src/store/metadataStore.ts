@@ -540,25 +540,55 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       const metadataFileName = `${formData.elr?.trim().toUpperCase() || 'ELR'}_${formData.structureNo?.trim() || 'STRUCT'}_bulk_defects.txt`;
       const zipFileName = `${formData.elr?.trim().toUpperCase() || 'ELR'}_${formData.structureNo?.trim() || 'STRUCT'}_bulk_defects.zip`;
 
-      // Create ZIP file with metadata and processed images
-      const zipBlob = await createZipFile(
-        selectedImageMetadata,
-        metadataFileName,
-        metadataContent,
-        formData.date || new Date().toISOString().slice(0,10),
-        zipFileName
-      );
+      try {
+        // Try to create ZIP file with processed images
+        const zipBlob = await createZipFile(
+          selectedImageMetadata,
+          metadataFileName,
+          metadataContent,
+          formData.date || new Date().toISOString().slice(0,10),
+          zipFileName
+        );
 
-      const url = URL.createObjectURL(zipBlob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = zipFileName;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      
-      console.log('Bulk defects downloaded successfully');
+        const url = URL.createObjectURL(zipBlob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = zipFileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        console.log('Bulk defects downloaded successfully with images');
+      } catch (error) {
+        console.error('Error creating ZIP with images, trying metadata-only download:', error);
+        
+        // Fallback: Create ZIP with only metadata file
+        const JSZip = (await import('jszip')).default;
+        const zip = new JSZip();
+        
+        // Add metadata file
+        zip.file(metadataFileName, metadataContent);
+        
+        // Add image URLs as text file for reference
+        const imageUrlsContent = selectedImageMetadata.map(img => 
+          `${img.fileName || img.file?.name || 'unknown'}: ${img.preview}`
+        ).join('\n');
+        zip.file('image_urls.txt', imageUrlsContent);
+        
+        // Generate and download
+        const blob = await zip.generateAsync({ type: 'blob' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = zipFileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        console.log('Bulk defects downloaded successfully (metadata only)');
+      }
     } catch (error) {
       console.error('Error generating bulk zip:', error);
       throw error;
