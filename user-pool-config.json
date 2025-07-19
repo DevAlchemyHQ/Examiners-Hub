@@ -1,0 +1,18 @@
+{
+  "PoolName": "mvp-labeler-real-users",
+  "Policies": {
+    "PasswordPolicy": {
+      "MinimumLength": 8,
+      "RequireUppercase": false,
+      "RequireLowercase": false,
+      "RequireNumbers": false,
+      "RequireSymbols": false
+    }
+  },
+  "AutoVerifiedAttributes": ["email"],
+  "UsernameAttributes": ["email"],
+  "MfaConfiguration": "OFF",
+  "AdminCreateUserConfig": {
+    "AllowAdminCreateUserOnly": false
+  }
+} 

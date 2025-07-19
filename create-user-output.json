@@ -1,0 +1,27 @@
+{
+    "User": {
+        "Username": "timsdng@gmail.com",
+        "Attributes": [
+            {
+                "Name": "email",
+                "Value": "timsdng@gmail.com"
+            },
+            {
+                "Name": "email_verified",
+                "Value": "true"
+            },
+            {
+                "Name": "name",
+                "Value": "Tim"
+            },
+            {
+                "Name": "sub",
+                "Value": "56c22224-e081-7010-e1c3-da04b0bf8f8b"
+            }
+        ],
+        "UserCreateDate": "2025-07-19T11:28:01.823000+01:00",
+        "UserLastModifiedDate": "2025-07-19T11:28:01.823000+01:00",
+        "Enabled": true,
+        "UserStatus": "FORCE_CHANGE_PASSWORD"
+    }
+}

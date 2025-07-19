@@ -30,8 +30,8 @@ const cognitoClient = new CognitoIdentityProviderClient(AWS_CONFIG);
 
 // AWS Resource Names
 const BUCKET_NAME = 'mvp-labeler-storage';
-const USER_POOL_ID = import.meta.env.VITE_AWS_USER_POOL_ID || '';
-const CLIENT_ID = import.meta.env.VITE_AWS_USER_POOL_WEB_CLIENT_ID || '';
+const USER_POOL_ID = import.meta.env.VITE_AWS_USER_POOL_ID || 'eu-west-2_opMigZV21';
+const CLIENT_ID = import.meta.env.VITE_AWS_USER_POOL_WEB_CLIENT_ID || '71l7r90qjn5r3tp3theqfahsn2';
 
 // Debug environment variables
 console.log('🔍 AWS Environment Variables Debug:');
