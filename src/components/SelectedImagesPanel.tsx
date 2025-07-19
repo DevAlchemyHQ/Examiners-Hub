@@ -20,16 +20,16 @@ function setLocalDefectSets(sets: any[]) {
 async function saveDefectSet(title: string, data: any) {
   try {
     // Save to localStorage for immediate access
-  const sets = getLocalDefectSets();
-  const id = Math.random().toString(36).slice(2) + Date.now();
-  const created_at = new Date().toISOString();
+    const sets = getLocalDefectSets();
+    const id = Math.random().toString(36).slice(2) + Date.now();
+    const created_at = new Date().toISOString();
     const defectSet = { id, title, data, created_at };
     sets.push(defectSet);
-  setLocalDefectSets(sets);
+    setLocalDefectSets(sets);
     
     // Save to AWS DynamoDB for cross-device persistence
-    const { AuthService } = await import('../lib/services');
-    const { user } = await AuthService.getCurrentUser();
+    const storedUser = localStorage.getItem('user');
+    const user = storedUser ? JSON.parse(storedUser) : null;
     
     if (user?.email) {
       const { DatabaseService } = await import('../lib/services');
@@ -48,16 +48,16 @@ async function loadDefectSets() {
     console.log('Loading defect sets...');
     
     // Try to load from AWS first
-    const { AuthService } = await import('../lib/services');
-    const { user } = await AuthService.getCurrentUser();
+    const storedUser = localStorage.getItem('user');
+    const user = storedUser ? JSON.parse(storedUser) : null;
     
     if (user?.email) {
       try {
         const { DatabaseService } = await import('../lib/services');
-        const awsSets = await DatabaseService.getDefectSets(user.email);
-        if (awsSets && awsSets.length > 0) {
+        const { defectSets } = await DatabaseService.getDefectSets(user.email);
+        if (defectSets && defectSets.length > 0) {
           console.log('✅ Defect sets loaded from AWS for user:', user.email);
-          return awsSets;
+          return defectSets;
         } else {
           console.log('No defect sets found in AWS for user:', user.email);
         }
@@ -72,8 +72,8 @@ async function loadDefectSets() {
     return localSets;
   } catch (error) {
     console.error('❌ Error loading defect sets:', error);
-  return getLocalDefectSets();
-}
+    return getLocalDefectSets();
+  }
 }
 
 // Delete a defect set by id

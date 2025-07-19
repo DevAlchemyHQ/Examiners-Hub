@@ -24,34 +24,30 @@ interface MainLayoutProps {
 export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const location = useLocation();
   const [activeTab, setActiveTab] = useState<TabType>('images');
-  const { images, selectedImages, loadUserData } = useMetadataStore();
+  const { images, selectedImages, loadUserData, isLoading, isInitialized } = useMetadataStore();
   // const { file1, file2 } = usePDFStore();
   const { clearProject, isLoading: isClearingProject } = useProjectStore();
   const [showClearConfirm, setShowClearConfirm] = useState(false);
-  const [isLoadingData, setIsLoadingData] = useState(true);
-  const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [clearResult, setClearResult] = useState<'success' | 'error' | null>(null);
   const [clearError, setClearError] = useState<string | null>(null);
-  const [dummy, setDummy] = useState(0); // Used to force re-render
 
   // Load user data only on initial mount
   useEffect(() => {
-    const initialLoad = async () => {
-      try {
-        await loadUserData();
-      } catch (error) {
-        console.error('Error loading user data:', error);
-      } finally {
-        setIsLoadingData(false);
-        setIsInitialLoad(false);
-      }
-    };
-    initialLoad();
-  }, []); // Empty dependency array for initial load only
+    if (!isInitialized) {
+      const initialLoad = async () => {
+        try {
+          await loadUserData();
+        } catch (error) {
+          console.error('Error loading user data:', error);
+        }
+      };
+      initialLoad();
+    }
+  }, [isInitialized, loadUserData]);
 
   // Auto-save changes
   useEffect(() => {
-    if (images.length > 0 && !isInitialLoad) {
+    if (images.length > 0 && isInitialized) {
       const saveTimeout = setTimeout(() => {
         useMetadataStore.getState().saveUserData().catch(error => {
           console.error('Error saving user data:', error);
@@ -60,11 +56,10 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 
       return () => clearTimeout(saveTimeout);
     }
-  }, [images, selectedImages, isInitialLoad]);
+  }, [images, selectedImages, isInitialized]);
 
   const handleClearProject = async () => {
     try {
-      setIsLoadingData(true);
       setClearResult(null);
       setClearError(null);
       await clearProject();
@@ -88,16 +83,12 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         pdf1: usePDFStore.getState().file1,
         pdf2: usePDFStore.getState().file2
       });
-      // Force a re-render
-      setDummy(d => d + 1);
       setShowClearConfirm(false);
       setClearResult('success');
     } catch (error) {
       console.error('Error clearing project:', error);
       setClearResult('error');
       setClearError(error instanceof Error ? error.message : 'Failed to clear project');
-    } finally {
-      setIsLoadingData(false);
     }
   };
 
@@ -114,7 +105,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     );
   }
 
-  const isLoading = isClearingProject || isLoadingData;
+  const isLoading = isClearingProject || isLoading;
 
   return (
     <div className="min-h-screen w-full bg-gray-900 flex flex-col">
@@ -171,11 +162,11 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             {activeTab === 'images' ? (
               <div className="h-full grid grid-cols-1 lg:grid-cols-12 gap-4">
                 <div className="lg:col-span-2 overflow-hidden">
-                  {/* Pass isLoadingData to Sidebar for skeletons */}
-                  <Sidebar isLoading={isLoadingData} />
+                  {/* Pass isLoading to Sidebar for skeletons */}
+                  <Sidebar isLoading={isLoading} />
                 </div>
-                {/* Pass isLoadingData to MainContent for skeletons */}
-                <MainContent isLoading={isLoadingData} />
+                {/* Pass isLoading to MainContent for skeletons */}
+                <MainContent isLoading={isLoading} />
               </div>
             ) : activeTab === 'pdf' ? (
               <div className="h-full">
@@ -217,10 +208,10 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               </button>
               <button
                 onClick={handleClearProject}
-                disabled={isClearingProject || isLoadingData}
+                disabled={isClearingProject || isLoading}
                 className="px-4 py-2 text-sm bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50 flex items-center gap-2"
               >
-                {isClearingProject || isLoadingData ? (
+                {isClearingProject || isLoading ? (
                   <>
                     <Loader2 size={14} className="animate-spin" />
                     Clearing...
