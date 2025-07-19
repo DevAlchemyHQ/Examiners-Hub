@@ -57,10 +57,10 @@ export class AuthService {
           user_metadata: { full_name: fullName }
         },
         error: null
-      };
-    } catch (error) {
+        };
+      } catch (error) {
       console.error('AWS Cognito signup error:', error);
-      return { user: null, error };
+        return { user: null, error };
     }
   }
 
@@ -107,7 +107,7 @@ export class AuthService {
         },
         error: null
       };
-    } catch (error) {
+      } catch (error) {
       console.error('AWS Cognito signin error:', error);
       return { user: null, session: null, error };
     }
@@ -118,8 +118,8 @@ export class AuthService {
       console.log('🔐 AWS Cognito signout');
       // Cognito doesn't require explicit signout on client side
       return { error: null };
-    } catch (error) {
-      return { error };
+      } catch (error) {
+        return { error };
     }
   }
 
@@ -153,8 +153,8 @@ export class AuthService {
       console.log('🔐 AWS Cognito resetPassword for:', email);
       // Implement password reset
       return { error: null };
-    } catch (error) {
-      return { error };
+      } catch (error) {
+        return { error };
     }
   }
 
@@ -172,7 +172,7 @@ export class AuthService {
       
       // Sign in after confirmation
       return await this.signInWithEmail(email, '');
-    } catch (error) {
+      } catch (error) {
       return { user: null, session: null, error };
     }
   }
@@ -182,8 +182,8 @@ export class AuthService {
       console.log('🔐 AWS Cognito verifyResetOTP for:', email);
       // Implement password reset confirmation
       return { error: null };
-    } catch (error) {
-      return { error };
+      } catch (error) {
+        return { error };
     }
   }
 }
@@ -226,8 +226,8 @@ export class StorageService {
         publicUrl: `https://${BUCKET_NAME}.s3.${AWS_CONFIG.region}.amazonaws.com/${filePath}`,
         error: null
       };
-    } catch (error) {
-      console.error('AWS S3 upload error:', error);
+      } catch (error) {
+        console.error('AWS S3 upload error:', error);
       return { url: null, publicUrl: null, error };
     }
   }
@@ -237,10 +237,10 @@ export class StorageService {
       console.log('🗄️ AWS S3 getFileUrl:', filePath);
       const url = `https://${BUCKET_NAME}.s3.${AWS_CONFIG.region}.amazonaws.com/${filePath}`;
       return { url, error: null };
-    } catch (error) {
-      console.error('AWS S3 getFileUrl error:', error);
-      return { url: null, error };
-    }
+      } catch (error) {
+        console.error('AWS S3 getFileUrl error:', error);
+        return { url: null, error };
+      }
   }
 
   static async deleteFile(filePath: string) {
@@ -627,20 +627,20 @@ export class DatabaseService {
 // Profile Service
 export class ProfileService {
   static async updateProfile(userId: string, updates: any) {
-    try {
+      try {
       console.log('🗄️ AWS ProfileService updateProfile:', userId);
       return await DatabaseService.updateProfile(userId, updates);
-    } catch (error) {
-      return { error };
+      } catch (error) {
+        return { error };
     }
   }
 
   static async getProfile(userId: string, email: string) {
-    try {
+      try {
       console.log('🗄️ AWS ProfileService getProfile:', userId);
       return await DatabaseService.getProfile(userId);
-    } catch (error) {
-      return { profile: null, error };
+      } catch (error) {
+        return { profile: null, error };
     }
   }
 

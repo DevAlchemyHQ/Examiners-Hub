@@ -104,25 +104,62 @@ export const createZipFile = async (
         if (image.file) {
           // Local file - process directly
           imageBlob = await processImageForDownload(image.file);
-        } else if (image.publicUrl) {
-          // S3 URL - try to fetch with signed URL
-          console.log('Processing S3 image:', image.publicUrl);
+        } else if (image.preview) {
+          // S3 image - create blob from canvas to avoid CORS
+          console.log('Processing S3 image via canvas:', image.preview);
           
-          // Try to fetch the image using the signed URL
-          const response = await fetch(image.publicUrl, {
-            method: 'GET',
-            mode: 'cors',
-            credentials: 'omit'
+          // Create a canvas and draw the image to avoid CORS
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          const img = new Image();
+          
+          // Set up image loading
+          const imageBlobPromise = new Promise<Blob>((resolve, reject) => {
+            img.onload = () => {
+              try {
+                // Set canvas size (maintain aspect ratio, max 1920x1080)
+                const maxWidth = 1920;
+                const maxHeight = 1080;
+                let { width, height } = img;
+                
+                if (width > maxWidth || height > maxHeight) {
+                  const ratio = Math.min(maxWidth / width, maxHeight / height);
+                  width *= ratio;
+                  height *= ratio;
+                }
+                
+                canvas.width = width;
+                canvas.height = height;
+                
+                // Draw image with proper quality
+                ctx?.drawImage(img, 0, 0, width, height);
+                
+                // Convert to blob with high quality JPEG
+                canvas.toBlob((blob) => {
+                  if (blob) {
+                    console.log('Successfully processed S3 image via canvas, size:', blob.size);
+                    resolve(blob);
+                  } else {
+                    reject(new Error('Failed to convert canvas to blob'));
+                  }
+                }, 'image/jpeg', 0.9);
+              } catch (error) {
+                reject(error);
+              }
+            };
+            
+            img.onerror = () => {
+              reject(new Error('Failed to load image from preview URL'));
+            };
+            
+            // Load image from preview URL
+            img.crossOrigin = 'anonymous';
+            img.src = image.preview;
           });
           
-          if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-          }
-          
-          imageBlob = await response.blob();
-          console.log('Successfully fetched S3 image, size:', imageBlob.size);
+          imageBlob = await imageBlobPromise;
         } else {
-          throw new Error('No file or URL available for image');
+          throw new Error('No file or preview URL available for image');
         }
         
         // Generate filename for the image
@@ -142,7 +179,7 @@ export const createZipFile = async (
         
         // Add a placeholder file with error information
         const errorFileName = `Photo ${image.photoNumber?.padStart(2, '0') || '00'}^${image.description || 'error'}^ ${date}.txt`;
-        const errorContent = `Error processing image: ${image.fileName || image.file?.name || 'unknown'}\nOriginal URL: ${image.publicUrl || 'N/A'}\nError: ${error}`;
+        const errorContent = `Error processing image: ${image.fileName || image.file?.name || 'unknown'}\nOriginal URL: ${image.preview || 'N/A'}\nError: ${error}`;
         zip.file(errorFileName, errorContent);
       }
     }

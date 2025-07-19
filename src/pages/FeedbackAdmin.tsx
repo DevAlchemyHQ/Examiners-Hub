@@ -34,7 +34,7 @@ export const FeedbackAdmin: React.FC = () => {
         
         // Get feedback from AWS DynamoDB
         const result = await DatabaseService.getFeedback('admin');
-        
+
         if (result.error) {
           throw result.error;
         }

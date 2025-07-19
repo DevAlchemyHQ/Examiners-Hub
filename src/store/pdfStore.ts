@@ -65,7 +65,7 @@ export const usePDFStore = create<PDFState>()(
           if (pdfState && pdfState.public_url) {
             console.log('Found PDF state:', pdfState);
             
-            try {
+                try {
               // Verify the PDF URL is accessible
               const response = await fetch(pdfState.public_url);
               if (!response.ok) {
@@ -76,7 +76,7 @@ export const usePDFStore = create<PDFState>()(
               
               const blob = await response.blob();
               const file = new File([blob], pdfState.file_name || 'document.pdf', { type: 'application/pdf' });
-              
+
               if (pdfState.viewer === 1) {
                 set({ file1: file, isInitialized: true });
                 console.log('PDF loaded for viewer 1');
@@ -87,7 +87,7 @@ export const usePDFStore = create<PDFState>()(
             } catch (fetchError) {
               console.error('Error fetching PDF:', fetchError);
               set({ isInitialized: true });
-            }
+                }
           } else {
             console.log('No PDF state found, initializing empty');
             set({ isInitialized: true });

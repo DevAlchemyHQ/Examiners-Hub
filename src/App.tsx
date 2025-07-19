@@ -1,6 +1,20 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import MainApp from './pages/MainApp';
+import { Toaster } from 'react-hot-toast';
+import { useAuthStore } from './store/authStore';
+import { useMetadataStore } from './store/metadataStore';
+import { LoginScreen } from './components/LoginScreen';
+import { MainApp } from './pages/MainApp';
+import { LandingPage } from './pages/LandingPage';
+import { FeedbackAdmin } from './pages/FeedbackAdmin';
+import { bcmiPage } from './pages/bcmi.page';
+import { calculatorPage } from './pages/calculator.page';
+import { gamesPage } from './pages/games.page';
+import { gridPage } from './pages/grid.page';
+import { homePage } from './pages/home.tsx';
+import { pdfPage } from './pages/pdf.page';
+import { projectsPage } from './pages/projects.pages';
+import { subscriptionPage } from './pages/subscription.page';
 import './index.css';
 
 // Error Boundary Component
@@ -44,14 +58,59 @@ class ErrorBoundary extends React.Component<
 }
 
 function App() {
+  const { user, isAuthenticated, checkAuthStatus } = useAuthStore();
+  const { loadUserData, loadBulkData } = useMetadataStore();
+
+  useEffect(() => {
+    const initializeApp = async () => {
+      try {
+        console.log('Initializing app...');
+        
+        // Check authentication status
+        await checkAuthStatus();
+        
+        // If user is authenticated, load their data
+        if (isAuthenticated && user) {
+          console.log('User authenticated, loading data for:', user.email);
+          
+          // Load user data (form data, images, etc.)
+          await loadUserData();
+          
+          // Load bulk defects data
+          await loadBulkData();
+          
+          console.log('✅ App initialization complete');
+        } else {
+          console.log('No authenticated user found');
+        }
+      } catch (error) {
+        console.error('❌ Error initializing app:', error);
+      }
+    };
+
+    initializeApp();
+  }, [isAuthenticated, user, checkAuthStatus, loadUserData, loadBulkData]);
+
   return (
-    <ErrorBoundary>
-      <Router>
+    <Router>
+      <div className="App">
+        <Toaster position="top-right" />
         <Routes>
-          <Route path="*" element={<MainApp />} />
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/login" element={<LoginScreen />} />
+          <Route path="/app" element={<MainApp />} />
+          <Route path="/feedback-admin" element={<FeedbackAdmin />} />
+          <Route path="/bcmi" element={<bcmiPage />} />
+          <Route path="/calculator" element={<calculatorPage />} />
+          <Route path="/games" element={<gamesPage />} />
+          <Route path="/grid" element={<gridPage />} />
+          <Route path="/home" element={<homePage />} />
+          <Route path="/pdf" element={<pdfPage />} />
+          <Route path="/projects" element={<projectsPage />} />
+          <Route path="/subscription" element={<subscriptionPage />} />
         </Routes>
-      </Router>
-    </ErrorBoundary>
+      </div>
+    </Router>
   );
 }
 

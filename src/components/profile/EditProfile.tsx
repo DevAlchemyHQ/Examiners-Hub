@@ -35,7 +35,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
         try {
             // Upload to S3 using StorageService
             const uploadResult = await StorageService.uploadFile(avatarFile, filePath);
-            
+
             if (uploadResult.error) {
                 console.error('Error uploading avatar:', uploadResult.error);
                 setUploading(false);
@@ -67,7 +67,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
           email: newEmail,
           name: newName
         });
-        
+
         if (updateResult.error) {
           throw new Error(updateResult.error);
         }
