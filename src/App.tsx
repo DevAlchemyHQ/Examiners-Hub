@@ -94,7 +94,7 @@ function App() {
       <div className="App">
         <Toaster position="top-right" />
         <Routes>
-          <Route path="/" element={<LandingPage />} />
+          <Route path="/" element={isAuthenticated ? <MainApp /> : <LandingPage />} />
           <Route path="/login" element={<LoginScreen />} />
           <Route path="/app" element={<MainApp />} />
           <Route path="/feedback-admin" element={<FeedbackAdmin />} />

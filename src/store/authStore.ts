@@ -74,6 +74,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   
   checkAuth: async () => {
     try {
+      console.log('Checking authentication status...');
+      
       // Check localStorage for stored user session
       const storedUser = localStorage.getItem('user');
       const storedAuth = localStorage.getItem('isAuthenticated');
@@ -81,7 +83,23 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (storedUser && storedAuth === 'true') {
         try {
           const user = JSON.parse(storedUser);
-          set({ isAuthenticated: true, user });
+          console.log('Found stored user session:', user.email);
+          
+          // Validate the session is still valid by checking with AWS
+          const { AuthService } = await import('../lib/services');
+          const { user: currentUser } = await AuthService.getCurrentUser();
+          
+          if (currentUser && currentUser.email === user.email) {
+            console.log('✅ Session validated with AWS, user authenticated');
+            set({ isAuthenticated: true, user });
+          } else {
+            console.log('❌ Session invalid, clearing stored data');
+            // Clear invalid data
+            localStorage.removeItem('user');
+            localStorage.removeItem('isAuthenticated');
+            localStorage.removeItem('userEmail');
+            set({ isAuthenticated: false, user: null });
+          }
         } catch (parseError) {
           console.error('Error parsing stored user:', parseError);
           // Clear invalid data
@@ -91,6 +109,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           set({ isAuthenticated: false, user: null });
         }
       } else {
+        console.log('No stored user session found');
         set({ isAuthenticated: false, user: null });
       }
     } catch (error) {

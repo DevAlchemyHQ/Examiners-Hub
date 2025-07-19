@@ -520,9 +520,9 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       if (user?.email) {
         try {
           const { DatabaseService } = await import('../lib/services');
-          const bulkDefects = await DatabaseService.getBulkDefects(user.email);
-          if (bulkDefects && bulkDefects.length > 0) {
-            set({ bulkDefects });
+          const { defects } = await DatabaseService.getBulkDefects(user.email);
+          if (defects && defects.length > 0) {
+            set({ bulkDefects: defects });
             console.log('✅ Bulk defects loaded from AWS for user:', user.email);
             return;
           } else {
