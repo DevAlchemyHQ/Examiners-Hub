@@ -30,8 +30,8 @@ const cognitoClient = new CognitoIdentityProviderClient(AWS_CONFIG);
 
 // AWS Resource Names
 const BUCKET_NAME = 'mvp-labeler-storage';
-const USER_POOL_ID = import.meta.env.VITE_COGNITO_USER_POOL_ID || '';
-const CLIENT_ID = import.meta.env.VITE_COGNITO_CLIENT_ID || '';
+const USER_POOL_ID = import.meta.env.VITE_AWS_USER_POOL_ID || '';
+const CLIENT_ID = import.meta.env.VITE_AWS_USER_POOL_WEB_CLIENT_ID || '';
 
 // Authentication Service
 export class AuthService {
@@ -75,25 +75,6 @@ export class AuthService {
   static async signInWithEmail(email: string, password: string) {
     try {
       console.log('🔐 AWS Cognito signin for:', email);
-      
-      // TEMPORARY: Allow login with any credentials for existing users
-      if (email === 'timsdng@gmail.com' || email.includes('@')) {
-        console.log('✅ Temporary mock signin successful for:', email);
-        return {
-          user: {
-            id: email,
-            email: email,
-            user_metadata: { 
-              full_name: 'Tim' 
-            }
-          },
-          session: {
-            access_token: 'temp-token',
-            refresh_token: 'temp-refresh'
-          },
-          error: null
-        };
-      }
       
       const authCommand = new InitiateAuthCommand({
         ClientId: CLIENT_ID,
@@ -148,12 +129,21 @@ export class AuthService {
   static async getCurrentUser() {
     try {
       console.log('🔐 AWS Cognito getCurrentUser');
-      // For now, return the stored user from localStorage
+      
+      // Check if we have a stored session
       const storedUser = localStorage.getItem('user');
-      if (storedUser) {
+      const storedSession = localStorage.getItem('session');
+      
+      if (storedUser && storedSession) {
         const user = JSON.parse(storedUser);
-        return { user, error: null };
+        const session = JSON.parse(storedSession);
+        
+        // Verify the session is still valid
+        if (session.access_token) {
+          return { user, error: null };
+        }
       }
+      
       return { user: null, error: null };
     } catch (error) {
       console.error('AWS Cognito getCurrentUser error:', error);
