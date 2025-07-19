@@ -37,6 +37,10 @@ export const LoginScreen: React.FC = () => {
           if (signinResult.user && !signinResult.error) {
             setAuth(true);
             setUser(signinResult.user);
+            // Store session data for persistence
+            if (signinResult.session) {
+              localStorage.setItem('session', JSON.stringify(signinResult.session));
+            }
             localStorage.setItem('userEmail', email);
             navigate('/');
           } else {
@@ -52,6 +56,10 @@ export const LoginScreen: React.FC = () => {
           if (signupResult.user && !signupResult.error) {
             setAuth(true);
             setUser(signupResult.user);
+            // Store session data for persistence
+            if (signupResult.session) {
+              localStorage.setItem('session', JSON.stringify(signupResult.session));
+            }
             localStorage.setItem('userEmail', email);
             navigate('/');
           } else {

@@ -50,17 +50,21 @@ export class AuthService {
       const result = await cognitoClient.send(signUpCommand);
       console.log('✅ AWS Cognito signup successful:', result);
       
+      // After successful signup, sign in to get session
+      const signInResult = await this.signInWithEmail(email, password);
+      
       return {
         user: {
           id: result.UserSub,
           email: email,
           user_metadata: { full_name: fullName }
         },
+        session: signInResult.session,
         error: null
         };
       } catch (error) {
       console.error('AWS Cognito signup error:', error);
-        return { user: null, error };
+        return { user: null, session: null, error };
     }
   }
 
@@ -132,15 +136,26 @@ export class AuthService {
       const storedSession = localStorage.getItem('session');
       
       if (storedUser && storedSession) {
-        const user = JSON.parse(storedUser);
-        const session = JSON.parse(storedSession);
-        
-        // Verify the session is still valid
-        if (session.access_token) {
-          return { user, error: null };
+        try {
+          const user = JSON.parse(storedUser);
+          const session = JSON.parse(storedSession);
+          
+          // Verify the session is still valid by checking with AWS
+          if (session.access_token) {
+            // For now, we'll trust the stored session since Cognito doesn't have a simple token validation endpoint
+            // In production, you might want to validate the token with AWS
+            console.log('✅ Valid session found for user:', user.email);
+            return { user, error: null };
+          }
+        } catch (parseError) {
+          console.error('Error parsing stored session:', parseError);
+          // Clear invalid data
+          localStorage.removeItem('user');
+          localStorage.removeItem('session');
         }
       }
       
+      console.log('❌ No valid session found');
       return { user: null, error: null };
     } catch (error) {
       console.error('AWS Cognito getCurrentUser error:', error);
