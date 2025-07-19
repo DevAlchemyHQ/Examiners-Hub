@@ -328,15 +328,19 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             
             for (const file of files) {
               try {
-                // Create a mock File object for the image
-                const mockFile = new File([''], file.name, { type: 'image/jpeg' });
+                // Fetch the actual image data from S3
+                const response = await fetch(file.url);
+                const blob = await response.blob();
+                
+                // Create a proper File object with the actual image data
+                const imageFile = new File([blob], file.name, { type: blob.type || 'image/jpeg' });
                 
                 const imageMetadata: ImageMetadata = {
                   id: crypto.randomUUID(),
-                  file: mockFile,
+                  file: imageFile,
                   photoNumber: '',
                   description: '',
-                  preview: file.url, // Use S3 URL as preview
+                  preview: URL.createObjectURL(imageFile), // Create proper preview URL
                   isSketch: false,
                   publicUrl: file.url,
                   userId: userId

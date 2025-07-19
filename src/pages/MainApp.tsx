@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
+import { useMetadataStore } from '../store/metadataStore';
+import { usePDFStore } from '../store/pdfStore';
 import { LoginScreen } from '../components/LoginScreen';
 import { Header } from '../components/Header';
 import { MainLayout } from './home';
@@ -14,6 +16,8 @@ import { PDFViewerPage } from './pdf.page';
 
 const MainApp = () => {
   const { isAuthenticated, checkAuth } = useAuthStore();
+  const { loadUserData } = useMetadataStore();
+  const { initializePDFs } = usePDFStore();
   const [isInitialized, setIsInitialized] = useState(false);
 
   useEffect(() => {
@@ -29,6 +33,24 @@ const MainApp = () => {
 
     initializeAuth();
   }, [checkAuth]);
+
+  // Load user data when authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      const loadData = async () => {
+        try {
+          console.log('Loading user data for authenticated user...');
+          await loadUserData();
+          await initializePDFs();
+          console.log('User data loaded successfully');
+        } catch (error) {
+          console.error('Error loading user data:', error);
+        }
+      };
+      
+      loadData();
+    }
+  }, [isAuthenticated, loadUserData, initializePDFs]);
 
   // Show loading while initializing
   if (!isInitialized || isAuthenticated === null) {
