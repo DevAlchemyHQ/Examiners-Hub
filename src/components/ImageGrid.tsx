@@ -1,33 +1,15 @@
 import React from 'react';
 import { useMetadataStore } from '../store/metadataStore';
 import { useGridWidth } from '../hooks/useGridWidth';
-import { Loader2 } from 'lucide-react';
 import { ImageGridItem } from './ImageGridItem';
 
-export const ImageGrid: React.FC<{ isLoading?: boolean }> = ({ isLoading = false }) => {
+export const ImageGrid: React.FC = () => {
   const { images } = useMetadataStore();
   const { gridWidth, setGridWidth } = useGridWidth();
 
   // Separate sketches and defects
   const sketchImages = images.filter(img => img.isSketch);
   const defectImages = images.filter(img => !img.isSketch);
-
-  if (isLoading) {
-    return (
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm h-full flex flex-col">
-        <div className="p-4 border-b border-slate-200 dark:border-gray-700">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-slate-800 dark:text-white">
-              Images
-            </h2>
-          </div>
-        </div>
-        <div className="flex-1 flex items-center justify-center">
-          <Loader2 className="animate-spin text-indigo-500" size={32} />
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm h-full flex flex-col">

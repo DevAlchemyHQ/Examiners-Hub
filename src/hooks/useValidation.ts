@@ -1,25 +1,48 @@
 import { useMetadataStore } from '../store/metadataStore';
-import { validateImages } from '../utils/fileValidation';
+import { validateDescription } from '../utils/fileValidation';
 
 export const useValidation = () => {
   const { images, selectedImages, formData } = useMetadataStore();
 
   const isValid = () => {
     // Basic form validation
-    if (!formData.elr || !formData.structureNo || !formData.date) return false;
+    if (!formData.elr?.trim() || !formData.structureNo?.trim() || !formData.date?.trim()) return false;
+    
     // Must have selected images
     if (selectedImages.size === 0) return false;
-    return true;
+    
+    // Check if all selected images have valid descriptions
+    const selectedImagesList = images.filter(img => selectedImages.has(img.id));
+    const hasInvalidDescriptions = selectedImagesList.some(img => {
+      if (img.isSketch) return false; // Sketches don't need descriptions
+      return !validateDescription(img.description || '').isValid;
+    });
+    
+    return !hasInvalidDescriptions;
   };
 
   const getValidationErrors = () => {
     const errors: string[] = [];
-    if (!formData.elr) errors.push('Enter ELR');
-    if (!formData.structureNo) errors.push('Enter Structure No');
-    if (!formData.date) errors.push('Select Date');
+    
+    if (!formData.elr?.trim()) errors.push('Enter ELR');
+    if (!formData.structureNo?.trim()) errors.push('Enter Structure No');
+    if (!formData.date?.trim()) errors.push('Select Date');
+    
     if (selectedImages.size === 0) {
       errors.push('Select at least one image');
+    } else {
+      // Check for invalid descriptions
+      const selectedImagesList = images.filter(img => selectedImages.has(img.id));
+      const imagesWithoutDescriptions = selectedImagesList.filter(img => {
+        if (img.isSketch) return false;
+        return !validateDescription(img.description || '').isValid;
+      });
+      
+      if (imagesWithoutDescriptions.length > 0) {
+        errors.push(`Add descriptions for ${imagesWithoutDescriptions.length} image${imagesWithoutDescriptions.length !== 1 ? 's' : ''}`);
+      }
     }
+    
     return errors;
   };
 

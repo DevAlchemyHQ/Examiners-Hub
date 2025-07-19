@@ -282,8 +282,25 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         }
       }
       
-      // Auto-save selections to localStorage
+      // Auto-save selections to localStorage immediately
       localStorage.setItem('clean-app-selected-images', JSON.stringify(Array.from(newSelected)));
+      
+      // Auto-save to AWS in background
+      (async () => {
+        try {
+          const storedUser = localStorage.getItem('user');
+          const user = storedUser ? JSON.parse(storedUser) : null;
+          
+          if (user?.email) {
+            await DatabaseService.updateProject(user.email, 'current', { 
+              selectedImages: Array.from(newSelected) 
+            });
+            console.log('✅ Selected images auto-saved to AWS for user:', user.email);
+          }
+        } catch (error) {
+          console.error('❌ Error auto-saving selected images:', error);
+        }
+      })();
       
       return { selectedImages: newSelected };
     });

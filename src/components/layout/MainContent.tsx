@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { ImageGrid } from '../ImageGrid';
 import { SelectedImagesPanel } from '../SelectedImagesPanel';
 
-export const MainContent: React.FC = () => {
+export const MainContent: React.FC<{ isLoading?: boolean }> = ({ isLoading }) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
   return (
