@@ -51,6 +51,7 @@ interface MetadataState extends MetadataStateOnly {
   savePdf: (userId: string, pdfData: any) => Promise<void>;
   loadSavedPdfs: (userId: string) => Promise<any[]>;
   processImageForDownload: (imageFile: File) => Promise<Blob>;
+  convertImagesToBase64: () => Promise<void>;
 }
 
 const initialState: MetadataStateOnly = {
@@ -594,9 +595,16 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
 
       console.log(`Processing ${defectsWithImages.length} defects with images`);
 
+      // Convert all images to base64 first to ensure reliable downloads
+      await get().convertImagesToBase64();
+      
+      // Get the updated state after conversion
+      const updatedState = get();
+      const updatedImages = updatedState.images;
+
       // Get the actual image metadata for selected files
       const selectedImageMetadata = defectsWithImages.map(defect => {
-        const image = images.find(img => (img.fileName || img.file?.name || '') === defect.selectedFile);
+        const image = updatedImages.find(img => (img.fileName || img.file?.name || '') === defect.selectedFile);
         if (!image) {
           throw new Error(`Image not found for defect ${defect.photoNumber || 'unknown'}`);
         }
@@ -611,7 +619,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
 
       // Create metadata content for bulk defects
       const metadataContent = defectsWithImages.map(defect => {
-        const image = images.find(img => (img.fileName || img.file?.name || '') === defect.selectedFile);
+        const image = updatedImages.find(img => (img.fileName || img.file?.name || '') === defect.selectedFile);
         if (!image) {
           throw new Error(`Image not found for defect ${defect.photoNumber || 'unknown'}`);
         }
@@ -732,6 +740,62 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       img.onerror = () => reject(new Error('Failed to load image'));
       img.src = URL.createObjectURL(imageFile);
     });
+  },
+
+  // Helper function to convert all existing images to base64
+  convertImagesToBase64: async () => {
+    try {
+      console.log('Converting all existing images to base64...');
+      const state = get();
+      const { images } = state;
+      
+      const updatedImages: ImageMetadata[] = [];
+      
+      for (const image of images) {
+        try {
+          let base64Data = image.base64;
+          
+          // If image doesn't have base64 data, try to convert it
+          if (!base64Data) {
+            console.log('Converting image to base64:', image.fileName || image.file?.name || 'unknown');
+            
+            if (image.file) {
+              // Local file - convert directly
+              base64Data = await convertImageToJpgBase64(image.file);
+            } else if (image.preview || image.publicUrl) {
+              // S3 image - try to fetch and convert
+              try {
+                const response = await fetch(image.preview || image.publicUrl);
+                if (response.ok) {
+                  const blob = await response.blob();
+                  base64Data = await convertBlobToBase64(blob);
+                  console.log('Successfully converted S3 image to base64');
+                }
+              } catch (error) {
+                console.error('Failed to convert S3 image to base64:', error);
+              }
+            }
+          }
+          
+          // Update image with base64 data
+          updatedImages.push({
+            ...image,
+            base64: base64Data
+          });
+          
+        } catch (error) {
+          console.error('Error converting image to base64:', error);
+          // Keep the original image even if conversion fails
+          updatedImages.push(image);
+        }
+      }
+      
+      set({ images: updatedImages });
+      console.log('✅ All images converted to base64');
+      
+    } catch (error) {
+      console.error('Error converting images to base64:', error);
+    }
   },
 
   clearBulkData: () => {
