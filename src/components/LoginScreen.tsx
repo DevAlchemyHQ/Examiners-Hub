@@ -37,6 +37,7 @@ export const LoginScreen: React.FC = () => {
           if (signinResult.user && !signinResult.error) {
             setAuth(true);
             setUser(signinResult.user);
+            localStorage.setItem('userEmail', email);
             navigate('/');
           } else {
             setError('Invalid email or password');
@@ -51,6 +52,7 @@ export const LoginScreen: React.FC = () => {
           if (signupResult.user && !signupResult.error) {
             setAuth(true);
             setUser(signupResult.user);
+            localStorage.setItem('userEmail', email);
             navigate('/');
           } else {
             setError('Signup failed. Please try again.');

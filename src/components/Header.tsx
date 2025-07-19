@@ -166,7 +166,7 @@ export const Header: React.FC = () => {
       setShowProfileMenu(false);
       await AuthService.signOut();
       await logout();
-      navigate("/");
+      navigate("/login");
     } catch (error) {
       console.error('Logout error:', error);
     }

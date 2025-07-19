@@ -91,7 +91,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         // Get user from localStorage to avoid circular import
         const storedUser = localStorage.getItem('user');
         const user = storedUser ? JSON.parse(storedUser) : null;
-        const userId = user?.email || 'anonymous';
+        const userId = user?.email || localStorage.getItem('userEmail') || 'anonymous';
         const filePath = `users/${userId}/images/${timestamp}-${file.name}`;
         
         try {

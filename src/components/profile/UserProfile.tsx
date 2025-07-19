@@ -98,7 +98,7 @@ export const UserProfile: React.FC = () => {
     try {
       await AuthService.signOut();
       await logout();
-      navigate("/");
+      navigate("/login");
     } catch (error) {
       console.error('Logout error:', error);
     }

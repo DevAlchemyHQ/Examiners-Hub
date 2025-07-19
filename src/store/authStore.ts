@@ -52,6 +52,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       await AuthService.signOut();
       localStorage.removeItem('isAuthenticated');
       localStorage.removeItem('user');
+      localStorage.removeItem('userEmail');
       set({ isAuthenticated: false, user: null });
     } catch (error) {
       console.error('Logout error:', error);
