@@ -7,6 +7,7 @@ frontend:
     build:
       commands:
         - npm run build
+        - cp _redirects dist/
   artifacts:
     baseDirectory: dist
     files:
