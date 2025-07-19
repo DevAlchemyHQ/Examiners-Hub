@@ -33,6 +33,14 @@ const BUCKET_NAME = 'mvp-labeler-storage';
 const USER_POOL_ID = import.meta.env.VITE_AWS_USER_POOL_ID || '';
 const CLIENT_ID = import.meta.env.VITE_AWS_USER_POOL_WEB_CLIENT_ID || '';
 
+// Debug environment variables
+console.log('🔍 AWS Environment Variables Debug:');
+console.log('VITE_AWS_REGION:', import.meta.env.VITE_AWS_REGION);
+console.log('VITE_AWS_ACCESS_KEY_ID:', import.meta.env.VITE_AWS_ACCESS_KEY_ID ? 'SET' : 'MISSING');
+console.log('VITE_AWS_SECRET_ACCESS_KEY:', import.meta.env.VITE_AWS_SECRET_ACCESS_KEY ? 'SET' : 'MISSING');
+console.log('VITE_AWS_USER_POOL_ID:', USER_POOL_ID || 'MISSING');
+console.log('VITE_AWS_USER_POOL_WEB_CLIENT_ID:', CLIENT_ID || 'MISSING');
+
 // Authentication Service
 export class AuthService {
   static async signUpWithEmail(email: string, password: string, fullName?: string) {
@@ -75,6 +83,18 @@ export class AuthService {
   static async signInWithEmail(email: string, password: string) {
     try {
       console.log('🔐 AWS Cognito signin for:', email);
+      
+      // Check if required environment variables are set
+      if (!CLIENT_ID || !USER_POOL_ID) {
+        console.error('❌ Missing AWS environment variables:');
+        console.error('CLIENT_ID:', CLIENT_ID || 'MISSING');
+        console.error('USER_POOL_ID:', USER_POOL_ID || 'MISSING');
+        return { 
+          user: null, 
+          session: null, 
+          error: 'AWS configuration missing. Please set environment variables in Vercel.' 
+        };
+      }
       
       const authCommand = new InitiateAuthCommand({
         ClientId: CLIENT_ID,
