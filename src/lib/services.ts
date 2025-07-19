@@ -5,14 +5,6 @@ import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } fro
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { CognitoIdentityProviderClient, InitiateAuthCommand, SignUpCommand, ConfirmSignUpCommand, AdminCreateUserCommand, AdminGetUserCommand, AdminInitiateAuthCommand } from '@aws-sdk/client-cognito-identity-provider';
 
-// Feature flags - ALL AWS ENABLED
-const FEATURE_FLAGS = {
-  AUTH_USE_AWS: true,
-  STORAGE_USE_AWS: true,
-  PROFILE_USE_AWS: true,
-  DATABASE_USE_AWS: true,
-};
-
 // AWS Configuration
 const AWS_CONFIG = {
   region: 'eu-west-2',
@@ -76,18 +68,6 @@ export class AuthService {
     try {
       console.log('🔐 AWS Cognito signin for:', email);
       
-      // Check if required environment variables are set
-      if (!CLIENT_ID || !USER_POOL_ID) {
-        console.error('❌ Missing AWS environment variables:');
-        console.error('CLIENT_ID:', CLIENT_ID || 'MISSING');
-        console.error('USER_POOL_ID:', USER_POOL_ID || 'MISSING');
-        return { 
-          user: null, 
-          session: null, 
-          error: 'AWS configuration missing. Please set environment variables in Vercel.' 
-        };
-      }
-      
       const authCommand = new InitiateAuthCommand({
         ClientId: CLIENT_ID,
         AuthFlow: 'USER_PASSWORD_AUTH',
@@ -108,12 +88,17 @@ export class AuthService {
       
       const userResult = await cognitoClient.send(userCommand);
       
+      // Extract user attributes properly
+      const userAttributes = userResult.User?.Attributes || [];
+      const nameAttribute = userAttributes.find((attr: any) => attr.Name === 'name');
+      const fullName = nameAttribute ? nameAttribute.Value : '';
+      
       return {
         user: {
           id: userResult.User?.Username || email,
           email: email,
           user_metadata: { 
-            full_name: userResult.User?.Attributes?.find((attr: any) => attr.Name === 'name')?.Value || ''
+            full_name: fullName
           }
         },
         session: {
@@ -142,7 +127,7 @@ export class AuthService {
     try {
       console.log('🔐 AWS Cognito getCurrentUser');
       
-      // Check if we have a stored session
+      // Check localStorage for stored user session
       const storedUser = localStorage.getItem('user');
       const storedSession = localStorage.getItem('session');
       
@@ -575,7 +560,7 @@ export class ProfileService {
   static async updateProfile(userId: string, updates: any) {
     try {
       console.log('🗄️ AWS ProfileService updateProfile:', userId);
-      return { error: null };
+      return await DatabaseService.updateProfile(userId, updates);
     } catch (error) {
       return { error };
     }
@@ -584,36 +569,9 @@ export class ProfileService {
   static async getProfile(userId: string, email: string) {
     try {
       console.log('🗄️ AWS ProfileService getProfile:', userId);
-      const mockProfile = {
-        user_id: userId,
-        full_name: 'Test User',
-        email: email,
-        created_at: new Date().toISOString()
-      };
-      return { profile: mockProfile, error: null };
+      return await DatabaseService.getProfile(userId);
     } catch (error) {
       return { profile: null, error };
     }
-  }
-}
-
-// Service Manager
-export class ServiceManager {
-  static enableAWSFeature(feature: keyof typeof FEATURE_FLAGS) {
-    FEATURE_FLAGS[feature] = true;
-    console.log(`✅ Enabled AWS feature: ${feature}`);
-  }
-
-  static disableAWSFeature(feature: keyof typeof FEATURE_FLAGS) {
-    FEATURE_FLAGS[feature] = false;
-    console.log(`❌ Disabled AWS feature: ${feature}`);
-  }
-
-  static getFeatureFlags() {
-    return FEATURE_FLAGS;
-  }
-
-  static isUsingAWS(feature: keyof typeof FEATURE_FLAGS) {
-    return FEATURE_FLAGS[feature];
   }
 } 
