@@ -45,7 +45,9 @@ async function saveDefectSet(title: string, data: any) {
 // Load all defect sets
 async function loadDefectSets() {
   try {
-    // Try to load from AWS first, then fallback to localStorage
+    console.log('Loading defect sets...');
+    
+    // Try to load from AWS first
     const { AuthService } = await import('../lib/services');
     const { user } = await AuthService.getCurrentUser();
     
@@ -54,20 +56,22 @@ async function loadDefectSets() {
         const { DatabaseService } = await import('../lib/services');
         const awsSets = await DatabaseService.getDefectSets(user.email);
         if (awsSets && awsSets.length > 0) {
-          console.log('Defect sets loaded from AWS for user:', user.email);
+          console.log('✅ Defect sets loaded from AWS for user:', user.email);
           return awsSets;
+        } else {
+          console.log('No defect sets found in AWS for user:', user.email);
         }
       } catch (error) {
-        console.log('No defect sets found in AWS, trying localStorage');
+        console.error('❌ Error loading from AWS:', error);
       }
     }
     
-    // Fallback to localStorage
+    // Fallback to localStorage only if no user or AWS failed
     const localSets = getLocalDefectSets();
-    console.log('Defect sets loaded from localStorage');
+    console.log('📱 Defect sets loaded from localStorage (fallback)');
     return localSets;
   } catch (error) {
-    console.error('Error loading defect sets:', error);
+    console.error('❌ Error loading defect sets:', error);
     return getLocalDefectSets();
   }
 }

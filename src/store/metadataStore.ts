@@ -482,7 +482,9 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
 
   loadBulkData: async () => {
     try {
-      // Try to load from AWS first, then fallback to localStorage
+      console.log('Loading bulk data...');
+      
+      // First try AWS
       const { AuthService } = await import('../lib/services');
       const { user } = await AuthService.getCurrentUser();
       
@@ -492,28 +494,33 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           const bulkDefects = await DatabaseService.getBulkDefects(user.email);
           if (bulkDefects && bulkDefects.length > 0) {
             set({ bulkDefects });
-            console.log('Bulk defects loaded from AWS for user:', user.email);
+            console.log('✅ Bulk defects loaded from AWS for user:', user.email);
             return;
+          } else {
+            console.log('No bulk defects found in AWS for user:', user.email);
           }
         } catch (error) {
-          console.log('No bulk defects found in AWS, trying localStorage');
+          console.error('❌ Error loading from AWS:', error);
         }
       }
       
-      // Fallback to localStorage
+      // Fallback to localStorage only if no user or AWS failed
       const savedBulkData = localStorage.getItem('clean-app-bulk-data');
       if (savedBulkData) {
         const bulkDefects = JSON.parse(savedBulkData);
         set({ bulkDefects });
-        console.log('Bulk defects loaded from localStorage');
+        console.log('📱 Bulk defects loaded from localStorage (fallback)');
+      } else {
+        console.log('No bulk defects found in localStorage');
       }
     } catch (error) {
-      console.error('Error loading bulk data:', error);
+      console.error('❌ Error loading bulk data:', error);
     }
   },
 
   generateBulkZip: async () => {
     try {
+      console.log('Starting bulk ZIP generation...');
       const state = get();
       const { bulkDefects, images, formData } = state;
       
@@ -527,6 +534,8 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       if (defectsWithImages.length === 0) {
         throw new Error('No defects with images selected');
       }
+
+      console.log(`Processing ${defectsWithImages.length} defects with images`);
 
       // Get the actual image metadata for selected files
       const selectedImageMetadata = defectsWithImages.map(defect => {
@@ -557,6 +566,13 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       const metadataFileName = `${formData.elr?.trim().toUpperCase() || 'ELR'}_${formData.structureNo?.trim() || 'STRUCT'}_bulk_defects.txt`;
       const zipFileName = `${formData.elr?.trim().toUpperCase() || 'ELR'}_${formData.structureNo?.trim() || 'STRUCT'}_bulk_defects.zip`;
 
+      console.log('Creating ZIP file with:', {
+        imageCount: selectedImageMetadata.length,
+        metadataFileName,
+        date: formData.date || new Date().toISOString().slice(0,10),
+        zipFileName
+      });
+
       try {
         // Try to create ZIP file with processed images
         const zipBlob = await createZipFile(
@@ -567,18 +583,22 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           zipFileName
         );
 
+        console.log('ZIP created successfully, size:', zipBlob.size);
+
+        // Trigger download
         const url = URL.createObjectURL(zipBlob);
         const a = document.createElement('a');
         a.href = url;
         a.download = zipFileName;
+        a.style.display = 'none';
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
         
-        console.log('Bulk defects downloaded successfully with images');
+        console.log('✅ Bulk defects downloaded successfully with images');
       } catch (error) {
-        console.error('Error creating ZIP with images, trying metadata-only download:', error);
+        console.error('❌ Error creating ZIP with images, trying metadata-only download:', error);
         
         // Fallback: Create ZIP with only metadata file
         const JSZip = (await import('jszip')).default;
@@ -599,15 +619,16 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         const a = document.createElement('a');
         a.href = url;
         a.download = zipFileName;
+        a.style.display = 'none';
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
         
-        console.log('Bulk defects downloaded successfully (metadata only)');
+        console.log('✅ Bulk defects downloaded successfully (metadata only)');
       }
     } catch (error) {
-      console.error('Error generating bulk zip:', error);
+      console.error('❌ Error generating bulk zip:', error);
       throw error;
     }
   },
