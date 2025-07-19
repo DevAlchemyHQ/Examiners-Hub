@@ -284,6 +284,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       
       // Auto-save selections to localStorage immediately
       localStorage.setItem('clean-app-selected-images', JSON.stringify(Array.from(newSelected)));
+      console.log('📱 Selected images saved to localStorage:', Array.from(newSelected));
       
       // Auto-save to AWS in background
       (async () => {
@@ -550,6 +551,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       
       if (selectionsResult.status === 'fulfilled' && selectionsResult.value.length > 0) {
         updates.selectedImages = new Set(selectionsResult.value);
+        console.log('📱 Selected images restored from localStorage:', selectionsResult.value);
       }
       
       // Single state update to prevent flickering
