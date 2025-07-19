@@ -52,12 +52,12 @@ export const ImageListItem: React.FC = () => {
               <div className="flex items-center gap-4 p-2 hover:bg-slate-50 transition-colors">
                 <img
                   src={img.preview}
-                  alt={img.file.name}
+                  alt={img.fileName || img.file?.name || 'Image'}
                   className="w-12 h-12 object-cover rounded"
                 />
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-medium text-slate-900 truncate">
-                    {img.file.name}
+                    {img.fileName || img.file?.name || 'Unknown file'}
                   </div>
                   <div className="text-xs text-slate-500">
                     {img.photoNumber ? `Photo ${img.photoNumber}` : 'Unnumbered'}

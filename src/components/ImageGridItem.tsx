@@ -33,7 +33,7 @@ export const ImageGridItem: React.FC<ImageGridItemProps> = ({ images, gridWidth 
     if (viewMode === 'bulk') {
       // In bulk mode, show bulk defect numbers
       return bulkDefects
-        .filter(defect => defect.selectedFile === img.file.name)
+        .filter(defect => defect.selectedFile === (img.fileName || img.file?.name || ''))
         .map(defect => defect.photoNumber)
         .sort((a, b) => {
           const aNum = parseInt(a);
@@ -73,7 +73,7 @@ export const ImageGridItem: React.FC<ImageGridItemProps> = ({ images, gridWidth 
       e.dataTransfer.setData('application/json', JSON.stringify({
         type: 'image',
         imageId: img.id,
-        fileName: img.file.name,
+        fileName: img.fileName || img.file?.name || '',
         imageData: img
       }));
       e.dataTransfer.effectAllowed = 'copy';
@@ -144,7 +144,7 @@ export const ImageGridItem: React.FC<ImageGridItemProps> = ({ images, gridWidth 
                       } ${draggedImage?.id === img.id ? 'opacity-50 scale-95' : ''}`}>
                         <img
                           src={img.preview}
-                          alt={img.file.name}
+                          alt={img.fileName || img.file?.name || 'Image'}
                           className="w-full h-full object-cover select-none"
                           loading="lazy"
                           draggable="false"
@@ -166,7 +166,7 @@ export const ImageGridItem: React.FC<ImageGridItemProps> = ({ images, gridWidth 
                         )}
 
                         <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white p-1.5 text-xs truncate">
-                          {img.file.name}
+                          {img.fileName || img.file?.name || 'Unknown file'}
                         </div>
                         
                         {/* Drag indicator for bulk mode */}
@@ -197,8 +197,8 @@ export const ImageGridItem: React.FC<ImageGridItemProps> = ({ images, gridWidth 
         {enlargedImageIndex !== null && (
           <ImageZoom
             src={images[enlargedImageIndex].preview}
-            alt={images[enlargedImageIndex].file.name}
-            title={images[enlargedImageIndex].file.name}
+            alt={images[enlargedImageIndex].fileName || images[enlargedImageIndex].file?.name || 'Image'}
+            title={images[enlargedImageIndex].fileName || images[enlargedImageIndex].file?.name || 'Image'}
             onClose={handleCloseEnlarged}
             onPrevious={handlePreviousImage}
             onNext={handleNextImage}
