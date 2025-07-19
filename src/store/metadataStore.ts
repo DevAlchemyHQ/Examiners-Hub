@@ -572,9 +572,18 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           }
         })(),
           
-          // Load saved selections from DynamoDB first, then localStorage as fallback
+          // Load saved selections from localStorage first, then AWS (matching bulk data pattern)
           (async () => {
             try {
+              // Try localStorage first (like bulk data)
+              const savedSelections = localStorage.getItem('clean-app-selected-images');
+              if (savedSelections) {
+                const selections = JSON.parse(savedSelections);
+                console.log('📱 Selected images loaded from localStorage:', selections);
+                return selections;
+              }
+              
+              // Try AWS if no localStorage (like bulk data)
               if (userId !== 'anonymous') {
                 const { selectedImages } = await DatabaseService.getSelectedImages(userId);
                 if (selectedImages && selectedImages.length > 0) {
@@ -583,15 +592,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
                 }
               }
               
-              // Fallback to localStorage
-              const savedSelections = localStorage.getItem('clean-app-selected-images');
-              if (savedSelections) {
-                const selections = JSON.parse(savedSelections);
-                console.log('📱 Selected images restored from localStorage (fallback):', selections);
-                return selections;
-              }
-              
-              console.log('No selected images found in AWS or localStorage');
+              console.log('No selected images found in localStorage or AWS');
               return [];
             } catch (error) {
               console.error('❌ Error loading selections:', error);
