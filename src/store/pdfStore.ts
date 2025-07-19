@@ -45,56 +45,56 @@ export const usePDFStore = create<PDFState>()(
 
         try {
           const userEmail = localStorage.getItem('userEmail');
-          if (!userEmail) return;
+          if (!userEmail) {
+            console.log('No user email found, skipping PDF initialization');
+            set({ isInitialized: true });
+            return;
+          }
+
+          console.log('Initializing PDFs for user:', userEmail);
 
           // Use DatabaseService to get PDF state
           const { pdfState, error } = await DatabaseService.getPdfState(userEmail, 'all');
           
           if (error) {
             console.error('Error getting PDF state:', error);
+            set({ isInitialized: true });
             return;
           }
 
-          if (pdfState) {
-            const loadPDFs = async () => {
-              // Handle PDF state data from AWS
-              if (pdfState.viewer === 1 && pdfState.public_url) {
-                try {
-                  const response = await fetch(pdfState.public_url);
-                  const blob = await response.blob();
-                  const file = new File([blob], pdfState.file_name, { type: 'application/pdf' });
-                  set({ file1: file });
-                } catch (error) {
-                  console.error(`Error loading PDF ${pdfState.file_name}:`, error);
-                }
-              } else if (pdfState.viewer === 2 && pdfState.public_url) {
-                try {
-                  const response = await fetch(pdfState.public_url);
-                  const blob = await response.blob();
-                  const file = new File([blob], pdfState.file_name, { type: 'application/pdf' });
-                  set({ file2: file });
-                } catch (error) {
-                  console.error(`Error loading PDF ${pdfState.file_name}:`, error);
-                }
+          if (pdfState && pdfState.public_url) {
+            console.log('Found PDF state:', pdfState);
+            
+            try {
+              // Verify the PDF URL is accessible
+              const response = await fetch(pdfState.public_url);
+              if (!response.ok) {
+                console.error('PDF URL not accessible:', response.status);
+                set({ isInitialized: true });
+                return;
               }
-
-              // Store the URL for future use
-              if (pdfState.file_path && pdfState.public_url) {
-                set(state => ({
-                  pdfUrls: {
-                    ...state.pdfUrls,
-                    [pdfState.file_path]: pdfState.public_url
-                  }
-                }));
+              
+              const blob = await response.blob();
+              const file = new File([blob], pdfState.file_name || 'document.pdf', { type: 'application/pdf' });
+              
+              if (pdfState.viewer === 1) {
+                set({ file1: file, isInitialized: true });
+                console.log('PDF loaded for viewer 1');
+              } else if (pdfState.viewer === 2) {
+                set({ file2: file, isInitialized: true });
+                console.log('PDF loaded for viewer 2');
               }
-            };
-
-            // Load PDFs immediately
-            await loadPDFs();
+            } catch (fetchError) {
+              console.error('Error fetching PDF:', fetchError);
+              set({ isInitialized: true });
+            }
+          } else {
+            console.log('No PDF state found, initializing empty');
             set({ isInitialized: true });
           }
         } catch (error) {
           console.error('Error initializing PDFs:', error);
+          set({ isInitialized: true });
         }
       },
 

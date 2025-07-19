@@ -262,12 +262,23 @@ export const PDFViewerPage: React.FC = () => {
   const [scale2, setScale2] = useState(() => 
     parseFloat(localStorage.getItem('pdfScale2') || '1.2')
   );
+  const [error, setError] = useState<string | null>(null);
   const isDark = useThemeStore((state) => state.isDark);
 
   // Initialize PDFs on mount
   useEffect(() => {
-    initializePDFs();
-  }, []);
+    const initPDFs = async () => {
+      try {
+        setError(null);
+        await initializePDFs();
+      } catch (err) {
+        console.error('Error initializing PDFs:', err);
+        setError('Failed to initialize PDF viewer');
+      }
+    };
+    
+    initPDFs();
+  }, [initializePDFs]);
 
   // Save scales
   useEffect(() => {
@@ -287,6 +298,26 @@ export const PDFViewerPage: React.FC = () => {
       return Number(newScale.toFixed(1));
     });
   };
+
+  if (error) {
+    return (
+      <div className={`min-h-screen overflow-auto ${isDark ? 'bg-gray-900' : 'bg-gray-100'} relative`}>
+        <Header />
+        <div className="flex items-center justify-center h-full mt-4 px-4">
+          <div className="text-center">
+            <h2 className="text-xl font-semibold mb-2">PDF Viewer Error</h2>
+            <p className="text-gray-600 mb-4">{error}</p>
+            <button
+              onClick={() => window.location.reload()}
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`min-h-screen overflow-auto ${isDark ? 'bg-gray-900' : 'bg-gray-100'} relative`}>
