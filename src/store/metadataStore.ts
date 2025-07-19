@@ -194,20 +194,36 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         img.id === id ? { ...img, ...data } : img
       );
       
-      // Auto-save images to AWS in background (using static import)
+      // Save to localStorage for immediate persistence
+      try {
+        localStorage.setItem('clean-app-images', JSON.stringify(updatedImages));
+        console.log('📱 Image metadata saved to localStorage for image:', id);
+      } catch (error) {
+        console.error('❌ Error saving image metadata to localStorage:', error);
+      }
+      
+      // Auto-save to AWS in background (only metadata, not full images)
       (async () => {
         try {
-          // Get user from localStorage to avoid circular import
           const storedUser = localStorage.getItem('user');
           const user = storedUser ? JSON.parse(storedUser) : null;
           
           if (user?.email) {
-            // Use static import
-            await DatabaseService.updateProject(user.email, 'current', { images: updatedImages });
-            console.log('✅ Images auto-saved to AWS for user:', user.email);
+            // Save only the metadata changes, not the full images array
+            const imageMetadata = updatedImages.map(img => ({
+              id: img.id,
+              photoNumber: img.photoNumber,
+              description: img.description,
+              isSketch: img.isSketch
+            }));
+            
+            await DatabaseService.updateProject(user.email, 'current', { 
+              imageMetadata: imageMetadata
+            });
+            console.log('✅ Image metadata auto-saved to AWS for user:', user.email);
           }
         } catch (error) {
-          console.error('❌ Error auto-saving images:', error);
+          console.error('❌ Error auto-saving image metadata:', error);
         }
       })();
       
@@ -576,6 +592,35 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       
       if (imagesResult.status === 'fulfilled' && imagesResult.value.length > 0) {
         updates.images = imagesResult.value;
+        
+        // Load image metadata from DynamoDB and apply it to images
+        try {
+          if (userId !== 'anonymous') {
+            const { project } = await DatabaseService.getProject(userId, 'current');
+            if (project?.imageMetadata && project.imageMetadata.length > 0) {
+              console.log('✅ Image metadata loaded from AWS for user:', userId);
+              
+              // Apply metadata to images
+              const updatedImages = imagesResult.value.map(img => {
+                const metadata = project.imageMetadata.find(m => m.id === img.id);
+                if (metadata) {
+                  return {
+                    ...img,
+                    photoNumber: metadata.photoNumber || img.photoNumber,
+                    description: metadata.description || img.description,
+                    isSketch: metadata.isSketch !== undefined ? metadata.isSketch : img.isSketch
+                  };
+                }
+                return img;
+              });
+              
+              updates.images = updatedImages;
+              console.log('✅ Applied image metadata from AWS');
+            }
+          }
+        } catch (error) {
+          console.error('❌ Error loading image metadata from AWS:', error);
+        }
       }
       
       if (selectionsResult.status === 'fulfilled' && selectionsResult.value.length > 0) {

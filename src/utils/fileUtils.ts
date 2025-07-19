@@ -101,9 +101,9 @@ export const generateMetadataContent = (
       content.push('Sketches:');
       sketches.forEach(img => {
         if (!img.photoNumber?.trim()) {
-          throw new Error(`Missing photo number for sketch: ${img.file.name}`);
+          throw new Error(`Missing photo number for sketch: ${img.fileName || img.file?.name || 'unknown'}`);
         }
-        content.push(`Sketch ${img.photoNumber.trim().padStart(2, '0')}.JPG    ${img.file.name}`);
+        content.push(`Sketch ${img.photoNumber.trim().padStart(2, '0')}.JPG    ${img.fileName || img.file?.name || 'unknown'}`);
       });
       content.push(''); // Add blank line between sections
     }
@@ -113,12 +113,12 @@ export const generateMetadataContent = (
       content.push('Defects:');
       defects.forEach(img => {
         if (!img.photoNumber?.trim()) {
-          throw new Error(`Missing photo number for defect: ${img.file.name}`);
+          throw new Error(`Missing photo number for defect: ${img.fileName || img.file?.name || 'unknown'}`);
         }
         if (!img.description?.trim()) {
-          throw new Error(`Missing description for defect: ${img.file.name}`);
+          throw new Error(`Missing description for defect: ${img.fileName || img.file?.name || 'unknown'}`);
         }
-        content.push(`Photo ${img.photoNumber.trim().padStart(2, '0')} ^ ${img.description.trim()} ^ ${formattedDate}    ${img.file.name}`);
+        content.push(`Photo ${img.photoNumber.trim().padStart(2, '0')} ^ ${img.description.trim()} ^ ${formattedDate}    ${img.fileName || img.file?.name || 'unknown'}`);
       });
     }
 
