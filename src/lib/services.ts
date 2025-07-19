@@ -202,26 +202,33 @@ export class StorageService {
         reader.readAsArrayBuffer(file);
       });
       
-      // Create the S3 upload command
-      const uploadCommand = new PutObjectCommand({
+      const putCommand = new PutObjectCommand({
         Bucket: BUCKET_NAME,
         Key: filePath,
-        Body: new Uint8Array(arrayBuffer),
-        ContentType: file.type
-        // Removed ACL since bucket doesn't support it
+        Body: Buffer.from(arrayBuffer),
+        ContentType: file.type,
+        ACL: 'public-read' // Make it publicly readable
       });
       
-      // Upload to S3
-      await s3Client.send(uploadCommand);
+      await s3Client.send(putCommand);
+      console.log('✅ AWS S3 upload successful:', filePath);
       
-      // Generate the public URL
-      const url = `https://${BUCKET_NAME}.s3.${AWS_CONFIG.region}.amazonaws.com/${filePath}`;
-      console.log('✅ Real S3 upload successful:', url);
+      // Generate signed URL for the uploaded file
+      const getObjectCommand = new GetObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: filePath
+      });
       
-      return { url, error: null };
+      const signedUrl = await getSignedUrl(s3Client, getObjectCommand, { expiresIn: 3600 });
+      
+      return {
+        url: signedUrl,
+        publicUrl: `https://${BUCKET_NAME}.s3.${AWS_CONFIG.region}.amazonaws.com/${filePath}`,
+        error: null
+      };
     } catch (error) {
       console.error('AWS S3 upload error:', error);
-      return { url: null, error };
+      return { url: null, publicUrl: null, error };
     }
   }
 

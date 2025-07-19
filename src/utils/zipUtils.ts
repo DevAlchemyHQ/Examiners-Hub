@@ -84,89 +84,76 @@ export const createZipFile = async (
   date: string,
   zipFileName: string
 ): Promise<Blob> => {
-  console.log('Creating ZIP file with:', {
-    imageCount: images.length,
-    metadataFileName,
-    date,
-    zipFileName
-  });
-
-  // Input validation
-  if (!images?.length) {
-    throw new Error('No images provided for zip creation');
-  }
-
-  if (!metadataFileName || !metadataContent) {
-    throw new Error('Invalid metadata for zip file');
-  }
-
-  if (!date) {
-    throw new Error('Date is required for zip file creation');
-  }
-
   try {
+    console.log('Creating ZIP file with', images.length, 'images');
+    
+    const JSZip = (await import('jszip')).default;
     const zip = new JSZip();
     
     // Add metadata file
-    console.log('Adding metadata file:', metadataFileName);
     zip.file(metadataFileName, metadataContent);
     
-    // Add images with appropriate naming and processing
+    // Process each image
     for (let i = 0; i < images.length; i++) {
-      const img = images[i];
-      console.log(`Processing image ${i + 1}/${images.length}:`, img.fileName || img.file?.name);
+      const image = images[i];
+      console.log(`Processing image ${i + 1}/${images.length}: ${image.fileName || image.file?.name || 'unknown'}`);
       
-      // Handle S3-loaded images (no file object) vs local files
-      let imageSource: File | string;
-      if (img.file) {
-        // Local file
-        imageSource = img.file;
-      } else if (img.preview) {
-        // S3 image - use preview URL
-        imageSource = img.preview;
-      } else {
-        throw new Error(`Invalid image entry: missing file data and preview URL`);
-      }
-
       try {
-        const fileName = generateImageFileName(img, date);
-        if (!fileName) {
-          throw new Error(`Failed to generate filename for image: ${img.fileName || img.file?.name || 'unknown'}`);
+        let imageBlob: Blob;
+        
+        if (image.file) {
+          // Local file - process directly
+          imageBlob = await processImageForDownload(image.file);
+        } else if (image.publicUrl) {
+          // S3 URL - try to fetch with signed URL
+          console.log('Processing S3 image:', image.publicUrl);
+          
+          // Try to fetch the image using the signed URL
+          const response = await fetch(image.publicUrl, {
+            method: 'GET',
+            mode: 'cors',
+            credentials: 'omit'
+          });
+          
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+          }
+          
+          imageBlob = await response.blob();
+          console.log('Successfully fetched S3 image, size:', imageBlob.size);
+        } else {
+          throw new Error('No file or URL available for image');
         }
         
-        console.log('Generated filename:', fileName);
+        // Generate filename for the image
+        const photoNumber = image.photoNumber?.padStart(2, '0') || '00';
+        const description = image.description || 'unknown';
+        const originalName = image.fileName || image.file?.name || 'image';
+        const extension = originalName.split('.').pop() || 'jpg';
         
-        // Process image for download (convert format, resize if needed)
-        const processedImageBlob = await processImageForDownload(imageSource);
+        const imageFileName = `Photo ${photoNumber}^${description}^ ${date}.${extension}`;
+        console.log('Generated filename:', imageFileName);
         
-        zip.file(fileName, processedImageBlob);
-        console.log('Added image to ZIP:', fileName);
+        // Add image to ZIP
+        zip.file(imageFileName, imageBlob);
+        
       } catch (error) {
-        console.error('Error processing image:', error);
-        throw new Error(`Failed to process image: ${img.fileName || img.file?.name || 'unknown'}`);
+        console.error(`Error processing image ${i + 1}:`, error);
+        
+        // Add a placeholder file with error information
+        const errorFileName = `Photo ${image.photoNumber?.padStart(2, '0') || '00}^${image.description || 'error'}^ ${date}.txt`;
+        const errorContent = `Error processing image: ${image.fileName || image.file?.name || 'unknown'}\nOriginal URL: ${image.publicUrl || 'N/A'}\nError: ${error}`;
+        zip.file(errorFileName, errorContent);
       }
     }
     
-    console.log('Generating ZIP file...');
-    // Generate zip with compression
-    const blob = await zip.generateAsync({ 
-      type: 'blob',
-      compression: 'DEFLATE',
-      compressionOptions: {
-        level: 6
-      }
-    });
-
-    if (!blob) {
-      throw new Error('Failed to generate zip file');
-    }
-
+    // Generate ZIP file
+    const blob = await zip.generateAsync({ type: 'blob' });
     console.log('ZIP file created successfully, size:', blob.size);
+    
     return blob;
   } catch (error) {
     console.error('Error creating zip file:', error);
-    throw error instanceof Error 
-      ? error 
-      : new Error('Failed to create zip file');
+    throw error;
   }
 };

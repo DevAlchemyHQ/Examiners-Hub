@@ -83,6 +83,8 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             const { DatabaseService } = await import('../lib/services');
             await DatabaseService.updateProject(user.email, 'current', { formData: newFormData });
             console.log('✅ Form data auto-saved to AWS for user:', user.email);
+          } else {
+            console.log('No user found, skipping AWS save');
           }
         } catch (error) {
           console.error('❌ Error auto-saving form data:', error);
@@ -321,6 +323,8 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             const { DatabaseService } = await import('../lib/services');
             await DatabaseService.updateBulkDefects(user.email, newBulkDefects);
             console.log('✅ Bulk defects auto-saved to AWS for user:', user.email);
+          } else {
+            console.log('No user found, skipping AWS save');
           }
         } catch (error) {
           console.error('❌ Error auto-saving bulk defects:', error);
@@ -357,12 +361,42 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       
       console.log('Loading data for user:', userId);
       
-      // Load form data from localStorage
-      const savedFormData = localStorage.getItem('clean-app-form-data');
-      if (savedFormData) {
-        const formData = JSON.parse(savedFormData);
-        set({ formData });
-        console.log('Loaded form data:', formData);
+      // Load form data from AWS first, then fallback to localStorage
+      if (userId !== 'anonymous') {
+        try {
+          const { DatabaseService } = await import('../lib/services');
+          const { project } = await DatabaseService.getProject(userId, 'current');
+          
+          if (project?.formData) {
+            set({ formData: project.formData });
+            console.log('✅ Form data loaded from AWS for user:', userId);
+          } else {
+            // Fallback to localStorage
+            const savedFormData = localStorage.getItem('clean-app-form-data');
+            if (savedFormData) {
+              const formData = JSON.parse(savedFormData);
+              set({ formData });
+              console.log('📱 Form data loaded from localStorage (fallback)');
+            }
+          }
+        } catch (error) {
+          console.error('❌ Error loading form data from AWS:', error);
+          // Fallback to localStorage
+          const savedFormData = localStorage.getItem('clean-app-form-data');
+          if (savedFormData) {
+            const formData = JSON.parse(savedFormData);
+            set({ formData });
+            console.log('📱 Form data loaded from localStorage (fallback)');
+          }
+        }
+      } else {
+        // Anonymous user - load from localStorage
+        const savedFormData = localStorage.getItem('clean-app-form-data');
+        if (savedFormData) {
+          const formData = JSON.parse(savedFormData);
+          set({ formData });
+          console.log('📱 Form data loaded from localStorage (anonymous user)');
+        }
       }
       
       // Load images from S3 for the user
@@ -393,27 +427,25 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
                 // Create image metadata with real S3 URL
                 const imageMetadata: ImageMetadata = {
                   id: crypto.randomUUID(),
-                  file: undefined, // No file object for S3-loaded images
-                  fileName: originalFileName, // Use original filename without timestamp
-                  fileSize: file.size || 0,
+                  fileName: originalFileName,
+                  fileSize: file.size,
                   fileType: 'image/jpeg', // Default type
                   photoNumber: '',
                   description: '',
-                  preview: file.url, // Use S3 URL directly as preview
+                  preview: file.url, // Use signed URL for preview
                   isSketch: false,
-                  publicUrl: file.url,
+                  publicUrl: file.url, // Use signed URL for public access
                   userId: userId
                 };
                 
                 loadedImages.push(imageMetadata);
-                console.log('Loaded image:', originalFileName, 'from URL:', file.url);
               } catch (error) {
-                console.error('Error processing image:', file.name, error);
+                console.error('Error processing S3 file:', file.name, error);
               }
             }
             
             set({ images: loadedImages });
-            console.log('Successfully loaded', loadedImages.length, 'images');
+            console.log('✅ Images loaded from S3 for user:', userId);
           } else {
             console.log('No images found in S3 for user:', userId);
             set({ images: [] });
@@ -422,13 +454,10 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           console.error('Error loading images from S3:', error);
           set({ images: [] });
         }
-      } else {
-        console.log('Anonymous user, not loading images from S3');
-        set({ images: [] });
       }
+      
     } catch (error) {
       console.error('Error loading user data:', error);
-      set({ images: [] });
     }
   },
 
