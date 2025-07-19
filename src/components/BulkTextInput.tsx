@@ -675,7 +675,7 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean }> = ({ isExpanded =
                   <div className="space-y-2">
                     {bulkDefects.map((defect) => (
                       <DefectTile
-                        key={defect.id}
+                        key={`defect-${defect.photoNumber}`}
                         id={defect.photoNumber}
                         photoNumber={defect.photoNumber}
                         description={defect.description}
@@ -757,7 +757,7 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean }> = ({ isExpanded =
                         .map((img) => {
                           const defect = bulkDefects.find(d => d.selectedFile === (img.fileName || img.file?.name || ''));
                           return (
-                            <div key={img.id} className="relative group bg-white/80 dark:bg-gray-800/80 rounded-lg border border-slate-200/50 dark:border-gray-700/50 p-3">
+                            <div key={`selected-${img.id}`} className="relative group bg-white/80 dark:bg-gray-800/80 rounded-lg border border-slate-200/50 dark:border-gray-700/50 p-3">
                               {/* Image at top */}
                               <div 
                                 className="aspect-square rounded-lg overflow-hidden bg-slate-100 dark:bg-gray-700 mb-3 relative"
