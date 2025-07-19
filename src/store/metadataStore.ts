@@ -168,6 +168,15 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           if (!isNaN(bNum)) return 1;
           return (a.fileName || a.file?.name || '').localeCompare(b.fileName || b.file?.name || '');
         });
+        
+        // Save images to localStorage for persistence
+        try {
+          localStorage.setItem('clean-app-images', JSON.stringify(combined));
+          console.log('📱 Images saved to localStorage:', combined.length);
+        } catch (error) {
+          console.error('❌ Error saving images to localStorage:', error);
+        }
+        
         console.log('State updated with', combined.length, 'total images');
         return { images: combined };
       });
