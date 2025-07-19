@@ -98,6 +98,9 @@ function App() {
             } />
             <Route path="/login" element={<LoginScreen />} />
             <Route path="/app" element={<MainApp />} />
+            <Route path="/dashboard" element={<MainApp />} />
+            <Route path="/subscriptions" element={<MainApp />} />
+            <Route path="/bcmi" element={<MainApp />} />
             <Route path="/feedback-admin" element={<FeedbackAdmin />} />
             <Route path="/calculator" element={<CalculatorPage />} />
             <Route path="/games" element={<GamesPage />} />

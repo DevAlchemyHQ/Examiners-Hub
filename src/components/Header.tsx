@@ -25,7 +25,6 @@ export const Header: React.FC = () => {
     { path: '/pdf', label: 'PDF' },
     { path: '/calculator', label: 'Calc' },
     { path: '/grid', label: 'Grid' },
-    { path: '/bscm-ai', label: 'BSCM & AI' },
     { path: '/games', label: 'Games' },
     { path: '/subscriptions', label: 'Subscription' },
   ];
