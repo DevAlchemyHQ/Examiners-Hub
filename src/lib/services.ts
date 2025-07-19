@@ -33,30 +33,34 @@ const BUCKET_NAME = 'mvp-labeler-storage';
 const USER_POOL_ID = import.meta.env.VITE_COGNITO_USER_POOL_ID || '';
 const CLIENT_ID = import.meta.env.VITE_COGNITO_CLIENT_ID || '';
 
-// Mock authentication for development
-const MOCK_AUTH = {
-  user: {
-    id: 'mock-user-123',
-    email: 'test@example.com',
-    user_metadata: { full_name: 'Test User' }
-  },
-  session: {
-    access_token: 'mock-token',
-    refresh_token: 'mock-refresh'
-  }
-};
-
 // Authentication Service
 export class AuthService {
   static async signUpWithEmail(email: string, password: string, fullName?: string) {
     try {
       console.log('🔐 AWS Cognito signup for:', email);
       
-      // For now, return mock success
-      console.log('✅ Mock signup successful');
+      const signUpCommand = new SignUpCommand({
+        ClientId: CLIENT_ID,
+        Username: email,
+        Password: password,
+        UserAttributes: [
+          {
+            Name: 'email',
+            Value: email
+          },
+          {
+            Name: 'name',
+            Value: fullName || ''
+          }
+        ]
+      });
+      
+      const result = await cognitoClient.send(signUpCommand);
+      console.log('✅ AWS Cognito signup successful:', result);
+      
       return {
         user: {
-          id: `user-${Date.now()}`,
+          id: result.UserSub,
           email: email,
           user_metadata: { full_name: fullName }
         },
@@ -72,11 +76,38 @@ export class AuthService {
     try {
       console.log('🔐 AWS Cognito signin for:', email);
       
-      // For now, return mock success
-      console.log('✅ Mock signin successful');
+      const authCommand = new InitiateAuthCommand({
+        ClientId: CLIENT_ID,
+        AuthFlow: 'USER_PASSWORD_AUTH',
+        AuthParameters: {
+          USERNAME: email,
+          PASSWORD: password
+        }
+      });
+      
+      const result = await cognitoClient.send(authCommand);
+      console.log('✅ AWS Cognito signin successful:', result);
+      
+      // Get user details
+      const userCommand = new AdminGetUserCommand({
+        UserPoolId: USER_POOL_ID,
+        Username: email
+      });
+      
+      const userResult = await cognitoClient.send(userCommand);
+      
       return {
-        user: MOCK_AUTH.user,
-        session: MOCK_AUTH.session,
+        user: {
+          id: userResult.User?.Username || email,
+          email: email,
+          user_metadata: { 
+            full_name: userResult.User?.Attributes?.find((attr: any) => attr.Name === 'name')?.Value || ''
+          }
+        },
+        session: {
+          access_token: result.AuthenticationResult?.AccessToken || '',
+          refresh_token: result.AuthenticationResult?.RefreshToken || ''
+        },
         error: null
       };
     } catch (error) {
@@ -88,6 +119,7 @@ export class AuthService {
   static async signOut() {
     try {
       console.log('🔐 AWS Cognito signout');
+      // Cognito doesn't require explicit signout on client side
       return { error: null };
     } catch (error) {
       return { error };
@@ -97,7 +129,8 @@ export class AuthService {
   static async getCurrentUser() {
     try {
       console.log('🔐 AWS Cognito getCurrentUser');
-      return { user: MOCK_AUTH.user, error: null };
+      // For now, return null as we need to implement session management
+      return { user: null, error: null };
     } catch (error) {
       console.error('AWS Cognito getCurrentUser error:', error);
       return { user: null, error };
@@ -107,6 +140,7 @@ export class AuthService {
   static async resetPassword(email: string) {
     try {
       console.log('🔐 AWS Cognito resetPassword for:', email);
+      // Implement password reset
       return { error: null };
     } catch (error) {
       return { error };
@@ -116,7 +150,17 @@ export class AuthService {
   static async verifyOTP(email: string, otp: string) {
     try {
       console.log('🔐 AWS Cognito verifyOTP for:', email);
-      return { user: MOCK_AUTH.user, session: MOCK_AUTH.session, error: null };
+      
+      const confirmCommand = new ConfirmSignUpCommand({
+        ClientId: CLIENT_ID,
+        Username: email,
+        ConfirmationCode: otp
+      });
+      
+      await cognitoClient.send(confirmCommand);
+      
+      // Sign in after confirmation
+      return await this.signInWithEmail(email, '');
     } catch (error) {
       return { user: null, session: null, error };
     }
@@ -125,6 +169,7 @@ export class AuthService {
   static async verifyResetOTP(email: string, otp: string, newPassword: string) {
     try {
       console.log('🔐 AWS Cognito verifyResetOTP for:', email);
+      // Implement password reset confirmation
       return { error: null };
     } catch (error) {
       return { error };
@@ -157,14 +202,6 @@ export class StorageService {
       return { url, error: null };
     } catch (error) {
       console.error('AWS S3 upload error:', error);
-      
-      // Fallback to mock URL for development
-      if (import.meta.env.DEV) {
-        const mockUrl = `https://${BUCKET_NAME}.s3.${AWS_CONFIG.region}.amazonaws.com/${filePath}`;
-        console.log('⚠️ Using mock URL for development:', mockUrl);
-        return { url: mockUrl, error: null };
-      }
-      
       return { url: null, error };
     }
   }
@@ -203,13 +240,16 @@ export class DatabaseService {
   static async getProfile(userId: string) {
     try {
       console.log('🗄️ AWS DynamoDB getProfile:', userId);
-      const mockProfile = {
-        user_id: userId,
-        full_name: 'Test User',
-        email: 'test@example.com',
-        created_at: new Date().toISOString()
-      };
-      return { profile: mockProfile, error: null };
+      
+      const command = new GetCommand({
+        TableName: 'mvp-labeler-profiles',
+        Key: { user_id: userId }
+      });
+      
+      const result = await docClient.send(command);
+      console.log('✅ AWS DynamoDB getProfile result:', result);
+      
+      return { profile: result.Item || null, error: null };
     } catch (error) {
       console.error('AWS DynamoDB getProfile error:', error);
       return { profile: null, error };
@@ -219,6 +259,19 @@ export class DatabaseService {
   static async updateProfile(userId: string, profileData: any) {
     try {
       console.log('🗄️ AWS DynamoDB updateProfile:', userId);
+      
+      const command = new PutCommand({
+        TableName: 'mvp-labeler-profiles',
+        Item: {
+          user_id: userId,
+          ...profileData,
+          updated_at: new Date().toISOString()
+        }
+      });
+      
+      await docClient.send(command);
+      console.log('✅ AWS DynamoDB updateProfile successful');
+      
       return { success: true, error: null };
     } catch (error) {
       console.error('AWS DynamoDB updateProfile error:', error);
@@ -229,13 +282,19 @@ export class DatabaseService {
   static async getProject(userId: string, projectId: string) {
     try {
       console.log('🗄️ AWS DynamoDB getProject:', projectId);
-      const mockProject = {
-        user_id: userId,
-        project_id: projectId,
-        name: 'Test Project',
-        created_at: new Date().toISOString()
-      };
-      return { project: mockProject, error: null };
+      
+      const command = new GetCommand({
+        TableName: 'mvp-labeler-projects',
+        Key: { 
+          user_id: userId,
+          project_id: projectId 
+        }
+      });
+      
+      const result = await docClient.send(command);
+      console.log('✅ AWS DynamoDB getProject result:', result);
+      
+      return { project: result.Item || null, error: null };
     } catch (error) {
       console.error('AWS DynamoDB getProject error:', error);
       return { project: null, error };
@@ -245,6 +304,20 @@ export class DatabaseService {
   static async updateProject(userId: string, projectId: string, projectData: any) {
     try {
       console.log('🗄️ AWS DynamoDB updateProject:', projectId);
+      
+      const command = new PutCommand({
+        TableName: 'mvp-labeler-projects',
+        Item: {
+          user_id: userId,
+          project_id: projectId,
+          ...projectData,
+          updated_at: new Date().toISOString()
+        }
+      });
+      
+      await docClient.send(command);
+      console.log('✅ AWS DynamoDB updateProject successful');
+      
       return { success: true, error: null };
     } catch (error) {
       console.error('AWS DynamoDB updateProject error:', error);
@@ -255,7 +328,19 @@ export class DatabaseService {
   static async getBulkDefects(userId: string) {
     try {
       console.log('🗄️ AWS DynamoDB getBulkDefects:', userId);
-      return { defects: [], error: null };
+      
+      const command = new QueryCommand({
+        TableName: 'mvp-labeler-bulk-defects',
+        KeyConditionExpression: 'user_id = :userId',
+        ExpressionAttributeValues: {
+          ':userId': userId
+        }
+      });
+      
+      const result = await docClient.send(command);
+      console.log('✅ AWS DynamoDB getBulkDefects result:', result);
+      
+      return { defects: result.Items || [], error: null };
     } catch (error) {
       console.error('AWS DynamoDB getBulkDefects error:', error);
       return { defects: [], error };
@@ -265,6 +350,32 @@ export class DatabaseService {
   static async updateBulkDefects(userId: string, defects: any[]) {
     try {
       console.log('🗄️ AWS DynamoDB updateBulkDefects:', userId);
+      
+      // Delete existing defects
+      const deleteCommand = new DeleteCommand({
+        TableName: 'mvp-labeler-bulk-defects',
+        Key: { user_id: userId }
+      });
+      
+      await docClient.send(deleteCommand);
+      
+      // Add new defects
+      for (const defect of defects) {
+        const putCommand = new PutCommand({
+          TableName: 'mvp-labeler-bulk-defects',
+          Item: {
+            user_id: userId,
+            defect_id: defect.id || Date.now().toString(),
+            ...defect,
+            created_at: new Date().toISOString()
+          }
+        });
+        
+        await docClient.send(putCommand);
+      }
+      
+      console.log('✅ AWS DynamoDB updateBulkDefects successful');
+      
       return { success: true, error: null };
     } catch (error) {
       console.error('AWS DynamoDB updateBulkDefects error:', error);
@@ -275,7 +386,19 @@ export class DatabaseService {
   static async getDefectSets(userId: string) {
     try {
       console.log('🗄️ AWS DynamoDB getDefectSets:', userId);
-      return { defectSets: [], error: null };
+      
+      const command = new QueryCommand({
+        TableName: 'mvp-labeler-defect-sets',
+        KeyConditionExpression: 'user_id = :userId',
+        ExpressionAttributeValues: {
+          ':userId': userId
+        }
+      });
+      
+      const result = await docClient.send(command);
+      console.log('✅ AWS DynamoDB getDefectSets result:', result);
+      
+      return { defectSets: result.Items || [], error: null };
     } catch (error) {
       console.error('AWS DynamoDB getDefectSets error:', error);
       return { defectSets: [], error };
@@ -285,6 +408,20 @@ export class DatabaseService {
   static async saveDefectSet(userId: string, defectSet: any) {
     try {
       console.log('🗄️ AWS DynamoDB saveDefectSet:', userId);
+      
+      const command = new PutCommand({
+        TableName: 'mvp-labeler-defect-sets',
+        Item: {
+          user_id: userId,
+          set_id: defectSet.id || Date.now().toString(),
+          ...defectSet,
+          created_at: new Date().toISOString()
+        }
+      });
+      
+      await docClient.send(command);
+      console.log('✅ AWS DynamoDB saveDefectSet successful');
+      
       return { success: true, error: null };
     } catch (error) {
       console.error('AWS DynamoDB saveDefectSet error:', error);
@@ -295,7 +432,19 @@ export class DatabaseService {
   static async getPdfState(userId: string, pdfId: string) {
     try {
       console.log('🗄️ AWS DynamoDB getPdfState:', pdfId);
-      return { pdfState: null, error: null };
+      
+      const command = new GetCommand({
+        TableName: 'mvp-labeler-pdf-states',
+        Key: { 
+          user_id: userId,
+          pdf_id: pdfId 
+        }
+      });
+      
+      const result = await docClient.send(command);
+      console.log('✅ AWS DynamoDB getPdfState result:', result);
+      
+      return { pdfState: result.Item || null, error: null };
     } catch (error) {
       console.error('AWS DynamoDB getPdfState error:', error);
       return { pdfState: null, error };
@@ -305,6 +454,20 @@ export class DatabaseService {
   static async updatePdfState(userId: string, pdfId: string, pdfState: any) {
     try {
       console.log('🗄️ AWS DynamoDB updatePdfState:', pdfId);
+      
+      const command = new PutCommand({
+        TableName: 'mvp-labeler-pdf-states',
+        Item: {
+          user_id: userId,
+          pdf_id: pdfId,
+          ...pdfState,
+          updated_at: new Date().toISOString()
+        }
+      });
+      
+      await docClient.send(command);
+      console.log('✅ AWS DynamoDB updatePdfState successful');
+      
       return { success: true, error: null };
     } catch (error) {
       console.error('AWS DynamoDB updatePdfState error:', error);
@@ -315,7 +478,19 @@ export class DatabaseService {
   static async getFeedback(userId: string) {
     try {
       console.log('🗄️ AWS DynamoDB getFeedback:', userId);
-      return { feedback: [], error: null };
+      
+      const command = new QueryCommand({
+        TableName: 'mvp-labeler-feedback',
+        KeyConditionExpression: 'user_id = :userId',
+        ExpressionAttributeValues: {
+          ':userId': userId
+        }
+      });
+      
+      const result = await docClient.send(command);
+      console.log('✅ AWS DynamoDB getFeedback result:', result);
+      
+      return { feedback: result.Items || [], error: null };
     } catch (error) {
       console.error('AWS DynamoDB getFeedback error:', error);
       return { feedback: [], error };
@@ -325,6 +500,20 @@ export class DatabaseService {
   static async saveFeedback(userId: string, feedback: any) {
     try {
       console.log('🗄️ AWS DynamoDB saveFeedback:', userId);
+      
+      const command = new PutCommand({
+        TableName: 'mvp-labeler-feedback',
+        Item: {
+          user_id: userId,
+          feedback_id: feedback.id || Date.now().toString(),
+          ...feedback,
+          created_at: new Date().toISOString()
+        }
+      });
+      
+      await docClient.send(command);
+      console.log('✅ AWS DynamoDB saveFeedback successful');
+      
       return { success: true, error: null };
     } catch (error) {
       console.error('AWS DynamoDB saveFeedback error:', error);
@@ -335,6 +524,18 @@ export class DatabaseService {
   static async clearUserProject(userId: string, projectId: string) {
     try {
       console.log('🗄️ AWS DynamoDB clearUserProject:', projectId);
+      
+      const command = new DeleteCommand({
+        TableName: 'mvp-labeler-projects',
+        Key: { 
+          user_id: userId,
+          project_id: projectId 
+        }
+      });
+      
+      await docClient.send(command);
+      console.log('✅ AWS DynamoDB clearUserProject successful');
+      
       return { success: true, error: null };
     } catch (error) {
       console.error('AWS DynamoDB clearUserProject error:', error);
