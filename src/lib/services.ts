@@ -194,15 +194,19 @@ export class StorageService {
     try {
       console.log('🗄️ AWS S3 upload:', filePath);
       
-      // Convert File to ArrayBuffer for browser compatibility
-      const arrayBuffer = await file.arrayBuffer();
-      const uint8Array = new Uint8Array(arrayBuffer);
+      // Use FileReader to convert File to ArrayBuffer
+      const arrayBuffer = await new Promise<ArrayBuffer>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as ArrayBuffer);
+        reader.onerror = () => reject(reader.error);
+        reader.readAsArrayBuffer(file);
+      });
       
       // Create the S3 upload command
       const uploadCommand = new PutObjectCommand({
         Bucket: BUCKET_NAME,
         Key: filePath,
-        Body: uint8Array,
+        Body: arrayBuffer,
         ContentType: file.type
         // Removed ACL since bucket doesn't support it
       });
