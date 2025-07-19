@@ -578,4 +578,41 @@ export class ProfileService {
       return { profile: null, error };
     }
   }
+
+  static async getOrCreateUserProfile(userId: string, email: string) {
+    try {
+      console.log('🗄️ AWS ProfileService getOrCreateUserProfile:', userId);
+      const result = await DatabaseService.getProfile(userId);
+      
+      if (result.profile) {
+        return result.profile;
+      }
+      
+      // Create new profile if doesn't exist
+      const newProfile = {
+        user_id: userId,
+        email: email,
+        full_name: '',
+        avatar_url: '',
+        avatar_emoji: '😊',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      
+      await DatabaseService.updateProfile(userId, newProfile);
+      return newProfile;
+    } catch (error) {
+      console.error('AWS ProfileService getOrCreateUserProfile error:', error);
+      return null;
+    }
+  }
+
+  static async updateUserProfile(userId: string, updates: any) {
+    try {
+      console.log('🗄️ AWS ProfileService updateUserProfile:', userId);
+      return await DatabaseService.updateProfile(userId, updates);
+    } catch (error) {
+      return { error };
+    }
+  }
 } 

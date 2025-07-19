@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { User, Mail, Package, Crown, Loader2, AlertCircle, Check, Camera, LogOut, Edit3, Save, X, Settings, Database, Cloud } from 'lucide-react';
-import { getCurrentUser, getOrCreateUserProfile, updateUserProfile } from '../../lib/supabase';
+import { AuthService, ProfileService } from '../../lib/services';
+import { EditProfile } from './EditProfile';
+import { User, Settings, LogOut, Mail, Calendar, MapPin, Phone, Globe, Award, Star, Heart, Zap, Target, Palette, Music, Gamepad2, BookOpen, Camera, Palette as PaletteIcon, Music as MusicIcon, Gamepad2 as GamepadIcon, BookOpen as BookIcon, Camera as CameraIcon } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { useNavigate } from 'react-router-dom';
 import { signOut } from '../../lib/supabase';
@@ -47,13 +48,13 @@ export const UserProfile: React.FC = () => {
         return;
       }
 
-      const user = await getCurrentUser();
+      const user = await AuthService.getCurrentUser();
       if (!user) {
         throw new Error('Not authenticated');
       }
 
       // Use getOrCreateUserProfile to ensure we always have a valid profile
-      const userProfile = await getOrCreateUserProfile(user.id, user.email || '');
+      const userProfile = await ProfileService.getOrCreateUserProfile(user.id, user.email || '');
       setProfile(userProfile);
       setSelectedEmoji(userProfile.avatar_emoji);
       setEditName(userProfile.full_name);
@@ -72,7 +73,7 @@ export const UserProfile: React.FC = () => {
       setError(null);
       setMessage(null);
 
-      await updateUserProfile(profile.id, updates);
+      await ProfileService.updateUserProfile(profile.id, updates);
       setProfile(prev => prev ? { ...prev, ...updates } : null);
       setMessage('Profile updated successfully');
 
@@ -97,7 +98,7 @@ export const UserProfile: React.FC = () => {
 
   const handleLogout = async () => {
     try {
-      await signOut();
+      await AuthService.signOut();
       await logout();
       navigate("/");
     } catch (error) {
@@ -127,7 +128,7 @@ export const UserProfile: React.FC = () => {
       }
 
       // Update user profile
-      await updateUserProfile(user.id, { avatar_url: uploadResult.url });
+      await ProfileService.updateUserProfile(user.id, { avatar_url: uploadResult.url });
       setProfile(prev => prev ? { ...prev, avatar_url: uploadResult.url } : null);
       setMessage('Profile picture updated successfully');
       setTimeout(() => setMessage(null), 3000);
