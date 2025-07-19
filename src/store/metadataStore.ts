@@ -376,8 +376,20 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
   saveUserData: async () => {
     try {
       const state = get();
-      // Only save form data, not images
-      localStorage.setItem('clean-app-form-data', JSON.stringify(state.formData));
+      const { formData } = state;
+      
+      // Save to localStorage for immediate access
+      localStorage.setItem('clean-app-form-data', JSON.stringify(formData));
+      
+      // Save to AWS DynamoDB for cross-device persistence
+      const { AuthService } = await import('../lib/services');
+      const { user } = await AuthService.getCurrentUser();
+      
+      if (user?.email) {
+        const { DatabaseService } = await import('../lib/services');
+        await DatabaseService.updateProject(user.email, 'current', { formData });
+        console.log('Form data saved to AWS for user:', user.email);
+      }
     } catch (error) {
       console.error('Error saving user data:', error);
     }
@@ -390,8 +402,20 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
   saveBulkData: async () => {
     try {
       const state = get();
-      // For local testing, save to localStorage
-      localStorage.setItem('clean-app-bulk-data', JSON.stringify(state.bulkDefects));
+      const { bulkDefects } = state;
+      
+      // Save to localStorage for immediate access
+      localStorage.setItem('clean-app-bulk-data', JSON.stringify(bulkDefects));
+      
+      // Save to AWS DynamoDB for cross-device persistence
+      const { AuthService } = await import('../lib/services');
+      const { user } = await AuthService.getCurrentUser();
+      
+      if (user?.email) {
+        const { DatabaseService } = await import('../lib/services');
+        await DatabaseService.updateBulkDefects(user.email, bulkDefects);
+        console.log('Bulk defects saved to AWS for user:', user.email);
+      }
     } catch (error) {
       console.error('Error saving bulk data:', error);
     }
@@ -399,12 +423,30 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
 
   loadBulkData: async () => {
     try {
-      // For local testing, load from localStorage
-      const savedBulkData = localStorage.getItem('clean-app-bulk-data');
+      // Try to load from AWS first, then fallback to localStorage
+      const { AuthService } = await import('../lib/services');
+      const { user } = await AuthService.getCurrentUser();
       
+      if (user?.email) {
+        try {
+          const { DatabaseService } = await import('../lib/services');
+          const bulkDefects = await DatabaseService.getBulkDefects(user.email);
+          if (bulkDefects && bulkDefects.length > 0) {
+            set({ bulkDefects });
+            console.log('Bulk defects loaded from AWS for user:', user.email);
+            return;
+          }
+        } catch (error) {
+          console.log('No bulk defects found in AWS, trying localStorage');
+        }
+      }
+      
+      // Fallback to localStorage
+      const savedBulkData = localStorage.getItem('clean-app-bulk-data');
       if (savedBulkData) {
         const bulkDefects = JSON.parse(savedBulkData);
         set({ bulkDefects });
+        console.log('Bulk defects loaded from localStorage');
       }
     } catch (error) {
       console.error('Error loading bulk data:', error);
@@ -429,7 +471,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
 
       // Get the actual image metadata for selected files
       const selectedImageMetadata = defectsWithImages.map(defect => {
-        const image = images.find(img => img.file.name === defect.selectedFile);
+        const image = images.find(img => (img.fileName || img.file?.name || '') === defect.selectedFile);
         if (!image) {
           throw new Error(`Image not found for defect ${defect.photoNumber || 'unknown'}`);
         }
@@ -444,7 +486,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
 
       // Create metadata content for bulk defects
       const metadataContent = defectsWithImages.map(defect => {
-        const image = images.find(img => img.file.name === defect.selectedFile);
+        const image = images.find(img => (img.fileName || img.file?.name || '') === defect.selectedFile);
         if (!image) {
           throw new Error(`Image not found for defect ${defect.photoNumber || 'unknown'}`);
         }
