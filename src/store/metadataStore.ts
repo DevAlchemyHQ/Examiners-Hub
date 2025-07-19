@@ -96,27 +96,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           
           if (uploadResult.error) {
             console.error('Upload failed for', file.name, uploadResult.error);
-            // Create a mock URL for local testing if upload fails
-            const mockUrl = `https://mock-storage.example.com/${filePath}`;
-            console.log('Using mock URL for local testing:', mockUrl);
-            
-            const imageMetadata: ImageMetadata = {
-              id: crypto.randomUUID(),
-              file,
-              fileName: file.name,
-              fileSize: file.size,
-              fileType: file.type,
-              photoNumber: '',
-              description: '',
-              preview: URL.createObjectURL(file), // Local preview
-              isSketch,
-              publicUrl: mockUrl, // Mock URL for local testing
-              userId: 'local-user',
-              uploadTimestamp: timestamp
-            };
-            
-            newImages.push(imageMetadata);
-            console.log(`✅ Created mock entry for ${file.name}`);
+            throw new Error(`Upload failed for ${file.name}: ${uploadResult.error}`);
           } else {
             const imageMetadata: ImageMetadata = {
               id: crypto.randomUUID(),
@@ -138,26 +118,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           }
         } catch (error) {
           console.error('Error processing file:', file.name, error);
-          // Create a mock entry even if upload fails
-          const mockUrl = `https://mock-storage.example.com/${filePath}`;
-          
-          const imageMetadata: ImageMetadata = {
-            id: crypto.randomUUID(),
-            file,
-            fileName: file.name,
-            fileSize: file.size,
-            fileType: file.type,
-            photoNumber: '',
-            description: '',
-            preview: URL.createObjectURL(file), // Local preview
-            isSketch,
-            publicUrl: mockUrl, // Mock URL for local testing
-            userId: 'local-user',
-            uploadTimestamp: timestamp
-          };
-          
-          newImages.push(imageMetadata);
-          console.log(`✅ Created mock entry for ${file.name} after error`);
+          throw error; // Re-throw to stop the process
         }
       }
 
