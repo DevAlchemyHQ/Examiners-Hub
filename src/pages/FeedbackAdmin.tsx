@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { supabase } from '../lib/supabase';
+import { DatabaseService } from '../lib/services';
 import { format } from 'date-fns';
 import { MessageSquare, Loader2, Lock, Search, Calendar, Clock, Filter, ArrowUp, ArrowDown, Bug, Lightbulb } from 'lucide-react';
 
@@ -32,15 +32,15 @@ export const FeedbackAdmin: React.FC = () => {
         setIsLoading(true);
         setError(null);
         
-        const { data, error: fetchError } = await supabase
-          .from('feedback_v2')
-          .select('*')
-          .order('created_at', { ascending: false });
-
-        if (fetchError) throw fetchError;
+        // Get feedback from AWS DynamoDB
+        const result = await DatabaseService.getFeedback('admin');
         
-        if (data) {
-          setFeedback(data);
+        if (result.error) {
+          throw result.error;
+        }
+        
+        if (result.feedback) {
+          setFeedback(result.feedback);
         }
       } catch (err) {
         console.error('Error fetching feedback:', err);
@@ -52,23 +52,10 @@ export const FeedbackAdmin: React.FC = () => {
 
     fetchFeedback();
 
-    const channel = supabase
-      .channel('feedback-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'feedback_v2'
-        },
-        (payload) => {
-          setFeedback(currentFeedback => [payload.new as FeedbackItem, ...currentFeedback]);
-        }
-      )
-      .subscribe();
+    // Supabase channel subscription removed as per edit hint
 
     return () => {
-      channel.unsubscribe();
+      // No cleanup needed for Supabase channel
     };
   }, [isAuthenticated]);
 
