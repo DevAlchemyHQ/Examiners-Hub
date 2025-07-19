@@ -116,8 +116,6 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 
   const isLoading = isClearingProject || isLoadingData;
 
-  // --- REMOVED: Full-page skeleton loader ---
-
   return (
     <div className="min-h-screen w-full bg-gray-900 flex flex-col">
       <Header />
@@ -168,7 +166,8 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         </div>
 
         <div className="flex-1 h-[calc(100vh-96px)] overflow-auto">
-          <div className={`transition-opacity duration-300 ${isLoading ? 'opacity-50' : 'opacity-100'}`}>
+          {/* Remove opacity transition to prevent flickering */}
+          <div className="h-full">
             {activeTab === 'images' ? (
               <div className="h-full grid grid-cols-1 lg:grid-cols-12 gap-4">
                 <div className="lg:col-span-2 overflow-hidden">

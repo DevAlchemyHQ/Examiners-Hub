@@ -282,6 +282,9 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         }
       }
       
+      // Auto-save selections to localStorage
+      localStorage.setItem('clean-app-selected-images', JSON.stringify(Array.from(newSelected)));
+      
       return { selectedImages: newSelected };
     });
   },
@@ -375,7 +378,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       console.log('Loading data for user:', userId);
       
       // Load all data in parallel and batch state updates
-      const [formDataResult, bulkDataResult, imagesResult] = await Promise.allSettled([
+      const [formDataResult, bulkDataResult, imagesResult, selectionsResult] = await Promise.allSettled([
         // Load form data from localStorage first, then AWS
         (async () => {
           try {
@@ -490,9 +493,25 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           } catch (error) {
             console.error('Error loading images from S3:', error);
             return [];
-          }
-        })()
-      ]);
+                      }
+          })(),
+          
+          // Load saved selections from localStorage
+          (async () => {
+            try {
+              const savedSelections = localStorage.getItem('clean-app-selected-images');
+              if (savedSelections) {
+                const selections = JSON.parse(savedSelections);
+                console.log('📱 Selected images restored from localStorage');
+                return selections;
+              }
+              return [];
+            } catch (error) {
+              console.error('❌ Error loading selections:', error);
+              return [];
+            }
+          })()
+        ]);
       
       // Batch all state updates in one call to prevent flickering
       const updates: Partial<MetadataStateOnly> = {
@@ -510,6 +529,10 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       
       if (imagesResult.status === 'fulfilled' && imagesResult.value.length > 0) {
         updates.images = imagesResult.value;
+      }
+      
+      if (selectionsResult.status === 'fulfilled' && selectionsResult.value.length > 0) {
+        updates.selectedImages = new Set(selectionsResult.value);
       }
       
       // Single state update to prevent flickering
