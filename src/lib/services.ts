@@ -390,18 +390,38 @@ export class DatabaseService {
     try {
       console.log('🗄️ AWS DynamoDB updateProject:', projectId);
       
+      // Separate large data from small data to avoid DynamoDB size limits
+      const { images, ...smallData } = projectData;
+      
+      // Only save small data to DynamoDB (form data, selections, etc.)
       const command = new PutCommand({
         TableName: 'mvp-labeler-projects',
         Item: {
           user_id: userId,
           project_id: projectId,
-          ...projectData,
+          ...smallData,
           updated_at: new Date().toISOString()
         }
       });
       
       await docClient.send(command);
-      console.log('✅ AWS DynamoDB updateProject successful');
+      console.log('✅ AWS DynamoDB updateProject successful (small data only)');
+      
+      // If there are images, save them to S3 instead
+      if (images && images.length > 0) {
+        try {
+          console.log('📁 Saving images to S3...');
+          for (const image of images) {
+            if (image.file) {
+              const filePath = `users/${userId}/projects/${projectId}/images/${image.id}.jpg`;
+              await StorageService.uploadFile(image.file, filePath);
+            }
+          }
+          console.log('✅ Images saved to S3');
+        } catch (s3Error) {
+          console.error('❌ Error saving images to S3:', s3Error);
+        }
+      }
       
       return { success: true, error: null };
     } catch (error) {
