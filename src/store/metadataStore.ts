@@ -488,8 +488,11 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
                       console.error('Failed to convert S3 image to base64:', originalFileName, error);
                     }
                     
+                    // Generate consistent ID based on filename to maintain selections
+                    const consistentId = `s3-${originalFileName.replace(/[^a-zA-Z0-9]/g, '-')}`;
+                    
                     const imageMetadata: ImageMetadata = {
-                      id: crypto.randomUUID(),
+                      id: consistentId,
                       fileName: originalFileName,
                       fileSize: file.size,
                       fileType: 'image/jpeg',

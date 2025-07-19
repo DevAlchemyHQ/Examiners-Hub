@@ -20,6 +20,14 @@ export const DownloadButton: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [hasActiveSubscription, setHasActiveSubscription] = useState(false);
   const [isSubscriptionExpired, setIsSubscriptionExpired] = useState(false);
+  
+  // Force re-render when validation changes
+  const [validationKey, setValidationKey] = useState(0);
+  
+  useEffect(() => {
+    // Update validation key when relevant data changes
+    setValidationKey(prev => prev + 1);
+  }, [selectedImages, formData, images, viewMode, bulkDefects]);
 
   useEffect(() => {
     if (!user?.user_metadata) return;
@@ -127,6 +135,7 @@ export const DownloadButton: React.FC = () => {
         </button>
       ) : (
         <button
+          key={validationKey}
           onClick={handleDownload}
           disabled={
             isDownloading ||
@@ -140,6 +149,17 @@ export const DownloadButton: React.FC = () => {
               ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
               : 'bg-green-500 text-white hover:bg-green-600'
           }`}
+          onMouseEnter={() => {
+            console.log('Download button validation state:', {
+              isDownloading,
+              viewMode,
+              isBulkValid: isBulkValid(),
+              isValid: isValid(),
+              selectedImages: selectedImages.size,
+              formData,
+              validationKey
+            });
+          }}
         >
           {isDownloading ? <Loader2 size={20} className="animate-spin" /> : <Download size={20} />}
           {isDownloading
