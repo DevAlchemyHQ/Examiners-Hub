@@ -15,34 +15,23 @@ const FEATURE_FLAGS = {
 
 // AWS Configuration
 const AWS_CONFIG = {
-  region: import.meta.env.VITE_AWS_REGION || 'eu-west-2',
+  region: 'eu-west-2',
   credentials: {
-    accessKeyId: import.meta.env.VITE_AWS_ACCESS_KEY_ID || '',
-    secretAccessKey: import.meta.env.VITE_AWS_SECRET_ACCESS_KEY || ''
+    accessKeyId: 'AKIAIOSFODNN7EXAMPLE', // Replace with your real access key
+    secretAccessKey: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY' // Replace with your real secret key
   }
 };
 
-// Check if AWS credentials are available
-const hasAWSCredentials = AWS_CONFIG.credentials.accessKeyId && AWS_CONFIG.credentials.secretAccessKey;
-
-// Initialize AWS clients only if credentials are available
-const dynamoClient = hasAWSCredentials ? new DynamoDBClient(AWS_CONFIG) : null;
-const docClient = dynamoClient ? DynamoDBDocumentClient.from(dynamoClient) : null;
-const s3Client = hasAWSCredentials ? new S3Client(AWS_CONFIG) : null;
-const cognitoClient = hasAWSCredentials ? new CognitoIdentityProviderClient(AWS_CONFIG) : null;
+// Initialize AWS clients
+const dynamoClient = new DynamoDBClient(AWS_CONFIG);
+const docClient = DynamoDBDocumentClient.from(dynamoClient);
+const s3Client = new S3Client(AWS_CONFIG);
+const cognitoClient = new CognitoIdentityProviderClient(AWS_CONFIG);
 
 // AWS Resource Names
 const BUCKET_NAME = 'mvp-labeler-storage';
-const USER_POOL_ID = import.meta.env.VITE_AWS_USER_POOL_ID || 'eu-west-2_opMigZV21';
-const CLIENT_ID = import.meta.env.VITE_AWS_USER_POOL_WEB_CLIENT_ID || '71l7r90qjn5r3tp3theqfahsn2';
-
-// Debug environment variables
-console.log('🔍 AWS Environment Variables Debug:');
-console.log('VITE_AWS_REGION:', import.meta.env.VITE_AWS_REGION);
-console.log('VITE_AWS_ACCESS_KEY_ID:', import.meta.env.VITE_AWS_ACCESS_KEY_ID ? 'SET' : 'MISSING');
-console.log('VITE_AWS_SECRET_ACCESS_KEY:', import.meta.env.VITE_AWS_SECRET_ACCESS_KEY ? 'SET' : 'MISSING');
-console.log('VITE_AWS_USER_POOL_ID:', USER_POOL_ID || 'MISSING');
-console.log('VITE_AWS_USER_POOL_WEB_CLIENT_ID:', CLIENT_ID || 'MISSING');
+const USER_POOL_ID = 'eu-west-2_opMigZV21';
+const CLIENT_ID = '71l7r90qjn5r3tp3theqfahsn2';
 
 // Authentication Service
 export class AuthService {
@@ -87,16 +76,6 @@ export class AuthService {
     try {
       console.log('🔐 AWS Cognito signin for:', email);
       
-      // Check if AWS credentials are available
-      if (!hasAWSCredentials) {
-        console.error('❌ AWS credentials missing. Please set VITE_AWS_ACCESS_KEY_ID and VITE_AWS_SECRET_ACCESS_KEY in Vercel.');
-        return { 
-          user: null, 
-          session: null, 
-          error: 'AWS credentials not configured. Please contact support.' 
-        };
-      }
-      
       // Check if required environment variables are set
       if (!CLIENT_ID || !USER_POOL_ID) {
         console.error('❌ Missing AWS environment variables:');
@@ -118,7 +97,7 @@ export class AuthService {
         }
       });
       
-      const result = await cognitoClient!.send(authCommand);
+      const result = await cognitoClient.send(authCommand);
       console.log('✅ AWS Cognito signin successful:', result);
       
       // Get user details
@@ -127,7 +106,7 @@ export class AuthService {
         Username: email
       });
       
-      const userResult = await cognitoClient!.send(userCommand);
+      const userResult = await cognitoClient.send(userCommand);
       
       return {
         user: {
