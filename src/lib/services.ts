@@ -17,8 +17,8 @@ const FEATURE_FLAGS = {
 const AWS_CONFIG = {
   region: 'eu-west-2',
   credentials: {
-    accessKeyId: 'AKIAIOSFODNN7EXAMPLE', // Replace with your real access key
-    secretAccessKey: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY' // Replace with your real secret key
+    accessKeyId: 'AKIA5JMSUOLD2BUTQRRF',
+    secretAccessKey: 'hRK4GQ185JyNj1qBsrX9nZpUROrayrUrqlYzn5Tp'
   }
 };
 
