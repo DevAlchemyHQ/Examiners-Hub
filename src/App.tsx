@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { useAuthStore } from './store/authStore';
+import { useMetadataStore } from './store/metadataStore';
 import { LoginScreen } from './components/LoginScreen';
 import MainApp from './pages/MainApp';
 import { LandingPage } from './pages/LandingPage';
@@ -56,16 +57,30 @@ class ErrorBoundary extends React.Component<
 
 function App() {
   const { user, isAuthenticated, checkAuth } = useAuthStore();
+  const { loadUserData, loadBulkData } = useMetadataStore();
 
   useEffect(() => {
     const initializeApp = async () => {
       try {
         console.log('Initializing app...');
         
-        // Simple auth check without complex data loading
+        // Check authentication status
         await checkAuth();
         
-        console.log('✅ App initialization complete');
+        // If user is authenticated, load their data
+        if (isAuthenticated && user) {
+          console.log('User authenticated, loading data for:', user.email);
+          
+          // Load user data (form data, images, etc.)
+          await loadUserData();
+          
+          // Load bulk defects data
+          await loadBulkData();
+          
+          console.log('✅ App initialization complete');
+        } else {
+          console.log('No authenticated user found');
+        }
       } catch (error) {
         console.error('❌ Error initializing app:', error);
         // Force authentication to false if initialization fails
@@ -74,7 +89,7 @@ function App() {
     };
 
     initializeApp();
-  }, [checkAuth]);
+  }, [isAuthenticated, user, checkAuth, loadUserData, loadBulkData]);
 
   return (
     <ErrorBoundary>

@@ -104,60 +104,77 @@ export const createZipFile = async (
         if (image.file) {
           // Local file - process directly
           imageBlob = await processImageForDownload(image.file);
-        } else if (image.preview) {
-          // S3 image - create blob from canvas to avoid CORS
-          console.log('Processing S3 image via canvas:', image.preview);
+        } else if (image.preview || image.publicUrl) {
+          // S3 image - fetch the image data directly
+          const imageUrl = image.preview || image.publicUrl;
+          console.log('Fetching S3 image:', imageUrl);
           
-          // Create a canvas and draw the image to avoid CORS
-          const canvas = document.createElement('canvas');
-          const ctx = canvas.getContext('2d');
-          const img = new Image();
-          
-          // Set up image loading
-          const imageBlobPromise = new Promise<Blob>((resolve, reject) => {
-            img.onload = () => {
-              try {
-                // Set canvas size (maintain aspect ratio, max 1920x1080)
-                const maxWidth = 1920;
-                const maxHeight = 1080;
-                let { width, height } = img;
-                
-                if (width > maxWidth || height > maxHeight) {
-                  const ratio = Math.min(maxWidth / width, maxHeight / height);
-                  width *= ratio;
-                  height *= ratio;
-                }
-                
-                canvas.width = width;
-                canvas.height = height;
-                
-                // Draw image with proper quality
-                ctx?.drawImage(img, 0, 0, width, height);
-                
-                // Convert to blob with high quality JPEG
-                canvas.toBlob((blob) => {
-                  if (blob) {
-                    console.log('Successfully processed S3 image via canvas, size:', blob.size);
-                    resolve(blob);
-                  } else {
-                    reject(new Error('Failed to convert canvas to blob'));
+          try {
+            // Fetch the image data
+            const response = await fetch(imageUrl);
+            if (!response.ok) {
+              throw new Error(`Failed to fetch image: ${response.status}`);
+            }
+            
+            const imageData = await response.blob();
+            console.log('Fetched image data, size:', imageData.size);
+            
+            // Process the fetched image through canvas to ensure JPG format
+            imageBlob = await processImageForDownload(imageData);
+            
+          } catch (fetchError) {
+            console.error('Error fetching S3 image:', fetchError);
+            
+            // Fallback: try to create a canvas-based approach
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            const img = new Image();
+            
+            const imageBlobPromise = new Promise<Blob>((resolve, reject) => {
+              img.onload = () => {
+                try {
+                  // Set canvas size (maintain aspect ratio, max 1920x1080)
+                  const maxWidth = 1920;
+                  const maxHeight = 1080;
+                  let { width, height } = img;
+                  
+                  if (width > maxWidth || height > maxHeight) {
+                    const ratio = Math.min(maxWidth / width, maxHeight / height);
+                    width *= ratio;
+                    height *= ratio;
                   }
-                }, 'image/jpeg', 0.9);
-              } catch (error) {
-                reject(error);
-              }
-            };
+                  
+                  canvas.width = width;
+                  canvas.height = height;
+                  
+                  // Draw image with proper quality
+                  ctx?.drawImage(img, 0, 0, width, height);
+                  
+                  // Convert to blob with high quality JPEG
+                  canvas.toBlob((blob) => {
+                    if (blob) {
+                      console.log('Successfully processed S3 image via canvas, size:', blob.size);
+                      resolve(blob);
+                    } else {
+                      reject(new Error('Failed to convert canvas to blob'));
+                    }
+                  }, 'image/jpeg', 0.9);
+                } catch (error) {
+                  reject(error);
+                }
+              };
+              
+              img.onerror = () => {
+                reject(new Error('Failed to load image from URL'));
+              };
+              
+              // Load image from URL
+              img.crossOrigin = 'anonymous';
+              img.src = imageUrl;
+            });
             
-            img.onerror = () => {
-              reject(new Error('Failed to load image from preview URL'));
-            };
-            
-            // Load image from preview URL
-            img.crossOrigin = 'anonymous';
-            img.src = image.preview;
-          });
-          
-          imageBlob = await imageBlobPromise;
+            imageBlob = await imageBlobPromise;
+          }
         } else {
           throw new Error('No file or preview URL available for image');
         }
@@ -166,9 +183,9 @@ export const createZipFile = async (
         const photoNumber = image.photoNumber?.padStart(2, '0') || '00';
         const description = image.description || 'unknown';
         const originalName = image.fileName || image.file?.name || 'image';
-        const extension = originalName.split('.').pop() || 'jpg';
         
-        const imageFileName = `Photo ${photoNumber}^${description}^ ${date}.${extension}`;
+        // Always use JPG extension for consistency
+        const imageFileName = `Photo ${photoNumber}^${description}^ ${date}.jpg`;
         console.log('Generated filename:', imageFileName);
         
         // Add image to ZIP
@@ -179,7 +196,7 @@ export const createZipFile = async (
         
         // Add a placeholder file with error information
         const errorFileName = `Photo ${image.photoNumber?.padStart(2, '0') || '00'}^${image.description || 'error'}^ ${date}.txt`;
-        const errorContent = `Error processing image: ${image.fileName || image.file?.name || 'unknown'}\nOriginal URL: ${image.preview || 'N/A'}\nError: ${error}`;
+        const errorContent = `Error processing image: ${image.fileName || image.file?.name || 'unknown'}\nOriginal URL: ${image.preview || image.publicUrl || 'N/A'}\nError: ${error}`;
         zip.file(errorFileName, errorContent);
       }
     }

@@ -320,15 +320,13 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       // Auto-save to AWS in background
       (async () => {
         try {
-          const { AuthService } = await import('../lib/services');
-          const { user } = await AuthService.getCurrentUser();
+          const storedUser = localStorage.getItem('user');
+          const user = storedUser ? JSON.parse(storedUser) : null;
           
           if (user?.email) {
             const { DatabaseService } = await import('../lib/services');
             await DatabaseService.updateBulkDefects(user.email, newBulkDefects);
             console.log('✅ Bulk defects auto-saved to AWS for user:', user.email);
-          } else {
-            console.log('No user found, skipping AWS save');
           }
         } catch (error) {
           console.error('❌ Error auto-saving bulk defects:', error);
