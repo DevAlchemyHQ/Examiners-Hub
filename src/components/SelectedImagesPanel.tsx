@@ -279,32 +279,61 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
           return true;
         }
         
-              // Try to match by filename for cross-session persistence
-      const fileName = img.fileName || img.file?.name || '';
-      if (fileName) {
-        // Check if any selected image ID contains this filename
-        const hasMatchingFilename = Array.from(selectedImages).some(selectedId => {
-          // Handle both old format (just ID) and new format (object with id and fileName)
-          let selectedFileName = '';
-          if (typeof selectedId === 'string') {
-            // Old format: try to extract filename from ID
-            // Look for filename patterns in the ID
-            if (selectedId.includes('PB080003') || selectedId.includes('PB080004') || selectedId.includes('PB080007')) {
-              // Extract filename from ID by looking for the actual filename
-              const filenameMatch = selectedId.match(/(PB08000[347].*?\.JPG)/);
-              selectedFileName = filenameMatch ? filenameMatch[1] : '';
+                      // Try to match by filename for cross-session persistence
+        const fileName = img.fileName || img.file?.name || '';
+        if (fileName) {
+          // Check if any selected image ID contains this filename
+          const hasMatchingFilename = Array.from(selectedImages).some(selectedId => {
+            // Handle both old format (just ID) and new format (object with id and fileName)
+            let selectedFileName = '';
+            if (typeof selectedId === 'string') {
+              // Try multiple methods to extract filename from ID
+              // Method 1: Look for common filename patterns
+              const commonPatterns = ['PB080003', 'PB080004', 'PB080007', 'PB080003 copy', 'PB080004 copy', 'PB080007 copy'];
+              for (const pattern of commonPatterns) {
+                if (selectedId.includes(pattern)) {
+                  // Extract the full filename from the ID
+                  const filenameMatch = selectedId.match(new RegExp(`(${pattern.replace(' ', '\\s*')}.*?\\.JPG)`, 'i'));
+                  if (filenameMatch) {
+                    selectedFileName = filenameMatch[1];
+                    break;
+                  }
+                }
+              }
+              
+              // Method 2: Try to extract filename from UUID format
+              if (!selectedFileName && selectedId.includes('-')) {
+                const parts = selectedId.split('-');
+                // Look for parts that contain .JPG
+                const jpgPart = parts.find(part => part.includes('.JPG'));
+                if (jpgPart) {
+                  selectedFileName = jpgPart;
+                }
+              }
+              
+              // Method 3: Try the old split method as fallback
+              if (!selectedFileName) {
+                selectedFileName = selectedId.includes('-') ? selectedId.split('-').slice(1).join('-') : '';
+              }
             } else {
-              // Try the old split method
-              selectedFileName = selectedId.includes('-') ? selectedId.split('-').slice(1).join('-') : '';
+              // New format: object with fileName
+              selectedFileName = selectedId.fileName || '';
             }
-          } else {
-            // New format: object with fileName
-            selectedFileName = selectedId.fileName || '';
-          }
-          return selectedFileName === fileName;
-        });
-        return hasMatchingFilename;
-      }
+            
+            // Debug logging for matching
+            if (selectedFileName && selectedFileName !== fileName) {
+              console.log('🔍 Filename matching attempt:', {
+                currentFileName: fileName,
+                selectedFileName: selectedFileName,
+                selectedId: selectedId,
+                match: selectedFileName === fileName
+              });
+            }
+            
+            return selectedFileName === fileName;
+          });
+          return hasMatchingFilename;
+        }
         
         return false;
       });
