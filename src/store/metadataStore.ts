@@ -455,18 +455,76 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           }
         })(),
         
-        // Load images from localStorage only (S3 loading disabled for now)
+        // Load images from S3 first, then localStorage as fallback
         (async () => {
           try {
+            if (userId !== 'anonymous') {
+              console.log('Loading images from S3 for user:', userId);
+              const { files, error } = await StorageService.listFiles(`users/${userId}/images/`);
+              
+              if (error) {
+                console.error('Error listing S3 files:', error);
+              } else if (files && files.length > 0) {
+                console.log('Found', files.length, 'images in S3');
+                
+                const loadedImages: ImageMetadata[] = [];
+                
+                for (const file of files) {
+                  try {
+                    const originalFileName = file.name.split('-').slice(1).join('-');
+                    
+                    // Try to convert S3 image to base64 for reliable downloads
+                    let base64Data: string | undefined;
+                    try {
+                      console.log('Converting S3 image to base64:', originalFileName);
+                      const response = await fetch(file.url);
+                      if (response.ok) {
+                        const blob = await response.blob();
+                        const base64 = await convertBlobToBase64(blob);
+                        base64Data = base64;
+                        console.log('Successfully converted S3 image to base64:', originalFileName);
+                      }
+                    } catch (error) {
+                      console.error('Failed to convert S3 image to base64:', originalFileName, error);
+                    }
+                    
+                    const imageMetadata: ImageMetadata = {
+                      id: crypto.randomUUID(),
+                      fileName: originalFileName,
+                      fileSize: file.size,
+                      fileType: 'image/jpeg',
+                      photoNumber: '',
+                      description: '',
+                      preview: file.url,
+                      isSketch: false,
+                      publicUrl: file.url,
+                      userId: userId,
+                      base64: base64Data // Store base64 for reliable downloads
+                    };
+                    
+                    loadedImages.push(imageMetadata);
+                  } catch (error) {
+                    console.error('Error processing S3 file:', file.name, error);
+                  }
+                }
+                
+                console.log('✅ Images loaded from S3 for user:', userId);
+                return loadedImages;
+              }
+            }
+            
+            // Fallback to localStorage
             const savedImages = localStorage.getItem('clean-app-images');
             if (savedImages) {
               const images = JSON.parse(savedImages);
-              console.log('📱 Images loaded from localStorage:', images.length);
+              console.log('📱 Images loaded from localStorage (fallback):', images.length);
               return images;
             }
+            
+            console.log('No images found in S3 or localStorage');
             return [];
           } catch (error) {
-            console.error('❌ Error loading images from localStorage:', error);
+            console.error('❌ Error loading images:', error);
             return [];
           }
         })(),
