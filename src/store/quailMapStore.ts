@@ -17,22 +17,22 @@ const PREDEFINED_MAPS = [
   {
     id: 'eastern',
     name: 'Eastern',
-    url: 'https://hmrinsnimrwijlqtqahb.supabase.co/storage/v1/object/public/pdfs/eastern.pdf?t=2025-01-16T23%3A48%3A47.807Z'
+    url: ''
   },
   {
     id: 'midlands-nw',
     name: 'Midlands NW',
-    url: 'https://hmrinsnimrwijlqtqahb.supabase.co/storage/v1/object/public/pdfs/midlands-nw.pdf?t=2025-01-16T23%3A49%3A52.847Z'
+    url: ''
   },
   {
     id: 'south',
     name: 'South',
-    url: 'https://hmrinsnimrwijlqtqahb.supabase.co/storage/v1/object/public/pdfs/south.pdf?t=2025-01-16T23%3A50%3A05.063Z'
+    url: ''
   },
   {
     id: 'western',
     name: 'Western',
-    url: 'https://hmrinsnimrwijlqtqahb.supabase.co/storage/v1/object/public/pdfs/western.pdf?t=2025-01-16T23%3A50%3A21.391Z'
+    url: ''
   }
 ];
 

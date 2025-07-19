@@ -44,11 +44,11 @@ export const usePDFStore = create<PDFState>()(
         if (get().isInitialized) return;
 
         try {
-          const { data: { user } } = await supabase.auth.getUser();
-          if (!user) return;
+          const userEmail = localStorage.getItem('userEmail');
+          if (!userEmail) return;
 
           // Use DatabaseService to get PDF state
-          const { pdfState, error } = await DatabaseService.getPdfState(user.id, 'all');
+          const { pdfState, error } = await DatabaseService.getPdfState(userEmail, 'all');
           
           if (error) {
             console.error('Error getting PDF state:', error);
@@ -100,12 +100,12 @@ export const usePDFStore = create<PDFState>()(
 
       setFile1: async (file) => {
         try {
-          const { data: { user } } = await supabase.auth.getUser();
-          if (!user) throw new Error('Not authenticated');
+          const userEmail = localStorage.getItem('userEmail');
+          if (!userEmail) throw new Error('Not authenticated');
 
           if (file) {
             const timestamp = new Date().getTime();
-            const filePath = `pdfs/${user.id}/${timestamp}-${file.name}`;
+            const filePath = `users/${userEmail}/pdfs/${timestamp}-${file.name}`;
 
             console.log('Attempting to upload file to S3:', filePath);
 
@@ -127,7 +127,7 @@ export const usePDFStore = create<PDFState>()(
               file_name: file.name
             };
 
-            const { error: dbError } = await DatabaseService.updatePdfState(user.id, filePath, pdfStateData);
+            const { error: dbError } = await DatabaseService.updatePdfState(userEmail, filePath, pdfStateData);
 
             if (dbError) {
               console.error('Database error:', dbError);
@@ -147,12 +147,12 @@ export const usePDFStore = create<PDFState>()(
 
       setFile2: async (file) => {
         try {
-          const { data: { user } } = await supabase.auth.getUser();
-          if (!user) throw new Error('Not authenticated');
+          const userEmail = localStorage.getItem('userEmail');
+          if (!userEmail) throw new Error('Not authenticated');
 
           if (file) {
             const timestamp = new Date().getTime();
-            const filePath = `pdfs/${user.id}/${timestamp}-${file.name}`;
+            const filePath = `users/${userEmail}/pdfs/${timestamp}-${file.name}`;
 
             // Upload to S3 using StorageService
             const uploadResult = await StorageService.uploadFile(file, filePath);
@@ -172,7 +172,7 @@ export const usePDFStore = create<PDFState>()(
               file_name: file.name
             };
 
-            const { error: dbError } = await DatabaseService.updatePdfState(user.id, filePath, pdfStateData);
+            const { error: dbError } = await DatabaseService.updatePdfState(userEmail, filePath, pdfStateData);
 
             if (dbError) {
               console.error('Database error:', dbError);
@@ -202,7 +202,6 @@ export const usePDFStore = create<PDFState>()(
         localStorage.setItem('pageStates2', JSON.stringify(get().pageStates2));
       },
 
-      // Add reset method to clear all PDF state and persisted keys
       reset: () => {
         set({
           file1: null,
@@ -212,31 +211,38 @@ export const usePDFStore = create<PDFState>()(
           currentPage1: 1,
           currentPage2: 1,
           pdfUrls: {},
-          isInitialized: false,
+          isInitialized: false
         });
         localStorage.removeItem('pdf1Name');
         localStorage.removeItem('pdf2Name');
         localStorage.removeItem('pageStates1');
         localStorage.removeItem('pageStates2');
-        // Remove any other PDF-related keys if needed
       },
 
       clearFiles: () => {
         set({
           file1: null,
           file2: null,
+          pageStates1: {},
+          pageStates2: {},
+          currentPage1: 1,
+          currentPage2: 1,
           pdfUrls: {},
-          isInitialized: false,
+          isInitialized: false
         });
+        localStorage.removeItem('pdf1Name');
+        localStorage.removeItem('pdf2Name');
+        localStorage.removeItem('pageStates1');
+        localStorage.removeItem('pageStates2');
       }
     }),
     {
       name: 'pdf-storage',
       partialize: (state) => ({
-        currentPage1: state.currentPage1,
-        currentPage2: state.currentPage2,
         pageStates1: state.pageStates1,
         pageStates2: state.pageStates2,
+        currentPage1: state.currentPage1,
+        currentPage2: state.currentPage2,
         pdfUrls: state.pdfUrls
       })
     }

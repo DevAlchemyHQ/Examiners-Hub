@@ -19,7 +19,6 @@
     "@dnd-kit/modifiers": "^9.0.0",
     "@dnd-kit/sortable": "^8.0.0",
     "@dnd-kit/utilities": "^3.2.2",
-    "@supabase/supabase-js": "^2.39.3",
     "@tanstack/react-virtual": "^3.0.0",
     "aws-amplify": "^6.15.3",
     "body-parser": "^1.20.3",

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, Camera, Save, Loader2 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { StorageService } from '../../lib/services';
+import { AuthService } from '../../lib/services/AuthService';
 
 interface EditProfileModalProps {
     isOpen: boolean;
@@ -59,20 +60,24 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
             if (uploadedUrl) finalAvatarUrl = uploadedUrl;
         }
 
-        const { data, error } = await supabase.auth.updateUser({
-            data: { full_name: fullName },
-        });
+        const newName = fullName;
+        const newEmail = user?.email || '';
 
-        if (error) {
-            console.error('Error updating profile:', error);
-            return;
+        // Update user profile in AWS Cognito
+        const updateResult = await AuthService.updateUserAttributes({
+          email: newEmail,
+          name: newName
+        });
+        
+        if (updateResult.error) {
+          throw new Error(updateResult.error);
         }
 
-        if (data?.user) {
+        if (user) {
             setUser({
-                ...data.user,
+                ...user,
                 user_metadata: {
-                    ...data.user.user_metadata,
+                    ...user.user_metadata,
                     full_name: fullName
                 },
             });

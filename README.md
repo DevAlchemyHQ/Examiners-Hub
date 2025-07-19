@@ -16,8 +16,7 @@ A streamlined React application for structural inspection image and defect manag
 - **Frontend**: React 18 + TypeScript + Vite
 - **State Management**: Zustand
 - **Styling**: Tailwind CSS
-- **Backend**: Supabase (Auth + Storage + Database)
-- **File Handling**: JSZip for package generation
+- **- **File Handling**: JSZip for package generation
 - **UI Components**: Lucide React icons
 
 ## Getting Started
@@ -41,8 +40,7 @@ A streamlined React application for structural inspection image and defect manag
    cp env.example .env.local
    ```
 
-   Edit `.env.local` with your Supabase credentials:
-
+   
    ```
    VITE_SUPABASE_URL=your_supabase_url
    VITE_SUPABASE_ANON_KEY=your_supabase_anon_key

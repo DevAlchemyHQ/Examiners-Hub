@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { UserProfile } from '../types/profile';
-import { StorageService } from '../lib/services';
+import { StorageService, ProfileService } from '../lib/services';
 
 interface ProfileState {
   profile: UserProfile | null;
@@ -20,17 +20,13 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
     try {
       set({ isLoading: true, error: null });
       
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
+      const userEmail = localStorage.getItem('userEmail');
+      if (!userEmail) throw new Error('Not authenticated');
 
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .single();
-
-      if (error) throw error;
-      set({ profile: data });
+      const result = await ProfileService.getProfile(userEmail);
+      if (result.error) throw new Error(result.error);
+      
+      set({ profile: result.data });
     } catch (error) {
       set({ error: error instanceof Error ? error.message : 'Failed to fetch profile' });
     } finally {
@@ -42,15 +38,11 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
     try {
       set({ isLoading: true, error: null });
       
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
+      const userEmail = localStorage.getItem('userEmail');
+      if (!userEmail) throw new Error('Not authenticated');
 
-      const { error } = await supabase
-        .from('profiles')
-        .update({ ...updates, updated_at: new Date().toISOString() })
-        .eq('id', user.id);
-
-      if (error) throw error;
+      const result = await ProfileService.updateProfile(userEmail, updates);
+      if (result.error) throw new Error(result.error);
       
       // Refresh profile
       await get().fetchProfile();
@@ -65,12 +57,12 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
     try {
       set({ isLoading: true, error: null });
       
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
+      const userEmail = localStorage.getItem('userEmail');
+      if (!userEmail) throw new Error('Not authenticated');
 
       // Upload avatar to S3
       const fileExt = file.name.split('.').pop();
-      const filePath = `avatars/${user.id}/${Date.now()}.${fileExt}`;
+      const filePath = `users/${userEmail}/avatars/${Date.now()}.${fileExt}`;
 
       const uploadResult = await StorageService.uploadFile(file, filePath);
 
