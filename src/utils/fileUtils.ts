@@ -3,6 +3,74 @@ import { validateFormData, validateImages } from './fileValidation';
 import { formatDate, generateMetadataFileName, generateImageFileName, generateZipFileName } from './fileNaming';
 import { createZipFile } from './zipUtils';
 
+// Helper function to convert image to JPG base64
+export const convertImageToJpgBase64 = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const img = new Image();
+    
+    img.onload = () => {
+      try {
+        console.log('Converting image to JPG base64:', file.name);
+        
+        // Set canvas size (maintain aspect ratio, max 1920x1080)
+        const maxWidth = 1920;
+        const maxHeight = 1080;
+        let { width, height } = img;
+        
+        if (width > maxWidth || height > maxHeight) {
+          const ratio = Math.min(maxWidth / width, maxHeight / height);
+          width *= ratio;
+          height *= ratio;
+        }
+        
+        canvas.width = width;
+        canvas.height = height;
+        
+        // Draw image with proper quality
+        ctx?.drawImage(img, 0, 0, width, height);
+        
+        // Convert to base64 with high quality JPEG
+        const base64 = canvas.toDataURL('image/jpeg', 0.9);
+        console.log('Successfully converted to JPG base64, size:', base64.length);
+        resolve(base64);
+      } catch (error) {
+        console.error('Error converting image to JPG base64:', error);
+        reject(error);
+      }
+    };
+    
+    img.onerror = () => {
+      reject(new Error(`Failed to load image: ${file.name}`));
+    };
+    
+    // Load image from file
+    const objectUrl = URL.createObjectURL(file);
+    img.src = objectUrl;
+    
+    // Clean up object URL after loading
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+    };
+  });
+};
+
+// Helper function to convert blob to base64
+export const convertBlobToBase64 = (blob: Blob): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = reader.result as string;
+      resolve(base64);
+    };
+    reader.onerror = () => {
+      reject(new Error('Failed to convert blob to base64'));
+    };
+    reader.readAsDataURL(blob);
+  });
+};
+
 export const generateMetadataContent = (
   images: ImageMetadata[],
   date: string

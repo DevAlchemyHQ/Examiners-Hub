@@ -4,6 +4,7 @@ import { StorageService, DatabaseService } from '../lib/services';
 import { ImageMetadata, FormData, BulkDefect } from '../types';
 import { createZipFile } from '../utils/zipUtils';
 import { nanoid } from 'nanoid';
+import { convertImageToJpgBase64, convertBlobToBase64 } from '../utils/fileUtils';
 
 // Make sure initialFormData is truly empty
 const initialFormData: FormData = {
@@ -123,22 +124,26 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             console.error('Upload failed for', file.name, uploadResult.error);
             throw new Error(`Upload failed for ${file.name}: ${uploadResult.error}`);
           } else {
+            // Convert image to JPG and store as base64 in localStorage
+            const jpgBase64 = await convertImageToJpgBase64(file);
+            
             const imageMetadata: ImageMetadata = {
               id: crypto.randomUUID(),
               file: file, // Keep the original file for new uploads
               fileName: file.name,
               fileSize: file.size,
-              fileType: file.type,
+              fileType: 'image/jpeg',
               photoNumber: '',
               description: '',
               preview: URL.createObjectURL(file), // Local preview for new uploads
               isSketch,
               publicUrl: uploadResult.url!, // S3 signed URL
-              userId: userId // Use actual user ID
+              userId: userId, // Use actual user ID
+              base64: jpgBase64 // Store JPG as base64 for reliable downloads
             };
             
             newImages.push(imageMetadata);
-            console.log(`✅ Uploaded ${file.name} to S3 for user ${userId}`);
+            console.log(`✅ Uploaded ${file.name} to S3 and converted to JPG for user ${userId}`);
           }
         } catch (error) {
           console.error('Error processing file:', file.name, error);
@@ -146,7 +151,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         }
       }
 
-      console.log('All files uploaded to S3, updating state...');
+      console.log('All files uploaded to S3 and converted to JPG, updating state...');
       set((state) => {
         // Combine and sort images by photoNumber (asc), fallback to filename
         const combined = [...state.images, ...newImages];
@@ -433,6 +438,21 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
                 try {
                   const originalFileName = file.name.split('-').slice(1).join('-');
                   
+                  // Try to convert S3 image to base64 for reliable downloads
+                  let base64Data: string | undefined;
+                  try {
+                    console.log('Converting S3 image to base64:', originalFileName);
+                    const response = await fetch(file.url);
+                    if (response.ok) {
+                      const blob = await response.blob();
+                      const base64 = await convertBlobToBase64(blob);
+                      base64Data = base64;
+                      console.log('Successfully converted S3 image to base64:', originalFileName);
+                    }
+                  } catch (error) {
+                    console.error('Failed to convert S3 image to base64:', originalFileName, error);
+                  }
+                  
                   const imageMetadata: ImageMetadata = {
                     id: crypto.randomUUID(),
                     fileName: originalFileName,
@@ -443,7 +463,8 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
                     preview: file.url,
                     isSketch: false,
                     publicUrl: file.url,
-                    userId: userId
+                    userId: userId,
+                    base64: base64Data // Store base64 for reliable downloads
                   };
                   
                   loadedImages.push(imageMetadata);

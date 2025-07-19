@@ -176,10 +176,34 @@ export const createZipFile = async (
         if (image.file) {
           // Local file - process directly
           imageBlob = await processImageForDownload(image.file);
+        } else if (image.base64) {
+          // Use base64 data from localStorage (most reliable)
+          console.log('Using base64 data for image:', image.fileName || 'unknown');
+          
+          try {
+            // Convert base64 to blob
+            const base64Data = image.base64;
+            const byteCharacters = atob(base64Data.split(',')[1]);
+            const byteNumbers = new Array(byteCharacters.length);
+            
+            for (let i = 0; i < byteCharacters.length; i++) {
+              byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }
+            
+            const byteArray = new Uint8Array(byteNumbers);
+            const blob = new Blob([byteArray], { type: 'image/jpeg' });
+            
+            console.log('Successfully converted base64 to blob, size:', blob.size);
+            imageBlob = blob;
+            
+          } catch (error) {
+            console.error('Error converting base64 to blob:', error);
+            throw new Error('Failed to convert base64 image data');
+          }
         } else if (image.preview || image.publicUrl) {
-          // S3 image - use improved CORS handling
+          // Fallback: S3 image - use improved CORS handling
           const imageUrl = image.preview || image.publicUrl;
-          console.log('Processing S3 image with CORS handling:', imageUrl);
+          console.log('Fallback: Processing S3 image with CORS handling:', imageUrl);
           
           try {
             // Use the improved fetch function with CORS fallback
@@ -220,7 +244,7 @@ export const createZipFile = async (
             });
           }
         } else {
-          throw new Error('No file or preview URL available for image');
+          throw new Error('No file, base64, or preview URL available for image');
         }
         
         // Generate filename for the image
