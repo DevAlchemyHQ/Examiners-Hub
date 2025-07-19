@@ -22,11 +22,14 @@ const AWS_CONFIG = {
   }
 };
 
-// Initialize AWS clients
-const dynamoClient = new DynamoDBClient(AWS_CONFIG);
-const docClient = DynamoDBDocumentClient.from(dynamoClient);
-const s3Client = new S3Client(AWS_CONFIG);
-const cognitoClient = new CognitoIdentityProviderClient(AWS_CONFIG);
+// Check if AWS credentials are available
+const hasAWSCredentials = AWS_CONFIG.credentials.accessKeyId && AWS_CONFIG.credentials.secretAccessKey;
+
+// Initialize AWS clients only if credentials are available
+const dynamoClient = hasAWSCredentials ? new DynamoDBClient(AWS_CONFIG) : null;
+const docClient = dynamoClient ? DynamoDBDocumentClient.from(dynamoClient) : null;
+const s3Client = hasAWSCredentials ? new S3Client(AWS_CONFIG) : null;
+const cognitoClient = hasAWSCredentials ? new CognitoIdentityProviderClient(AWS_CONFIG) : null;
 
 // AWS Resource Names
 const BUCKET_NAME = 'mvp-labeler-storage';
@@ -84,6 +87,16 @@ export class AuthService {
     try {
       console.log('🔐 AWS Cognito signin for:', email);
       
+      // Check if AWS credentials are available
+      if (!hasAWSCredentials) {
+        console.error('❌ AWS credentials missing. Please set VITE_AWS_ACCESS_KEY_ID and VITE_AWS_SECRET_ACCESS_KEY in Vercel.');
+        return { 
+          user: null, 
+          session: null, 
+          error: 'AWS credentials not configured. Please contact support.' 
+        };
+      }
+      
       // Check if required environment variables are set
       if (!CLIENT_ID || !USER_POOL_ID) {
         console.error('❌ Missing AWS environment variables:');
@@ -105,7 +118,7 @@ export class AuthService {
         }
       });
       
-      const result = await cognitoClient.send(authCommand);
+      const result = await cognitoClient!.send(authCommand);
       console.log('✅ AWS Cognito signin successful:', result);
       
       // Get user details
@@ -114,7 +127,7 @@ export class AuthService {
         Username: email
       });
       
-      const userResult = await cognitoClient.send(userCommand);
+      const userResult = await cognitoClient!.send(userCommand);
       
       return {
         user: {
