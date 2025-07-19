@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-import { supabase } from '../lib/supabase';
 import { DatabaseService } from '../lib/services';
 // import { useAuthStore } from './authStore';
 import { useMetadataStore } from './metadataStore';

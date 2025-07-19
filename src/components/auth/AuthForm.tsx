@@ -1,6 +1,5 @@
 import React, { useState, useCallback } from 'react';
 import { Mail, Lock, Loader2, AlertCircle, ArrowRight } from 'lucide-react';
-import { signInWithEmail, signUpWithEmail, resetPassword } from '../../lib/supabase';
 import { useAuthStore } from '../../store/authStore';
 
 type AuthMode = 'signin' | 'signup' | 'reset';

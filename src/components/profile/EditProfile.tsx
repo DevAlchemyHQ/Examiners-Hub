@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { X, Camera, Save, Loader2 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { StorageService } from '../../lib/services';
-import { updateUserProfile } from '../../lib/supabase';
 
 interface EditProfileModalProps {
     isOpen: boolean;

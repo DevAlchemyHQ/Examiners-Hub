@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { supabase } from '../lib/supabase';
 import { DatabaseService } from '../lib/services';
 import { StorageService } from '../lib/services';
 

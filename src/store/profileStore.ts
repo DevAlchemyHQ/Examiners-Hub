@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-import { supabase } from '../lib/supabase';
 import { UserProfile } from '../types/profile';
 import { StorageService } from '../lib/services';
 

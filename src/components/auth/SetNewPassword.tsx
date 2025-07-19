@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { Eye, EyeOff, Loader2, AlertCircle, Lock } from 'lucide-react';
-import { updatePassword } from '../../lib/supabase';
 
 export const SetNewPassword: React.FC = () => {
   const [password, setPassword] = useState('');

@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { Lock, Loader2, AlertCircle, ArrowRight } from 'lucide-react';
-import { updatePassword } from '../../lib/supabase';
 import { useNavigate } from 'react-router-dom';
 
 export const ResetPassword: React.FC = () => {

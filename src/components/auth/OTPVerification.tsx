@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Loader2, AlertCircle, ArrowLeft, RefreshCw } from 'lucide-react';
-import { signUpWithEmail, resetPassword } from '../../lib/supabase';
 
 interface OTPVerificationProps {
   email: string;
