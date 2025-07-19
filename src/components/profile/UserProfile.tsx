@@ -4,9 +4,7 @@ import { EditProfile } from './EditProfile';
 import { User, Settings, LogOut, Mail, Calendar, MapPin, Phone, Globe, Award, Star, Heart, Zap, Target, Palette, Music, Gamepad2, BookOpen, Camera, Palette as PaletteIcon, Music as MusicIcon, Gamepad2 as GamepadIcon, BookOpen as BookIcon, Camera as CameraIcon } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { useNavigate } from 'react-router-dom';
-import { signOut } from '../../lib/supabase';
 import type { UserProfile as UserProfileType } from '../../types/profile';
-import { ServiceManager } from '../../lib/services';
 import { StorageService } from '../../lib/services';
 
 export const UserProfile: React.FC = () => {
@@ -379,109 +377,6 @@ export const UserProfile: React.FC = () => {
                 <User size={16} />
                 Back to Dashboard
               </button>
-            </div>
-
-            {/* Service Control Panel */}
-            <div className="mt-8 p-6 bg-gray-50 dark:bg-gray-700 rounded-lg">
-              <div className="flex items-center gap-2 mb-4">
-                <Settings size={20} className="text-gray-600 dark:text-gray-400" />
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Service Configuration</h3>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {/* Auth Service */}
-                <div className="p-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-600">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                      <Database size={16} className="text-blue-500" />
-                      <span className="font-medium text-gray-900 dark:text-white">Authentication</span>
-                    </div>
-                    <span className={`px-2 py-1 text-xs rounded-full ${
-                      ServiceManager.isUsingAWS('AUTH_USE_AWS') 
-                        ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' 
-                        : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
-                    }`}>
-                      {ServiceManager.isUsingAWS('AUTH_USE_AWS') ? 'AWS' : 'Supabase'}
-                    </span>
-                  </div>
-                  <button
-                    onClick={() => {
-                      if (ServiceManager.isUsingAWS('AUTH_USE_AWS')) {
-                        ServiceManager.disableAWSFeature('AUTH_USE_AWS');
-                      } else {
-                        ServiceManager.enableAWSFeature('AUTH_USE_AWS');
-                      }
-                    }}
-                    className="w-full px-3 py-2 text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-                  >
-                    Switch to {ServiceManager.isUsingAWS('AUTH_USE_AWS') ? 'Supabase' : 'AWS'}
-                  </button>
-                </div>
-
-                {/* Storage Service */}
-                <div className="p-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-600">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                      <Cloud size={16} className="text-green-500" />
-                      <span className="font-medium text-gray-900 dark:text-white">Storage</span>
-                    </div>
-                    <span className={`px-2 py-1 text-xs rounded-full ${
-                      ServiceManager.isUsingAWS('STORAGE_USE_AWS') 
-                        ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' 
-                        : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
-                    }`}>
-                      {ServiceManager.isUsingAWS('STORAGE_USE_AWS') ? 'AWS S3' : 'Supabase'}
-                    </span>
-                  </div>
-                  <button
-                    onClick={() => {
-                      if (ServiceManager.isUsingAWS('STORAGE_USE_AWS')) {
-                        ServiceManager.disableAWSFeature('STORAGE_USE_AWS');
-                      } else {
-                        ServiceManager.enableAWSFeature('STORAGE_USE_AWS');
-                      }
-                    }}
-                    className="w-full px-3 py-2 text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-                  >
-                    Switch to {ServiceManager.isUsingAWS('STORAGE_USE_AWS') ? 'Supabase' : 'AWS S3'}
-                  </button>
-                </div>
-
-                {/* Profile Service */}
-                <div className="p-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-600">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                      <User size={16} className="text-purple-500" />
-                      <span className="font-medium text-gray-900 dark:text-white">Profile</span>
-                    </div>
-                    <span className={`px-2 py-1 text-xs rounded-full ${
-                      ServiceManager.isUsingAWS('PROFILE_USE_AWS') 
-                        ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' 
-                        : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
-                    }`}>
-                      {ServiceManager.isUsingAWS('PROFILE_USE_AWS') ? 'AWS' : 'Supabase'}
-                    </span>
-                  </div>
-                  <button
-                    onClick={() => {
-                      if (ServiceManager.isUsingAWS('PROFILE_USE_AWS')) {
-                        ServiceManager.disableAWSFeature('PROFILE_USE_AWS');
-                      } else {
-                        ServiceManager.enableAWSFeature('PROFILE_USE_AWS');
-                      }
-                    }}
-                    className="w-full px-3 py-2 text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-                  >
-                    Switch to {ServiceManager.isUsingAWS('PROFILE_USE_AWS') ? 'Supabase' : 'AWS'}
-                  </button>
-                </div>
-              </div>
-
-              <div className="mt-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
-                <p className="text-sm text-yellow-800 dark:text-yellow-200">
-                  <strong>Note:</strong> Service switching is for testing purposes. All features currently use Supabase by default.
-                </p>
-              </div>
             </div>
           </div>
         </div>
