@@ -361,99 +361,106 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       
       console.log('Loading data for user:', userId);
       
-      // Load form data from AWS first, then fallback to localStorage
-      if (userId !== 'anonymous') {
+      // Load form data from localStorage first (fast and reliable)
+      const savedFormData = localStorage.getItem('clean-app-form-data');
+      if (savedFormData) {
         try {
-          // Use static import
-          const { project } = await DatabaseService.getProject(userId, 'current');
-          
-          if (project?.formData) {
-            set({ formData: project.formData });
-            console.log('✅ Form data loaded from AWS for user:', userId);
-          } else {
-            // Fallback to localStorage
-            const savedFormData = localStorage.getItem('clean-app-form-data');
-            if (savedFormData) {
-              const formData = JSON.parse(savedFormData);
-              set({ formData });
-              console.log('📱 Form data loaded from localStorage (fallback)');
-            }
-          }
-        } catch (error) {
-          console.error('❌ Error loading form data from AWS:', error);
-          // Fallback to localStorage
-          const savedFormData = localStorage.getItem('clean-app-form-data');
-          if (savedFormData) {
-            const formData = JSON.parse(savedFormData);
-            set({ formData });
-            console.log('📱 Form data loaded from localStorage (fallback)');
-          }
-        }
-      } else {
-        // Anonymous user - load from localStorage
-        const savedFormData = localStorage.getItem('clean-app-form-data');
-        if (savedFormData) {
           const formData = JSON.parse(savedFormData);
           set({ formData });
-          console.log('📱 Form data loaded from localStorage (anonymous user)');
+          console.log('📱 Form data loaded from localStorage');
+        } catch (error) {
+          console.error('Error parsing localStorage form data:', error);
         }
       }
       
-      // Load images from S3 for the user
-      if (userId !== 'anonymous') {
+      // Load bulk data from localStorage first (fast and reliable)
+      const savedBulkData = localStorage.getItem('clean-app-bulk-data');
+      if (savedBulkData) {
         try {
-          console.log('Loading images from S3 for user:', userId);
-          
-          // List files in user's S3 folder
-          const { files, error } = await StorageService.listFiles(`users/${userId}/images/`);
-          
-          if (error) {
-            console.error('Error listing S3 files:', error);
-            set({ images: [] });
-            return;
+          const bulkDefects = JSON.parse(savedBulkData);
+          set({ bulkDefects });
+          console.log('📱 Bulk defects loaded from localStorage');
+        } catch (error) {
+          console.error('Error parsing localStorage bulk data:', error);
+        }
+      }
+      
+      // Try to load from AWS in background (but don't block on it)
+      if (userId !== 'anonymous') {
+        // Load form data from AWS in background
+        (async () => {
+          try {
+            const { project } = await DatabaseService.getProject(userId, 'current');
+            if (project?.formData) {
+              set({ formData: project.formData });
+              console.log('✅ Form data loaded from AWS for user:', userId);
+            }
+          } catch (error) {
+            console.error('❌ Error loading form data from AWS:', error);
           }
-          
-          if (files && files.length > 0) {
-            console.log('Found', files.length, 'images in S3');
+        })();
+        
+        // Load bulk data from AWS in background
+        (async () => {
+          try {
+            const { defects } = await DatabaseService.getBulkDefects(userId);
+            if (defects && defects.length > 0) {
+              set({ bulkDefects: defects });
+              console.log('✅ Bulk defects loaded from AWS for user:', userId);
+            }
+          } catch (error) {
+            console.error('❌ Error loading bulk data from AWS:', error);
+          }
+        })();
+        
+        // Load images from S3 in background
+        (async () => {
+          try {
+            console.log('Loading images from S3 for user:', userId);
+            const { files, error } = await StorageService.listFiles(`users/${userId}/images/`);
             
-            // Create image metadata for each file using real S3 URLs
-            const loadedImages: ImageMetadata[] = [];
-            
-            for (const file of files) {
-              try {
-                // Extract original filename from S3 path (remove timestamp prefix)
-                const originalFileName = file.name.split('-').slice(1).join('-'); // Remove timestamp prefix
-                
-                // Create image metadata with real S3 URL
-                const imageMetadata: ImageMetadata = {
-                  id: crypto.randomUUID(),
-                  fileName: originalFileName,
-                  fileSize: file.size,
-                  fileType: 'image/jpeg', // Default type
-                  photoNumber: '',
-                  description: '',
-                  preview: file.url, // Use signed URL for preview
-                  isSketch: false,
-                  publicUrl: file.url, // Use signed URL for public access
-                  userId: userId
-                };
-                
-                loadedImages.push(imageMetadata);
-              } catch (error) {
-                console.error('Error processing S3 file:', file.name, error);
-              }
+            if (error) {
+              console.error('Error listing S3 files:', error);
+              return;
             }
             
-            set({ images: loadedImages });
-            console.log('✅ Images loaded from S3 for user:', userId);
-          } else {
-            console.log('No images found in S3 for user:', userId);
-            set({ images: [] });
+            if (files && files.length > 0) {
+              console.log('Found', files.length, 'images in S3');
+              
+              const loadedImages: ImageMetadata[] = [];
+              
+              for (const file of files) {
+                try {
+                  const originalFileName = file.name.split('-').slice(1).join('-');
+                  
+                  const imageMetadata: ImageMetadata = {
+                    id: crypto.randomUUID(),
+                    fileName: originalFileName,
+                    fileSize: file.size,
+                    fileType: 'image/jpeg',
+                    photoNumber: '',
+                    description: '',
+                    preview: file.url,
+                    isSketch: false,
+                    publicUrl: file.url,
+                    userId: userId
+                  };
+                  
+                  loadedImages.push(imageMetadata);
+                } catch (error) {
+                  console.error('Error processing S3 file:', file.name, error);
+                }
+              }
+              
+              set({ images: loadedImages });
+              console.log('✅ Images loaded from S3 for user:', userId);
+            } else {
+              console.log('No images found in S3 for user:', userId);
+            }
+          } catch (error) {
+            console.error('Error loading images from S3:', error);
           }
-        } catch (error) {
-          console.error('Error loading images from S3:', error);
-          set({ images: [] });
-        }
+        })();
       }
       
     } catch (error) {

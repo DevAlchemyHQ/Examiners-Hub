@@ -85,7 +85,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           const user = JSON.parse(storedUser);
           console.log('Found stored user session:', user.email);
           
-          // For now, just trust the stored session to avoid crashes
+          // Trust the stored session - don't validate with AWS during initialization
           console.log('✅ Using stored session for user:', user.email);
           set({ isAuthenticated: true, user });
         } catch (parseError) {
@@ -102,7 +102,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
     } catch (error) {
       console.error('Auth check failed:', error);
-      set({ isAuthenticated: false, user: null });
+      // Don't change auth state on error - just log it
+      console.log('Auth check error, keeping current state');
     }
   },
   
