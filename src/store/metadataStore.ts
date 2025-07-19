@@ -23,6 +23,8 @@ interface MetadataStateOnly {
   sketchSortDirection: 'asc' | 'desc' | null;
   bulkDefects: BulkDefect[];
   viewMode: 'images' | 'bulk';
+  isLoading: boolean;
+  isInitialized: boolean;
 }
 
 // Combine state and actions
@@ -63,6 +65,8 @@ const initialState: MetadataStateOnly = {
   sketchSortDirection: null,
   bulkDefects: [],
   viewMode: 'images',
+  isLoading: false,
+  isInitialized: false,
 };
 
 export const useMetadataStore = create<MetadataState>((set, get) => ({
@@ -360,6 +364,9 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
     try {
       console.log('Loading user data...');
       
+      // Set loading state
+      set({ isLoading: true });
+      
       // Get user from localStorage
       const storedUser = localStorage.getItem('user');
       const user = storedUser ? JSON.parse(storedUser) : null;
@@ -367,67 +374,67 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       
       console.log('Loading data for user:', userId);
       
-      // Load form data from localStorage first (fast and reliable)
-      const savedFormData = localStorage.getItem('clean-app-form-data');
-      if (savedFormData) {
-        try {
-          const formData = JSON.parse(savedFormData);
-          set({ formData });
-          console.log('📱 Form data loaded from localStorage');
-        } catch (error) {
-          console.error('Error parsing localStorage form data:', error);
-        }
-      }
-      
-      // Load bulk data from localStorage first (fast and reliable)
-      const savedBulkData = localStorage.getItem('clean-app-bulk-data');
-      if (savedBulkData) {
-        try {
-          const bulkDefects = JSON.parse(savedBulkData);
-          set({ bulkDefects });
-          console.log('📱 Bulk defects loaded from localStorage');
-        } catch (error) {
-          console.error('Error parsing localStorage bulk data:', error);
-        }
-      }
-      
-      // Try to load from AWS in background (but don't block on it)
-      if (userId !== 'anonymous') {
-        // Load form data from AWS in background
+      // Load all data in parallel and batch state updates
+      const [formDataResult, bulkDataResult, imagesResult] = await Promise.allSettled([
+        // Load form data from localStorage first, then AWS
         (async () => {
           try {
-            const { project } = await DatabaseService.getProject(userId, 'current');
-            if (project?.formData) {
-              set({ formData: project.formData });
-              console.log('✅ Form data loaded from AWS for user:', userId);
+            const savedFormData = localStorage.getItem('clean-app-form-data');
+            if (savedFormData) {
+              const formData = JSON.parse(savedFormData);
+              console.log('📱 Form data loaded from localStorage');
+              return formData;
             }
-          } catch (error) {
-            console.error('❌ Error loading form data from AWS:', error);
-          }
-        })();
-        
-        // Load bulk data from AWS in background
-        (async () => {
-          try {
-            const { defects } = await DatabaseService.getBulkDefects(userId);
-            if (defects && defects.length > 0) {
-              set({ bulkDefects: defects });
-              console.log('✅ Bulk defects loaded from AWS for user:', userId);
+            
+            if (userId !== 'anonymous') {
+              const { project } = await DatabaseService.getProject(userId, 'current');
+              if (project?.formData) {
+                console.log('✅ Form data loaded from AWS for user:', userId);
+                return project.formData;
+              }
             }
+            return null;
           } catch (error) {
-            console.error('❌ Error loading bulk data from AWS:', error);
+            console.error('❌ Error loading form data:', error);
+            return null;
           }
-        })();
+        })(),
         
-        // Load images from S3 in background
+        // Load bulk data from localStorage first, then AWS
         (async () => {
           try {
+            const savedBulkData = localStorage.getItem('clean-app-bulk-data');
+            if (savedBulkData) {
+              const bulkDefects = JSON.parse(savedBulkData);
+              console.log('📱 Bulk defects loaded from localStorage');
+              return bulkDefects;
+            }
+            
+            if (userId !== 'anonymous') {
+              const { defects } = await DatabaseService.getBulkDefects(userId);
+              if (defects && defects.length > 0) {
+                console.log('✅ Bulk defects loaded from AWS for user:', userId);
+                return defects;
+              }
+            }
+            return [];
+          } catch (error) {
+            console.error('❌ Error loading bulk data:', error);
+            return [];
+          }
+        })(),
+        
+        // Load images from S3
+        (async () => {
+          try {
+            if (userId === 'anonymous') return [];
+            
             console.log('Loading images from S3 for user:', userId);
             const { files, error } = await StorageService.listFiles(`users/${userId}/images/`);
             
             if (error) {
               console.error('Error listing S3 files:', error);
-              return;
+              return [];
             }
             
             if (files && files.length > 0) {
@@ -474,19 +481,43 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
                 }
               }
               
-              set({ images: loadedImages });
               console.log('✅ Images loaded from S3 for user:', userId);
+              return loadedImages;
             } else {
               console.log('No images found in S3 for user:', userId);
+              return [];
             }
           } catch (error) {
             console.error('Error loading images from S3:', error);
+            return [];
           }
-        })();
+        })()
+      ]);
+      
+      // Batch all state updates in one call to prevent flickering
+      const updates: Partial<MetadataStateOnly> = {
+        isLoading: false,
+        isInitialized: true
+      };
+      
+      if (formDataResult.status === 'fulfilled' && formDataResult.value) {
+        updates.formData = formDataResult.value;
       }
+      
+      if (bulkDataResult.status === 'fulfilled' && bulkDataResult.value.length > 0) {
+        updates.bulkDefects = bulkDataResult.value;
+      }
+      
+      if (imagesResult.status === 'fulfilled' && imagesResult.value.length > 0) {
+        updates.images = imagesResult.value;
+      }
+      
+      // Single state update to prevent flickering
+      set(updates);
       
     } catch (error) {
       console.error('Error loading user data:', error);
+      set({ isLoading: false, isInitialized: true });
     }
   },
 

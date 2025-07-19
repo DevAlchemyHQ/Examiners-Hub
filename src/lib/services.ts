@@ -220,7 +220,7 @@ export class StorageService {
       const putCommand = new PutObjectCommand({
         Bucket: BUCKET_NAME,
         Key: filePath,
-        Body: Buffer.from(arrayBuffer),
+        Body: new Uint8Array(arrayBuffer), // Convert ArrayBuffer to Uint8Array
         ContentType: file.type,
         ACL: 'public-read', // Make it publicly readable
         CacheControl: 'max-age=31536000', // Cache for 1 year
