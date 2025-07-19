@@ -65,14 +65,14 @@ const processImageForDownload = async (imageFile: File | string): Promise<Blob> 
       img.src = imageFile;
     } else {
       // File object - create object URL
-      const objectUrl = URL.createObjectURL(imageFile);
-      console.log('Created object URL:', objectUrl);
-      img.src = objectUrl;
-      
-      // Clean up object URL after processing
-      img.onload = () => {
-        URL.revokeObjectURL(objectUrl);
-      };
+    const objectUrl = URL.createObjectURL(imageFile);
+    console.log('Created object URL:', objectUrl);
+    img.src = objectUrl;
+    
+    // Clean up object URL after processing
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+    };
     }
   });
 };
@@ -209,7 +209,7 @@ export const createZipFile = async (
             // Use the improved fetch function with CORS fallback
             const imageData = await fetchImageWithFallback(imageUrl);
             console.log('Successfully fetched S3 image, size:', imageData.size);
-            
+        
             // Process the fetched image through canvas to ensure JPG format
             imageBlob = await processImageForDownload(imageData);
             
@@ -247,13 +247,32 @@ export const createZipFile = async (
           throw new Error('No file, base64, or preview URL available for image');
         }
         
-        // Generate filename for the image
-        const photoNumber = image.photoNumber?.padStart(2, '0') || '00';
-        const description = image.description || 'unknown';
-        const originalName = image.fileName || image.file?.name || 'image';
+        // Generate filename for the image in the correct format: Photo 1 ^ LM ^ 15-04-25
+        const photoNumber = image.photoNumber || '1';
+        const description = image.description || 'LM';
         
-        // Always use JPG extension for consistency
-        const imageFileName = `Photo ${photoNumber}^${description}^ ${date}.jpg`;
+        // Format date as DD-MM-YY
+        const formatDate = (dateString: string) => {
+          try {
+            const date = new Date(dateString);
+            const day = date.getDate().toString().padStart(2, '0');
+            const month = (date.getMonth() + 1).toString().padStart(2, '0');
+            const year = date.getFullYear().toString().slice(-2); // Get last 2 digits
+            return `${day}-${month}-${year}`;
+          } catch (error) {
+            // Fallback to current date if parsing fails
+            const now = new Date();
+            const day = now.getDate().toString().padStart(2, '0');
+            const month = (now.getMonth() + 1).toString().padStart(2, '0');
+            const year = now.getFullYear().toString().slice(-2);
+            return `${day}-${month}-${year}`;
+          }
+        };
+        
+        const formattedDate = formatDate(date);
+        
+        // Generate filename in the correct format: Photo 1 ^ LM ^ 15-04-25
+        const imageFileName = `Photo ${photoNumber} ^ ${description} ^ ${formattedDate}.jpg`;
         console.log('Generated filename:', imageFileName);
         
         // Add image to ZIP
@@ -263,7 +282,9 @@ export const createZipFile = async (
         console.error(`Error processing image ${i + 1}:`, error);
         
         // Add a placeholder file with error information
-        const errorFileName = `Photo ${image.photoNumber?.padStart(2, '0') || '00'}^${image.description || 'error'}^ ${date}.txt`;
+        const errorPhotoNumber = image.photoNumber || '1';
+        const errorDescription = image.description || 'error';
+        const errorFileName = `Photo ${errorPhotoNumber} ^ ${errorDescription} ^ ${formattedDate}.txt`;
         const errorContent = `Error processing image: ${image.fileName || image.file?.name || 'unknown'}\nOriginal URL: ${image.preview || image.publicUrl || 'N/A'}\nError: ${error}`;
         zip.file(errorFileName, errorContent);
       }

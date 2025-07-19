@@ -624,7 +624,27 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           throw new Error(`Image not found for defect ${defect.photoNumber || 'unknown'}`);
         }
         
-        return `Photo ${defect.photoNumber?.padStart(2, '0') || '00'} ^ ${defect.description || ''} ^ ${formData.date || new Date().toISOString().slice(0,10)}    ${defect.selectedFile}`;
+        // Format date as DD-MM-YY
+        const formatDate = (dateString: string) => {
+          try {
+            const date = new Date(dateString);
+            const day = date.getDate().toString().padStart(2, '0');
+            const month = (date.getMonth() + 1).toString().padStart(2, '0');
+            const year = date.getFullYear().toString().slice(-2); // Get last 2 digits
+            return `${day}-${month}-${year}`;
+          } catch (error) {
+            // Fallback to current date if parsing fails
+            const now = new Date();
+            const day = now.getDate().toString().padStart(2, '0');
+            const month = (now.getMonth() + 1).toString().padStart(2, '0');
+            const year = now.getFullYear().toString().slice(-2);
+            return `${day}-${month}-${year}`;
+          }
+        };
+        
+        const formattedDate = formatDate(formData.date || new Date().toISOString().slice(0,10));
+        
+        return `Photo ${defect.photoNumber || '1'} ^ ${defect.description || 'LM'} ^ ${formattedDate}    ${defect.selectedFile}`;
       }).join('\n');
 
       // Generate filenames
