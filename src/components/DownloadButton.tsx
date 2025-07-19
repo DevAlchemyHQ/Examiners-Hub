@@ -27,16 +27,7 @@ export const DownloadButton: React.FC = () => {
   }, [user]);
   
 
-  const hasSpecialCharacters = React.useMemo(() => {
-    if (viewMode === 'bulk') {
-      // For bulk mode, use the bulk validation
-      return !isBulkValid();
-    } else {
-      // For images mode, check selected images
-    const selectedImagesList = images.filter(img => selectedImages.has(img.id));
-    return selectedImagesList.some(img => !img.isSketch && !validateDescription(img.description || '').isValid);
-    }
-  }, [images, selectedImages, viewMode, bulkDefects, isBulkValid]);
+  // Remove the unused hasSpecialCharacters variable
 
   const handleUpgradeClick = () => {
     navigate('/subscriptions');
