@@ -18,7 +18,14 @@ export const useValidation = () => {
       return !validateDescription(img.description || '').isValid;
     });
     
-    return !hasInvalidDescriptions;
+    // Check for duplicate photo numbers
+    const photoNumbers = selectedImagesList
+      .map(img => img.photoNumber?.trim())
+      .filter(num => num && num !== '');
+    
+    const hasDuplicatePhotoNumbers = photoNumbers.length !== new Set(photoNumbers).size;
+    
+    return !hasInvalidDescriptions && !hasDuplicatePhotoNumbers;
   };
 
   const getValidationErrors = () => {
@@ -40,6 +47,17 @@ export const useValidation = () => {
       
       if (imagesWithoutDescriptions.length > 0) {
         errors.push(`Add descriptions for ${imagesWithoutDescriptions.length} image${imagesWithoutDescriptions.length !== 1 ? 's' : ''}`);
+      }
+      
+      // Check for duplicate photo numbers
+      const photoNumbers = selectedImagesList
+        .map(img => img.photoNumber?.trim())
+        .filter(num => num && num !== '');
+      
+      const uniquePhotoNumbers = new Set(photoNumbers);
+      if (photoNumbers.length !== uniquePhotoNumbers.size) {
+        const duplicates = photoNumbers.filter((num, index) => photoNumbers.indexOf(num) !== index);
+        errors.push(`Duplicate photo numbers found: ${[...new Set(duplicates)].join(', ')}`);
       }
     }
     

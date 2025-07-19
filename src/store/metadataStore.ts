@@ -532,15 +532,26 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           }
         })(),
           
-          // Load saved selections from localStorage
+          // Load saved selections from DynamoDB first, then localStorage as fallback
           (async () => {
             try {
+              if (userId !== 'anonymous') {
+                const { project } = await DatabaseService.getProject(userId, 'current');
+                if (project?.selectedImages && project.selectedImages.length > 0) {
+                  console.log('✅ Selected images loaded from AWS for user:', userId);
+                  return project.selectedImages;
+                }
+              }
+              
+              // Fallback to localStorage
               const savedSelections = localStorage.getItem('clean-app-selected-images');
               if (savedSelections) {
                 const selections = JSON.parse(savedSelections);
-                console.log('📱 Selected images restored from localStorage');
+                console.log('📱 Selected images restored from localStorage (fallback):', selections);
                 return selections;
               }
+              
+              console.log('No selected images found in AWS or localStorage');
               return [];
             } catch (error) {
               console.error('❌ Error loading selections:', error);
