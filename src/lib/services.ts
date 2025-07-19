@@ -93,13 +93,13 @@ export class AuthService {
       const userResult = await cognitoClient.send(userCommand);
       
       // Extract user attributes properly
-      const userAttributes = userResult.User?.Attributes || [];
+      const userAttributes = (userResult as any).User?.Attributes || [];
       const nameAttribute = userAttributes.find((attr: any) => attr.Name === 'name');
       const fullName = nameAttribute ? nameAttribute.Value : '';
       
       return {
         user: {
-          id: userResult.User?.Username || email,
+          id: (userResult as any).User?.Username || email,
           email: email,
           user_metadata: { 
             full_name: fullName
@@ -305,6 +305,16 @@ export class StorageService {
       return { files, error: null };
     } catch (error) {
       console.error('AWS S3 listFiles error:', error);
+      
+      // If it's a CORS error, try to provide a more helpful message
+      if (error instanceof Error && error.message.includes('CORS')) {
+        console.error('CORS error detected. Please check S3 bucket CORS configuration.');
+        return { 
+          files: [], 
+          error: new Error('CORS configuration issue. Please contact support.') 
+        };
+      }
+      
       return { files: [], error };
     }
   }
