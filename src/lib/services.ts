@@ -535,6 +535,109 @@ export class DatabaseService {
     }
   }
 
+  static async getSelectedImages(userId: string) {
+    try {
+      console.log('🗄️ AWS DynamoDB getSelectedImages:', userId);
+      
+      const command = new QueryCommand({
+        TableName: 'mvp-labeler-selected-images',
+        KeyConditionExpression: 'user_id = :userId',
+        ExpressionAttributeValues: {
+          ':userId': userId
+        }
+      });
+      
+      const result = await docClient.send(command);
+      console.log('✅ AWS DynamoDB getSelectedImages result:', result);
+      
+      return { selectedImages: result.Items || [], error: null };
+    } catch (error) {
+      console.error('AWS DynamoDB getSelectedImages error:', error);
+      return { selectedImages: [], error };
+    }
+  }
+
+  static async updateSelectedImages(userId: string, selectedImages: any[]) {
+    try {
+      console.log('🗄️ AWS DynamoDB updateSelectedImages:', userId);
+      
+      // First, get existing selections to delete them
+      const queryCommand = new QueryCommand({
+        TableName: 'mvp-labeler-selected-images',
+        KeyConditionExpression: 'user_id = :userId',
+        ExpressionAttributeValues: {
+          ':userId': userId
+        }
+      });
+      
+      const existingSelections = await docClient.send(queryCommand);
+      
+      // Delete existing selections using batch operations
+      if (existingSelections.Items && existingSelections.Items.length > 0) {
+        const deleteRequests = existingSelections.Items.map(item => ({
+          DeleteRequest: {
+            Key: {
+              user_id: item.user_id,
+              selection_id: item.selection_id
+            }
+          }
+        }));
+        
+        // DynamoDB batch operations are limited to 25 items
+        const batchSize = 25;
+        for (let i = 0; i < deleteRequests.length; i += batchSize) {
+          const batch = deleteRequests.slice(i, i + batchSize);
+          const batchDeleteCommand = new BatchWriteCommand({
+            RequestItems: {
+              'mvp-labeler-selected-images': batch
+            }
+          });
+          
+          await docClient.send(batchDeleteCommand);
+        }
+        
+        console.log(`🗑️ Deleted ${existingSelections.Items.length} existing selections`);
+      }
+      
+      // Add new selections using batch operations
+      if (selectedImages.length > 0) {
+        const putRequests = selectedImages.map((selection, index) => ({
+          PutRequest: {
+            Item: {
+              user_id: userId,
+              selection_id: selection.id || `${Date.now()}-${index}`,
+              imageId: selection.id,
+              fileName: selection.fileName || 'unknown',
+              created_at: new Date().toISOString()
+            }
+          }
+        }));
+        
+        // DynamoDB batch operations are limited to 25 items
+        const batchSize = 25;
+        for (let i = 0; i < putRequests.length; i += batchSize) {
+          const batch = putRequests.slice(i, i + batchSize);
+          const batchPutCommand = new BatchWriteCommand({
+            RequestItems: {
+              'mvp-labeler-selected-images': batch
+            }
+          });
+          
+          await docClient.send(batchPutCommand);
+        }
+        
+        console.log(`✅ Added ${selectedImages.length} new selections`);
+      }
+      
+      console.log('✅ AWS DynamoDB updateSelectedImages successful');
+      
+      return { success: true, error: null };
+    } catch (error) {
+      console.error('AWS DynamoDB updateSelectedImages error:', error);
+      return { success: false, error };
+    }
+  }
+
   static async getDefectSets(userId: string) {
     try {
       console.log('🗄️ AWS DynamoDB getDefectSets:', userId);

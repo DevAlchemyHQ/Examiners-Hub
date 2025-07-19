@@ -338,10 +338,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
               };
             });
             
-            await DatabaseService.updateProject(user.email, 'current', { 
-              selectedImages: selectedWithFilenames,
-              formData: get().formData
-            });
+            await DatabaseService.updateSelectedImages(user.email, selectedWithFilenames);
             console.log('✅ Selected images auto-saved to AWS for user:', user.email);
           }
         } catch (error) {
@@ -579,10 +576,10 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           (async () => {
             try {
               if (userId !== 'anonymous') {
-                const { project } = await DatabaseService.getProject(userId, 'current');
-                if (project?.selectedImages && project.selectedImages.length > 0) {
+                const { selectedImages } = await DatabaseService.getSelectedImages(userId);
+                if (selectedImages && selectedImages.length > 0) {
                   console.log('✅ Selected images loaded from AWS for user:', userId);
-                  return project.selectedImages;
+                  return selectedImages;
                 }
               }
               
