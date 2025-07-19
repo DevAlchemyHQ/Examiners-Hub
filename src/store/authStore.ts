@@ -1,6 +1,6 @@
 // authStore.ts
 import { create } from 'zustand';
-import { AuthService, ServiceManager } from '../lib/services';
+import { AuthService } from '../lib/services';
 
 // Define our own User type to match AWS service response
 interface User {
@@ -61,31 +61,30 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
   
   checkAuth: async () => {
-    set({ isLoading: true });
     try {
       const { user, error } = await AuthService.getCurrentUser();
-      if (user && !error) {
+      
+      if (error) {
+        console.error('Auth check error:', error);
+        set({ isAuthenticated: false, user: null });
+        return;
+      }
+      
+      if (user) {
         set({ isAuthenticated: true, user });
-        localStorage.setItem('isAuthenticated', 'true');
-        localStorage.setItem('user', JSON.stringify(user));
       } else {
         set({ isAuthenticated: false, user: null });
-        localStorage.setItem('isAuthenticated', 'false');
-        localStorage.removeItem('user');
       }
     } catch (error) {
-      console.error('Auth check error:', error);
+      console.error('Auth check failed:', error);
       set({ isAuthenticated: false, user: null });
-    } finally {
-      set({ isLoading: false });
     }
   },
   
   getServiceInfo: () => {
-    const featureFlags = ServiceManager.getFeatureFlags();
     return {
-      isUsingAWS: ServiceManager.isUsingAWS('AUTH_USE_AWS'),
-      featureFlags
+      isUsingAWS: false, // Removed ServiceManager.isUsingAWS
+      featureFlags: {} // Placeholder, as ServiceManager is removed
     };
   }
 }));
