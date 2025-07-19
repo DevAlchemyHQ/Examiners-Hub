@@ -86,9 +86,13 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         const file = files[i];
         console.log(`Processing file ${i + 1}/${files.length}:`, file.name);
         
-        // Create unique file path
+        // Create unique file path with user ID
         const timestamp = Date.now();
-        const filePath = `images/${timestamp}-${file.name}`;
+        // Get user from localStorage to avoid circular import
+        const storedUser = localStorage.getItem('user');
+        const user = storedUser ? JSON.parse(storedUser) : null;
+        const userId = user?.email || 'anonymous';
+        const filePath = `users/${userId}/images/${timestamp}-${file.name}`;
         
         try {
           // Upload to S3 using StorageService
@@ -101,20 +105,16 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             const imageMetadata: ImageMetadata = {
               id: crypto.randomUUID(),
               file,
-              fileName: file.name,
-              fileSize: file.size,
-              fileType: file.type,
               photoNumber: '',
               description: '',
               preview: URL.createObjectURL(file), // Local preview
               isSketch,
               publicUrl: uploadResult.url!, // S3 signed URL
-              userId: 'local-user',
-              uploadTimestamp: timestamp
+              userId: userId // Use actual user ID
             };
             
             newImages.push(imageMetadata);
-            console.log(`✅ Uploaded ${file.name} to S3`);
+            console.log(`✅ Uploaded ${file.name} to S3 for user ${userId}`);
           }
         } catch (error) {
           console.error('Error processing file:', file.name, error);

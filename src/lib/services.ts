@@ -194,11 +194,15 @@ export class StorageService {
     try {
       console.log('🗄️ AWS S3 upload:', filePath);
       
-      // Create the S3 upload command with File object directly
+      // Convert File to ArrayBuffer for browser compatibility
+      const arrayBuffer = await file.arrayBuffer();
+      const uint8Array = new Uint8Array(arrayBuffer);
+      
+      // Create the S3 upload command
       const uploadCommand = new PutObjectCommand({
         Bucket: BUCKET_NAME,
         Key: filePath,
-        Body: file, // Use File object directly
+        Body: uint8Array,
         ContentType: file.type
         // Removed ACL since bucket doesn't support it
       });
