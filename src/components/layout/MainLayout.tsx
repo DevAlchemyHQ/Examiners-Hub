@@ -60,15 +60,18 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 
   const handleClearProject = async () => {
     try {
+      console.log('🚀 handleClearProject called - starting clear process...');
       setClearResult(null);
       setClearError(null);
       
       // Call the clearProject function (which handles everything)
+      console.log('📞 Calling clearProject function...');
       await clearProject();
+      console.log('✅ clearProject function completed');
       
       // Don't reset stores again - clearProject already does this
       // Just log the final state
-      console.log('Final state after clear:', {
+      console.log('📊 Final state after clear:', {
         images: useMetadataStore.getState().images,
         formData: useMetadataStore.getState().formData,
         pdf1: usePDFStore.getState().file1,
@@ -77,8 +80,9 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       
       setShowClearConfirm(false);
       setClearResult('success');
+      console.log('✅ Clear project completed successfully');
     } catch (error) {
-      console.error('Error clearing project:', error);
+      console.error('❌ Error clearing project:', error);
       setClearResult('error');
       setClearError(error instanceof Error ? error.message : 'Failed to clear project');
     }
@@ -188,23 +192,33 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                       </div>
                     </div>
                     
-                    <button
-                      onClick={() => setShowClearConfirm(true)}
-                      disabled={isClearingProject || isLoading}
-                      className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {isClearingProject || isLoading ? (
-                        <>
-                          <Loader2 size={16} className="animate-spin" />
-                          Clearing Project...
-                        </>
-                      ) : (
-                        <>
-                          <Trash2 size={16} />
-                          Clear Project
-                        </>
-                      )}
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => useProjectStore.getState().testAWSOperations()}
+                        className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                      >
+                        <Brain size={16} />
+                        Test AWS
+                      </button>
+                      
+                      <button
+                        onClick={() => setShowClearConfirm(true)}
+                        disabled={isClearingProject || isLoading}
+                        className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {isClearingProject || isLoading ? (
+                          <>
+                            <Loader2 size={16} className="animate-spin" />
+                            Clearing Project...
+                          </>
+                        ) : (
+                          <>
+                            <Trash2 size={16} />
+                            Clear Project
+                          </>
+                        )}
+                      </button>
+                    </div>
                     
                     <div className="text-xs text-slate-500 dark:text-gray-400 text-center">
                       This will clear all project details, saved images, bulk defect entries, and selected images. Load defects functionality will remain intact.

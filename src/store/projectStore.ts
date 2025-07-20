@@ -15,6 +15,31 @@ export const useProjectStore = create<ProjectState>((set) => ({
   error: null,
   isClearing: false, // Add flag to prevent auto-save during clearing
 
+  // Test function to verify AWS operations
+  testAWSOperations: async () => {
+    try {
+      console.log('🧪 Testing AWS operations...');
+      
+      const userEmail = localStorage.getItem('userEmail');
+      if (!userEmail) {
+        console.error('❌ No user email found for testing');
+        return;
+      }
+
+      console.log('🔍 Testing S3 listFiles...');
+      const s3Test = await StorageService.listFiles(`users/${userEmail}/images/`);
+      console.log('📊 S3 test result:', s3Test);
+
+      console.log('🔍 Testing DynamoDB getProject...');
+      const dbTest = await DatabaseService.getProject(userEmail, 'current');
+      console.log('📊 DynamoDB test result:', dbTest);
+
+      console.log('✅ AWS operations test completed');
+    } catch (error) {
+      console.error('❌ AWS operations test failed:', error);
+    }
+  },
+
   clearProject: async () => {
     try {
       set({ isLoading: true, error: null, isClearing: true }); // Set clearing flag
