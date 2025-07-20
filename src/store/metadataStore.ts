@@ -55,6 +55,7 @@ interface MetadataState extends MetadataStateOnly {
   loadSavedPdfs: (userId: string) => Promise<any[]>;
   processImageForDownload: (imageFile: File) => Promise<Blob>;
   convertImagesToBase64: () => Promise<void>;
+  convertSelectedImagesToBase64: (selectedImageIds: string[]) => Promise<void>;
 }
 
 const initialState: MetadataStateOnly = {
@@ -112,7 +113,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
 
   addImages: async (files, isSketch = false) => {
     try {
-      console.log('🚀 Starting lightning-fast parallel upload of', files.length, 'files');
+      console.log('🚀 Starting lightning-fast upload of', files.length, 'files');
       
       // Get user info once
       const storedUser = localStorage.getItem('user');
@@ -142,7 +143,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           // Generate consistent ID based on filename
           const consistentId = `local-${file.name.replace(/[^a-zA-Z0-9]/g, '-')}`;
           
-          // Create image metadata immediately (without base64 for now)
+          // Create image metadata with S3 URL for instant display (no base64!)
           const imageMetadata: ImageMetadata = {
             id: consistentId,
             file: file,
@@ -151,12 +152,11 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             fileType: 'image/jpeg',
             photoNumber: '',
             description: '',
-            preview: URL.createObjectURL(file),
+            preview: uploadResult.url!, // Use S3 URL for instant display
             isSketch,
             publicUrl: uploadResult.url!,
             userId: userId,
-            base64Converted: false, // Flag to prevent re-conversion
-            // base64 will be added later in background
+            // No base64 - only convert when needed for downloads
           };
           
           console.log(`✅ File ${index + 1}/${files.length} ready for state:`, file.name);
@@ -206,53 +206,12 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         return { images: combined };
       });
       
-      // Force a re-render by triggering a small state change
+      // Force a re-render to ensure UI updates
       setTimeout(() => {
         set((state) => ({ ...state }));
-      }, 100);
+      }, 50);
       
-      // Start background base64 conversion for all images (only if not already converted)
-      console.log('🔄 Starting background base64 conversion for all images...');
-      uploadedImages.forEach((imageMetadata, index) => {
-        const file = files[index];
-        
-        // Skip if already converted
-        if (imageMetadata.base64Converted) {
-          console.log(`⏭️ Skipping base64 conversion (already done): ${file.name}`);
-          return;
-        }
-        
-        console.log(`🔄 Starting background base64 conversion: ${file.name}`);
-        
-        convertImageToJpgBase64(file).then(base64 => {
-          console.log(`✅ Background base64 conversion completed: ${file.name}`);
-          
-          // Update the image with base64 data
-          set((state) => {
-            const updatedImages = state.images.map(img => 
-              img.id === imageMetadata.id ? { ...img, base64, base64Converted: true } : img
-            );
-            
-            // Update localStorage with base64 data
-            try {
-              const projectStore = useProjectStore.getState();
-              if (!projectStore.isClearing) {
-                localStorage.setItem('clean-app-images', JSON.stringify(updatedImages));
-                console.log('📱 Images with base64 saved to localStorage');
-              }
-            } catch (error) {
-              console.error('❌ Error saving images with base64 to localStorage:', error);
-            }
-            
-            return { images: updatedImages };
-          });
-        }).catch(error => {
-          console.error(`❌ Background base64 conversion failed: ${file.name}`, error);
-          // Don't fail the upload - image is still usable without base64
-        });
-      });
-      
-      console.log('🚀 Lightning-fast parallel upload process completed successfully');
+      console.log('🚀 Lightning-fast upload process completed successfully');
       
     } catch (error: any) {
       console.error('❌ Error in lightning-fast upload:', error);
@@ -616,34 +575,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
                     // Generate consistent ID based on filename to maintain selections
                     const consistentId = `s3-${originalFileName.replace(/[^a-zA-Z0-9]/g, '-')}`;
                     
-                    // Check if we already have this image in localStorage with base64
-                    const savedImages = localStorage.getItem('clean-app-images');
-                    let existingImage = null;
-                    if (savedImages) {
-                      const images = JSON.parse(savedImages);
-                      existingImage = images.find((img: any) => img.id === consistentId);
-                    }
-                    
-                    // Only convert to base64 if we don't already have it
-                    let base64Data: string | undefined;
-                    if (!existingImage?.base64) {
-                      try {
-                        console.log('Converting S3 image to base64:', originalFileName);
-                        const response = await fetch(file.url);
-                        if (response.ok) {
-                          const blob = await response.blob();
-                          const base64 = await convertBlobToBase64(blob);
-                          base64Data = base64;
-                          console.log('Successfully converted S3 image to base64:', originalFileName);
-                        }
-                      } catch (error) {
-                        console.error('Failed to convert S3 image to base64:', originalFileName, error);
-                      }
-                    } else {
-                      console.log('⏭️ Skipping base64 conversion (already exists):', originalFileName);
-                      base64Data = existingImage.base64;
-                    }
-                    
+                    // Create image metadata with S3 URL (no base64 conversion on load!)
                     const imageMetadata: ImageMetadata = {
                       id: consistentId,
                       fileName: originalFileName,
@@ -651,12 +583,11 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
                       fileType: 'image/jpeg',
                       photoNumber: '',
                       description: '',
-                      preview: file.url,
+                      preview: file.url, // Use S3 URL for instant display
                       isSketch: false,
                       publicUrl: file.url,
                       userId: userId,
-                      base64: base64Data, // Store base64 for reliable downloads
-                      base64Converted: !!base64Data // Flag to prevent re-conversion
+                      // No base64 - only convert when needed for downloads
                     };
                     
                     loadedImages.push(imageMetadata);
@@ -1119,6 +1050,57 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       
     } catch (error) {
       console.error('Error converting images to base64:', error);
+    }
+  },
+
+  // New function: Convert selected images to base64 for download
+  convertSelectedImagesToBase64: async (selectedImageIds: string[]) => {
+    try {
+      console.log('Converting selected images to base64 for download...');
+      const state = get();
+      const { images } = state;
+      
+      const imagesToConvert = images.filter(img => selectedImageIds.includes(img.id));
+      console.log(`Converting ${imagesToConvert.length} selected images to base64`);
+      
+      const updatedImages = await Promise.all(
+        images.map(async (image) => {
+          // Only convert if it's selected and doesn't already have base64
+          if (selectedImageIds.includes(image.id) && !image.base64) {
+            try {
+              console.log('Converting selected image to base64:', image.fileName || image.file?.name || 'unknown');
+              
+              if (image.file) {
+                // Local file - convert directly
+                const base64 = await convertImageToJpgBase64(image.file);
+                return { ...image, base64 };
+              } else if (image.preview || image.publicUrl) {
+                // S3 image - try to fetch and convert
+                try {
+                  const response = await fetch(image.preview || image.publicUrl);
+                  if (response.ok) {
+                    const blob = await response.blob();
+                    const base64 = await convertBlobToBase64(blob);
+                    console.log('Successfully converted selected S3 image to base64');
+                    return { ...image, base64 };
+                  }
+                } catch (error) {
+                  console.error('Failed to convert selected S3 image to base64:', error);
+                }
+              }
+            } catch (error) {
+              console.error('Error converting selected image to base64:', error);
+            }
+          }
+          return image;
+        })
+      );
+      
+      set({ images: updatedImages });
+      console.log('✅ Selected images converted to base64 for download');
+      
+    } catch (error) {
+      console.error('Error converting selected images to base64:', error);
     }
   },
 
