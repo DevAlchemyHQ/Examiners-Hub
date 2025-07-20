@@ -1133,7 +1133,22 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       return image.file || (image as any).localFile;
     }
     
-    // Priority 2: S3 URL (reliable fallback)
+    // Priority 2: Try to get from localStorage if available
+    try {
+      const storedImages = localStorage.getItem('clean-app-images');
+      if (storedImages) {
+        const parsedImages = JSON.parse(storedImages);
+        const storedImage = parsedImages.find((img: any) => img.id === image.id);
+        if (storedImage && storedImage.file) {
+          console.log('✅ Found local file in localStorage');
+          return storedImage.file;
+        }
+      }
+    } catch (error) {
+      console.warn('⚠️ Error checking localStorage:', error);
+    }
+    
+    // Priority 3: S3 URL (reliable fallback) - but skip if CORS issues
     if (image.preview || image.publicUrl) {
       console.log('📡 Fetching from S3 for download...');
       try {
@@ -1144,13 +1159,14 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           return blob;
         }
       } catch (error) {
-        console.warn('⚠️ S3 fetch failed:', error);
+        console.warn('⚠️ S3 fetch failed (likely CORS):', error);
+        // Don't retry S3 if it fails - go straight to placeholder
       }
     }
     
-    // Priority 3: Error placeholder (never fails)
+    // Priority 4: Error placeholder (never fails)
     console.log('❌ Creating error placeholder for download');
-    return createErrorPlaceholder(image);
+    return get().createErrorPlaceholder(image);
   },
 
   // Prepare selected images for download using smart fallback
