@@ -21,6 +21,9 @@ export const DownloadButton: React.FC = () => {
   const [hasActiveSubscription, setHasActiveSubscription] = useState(false);
   const [isSubscriptionExpired, setIsSubscriptionExpired] = useState(false);
   
+  // Check if any images are still uploading
+  const isUploading = images.some((img: any) => img.isUploading);
+  
   // Force re-render when validation changes
   const [validationKey, setValidationKey] = useState(0);
   
@@ -131,11 +134,13 @@ export const DownloadButton: React.FC = () => {
           onClick={handleDownload}
           disabled={
             isDownloading ||
+            isUploading ||
             (viewMode === 'bulk' && !isBulkValid()) ||
             (viewMode === 'images' && !isValid())
           }
           className={`w-full flex items-center justify-center gap-2 px-6 py-3 rounded-lg ${
             isDownloading ||
+            isUploading ||
             (viewMode === 'bulk' && !isBulkValid()) ||
             (viewMode === 'images' && !isValid())
               ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
@@ -153,9 +158,11 @@ export const DownloadButton: React.FC = () => {
             });
           }}
         >
-          {isDownloading ? <Loader2 size={20} className="animate-spin" /> : <Download size={20} />}
+          {isDownloading ? <Loader2 size={20} className="animate-spin" /> : isUploading ? <Loader2 size={20} className="animate-spin" /> : <Download size={20} />}
           {isDownloading
             ? 'Preparing download...'
+            : isUploading
+            ? 'Cloud Upload...'
             : viewMode === 'bulk'
             ? 'Download Bulk Package'
             : 'Download Package'}
