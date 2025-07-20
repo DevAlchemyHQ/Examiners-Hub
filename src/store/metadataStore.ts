@@ -128,21 +128,23 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         const filePath = `users/${userId}/images/${timestamp}-${file.name}`;
         const consistentId = `local-${file.name.replace(/[^a-zA-Z0-9]/g, '-')}`;
         
-        // Create temporary metadata with local file for instant display
-        return {
-          id: consistentId,
-          file: file,
-          fileName: file.name,
-          fileSize: file.size,
-          fileType: 'image/jpeg',
-          photoNumber: '',
-          description: '',
-          preview: URL.createObjectURL(file), // Use local blob URL for instant display
-          isSketch,
-          publicUrl: '', // Will be updated after S3 upload
-          userId: userId,
-          isUploading: true, // Mark as uploading
-        };
+                    // Create temporary metadata with local file for instant display
+            return {
+              id: consistentId,
+              file: file,
+              fileName: file.name,
+              fileSize: file.size,
+              fileType: 'image/jpeg',
+              photoNumber: '',
+              description: '',
+              preview: URL.createObjectURL(file), // Use local blob URL for instant display
+              isSketch,
+              publicUrl: '', // Will be updated after S3 upload
+              userId: userId,
+              isUploading: true, // Mark as uploading
+              // Preserve local file for immediate download
+              localFile: file, // Keep local file reference for downloads
+            };
       });
       
       // ADD ALL IMAGES TO STATE IMMEDIATELY for instant display
@@ -203,8 +205,8 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
                     publicUrl: uploadResult.url!,
                     isUploading: false,
                     // Keep local file for fast downloads (no base64 conversion needed)
-                    localFile: img.file, // Preserve local file reference
-                    file: img.file // Also keep original file reference for immediate download
+                    localFile: img.file || img.localFile, // Preserve local file reference
+                    file: img.file || img.localFile // Also keep original file reference for immediate download
                   }
                 : img
             );
@@ -1167,7 +1169,24 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       console.warn('⚠️ Error checking localStorage:', error);
     }
     
-    // Priority 3: S3 URL (reliable fallback) - but skip if CORS issues
+    // Priority 3: Try to match by filename in localStorage (for cross-session matching)
+    try {
+      const storedImages = localStorage.getItem('clean-app-images');
+      if (storedImages) {
+        const parsedImages = JSON.parse(storedImages);
+        const storedImage = parsedImages.find((img: any) => 
+          (img.fileName || img.file?.name || '') === (image.fileName || image.file?.name || '')
+        );
+        if (storedImage && storedImage.file) {
+          console.log('✅ Found local file by filename match');
+          return storedImage.file;
+        }
+      }
+    } catch (error) {
+      console.warn('⚠️ Error checking localStorage by filename:', error);
+    }
+    
+    // Priority 4: S3 URL (reliable fallback) - but skip if CORS issues
     if (image.preview || image.publicUrl) {
       console.log('📡 Fetching from S3 for download...');
       try {
@@ -1183,7 +1202,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       }
     }
     
-    // Priority 4: Error placeholder (never fails)
+    // Priority 5: Error placeholder (never fails)
     console.log('❌ Creating error placeholder for download');
     return get().createErrorPlaceholder(image);
   },
