@@ -104,14 +104,16 @@ export const useProjectStore = create<ProjectState>((set) => ({
           console.log('🔍 Step 4a: Checking for project files...');
           const projectFiles = await StorageService.listFiles(`users/${userEmail}/project-files/`);
           console.log('📊 Project files result:', projectFiles);
-          if (projectFiles.success && projectFiles.data.length > 0) {
-            console.log(`🗑️ Deleting ${projectFiles.data.length} project files from S3`);
-            for (const file of projectFiles.data) {
+          if (projectFiles.files && projectFiles.files.length > 0) {
+            console.log(`🗑️ Deleting ${projectFiles.files.length} project files from S3`);
+            for (const file of projectFiles.files) {
               try {
-                await StorageService.deleteFile(file.key);
-                console.log(`✅ Deleted project file: ${file.key}`);
+                // Construct the full S3 key from the prefix and filename
+                const fileKey = `users/${userEmail}/project-files/${file.name}`;
+                await StorageService.deleteFile(fileKey);
+                console.log(`✅ Deleted project file: ${fileKey}`);
               } catch (error) {
-                console.error(`Failed to delete file ${file.key}:`, error);
+                console.error(`Failed to delete file ${file.name}:`, error);
               }
             }
           } else {
@@ -122,14 +124,16 @@ export const useProjectStore = create<ProjectState>((set) => ({
           console.log('🔍 Step 4b: Checking for PDF files...');
           const pdfFiles = await StorageService.listFiles(`users/${userEmail}/pdfs/`);
           console.log('📊 PDF files result:', pdfFiles);
-          if (pdfFiles.success && pdfFiles.data.length > 0) {
-            console.log(`🗑️ Deleting ${pdfFiles.data.length} PDF files from S3`);
-            for (const file of pdfFiles.data) {
+          if (pdfFiles.files && pdfFiles.files.length > 0) {
+            console.log(`🗑️ Deleting ${pdfFiles.files.length} PDF files from S3`);
+            for (const file of pdfFiles.files) {
               try {
-                await StorageService.deleteFile(file.key);
-                console.log(`✅ Deleted PDF file: ${file.key}`);
+                // Construct the full S3 key from the prefix and filename
+                const fileKey = `users/${userEmail}/pdfs/${file.name}`;
+                await StorageService.deleteFile(fileKey);
+                console.log(`✅ Deleted PDF file: ${fileKey}`);
               } catch (error) {
-                console.error(`Failed to delete PDF file ${file.key}:`, error);
+                console.error(`Failed to delete PDF file ${file.name}:`, error);
               }
             }
           } else {
@@ -140,14 +144,16 @@ export const useProjectStore = create<ProjectState>((set) => ({
           console.log('🔍 Step 4c: Checking for user images...');
           const userImages = await StorageService.listFiles(`users/${userEmail}/images/`);
           console.log('📊 User images result:', userImages);
-          if (userImages.success && userImages.data.length > 0) {
-            console.log(`🗑️ Deleting ${userImages.data.length} user images from S3`);
-            for (const file of userImages.data) {
+          if (userImages.files && userImages.files.length > 0) {
+            console.log(`🗑️ Deleting ${userImages.files.length} user images from S3`);
+            for (const file of userImages.files) {
               try {
-                await StorageService.deleteFile(file.key);
-                console.log(`✅ Deleted image file: ${file.key}`);
+                // Construct the full S3 key from the prefix and filename
+                const fileKey = `users/${userEmail}/images/${file.name}`;
+                await StorageService.deleteFile(fileKey);
+                console.log(`✅ Deleted image file: ${fileKey}`);
               } catch (error) {
-                console.error(`Failed to delete image file ${file.key}:`, error);
+                console.error(`Failed to delete image file ${file.name}:`, error);
               }
             }
           } else {
@@ -158,22 +164,24 @@ export const useProjectStore = create<ProjectState>((set) => ({
           console.log('🔍 Step 4d: Checking for other user files...');
           const userFiles = await StorageService.listFiles(`users/${userEmail}/`);
           console.log('📊 All user files result:', userFiles);
-          if (userFiles.success && userFiles.data.length > 0) {
-            console.log(`🗑️ Deleting ${userFiles.data.length} user files from S3`);
-            for (const file of userFiles.data) {
+          if (userFiles.files && userFiles.files.length > 0) {
+            console.log(`🗑️ Deleting ${userFiles.files.length} user files from S3`);
+            for (const file of userFiles.files) {
               // Skip any files that might be needed for Load Defects functionality
-              if (!file.key.includes('load-defects') && 
-                  !file.key.includes('defects-data') && 
-                  !file.key.includes('defect-sets') &&
-                  !file.key.includes('saved-defects')) {
+              if (!file.name.includes('load-defects') && 
+                  !file.name.includes('defects-data') && 
+                  !file.name.includes('defect-sets') &&
+                  !file.name.includes('saved-defects')) {
                 try {
-                  await StorageService.deleteFile(file.key);
-                  console.log(`✅ Deleted user file: ${file.key}`);
+                  // Construct the full S3 key from the prefix and filename
+                  const fileKey = `users/${userEmail}/${file.name}`;
+                  await StorageService.deleteFile(fileKey);
+                  console.log(`✅ Deleted user file: ${fileKey}`);
                 } catch (error) {
-                  console.error(`Failed to delete file ${file.key}:`, error);
+                  console.error(`Failed to delete file ${file.name}:`, error);
                 }
               } else {
-                console.log(`⏸️ Skipping Load Defects file: ${file.key}`);
+                console.log(`⏸️ Skipping Load Defects file: ${file.name}`);
               }
             }
           } else {
