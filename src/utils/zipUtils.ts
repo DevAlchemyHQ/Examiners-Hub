@@ -173,9 +173,10 @@ export const createZipFile = async (
       try {
         let imageBlob: Blob;
         
-        if (image.file) {
-          // Local file - process directly
-          imageBlob = await processImageForDownload(image.file);
+        if (image.file || (image as any).localFile) {
+          // Local file - process directly (prioritize localFile if available)
+          const localFile = (image as any).localFile || image.file;
+          imageBlob = await processImageForDownload(localFile);
         } else if (image.base64) {
           // Use base64 data from localStorage (most reliable)
           console.log('Using base64 data for image:', image.fileName || 'unknown');

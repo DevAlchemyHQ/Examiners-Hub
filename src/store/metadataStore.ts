@@ -189,7 +189,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           
           console.log(`✅ S3 upload successful: ${file.name}`);
           
-          // Update the image metadata with S3 URL
+          // Update the image metadata with S3 URL but keep local file for downloads
           const consistentId = `local-${file.name.replace(/[^a-zA-Z0-9]/g, '-')}`;
           
           set((state) => {
@@ -197,9 +197,11 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
               img.id === consistentId 
                 ? { 
                     ...img, 
-                    preview: uploadResult.url!, 
+                    preview: uploadResult.url!, // Use S3 URL for display
                     publicUrl: uploadResult.url!,
-                    isUploading: false 
+                    isUploading: false,
+                    // Keep local file for fast downloads (no base64 conversion needed)
+                    localFile: img.file // Preserve local file reference
                   }
                 : img
             );
@@ -845,13 +847,13 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
 
       console.log(`Processing ${defectsWithImages.length} defects with images`);
 
-      // Convert selected images to base64 for download (hybrid approach)
+      // Prepare selected images for download using local files (no base64 conversion)
       const selectedImageIds = defectsWithImages.map(defect => {
         const image = images.find(img => (img.fileName || img.file?.name || '') === defect.selectedFile);
         return image?.id;
       }).filter(Boolean) as string[];
       
-      await get().convertSelectedImagesToBase64(selectedImageIds);
+      const preparedImages = await get().convertSelectedImagesToBase64(selectedImageIds);
       
       // Get the updated state after conversion
       const updatedState = get();
@@ -1073,54 +1075,30 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
     }
   },
 
-  // New function: Convert selected images to base64 for download
+  // New function: Prepare selected images for download using local files (no base64 conversion)
   convertSelectedImagesToBase64: async (selectedImageIds: string[]) => {
     try {
-      console.log('Converting selected images to base64 for download...');
+      console.log('Preparing selected images for download using local files...');
       const state = get();
       const { images } = state;
       
-      const imagesToConvert = images.filter(img => selectedImageIds.includes(img.id));
-      console.log(`Converting ${imagesToConvert.length} selected images to base64`);
+      const selectedImages = images.filter(img => selectedImageIds.includes(img.id));
+      console.log(`Preparing ${selectedImages.length} selected images for download`);
       
-      const updatedImages = await Promise.all(
-        images.map(async (image) => {
-          // Only convert if it's selected and doesn't already have base64
-          if (selectedImageIds.includes(image.id) && !image.base64) {
-            try {
-              console.log('Converting selected image to base64:', image.fileName || image.file?.name || 'unknown');
-              
-              if (image.file) {
-                // Local file - convert directly
-                const base64 = await convertImageToJpgBase64(image.file);
-                return { ...image, base64 };
-              } else if (image.preview || image.publicUrl) {
-                // S3 image - try to fetch and convert
-                try {
-                  const response = await fetch(image.preview || image.publicUrl);
-                  if (response.ok) {
-                    const blob = await response.blob();
-                    const base64 = await convertBlobToBase64(blob);
-                    console.log('Successfully converted selected S3 image to base64');
-                    return { ...image, base64 };
-                  }
-                } catch (error) {
-                  console.error('Failed to convert selected S3 image to base64:', error);
-                }
-              }
-            } catch (error) {
-              console.error('Error converting selected image to base64:', error);
-            }
-          }
-          return image;
-        })
-      );
+      // Verify all selected images have local files for fast download
+      const imagesWithLocalFiles = selectedImages.map(img => {
+        if (!img.file && !(img as any).localFile) {
+          console.warn('Image missing local file, will use S3 URL:', img.fileName || img.file?.name || 'unknown');
+        }
+        return img;
+      });
       
-      set({ images: updatedImages });
-      console.log('✅ Selected images converted to base64 for download');
+      console.log('✅ Selected images prepared for download using local files (no base64 conversion needed)');
+      return imagesWithLocalFiles;
       
     } catch (error) {
-      console.error('Error converting selected images to base64:', error);
+      console.error('Error preparing images for download:', error);
+      throw error;
     }
   },
 

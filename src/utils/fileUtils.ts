@@ -170,7 +170,7 @@ export const createDownloadPackage = async (
     const metadataFileName = generateMetadataFileName(formData.elr, formData.structureNo, formData.date);
     const zipFileName = generateZipFileName(formData.elr, formData.structureNo, formData.date);
 
-    // Create ZIP file with metadata and processed images
+    // Create ZIP file with metadata and local files (no base64 conversion needed)
     const zipBlob = await createZipFile(
       images,
       metadataFileName,
