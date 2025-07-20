@@ -288,14 +288,9 @@ export const useProjectStore = create<ProjectState>((set) => ({
       console.log('✅ Project clear completed successfully');
       console.log('📋 Load Defects functionality preserved - users can still load saved defect sets');
 
-      // Force a reload of user data to ensure the cleared state is reflected
-      try {
-        console.log('🔄 Step 7: Forcing reload of user data to reflect cleared state...');
-        await useMetadataStore.getState().loadUserData();
-        console.log('✅ User data reloaded - cleared state confirmed');
-      } catch (error) {
-        console.error('Error reloading user data after clear:', error);
-      }
+      // DON'T reload user data - this was causing the data to come back!
+      // The stores are already reset and localStorage is cleared
+      console.log('✅ Clear completed - data will not be reloaded automatically');
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to clear project';

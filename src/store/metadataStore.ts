@@ -473,6 +473,13 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
     try {
       console.log('Loading user data...');
       
+      // Check if project is being cleared - don't load data during clearing
+      const projectStore = useProjectStore.getState();
+      if (projectStore.isClearing) {
+        console.log('⏸️ Skipping loadUserData during project clear');
+        return;
+      }
+      
       // Set loading state
       set({ isLoading: true });
       
