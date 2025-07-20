@@ -21,14 +21,15 @@ export const useProjectStore = create<ProjectState>((set) => ({
       const userEmail = localStorage.getItem('userEmail');
       if (!userEmail) throw new Error("No authenticated user found");
 
-      console.log('🗑️ Starting project clear for user:', userEmail);
+      console.log('🗑️ Starting comprehensive project clear for user:', userEmail);
 
-      // --- Clear project details from AWS DynamoDB ---
+      // --- Clear all project-related data from AWS DynamoDB ---
       
       // 1. Clear project details from projects table (but preserve Load Defects data)
       const projectResult = await DatabaseService.clearUserProject(userEmail, userEmail);
       if (projectResult.error) {
         console.error('Failed to clear project data:', projectResult.error);
+        throw new Error(`Failed to clear project data: ${projectResult.error}`);
       }
 
       // 2. Clear current bulk defect entries (but preserve Load Defects functionality)

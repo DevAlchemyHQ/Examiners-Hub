@@ -780,7 +780,8 @@ export class DatabaseService {
     try {
       console.log('🗄️ AWS DynamoDB clearUserProject:', projectId);
       
-      const command = new DeleteCommand({
+      // 1. Clear project data from projects table
+      const projectCommand = new DeleteCommand({
         TableName: 'mvp-labeler-projects',
         Key: { 
           user_id: userId,
@@ -788,8 +789,118 @@ export class DatabaseService {
         }
       });
       
-      await docClient.send(command);
-      console.log('✅ AWS DynamoDB clearUserProject successful');
+      await docClient.send(projectCommand);
+      console.log('✅ Cleared project data from mvp-labeler-projects');
+      
+      // 2. Clear all bulk defects for this user
+      const bulkDefectsQuery = new QueryCommand({
+        TableName: 'mvp-labeler-bulk-defects',
+        KeyConditionExpression: 'user_id = :userId',
+        ExpressionAttributeValues: {
+          ':userId': userId
+        }
+      });
+      
+      const bulkDefectsResult = await docClient.send(bulkDefectsQuery);
+      if (bulkDefectsResult.Items && bulkDefectsResult.Items.length > 0) {
+        const deleteRequests = bulkDefectsResult.Items.map(item => ({
+          DeleteRequest: {
+            Key: {
+              user_id: item.user_id,
+              defect_id: item.defect_id
+            }
+          }
+        }));
+        
+        // DynamoDB batch operations are limited to 25 items
+        const batchSize = 25;
+        for (let i = 0; i < deleteRequests.length; i += batchSize) {
+          const batch = deleteRequests.slice(i, i + batchSize);
+          const batchDeleteCommand = new BatchWriteCommand({
+            RequestItems: {
+              'mvp-labeler-bulk-defects': batch
+            }
+          });
+          
+          await docClient.send(batchDeleteCommand);
+        }
+        
+        console.log(`✅ Cleared ${bulkDefectsResult.Items.length} bulk defects from mvp-labeler-bulk-defects`);
+      }
+      
+      // 3. Clear all selected images for this user
+      const selectedImagesQuery = new QueryCommand({
+        TableName: 'mvp-labeler-selected-images',
+        KeyConditionExpression: 'user_id = :userId',
+        ExpressionAttributeValues: {
+          ':userId': userId
+        }
+      });
+      
+      const selectedImagesResult = await docClient.send(selectedImagesQuery);
+      if (selectedImagesResult.Items && selectedImagesResult.Items.length > 0) {
+        const deleteRequests = selectedImagesResult.Items.map(item => ({
+          DeleteRequest: {
+            Key: {
+              user_id: item.user_id,
+              selection_id: item.selection_id
+            }
+          }
+        }));
+        
+        // DynamoDB batch operations are limited to 25 items
+        const batchSize = 25;
+        for (let i = 0; i < deleteRequests.length; i += batchSize) {
+          const batch = deleteRequests.slice(i, i + batchSize);
+          const batchDeleteCommand = new BatchWriteCommand({
+            RequestItems: {
+              'mvp-labeler-selected-images': batch
+            }
+          });
+          
+          await docClient.send(batchDeleteCommand);
+        }
+        
+        console.log(`✅ Cleared ${selectedImagesResult.Items.length} selected images from mvp-labeler-selected-images`);
+      }
+      
+      // 4. Clear PDF states for this user
+      const pdfStatesQuery = new QueryCommand({
+        TableName: 'mvp-labeler-pdf-states',
+        KeyConditionExpression: 'user_id = :userId',
+        ExpressionAttributeValues: {
+          ':userId': userId
+        }
+      });
+      
+      const pdfStatesResult = await docClient.send(pdfStatesQuery);
+      if (pdfStatesResult.Items && pdfStatesResult.Items.length > 0) {
+        const deleteRequests = pdfStatesResult.Items.map(item => ({
+          DeleteRequest: {
+            Key: {
+              user_id: item.user_id,
+              pdf_id: item.pdf_id
+            }
+          }
+        }));
+        
+        // DynamoDB batch operations are limited to 25 items
+        const batchSize = 25;
+        for (let i = 0; i < deleteRequests.length; i += batchSize) {
+          const batch = deleteRequests.slice(i, i + batchSize);
+          const batchDeleteCommand = new BatchWriteCommand({
+            RequestItems: {
+              'mvp-labeler-pdf-states': batch
+            }
+          });
+          
+          await docClient.send(batchDeleteCommand);
+        }
+        
+        console.log(`✅ Cleared ${pdfStatesResult.Items.length} PDF states from mvp-labeler-pdf-states`);
+      }
+      
+      console.log('✅ AWS DynamoDB clearUserProject successful - all project data cleared');
       
       return { success: true, error: null };
     } catch (error) {
