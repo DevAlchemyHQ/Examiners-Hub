@@ -80,8 +80,9 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
     set((state) => {
       const newFormData = { ...state.formData, ...data };
       
-      // Auto-save to localStorage immediately
+      // Auto-save to localStorage and sessionStorage for cross-browser compatibility
       localStorage.setItem('clean-app-form-data', JSON.stringify(newFormData));
+      sessionStorage.setItem('clean-app-form-data', JSON.stringify(newFormData));
       
       // Auto-save to AWS immediately (not in background) for cross-browser persistence
       (async () => {
@@ -519,25 +520,19 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       // Set loading state
       set({ isLoading: true });
       
-      // Get user from localStorage
-      const storedUser = localStorage.getItem('user');
+      // Get user from localStorage or sessionStorage (for incognito compatibility)
+      const storedUser = localStorage.getItem('user') || sessionStorage.getItem('user');
       const user = storedUser ? JSON.parse(storedUser) : null;
-      const userId = user?.email || localStorage.getItem('userEmail') || 'anonymous';
+      const userId = user?.email || localStorage.getItem('userEmail') || sessionStorage.getItem('userEmail') || 'anonymous';
       
       console.log('Loading data for user:', userId);
       
       // Load all data in parallel and batch state updates
       const [formDataResult, bulkDataResult, imagesResult, selectionsResult] = await Promise.allSettled([
-        // Load form data from localStorage first, then AWS
+        // Load form data from AWS first (for cross-browser), then localStorage
         (async () => {
           try {
-            const savedFormData = localStorage.getItem('clean-app-form-data');
-            if (savedFormData) {
-              const formData = JSON.parse(savedFormData);
-              console.log('📱 Form data loaded from localStorage');
-              return formData;
-            }
-            
+            // Try AWS first for cross-browser compatibility
             if (userId !== 'anonymous') {
               const { project } = await DatabaseService.getProject(userId, 'current');
               if (project?.formData) {
@@ -545,6 +540,15 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
                 return project.formData;
               }
             }
+            
+            // Fallback to localStorage
+            const savedFormData = localStorage.getItem('clean-app-form-data');
+            if (savedFormData) {
+              const formData = JSON.parse(savedFormData);
+              console.log('📱 Form data loaded from localStorage (fallback)');
+              return formData;
+            }
+            
             return null;
           } catch (error) {
             console.error('❌ Error loading form data:', error);
@@ -576,7 +580,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           }
         })(),
         
-              // Load images from S3 first, then localStorage as fallback
+              // Load images from S3 first (for cross-browser), then localStorage as fallback
       (async () => {
         try {
           if (userId !== 'anonymous') {
@@ -590,7 +594,14 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
               
               const loadedImages: ImageMetadata[] = [];
               
-              for (const file of files) {
+              // Sort files by timestamp to preserve upload order
+              const sortedFiles = files.sort((a, b) => {
+                const aTimestamp = parseInt(a.name.split('-')[0]);
+                const bTimestamp = parseInt(b.name.split('-')[0]);
+                return aTimestamp - bTimestamp;
+              });
+              
+              for (const file of sortedFiles) {
                 try {
                   const originalFileName = file.name.split('-').slice(1).join('-');
                   
