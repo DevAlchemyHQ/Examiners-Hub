@@ -135,6 +135,27 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                 </button>
               ))}
             </div>
+            
+            {/* Clear project buttons - always visible when on Images tab */}
+            {activeTab === 'images' && (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => useProjectStore.getState().testAWSOperations()}
+                  className="flex items-center gap-1 px-3 py-1.5 bg-blue-500 text-white rounded text-xs hover:bg-blue-600 transition-colors"
+                >
+                  <Brain size={12} />
+                  Test AWS
+                </button>
+                <button
+                  onClick={() => setShowClearConfirm(true)}
+                  disabled={isClearingProject || isLoading}
+                  className="flex items-center gap-1 px-3 py-1.5 bg-red-500 text-white rounded text-xs hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Trash2 size={12} />
+                  {isClearingProject || isLoading ? 'Clearing...' : 'Clear Project'}
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -149,25 +170,6 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                 </div>
                 {/* Pass isLoading to MainContent for skeletons */}
                 <MainContent isLoading={isLoading} />
-                
-                {/* Temporary clear button for testing */}
-                <div className="fixed bottom-4 right-4 z-50">
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => useProjectStore.getState().testAWSOperations()}
-                      className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm"
-                    >
-                      Test AWS
-                    </button>
-                    <button
-                      onClick={() => setShowClearConfirm(true)}
-                      disabled={isClearingProject || isLoading}
-                      className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-                    >
-                      {isClearingProject || isLoading ? 'Clearing...' : 'Clear Project'}
-                    </button>
-                  </div>
-                </div>
               </div>
             ) : activeTab === 'pdf' ? (
               <div className="h-full">
