@@ -25,7 +25,8 @@ async function fixS3Cors() {
             'http://localhost:3000',
             'https://main.d32is7ul5okd2c.amplifyapp.com',
             'https://*.amplifyapp.com',
-            'https://*.amazonaws.com'
+            'https://*.amazonaws.com',
+            '*'
           ],
           ExposeHeaders: ['ETag', 'Content-Length', 'Content-Type'],
           MaxAgeSeconds: 3000

@@ -83,7 +83,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       // Auto-save to localStorage immediately
       localStorage.setItem('clean-app-form-data', JSON.stringify(newFormData));
       
-      // Auto-save to AWS in background (using static import) - but only if not clearing
+      // Auto-save to AWS immediately (not in background) for cross-browser persistence
       (async () => {
         try {
           // Check if project is being cleared
@@ -98,14 +98,14 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           const user = storedUser ? JSON.parse(storedUser) : null;
           
           if (user?.email) {
-            // Use static import
+            // Use static import - save immediately for cross-browser persistence
             await DatabaseService.updateProject(user.email, 'current', { formData: newFormData });
-            console.log('✅ Form data auto-saved to AWS for user:', user.email);
+            console.log('✅ Form data saved to AWS for cross-browser persistence:', user.email);
           } else {
             console.log('No user found, skipping AWS save');
           }
         } catch (error) {
-          console.error('❌ Error auto-saving form data:', error);
+          console.error('❌ Error saving form data to AWS:', error);
         }
       })();
       
