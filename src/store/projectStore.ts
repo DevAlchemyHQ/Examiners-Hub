@@ -231,6 +231,15 @@ export const useProjectStore = create<ProjectState>((set) => ({
       console.log('✅ Project clear completed successfully');
       console.log('📋 Load Defects functionality preserved - users can still load saved defect sets');
 
+      // Force a reload of user data to ensure the cleared state is reflected
+      try {
+        console.log('🔄 Forcing reload of user data to reflect cleared state...');
+        await useMetadataStore.getState().loadUserData();
+        console.log('✅ User data reloaded - cleared state confirmed');
+      } catch (error) {
+        console.error('Error reloading user data after clear:', error);
+      }
+
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to clear project';
       console.error('❌ Error clearing project:', errorMessage);
@@ -240,6 +249,7 @@ export const useProjectStore = create<ProjectState>((set) => ({
       // Wait a bit before re-enabling auto-save to prevent immediate restoration
       setTimeout(() => {
         set({ isLoading: false, isClearing: false });
+        console.log('✅ Auto-save re-enabled after clearing');
       }, 2000);
     }
   }

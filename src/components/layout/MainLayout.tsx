@@ -31,9 +31,9 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const [clearResult, setClearResult] = useState<'success' | 'error' | null>(null);
   const [clearError, setClearError] = useState<string | null>(null);
 
-  // Load user data only on initial mount and only if not clearing
+  // Load user data only on initial mount
   useEffect(() => {
-    if (!isInitialized && !isClearing) {
+    if (!isInitialized) {
       const initialLoad = async () => {
         try {
           await loadUserData();
@@ -43,7 +43,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       };
       initialLoad();
     }
-  }, [isInitialized, loadUserData, isClearing]);
+  }, [isInitialized, loadUserData]);
 
   // Auto-save changes (but not during clearing)
   useEffect(() => {
