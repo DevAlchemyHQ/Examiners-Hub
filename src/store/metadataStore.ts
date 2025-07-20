@@ -201,7 +201,8 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
                     publicUrl: uploadResult.url!,
                     isUploading: false,
                     // Keep local file for fast downloads (no base64 conversion needed)
-                    localFile: img.file // Preserve local file reference
+                    localFile: img.file, // Preserve local file reference
+                    file: img.file // Also keep original file reference for immediate download
                   }
                 : img
             );
@@ -855,13 +856,9 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       
       const preparedImages = await get().convertSelectedImagesToBase64(selectedImageIds);
       
-      // Get the updated state after conversion
-      const updatedState = get();
-      const updatedImages = updatedState.images;
-
-      // Get the actual image metadata for selected files
+      // Use the prepared images directly for download
       const selectedImageMetadata = defectsWithImages.map(defect => {
-        const image = updatedImages.find(img => (img.fileName || img.file?.name || '') === defect.selectedFile);
+        const image = preparedImages.find(img => (img.fileName || img.file?.name || '') === defect.selectedFile);
         if (!image) {
           throw new Error(`Image not found for defect ${defect.photoNumber || 'unknown'}`);
         }
@@ -873,6 +870,8 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           description: defect.description || image.description
         };
       });
+
+
 
       // Create metadata content for bulk defects
       const metadataContent = defectsWithImages.map(defect => {
@@ -1087,8 +1086,12 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       
       // Verify all selected images have local files for fast download
       const imagesWithLocalFiles = selectedImages.map(img => {
-        if (!img.file && !(img as any).localFile) {
+        // Check if image has local file (either file or localFile property)
+        const hasLocalFile = img.file || (img as any).localFile;
+        if (!hasLocalFile) {
           console.warn('Image missing local file, will use S3 URL:', img.fileName || img.file?.name || 'unknown');
+        } else {
+          console.log('✅ Image has local file for immediate download:', img.fileName || img.file?.name || 'unknown');
         }
         return img;
       });
