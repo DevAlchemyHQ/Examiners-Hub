@@ -6,7 +6,7 @@ import { GridReferenceFinder } from '../GridReferenceFinder/GridReferenceFinder'
 import { PDFViewer } from '../PDFViewer/PDFViewer';
 import { CalculatorTabs } from '../calculators/CalculatorTabs';
 import { GameTabs } from '../games/GameTabs';
-import { Images, Map, FileText, Calculator, Brain, Trash2, TowerControl as GameController, Loader2 } from 'lucide-react';
+import { Images, Map, FileText, Calculator, Brain, Trash2, TowerControl as GameController, Loader2, FolderOpen } from 'lucide-react';
 import { useMetadataStore } from '../../store/metadataStore';
 import { usePDFStore } from '../../store/pdfStore';
 import { useProjectStore } from '../../store/projectStore';
@@ -15,7 +15,7 @@ import { MigrationStatus } from '../MigrationStatus';
 import { MigrationControls } from '../MigrationControls';
 import { useLocation } from 'react-router-dom';
 
-type TabType = 'images' | 'pdf' | 'calculator' | 'bcmi' | 'grid' | 'games';
+type TabType = 'images' | 'pdf' | 'calculator' | 'bcmi' | 'grid' | 'games' | 'project';
 
 interface MainLayoutProps {
   children?: React.ReactNode;
@@ -63,19 +63,24 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       setClearResult(null);
       setClearError(null);
       await clearProject();
+      
       // Reset all relevant stores to ensure UI is empty immediately
       useMetadataStore.getState().reset();
-      usePDFStore.getState().reset && usePDFStore.getState().reset();
+      if (usePDFStore.getState().reset) {
+        usePDFStore.getState().reset();
+      }
+      
       // Clear Zustand persisted storage for pdfStore and rehydrate
       if (usePDFStore.persist && usePDFStore.persist.clearStorage && usePDFStore.persist.rehydrate) {
         await usePDFStore.persist.clearStorage();
         await usePDFStore.persist.rehydrate();
         console.log('pdfStore persisted storage cleared and rehydrated');
       }
-      // Clear Zustand persisted storage for relevant keys
+      
+      // Clear Zustand persisted storage for relevant keys (but preserve auth)
       localStorage.removeItem('pdf-storage');
       localStorage.removeItem('metadata-storage');
-      // Add other keys if needed
+      
       // Log state after reset
       console.log('After reset:', {
         images: useMetadataStore.getState().images,
@@ -83,6 +88,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         pdf1: usePDFStore.getState().file1,
         pdf2: usePDFStore.getState().file2
       });
+      
       setShowClearConfirm(false);
       setClearResult('success');
     } catch (error) {
@@ -122,7 +128,8 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                 { id: 'calculator', icon: Calculator, label: 'Calc' },
                 { id: 'grid', icon: Map, label: 'Grid' },
                 { id: 'bcmi', icon: Brain, label: 'BCMI & AI' },
-                { id: 'games', icon: GameController, label: 'Games' }
+                { id: 'games', icon: GameController, label: 'Games' },
+                { id: 'project', icon: FolderOpen, label: 'Project' }
               ].map(({ id, icon: Icon, label }) => (
                 <button
                   key={id}
@@ -138,21 +145,6 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                 </button>
               ))}
             </div>
-
-            {images.length > 0 && (
-              <button
-                onClick={() => setShowClearConfirm(true)}
-                className="flex items-center gap-1 px-2 py-1 text-xs text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors disabled:opacity-50"
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  <Loader2 size={14} className="animate-spin" />
-                ) : (
-                  <Trash2 size={14} />
-                )}
-                {isLoading ? 'Processing...' : 'New Project'}
-              </button>
-            )}
           </div>
         </div>
 
@@ -178,6 +170,62 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               <GridReferenceFinder />
             ) : activeTab === 'games' ? (
               <GameTabs />
+            ) : activeTab === 'project' ? (
+              <div className="h-full flex items-center justify-center">
+                <div className="max-w-md w-full p-6 bg-white dark:bg-gray-800 rounded-lg shadow-xl">
+                  <div className="text-center mb-6">
+                    <FolderOpen size={48} className="mx-auto mb-4 text-indigo-500" />
+                    <h2 className="text-xl font-semibold text-slate-800 dark:text-white mb-2">
+                      Project Management
+                    </h2>
+                    <p className="text-slate-600 dark:text-gray-300">
+                      Manage your current project data and settings
+                    </p>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <div className="p-4 border border-slate-200 dark:border-gray-700 rounded-lg">
+                      <h3 className="font-medium text-slate-800 dark:text-white mb-2">Current Project Status</h3>
+                      <div className="space-y-2 text-sm text-slate-600 dark:text-gray-300">
+                        <div className="flex justify-between">
+                          <span>Images:</span>
+                          <span className="font-medium">{images.length}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Selected Images:</span>
+                          <span className="font-medium">{selectedImages.size}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Bulk Defects:</span>
+                          <span className="font-medium">{useMetadataStore.getState().bulkDefects.length}</span>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <button
+                      onClick={() => setShowClearConfirm(true)}
+                      disabled={isClearingProject || isLoading}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isClearingProject || isLoading ? (
+                        <>
+                          <Loader2 size={16} className="animate-spin" />
+                          Clearing Project...
+                        </>
+                      ) : (
+                        <>
+                          <Trash2 size={16} />
+                          Clear Project
+                        </>
+                      )}
+                    </button>
+                    
+                    <div className="text-xs text-slate-500 dark:text-gray-400 text-center">
+                      This will clear all project details, saved images, bulk defect entries, and selected images. Load defects functionality will remain intact.
+                    </div>
+                  </div>
+                </div>
+              </div>
             ) : (
               <div className="h-full flex items-center justify-center text-slate-400 dark:text-gray-500">
                 <div className="text-center">
@@ -194,10 +242,10 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full p-6">
             <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-4">
-              Start New Project?
+              Clear Project Data?
             </h3>
             <p className="text-slate-600 dark:text-gray-300 mb-6">
-              This will clear all current images and metadata. This action cannot be undone.
+              This will clear all project details, saved images, bulk defect entries, and selected images. Load defects functionality will remain intact. This action cannot be undone.
             </p>
             <div className="flex justify-end gap-4">
               <button
@@ -230,8 +278,8 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full p-6">
             {clearResult === 'success' ? (
               <>
-                <h3 className="text-lg font-semibold text-green-700 dark:text-green-400 mb-4">Project Data Deleted</h3>
-                <p className="text-slate-600 dark:text-gray-300 mb-6">All project data, images, PDFs, and cached data have been deleted. The canvas is now empty.</p>
+                <h3 className="text-lg font-semibold text-green-700 dark:text-green-400 mb-4">Project Data Cleared</h3>
+                <p className="text-slate-600 dark:text-gray-300 mb-6">All project details, saved images, bulk defect entries, and selected images have been cleared. Load defects functionality remains available. The canvas is now empty.</p>
                 <div className="flex justify-end">
                   <button
                     onClick={() => setClearResult(null)}
