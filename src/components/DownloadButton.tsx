@@ -90,14 +90,10 @@ export const DownloadButton: React.FC = () => {
           throw new Error('Your subscription has expired. Please upgrade to continue.');
         }
 
-        console.log('🚀 Preparing images for download using smart fallback...');
+        console.log('🚀 Creating download package with selected images...');
         
-        // Use the new smart fallback system
-        const selectedImageIds = Array.from(selectedImages);
-        const preparedImages = await useMetadataStore.getState().convertSelectedImagesToBase64(selectedImageIds);
-        
-        console.log('✅ Images prepared for download, creating package...');
-        const blob = await createDownloadPackage(preparedImages, formData);
+        // Use selected images directly - the ZIP creation will handle file access
+        const blob = await createDownloadPackage(selectedImagesList, formData);
         console.log('Download package created, size:', blob.size);
         const url = URL.createObjectURL(blob);
 

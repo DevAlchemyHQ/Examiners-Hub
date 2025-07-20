@@ -173,10 +173,23 @@ export const createZipFile = async (
       try {
         let imageBlob: Blob;
         
-        if (image.file || (image as any).localFile || (image as any).downloadableFile) {
-          // Use downloadable file if available, otherwise fall back to local files
-          const fileToUse = (image as any).downloadableFile || (image as any).localFile || image.file;
-          imageBlob = await processImageForDownload(fileToUse);
+        // Use smart fallback system to get the best available file
+        try {
+          const { useMetadataStore } = await import('../store/metadataStore');
+          const fileToUse = await useMetadataStore.getState().getDownloadableFile(image);
+          
+          // If it's already a Blob, use it directly
+          if (fileToUse instanceof Blob) {
+            console.log('Using prepared Blob directly, size:', fileToUse.size);
+            imageBlob = fileToUse;
+          } else {
+            // Process file through canvas
+            imageBlob = await processImageForDownload(fileToUse);
+          }
+        } catch (error) {
+          console.error('Error getting downloadable file:', error);
+          throw error;
+        }
         } else if (image.base64) {
           // Use base64 data from localStorage (most reliable)
           console.log('Using base64 data for image:', image.fileName || 'unknown');
