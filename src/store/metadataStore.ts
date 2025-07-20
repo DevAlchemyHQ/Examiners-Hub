@@ -830,8 +830,13 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
 
       console.log(`Processing ${defectsWithImages.length} defects with images`);
 
-      // Convert all images to base64 first to ensure reliable downloads
-      await get().convertImagesToBase64();
+      // Convert selected images to base64 for download (hybrid approach)
+      const selectedImageIds = defectsWithImages.map(defect => {
+        const image = images.find(img => (img.fileName || img.file?.name || '') === defect.selectedFile);
+        return image?.id;
+      }).filter(Boolean) as string[];
+      
+      await get().convertSelectedImagesToBase64(selectedImageIds);
       
       // Get the updated state after conversion
       const updatedState = get();

@@ -1,38 +1,50 @@
 import { S3Client, PutBucketCorsCommand } from '@aws-sdk/client-s3';
 
-const s3Client = new S3Client({ region: 'eu-west-2' });
+const s3Client = new S3Client({
+  region: 'eu-west-2',
+  credentials: {
+    accessKeyId: 'AKIA5JMSUOLD2BUTQRRF',
+    secretAccessKey: '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'
+  }
+});
 
-const corsConfiguration = {
-  CORSRules: [
-    {
-      AllowedHeaders: ['*'],
-      AllowedMethods: ['GET', 'PUT', 'POST', 'DELETE', 'HEAD'],
-      AllowedOrigins: [
-        'https://main.d32is7ul5okd2c.amplifyapp.com',
-        'http://localhost:3000',
-        'http://localhost:5173',
-        'http://127.0.0.1:3000',
-        'http://127.0.0.1:5173'
-      ],
-      ExposeHeaders: ['ETag', 'x-amz-meta-custom-header'],
-      MaxAgeSeconds: 3000
-    }
-  ]
-};
+const BUCKET_NAME = 'mvp-labeler-storage';
 
-async function updateBucketCors() {
+async function fixS3Cors() {
   try {
+    console.log('🔧 Fixing S3 CORS configuration...');
+    
+    const corsConfiguration = {
+      CORSRules: [
+        {
+          AllowedHeaders: ['*'],
+          AllowedMethods: ['GET', 'PUT', 'POST', 'DELETE', 'HEAD'],
+          AllowedOrigins: [
+            'http://localhost:5173',
+            'http://localhost:5174',
+            'http://localhost:3000',
+            'https://main.d32is7ul5okd2c.amplifyapp.com',
+            'https://*.amplifyapp.com',
+            'https://*.amazonaws.com'
+          ],
+          ExposeHeaders: ['ETag', 'Content-Length', 'Content-Type'],
+          MaxAgeSeconds: 3000
+        }
+      ]
+    };
+    
     const command = new PutBucketCorsCommand({
-      Bucket: 'mvp-labeler-storage',
+      Bucket: BUCKET_NAME,
       CORSConfiguration: corsConfiguration
     });
-
+    
     await s3Client.send(command);
     console.log('✅ S3 CORS configuration updated successfully!');
-    console.log('Allowed origins:', corsConfiguration.CORSRules[0].AllowedOrigins);
+    console.log('🔄 Please wait 1-2 minutes for changes to propagate...');
+    
   } catch (error) {
-    console.error('❌ Error updating S3 CORS configuration:', error);
+    console.error('❌ Error fixing S3 CORS:', error);
   }
 }
 
-updateBucketCors(); 
+fixS3Cors(); 
