@@ -55,7 +55,9 @@ interface MetadataState extends MetadataStateOnly {
   loadSavedPdfs: (userId: string) => Promise<any[]>;
   processImageForDownload: (imageFile: File) => Promise<Blob>;
   convertImagesToBase64: () => Promise<void>;
-  convertSelectedImagesToBase64: (selectedImageIds: string[]) => Promise<void>;
+  convertSelectedImagesToBase64: (selectedImageIds: string[]) => Promise<ImageMetadata[]>;
+  getDownloadableFile: (image: ImageMetadata) => Promise<File | Blob>;
+  createErrorPlaceholder: (image: ImageMetadata) => Blob;
 }
 
 const initialState: MetadataStateOnly = {
@@ -1152,7 +1154,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
   },
 
   // Prepare selected images for download using smart fallback
-  convertSelectedImagesToBase64: async (selectedImageIds: string[]) => {
+  convertSelectedImagesToBase64: async (selectedImageIds: string[]): Promise<ImageMetadata[]> => {
     try {
       console.log('🚀 Preparing selected images for download using smart fallback...');
       const state = get();

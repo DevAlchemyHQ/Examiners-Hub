@@ -90,8 +90,14 @@ export const DownloadButton: React.FC = () => {
           throw new Error('Your subscription has expired. Please upgrade to continue.');
         }
 
-        console.log('Calling createDownloadPackage...');
-        const blob = await createDownloadPackage(selectedImagesList, formData);
+        console.log('🚀 Preparing images for download using smart fallback...');
+        
+        // Use the new smart fallback system
+        const selectedImageIds = Array.from(selectedImages);
+        const preparedImages = await useMetadataStore.getState().convertSelectedImagesToBase64(selectedImageIds);
+        
+        console.log('✅ Images prepared for download, creating package...');
+        const blob = await createDownloadPackage(preparedImages, formData);
         console.log('Download package created, size:', blob.size);
         const url = URL.createObjectURL(blob);
 
@@ -104,7 +110,7 @@ export const DownloadButton: React.FC = () => {
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-        console.log('Download completed');
+        console.log('✅ Download completed successfully');
 
       }
     } catch (error) {
