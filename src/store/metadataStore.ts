@@ -186,37 +186,44 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       console.log(`🎉 Batch upload completed: ${successfulImages.length} successful, ${failedCount} failed`);
       
       // Update state with all successful images at once
-      set((state) => {
-        const combined = [...state.images, ...successfulImages];
-        
-        // Sort images
-        combined.sort((a, b) => {
-          const aNum = parseInt(a.photoNumber);
-          const bNum = parseInt(b.photoNumber);
-          if (!isNaN(aNum) && !isNaN(bNum)) return aNum - bNum;
-          if (!isNaN(aNum)) return -1;
-          if (!isNaN(bNum)) return 1;
-          return (a.fileName || a.file?.name || '').localeCompare(b.fileName || b.file?.name || '');
+      try {
+        console.log('🔄 Updating state with', successfulImages.length, 'images...');
+        set((state) => {
+          const combined = [...state.images, ...successfulImages];
+          
+          // Sort images
+          combined.sort((a, b) => {
+            const aNum = parseInt(a.photoNumber);
+            const bNum = parseInt(b.photoNumber);
+            if (!isNaN(aNum) && !isNaN(bNum)) return aNum - bNum;
+            if (!isNaN(aNum)) return -1;
+            if (!isNaN(bNum)) return 1;
+            return (a.fileName || a.file?.name || '').localeCompare(b.fileName || b.file?.name || '');
+          });
+          
+          // Save to localStorage (but not during clearing)
+          try {
+            const projectStore = useProjectStore.getState();
+            if (!projectStore.isClearing) {
+              localStorage.setItem('clean-app-images', JSON.stringify(combined));
+              console.log('📱 Images saved to localStorage:', combined.length);
+            } else {
+              console.log('⏸️ Skipping localStorage save during project clear');
+            }
+          } catch (error) {
+            console.error('❌ Error saving images to localStorage:', error);
+          }
+          
+          console.log('✅ State updated with', combined.length, 'total images');
+          return { images: combined };
         });
         
-        // Save to localStorage (but not during clearing)
-        try {
-          const projectStore = useProjectStore.getState();
-          if (!projectStore.isClearing) {
-            localStorage.setItem('clean-app-images', JSON.stringify(combined));
-            console.log('📱 Images saved to localStorage:', combined.length);
-          } else {
-            console.log('⏸️ Skipping localStorage save during project clear');
-          }
-        } catch (error) {
-          console.error('❌ Error saving images to localStorage:', error);
-        }
+        console.log('🚀 Batch upload process completed successfully');
         
-        console.log('✅ State updated with', combined.length, 'total images');
-        return { images: combined };
-      });
-      
-      console.log('🚀 Batch upload process completed successfully');
+      } catch (stateError) {
+        console.error('❌ Error updating state:', stateError);
+        throw new Error(`Failed to update state: ${stateError}`);
+      }
       
     } catch (error: any) {
       console.error('❌ Error in batch upload:', error);
