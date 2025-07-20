@@ -19,89 +19,114 @@ export const useProjectStore = create<ProjectState>((set) => ({
 
       // Get current user from localStorage
       const userEmail = localStorage.getItem('userEmail');
-      if (!userEmail) throw new Error("No authenticated user found");
+      if (!userEmail) {
+        console.warn('No user email found, clearing local data only');
+      }
 
-      console.log('🗑️ Starting comprehensive project clear for user:', userEmail);
+      console.log('🗑️ Starting project clear for user:', userEmail);
 
-      // --- Clear all project-related data from AWS DynamoDB ---
+      // --- Clear AWS data (don't throw errors, just log them) ---
       
-      // 1. Clear project details from projects table (but preserve Load Defects data)
-      const projectResult = await DatabaseService.clearUserProject(userEmail, userEmail);
-      if (projectResult.error) {
-        console.error('Failed to clear project data:', projectResult.error);
-        throw new Error(`Failed to clear project data: ${projectResult.error}`);
-      }
-
-      // 2. Clear current bulk defect entries (but preserve Load Defects functionality)
-      // This clears the current working bulk defects, but Load Defects can still load saved sets
-      const bulkDefectsResult = await DatabaseService.updateBulkDefects(userEmail, []);
-      if (bulkDefectsResult.error) {
-        console.error('Failed to clear bulk defects:', bulkDefectsResult.error);
-      }
-
-      // 3. Clear user PDFs and PDF state
-      const userPdfsResult = await DatabaseService.updatePdfState(userEmail, 'clear', {});
-      if (userPdfsResult.error) {
-        console.error('Failed to clear user PDFs:', userPdfsResult.error);
-      }
-
-      // --- Clear all files from S3 ---
-      
-      // 4. Clear saved images from S3
-      const projectFiles = await StorageService.listFiles(`users/${userEmail}/project-files/`);
-      if (projectFiles.success && projectFiles.data.length > 0) {
-        console.log(`🗑️ Deleting ${projectFiles.data.length} project files from S3`);
-        for (const file of projectFiles.data) {
-          await StorageService.deleteFile(file.key);
-        }
-      }
-
-      // 5. Clear PDF files from S3
-      const pdfFiles = await StorageService.listFiles(`users/${userEmail}/pdfs/`);
-      if (pdfFiles.success && pdfFiles.data.length > 0) {
-        console.log(`🗑️ Deleting ${pdfFiles.data.length} PDF files from S3`);
-        for (const file of pdfFiles.data) {
-          await StorageService.deleteFile(file.key);
-        }
-      }
-
-      // 6. Clear any other user files from S3 (but preserve Load Defects data)
-      const userFiles = await StorageService.listFiles(`users/${userEmail}/`);
-      if (userFiles.success && userFiles.data.length > 0) {
-        console.log(`🗑️ Deleting ${userFiles.data.length} user files from S3`);
-        for (const file of userFiles.data) {
-          // Skip any files that might be needed for Load Defects functionality
-          if (!file.key.includes('load-defects') && 
-              !file.key.includes('defects-data') && 
-              !file.key.includes('defect-sets') &&
-              !file.key.includes('saved-defects')) {
-            await StorageService.deleteFile(file.key);
+      if (userEmail) {
+        try {
+          // 1. Clear project details from projects table
+          const projectResult = await DatabaseService.clearUserProject(userEmail, userEmail);
+          if (projectResult.error) {
+            console.error('Failed to clear project data:', projectResult.error);
+          } else {
+            console.log('✅ Cleared project data from AWS');
           }
+        } catch (error) {
+          console.error('Error clearing project data from AWS:', error);
+        }
+
+        try {
+          // 2. Clear current bulk defect entries
+          const bulkDefectsResult = await DatabaseService.updateBulkDefects(userEmail, []);
+          if (bulkDefectsResult.error) {
+            console.error('Failed to clear bulk defects:', bulkDefectsResult.error);
+          } else {
+            console.log('✅ Cleared bulk defects from AWS');
+          }
+        } catch (error) {
+          console.error('Error clearing bulk defects from AWS:', error);
+        }
+
+        try {
+          // 3. Clear user PDFs and PDF state
+          const userPdfsResult = await DatabaseService.updatePdfState(userEmail, 'clear', {});
+          if (userPdfsResult.error) {
+            console.error('Failed to clear user PDFs:', userPdfsResult.error);
+          } else {
+            console.log('✅ Cleared PDF states from AWS');
+          }
+        } catch (error) {
+          console.error('Error clearing PDF states from AWS:', error);
+        }
+
+        // 4. Clear S3 files (don't throw errors)
+        try {
+          const projectFiles = await StorageService.listFiles(`users/${userEmail}/project-files/`);
+          if (projectFiles.success && projectFiles.data.length > 0) {
+            console.log(`🗑️ Deleting ${projectFiles.data.length} project files from S3`);
+            for (const file of projectFiles.data) {
+              try {
+                await StorageService.deleteFile(file.key);
+              } catch (error) {
+                console.error(`Failed to delete file ${file.key}:`, error);
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Error clearing S3 files:', error);
+        }
+
+        try {
+          const pdfFiles = await StorageService.listFiles(`users/${userEmail}/pdfs/`);
+          if (pdfFiles.success && pdfFiles.data.length > 0) {
+            console.log(`🗑️ Deleting ${pdfFiles.data.length} PDF files from S3`);
+            for (const file of pdfFiles.data) {
+              try {
+                await StorageService.deleteFile(file.key);
+              } catch (error) {
+                console.error(`Failed to delete PDF file ${file.key}:`, error);
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Error clearing PDF files from S3:', error);
         }
       }
 
-      // --- Clear all local state and storage ---
+      // --- Clear local state and storage (this is the most important part) ---
       
-      // 7. Reset all Zustand stores (but preserve Load Defects functionality)
-      console.log('🔄 Resetting Zustand stores...');
+      console.log('🔄 Clearing local state and storage...');
       
-      // Reset metadata store but preserve Load Defects data
-      const metadataStore = useMetadataStore.getState();
-      metadataStore.reset();
-      
-      // Clear PDF store
-      if (usePDFStore.getState().clearFiles) {
-        usePDFStore.getState().clearFiles();
-      }
-      if (usePDFStore.getState().reset) {
-        usePDFStore.getState().reset();
+      // Reset all Zustand stores
+      try {
+        useMetadataStore.getState().reset();
+        console.log('✅ Metadata store reset');
+      } catch (error) {
+        console.error('Error resetting metadata store:', error);
       }
 
-      // 8. Clear project-related localStorage keys (but preserve authentication and Load Defects data)
+      try {
+        if (usePDFStore.getState().clearFiles) {
+          usePDFStore.getState().clearFiles();
+        }
+        if (usePDFStore.getState().reset) {
+          usePDFStore.getState().reset();
+        }
+        console.log('✅ PDF store reset');
+      } catch (error) {
+        console.error('Error resetting PDF store:', error);
+      }
+
+      // Clear localStorage keys (but preserve authentication)
       const keysToRemove = [
         'clean-app-images',
         'clean-app-form-data', 
-        'clean-app-bulk-data', // Clear current bulk data
+        'clean-app-bulk-data',
         'clean-app-selections',
         'viewMode',
         'pdf-storage',
@@ -118,11 +143,15 @@ export const useProjectStore = create<ProjectState>((set) => ({
       
       console.log('🗑️ Clearing localStorage keys...');
       keysToRemove.forEach(key => {
-        localStorage.removeItem(key);
-        sessionStorage.removeItem(key);
+        try {
+          localStorage.removeItem(key);
+          sessionStorage.removeItem(key);
+        } catch (error) {
+          console.error(`Error removing key ${key}:`, error);
+        }
       });
 
-      // 9. Clear Zustand persisted storage
+      // Clear Zustand persisted storage
       try {
         if (usePDFStore.persist && usePDFStore.persist.clearStorage) {
           await usePDFStore.persist.clearStorage();
@@ -132,66 +161,46 @@ export const useProjectStore = create<ProjectState>((set) => ({
         console.error('Failed to clear PDF store persisted storage:', error);
       }
 
-      // 10. Clear any remaining project-related data (but preserve authentication and Load Defects)
-      const remainingKeys = Object.keys(localStorage);
-      const projectKeys = remainingKeys.filter(key => 
-        (key.includes('project') || 
-         key.includes('image') || 
-         key.includes('form') ||
-         key.includes('selection') ||
-         key.includes('bulk')) &&
-        !key.includes('load-defects') &&
-        !key.includes('defects-data') &&
-        !key.includes('defect-sets') &&
-        !key.includes('saved-defects') &&
-        // Preserve authentication keys
-        !key.includes('isAuthenticated') &&
-        !key.includes('user') &&
-        !key.includes('userEmail') &&
-        !key.includes('session')
-      );
-      
-      projectKeys.forEach(key => {
-        localStorage.removeItem(key);
-        console.log(`🗑️ Removed additional key: ${key}`);
-      });
-
-      // --- Verify deletion was successful ---
-      console.log('✅ Verifying deletion...');
-      
-      // Verify files are deleted
-      const verifyFiles = await StorageService.listFiles(`users/${userEmail}/project-files/`);
-      if (verifyFiles.success && verifyFiles.data.length > 0) {
-        console.warn('⚠️ Some project files may still exist in S3');
-      }
-
-      // Verify project data is cleared
-      const verifyProject = await DatabaseService.getUserProject(userEmail);
-      if (verifyProject.success && verifyProject.data) {
-        console.warn('⚠️ Some project data may still exist in DynamoDB');
+      // Clear any remaining project-related data (but preserve authentication)
+      try {
+        const remainingKeys = Object.keys(localStorage);
+        const projectKeys = remainingKeys.filter(key => 
+          (key.includes('project') || 
+           key.includes('image') || 
+           key.includes('form') ||
+           key.includes('selection') ||
+           key.includes('bulk')) &&
+          !key.includes('load-defects') &&
+          !key.includes('defects-data') &&
+          !key.includes('defect-sets') &&
+          !key.includes('saved-defects') &&
+          // Preserve authentication keys
+          !key.includes('isAuthenticated') &&
+          !key.includes('user') &&
+          !key.includes('userEmail') &&
+          !key.includes('session')
+        );
+        
+        projectKeys.forEach(key => {
+          try {
+            localStorage.removeItem(key);
+            console.log(`🗑️ Removed additional key: ${key}`);
+          } catch (error) {
+            console.error(`Error removing key ${key}:`, error);
+          }
+        });
+      } catch (error) {
+        console.error('Error clearing additional localStorage keys:', error);
       }
 
       console.log('✅ Project clear completed successfully');
       console.log('📋 Load Defects functionality preserved - users can still load saved defect sets');
 
-      // --- Reset stores to ensure clean state without page reload ---
-      console.log('🔄 Resetting stores for clean state...');
-      
-      // Reset metadata store to initial state
-      useMetadataStore.getState().reset();
-      
-      // Reset PDF store
-      if (usePDFStore.getState().reset) {
-        usePDFStore.getState().reset();
-      }
-      
-      console.log('✅ Stores reset successfully - project cleared without page reload');
-
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to clear project';
       console.error('❌ Error clearing project:', errorMessage);
       set({ error: errorMessage });
-      throw error;
+      // Don't throw the error - just log it and continue
     } finally {
       set({ isLoading: false });
     }

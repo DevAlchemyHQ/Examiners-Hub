@@ -62,27 +62,13 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     try {
       setClearResult(null);
       setClearError(null);
+      
+      // Call the clearProject function (which handles everything)
       await clearProject();
       
-      // Reset all relevant stores to ensure UI is empty immediately
-      useMetadataStore.getState().reset();
-      if (usePDFStore.getState().reset) {
-        usePDFStore.getState().reset();
-      }
-      
-      // Clear Zustand persisted storage for pdfStore and rehydrate
-      if (usePDFStore.persist && usePDFStore.persist.clearStorage && usePDFStore.persist.rehydrate) {
-        await usePDFStore.persist.clearStorage();
-        await usePDFStore.persist.rehydrate();
-        console.log('pdfStore persisted storage cleared and rehydrated');
-      }
-      
-      // Clear Zustand persisted storage for relevant keys (but preserve auth)
-      localStorage.removeItem('pdf-storage');
-      localStorage.removeItem('metadata-storage');
-      
-      // Log state after reset
-      console.log('After reset:', {
+      // Don't reset stores again - clearProject already does this
+      // Just log the final state
+      console.log('Final state after clear:', {
         images: useMetadataStore.getState().images,
         formData: useMetadataStore.getState().formData,
         pdf1: usePDFStore.getState().file1,
