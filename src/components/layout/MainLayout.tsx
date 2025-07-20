@@ -26,14 +26,14 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const [activeTab, setActiveTab] = useState<TabType>('images');
   const { images, selectedImages, loadUserData, isLoading, isInitialized } = useMetadataStore();
   // const { file1, file2 } = usePDFStore();
-  const { clearProject, isLoading: isClearingProject } = useProjectStore();
+  const { clearProject, isLoading: isClearingProject, isClearing } = useProjectStore();
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [clearResult, setClearResult] = useState<'success' | 'error' | null>(null);
   const [clearError, setClearError] = useState<string | null>(null);
 
-  // Load user data only on initial mount
+  // Load user data only on initial mount and only if not clearing
   useEffect(() => {
-    if (!isInitialized) {
+    if (!isInitialized && !isClearing) {
       const initialLoad = async () => {
         try {
           await loadUserData();
@@ -43,11 +43,11 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       };
       initialLoad();
     }
-  }, [isInitialized, loadUserData]);
+  }, [isInitialized, loadUserData, isClearing]);
 
-  // Auto-save changes
+  // Auto-save changes (but not during clearing)
   useEffect(() => {
-    if (images.length > 0 && isInitialized) {
+    if (images.length > 0 && isInitialized && !isClearing) {
       const saveTimeout = setTimeout(() => {
         useMetadataStore.getState().saveUserData().catch(error => {
           console.error('Error saving user data:', error);
@@ -56,7 +56,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 
       return () => clearTimeout(saveTimeout);
     }
-  }, [images, selectedImages, isInitialized]);
+  }, [images, selectedImages, isInitialized, isClearing]);
 
   const handleClearProject = async () => {
     try {

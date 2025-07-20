@@ -180,10 +180,16 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           return (a.fileName || a.file?.name || '').localeCompare(b.fileName || b.file?.name || '');
         });
         
-        // Save images to localStorage for persistence
+        // Save images to localStorage for persistence (but not during clearing)
         try {
-          localStorage.setItem('clean-app-images', JSON.stringify(combined));
-          console.log('📱 Images saved to localStorage:', combined.length);
+          // Check if project is being cleared
+          const projectStore = useProjectStore.getState();
+          if (!projectStore.isClearing) {
+            localStorage.setItem('clean-app-images', JSON.stringify(combined));
+            console.log('📱 Images saved to localStorage:', combined.length);
+          } else {
+            console.log('⏸️ Skipping localStorage save during project clear');
+          }
         } catch (error) {
           console.error('❌ Error saving images to localStorage:', error);
         }
@@ -205,17 +211,30 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         img.id === id ? { ...img, ...data } : img
       );
       
-      // Save to localStorage for immediate persistence
+      // Save to localStorage for immediate persistence (but not during clearing)
       try {
-        localStorage.setItem('clean-app-images', JSON.stringify(updatedImages));
-        console.log('📱 Image metadata saved to localStorage for image:', id);
+        // Check if project is being cleared
+        const projectStore = useProjectStore.getState();
+        if (!projectStore.isClearing) {
+          localStorage.setItem('clean-app-images', JSON.stringify(updatedImages));
+          console.log('📱 Image metadata saved to localStorage for image:', id);
+        } else {
+          console.log('⏸️ Skipping localStorage save during project clear');
+        }
       } catch (error) {
         console.error('❌ Error saving image metadata to localStorage:', error);
       }
       
-      // Auto-save to AWS in background (only metadata, not full images)
+      // Auto-save to AWS in background (only metadata, not full images) - but only if not clearing
       (async () => {
         try {
+          // Check if project is being cleared
+          const projectStore = useProjectStore.getState();
+          if (projectStore.isClearing) {
+            console.log('⏸️ Skipping auto-save during project clear');
+            return;
+          }
+          
           const storedUser = localStorage.getItem('user');
           const user = storedUser ? JSON.parse(storedUser) : null;
           
@@ -268,75 +287,59 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       if (newSelected.has(id)) {
         newSelected.delete(id);
       } else {
-        // Get the image being selected
-        const selectedImage = state.images.find(img => img.id === id);
-        if (!selectedImage) return { selectedImages: newSelected };
-
-        // Convert Set to Array for manipulation
-        const selectedArray = Array.from(newSelected);
-        
-        // Determine sort direction for defects (since this is for defect images)
-        const sortDirection = state.defectSortDirection;
-        
-        if (sortDirection) {
-          // Find the correct position based on sort direction
-          const selectedImageNumber = parseInt(selectedImage.photoNumber) || 0;
-          
-          let insertIndex = selectedArray.length; // Default to end
-          
-          if (sortDirection === 'asc') {
-            // Low to High: find position where image should go
-            for (let i = 0; i < selectedArray.length; i++) {
-              const existingImage = state.images.find(img => img.id === selectedArray[i]);
-              if (existingImage) {
-                const existingNumber = parseInt(existingImage.photoNumber) || 0;
-                if (selectedImageNumber < existingNumber) {
-                  insertIndex = i;
-                  break;
-                }
-              }
-            }
-          } else if (sortDirection === 'desc') {
-            // High to Low: find position where image should go
-            for (let i = 0; i < selectedArray.length; i++) {
-              const existingImage = state.images.find(img => img.id === selectedArray[i]);
-              if (existingImage) {
-                const existingNumber = parseInt(existingImage.photoNumber) || 0;
-                if (selectedImageNumber > existingNumber) {
-                  insertIndex = i;
-                  break;
-                }
-              }
-            }
-          }
-          
-          // Insert at the correct position
-          selectedArray.splice(insertIndex, 0, id);
-          newSelected = new Set(selectedArray);
+        // Add to the beginning if we have a sort direction
+        if (state.defectSortDirection === 'asc') {
+          newSelected = new Set([id, ...newSelected]);
+        } else if (state.defectSortDirection === 'desc') {
+          newSelected = new Set([...newSelected, id]);
         } else {
           // No sort direction, just add to the end
           newSelected.add(id);
         }
       }
       
-      // Auto-save selections to localStorage immediately with filenames for cross-session matching
-      const selectedWithFilenames = Array.from(newSelected).map(id => {
-        const image = state.images.find(img => img.id === id);
-        return {
-          id,
-          fileName: image?.fileName || image?.file?.name || 'unknown'
-        };
-      });
-      localStorage.setItem('clean-app-selected-images', JSON.stringify(selectedWithFilenames));
-      console.log('📱 Selected images saved to localStorage:', selectedWithFilenames);
+      // Auto-save selections to localStorage immediately with filenames for cross-session matching (but not during clearing)
+      try {
+        // Check if project is being cleared
+        const projectStore = useProjectStore.getState();
+        if (!projectStore.isClearing) {
+          const selectedWithFilenames = Array.from(newSelected).map(id => {
+            const image = state.images.find(img => img.id === id);
+            return {
+              id,
+              fileName: image?.fileName || image?.file?.name || 'unknown'
+            };
+          });
+          localStorage.setItem('clean-app-selected-images', JSON.stringify(selectedWithFilenames));
+          console.log('📱 Selected images saved to localStorage:', selectedWithFilenames);
+        } else {
+          console.log('⏸️ Skipping localStorage save during project clear');
+        }
+      } catch (error) {
+        console.error('❌ Error saving selected images to localStorage:', error);
+      }
       
-      // Auto-save to AWS in background (only small data)
+      // Auto-save to AWS in background (only small data) - but only if not clearing
       (async () => {
         try {
+          // Check if project is being cleared
+          const projectStore = useProjectStore.getState();
+          if (projectStore.isClearing) {
+            console.log('⏸️ Skipping auto-save during project clear');
+            return;
+          }
+          
           const storedUser = localStorage.getItem('user');
           const user = storedUser ? JSON.parse(storedUser) : null;
           
           if (user?.email) {
+            const selectedWithFilenames = Array.from(newSelected).map(id => {
+              const image = state.images.find(img => img.id === id);
+              return {
+                id,
+                fileName: image?.fileName || image?.file?.name || 'unknown'
+              };
+            });
             await DatabaseService.updateSelectedImages(user.email, selectedWithFilenames);
             console.log('✅ Selected images auto-saved to AWS for user:', user.email);
           }
@@ -385,12 +388,30 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
     set((state) => {
       const newBulkDefects = typeof defects === 'function' ? defects(state.bulkDefects) : defects;
       
-      // Auto-save to localStorage immediately
-      localStorage.setItem('clean-app-bulk-data', JSON.stringify(newBulkDefects));
+      // Auto-save to localStorage immediately (but not during clearing)
+      try {
+        // Check if project is being cleared
+        const projectStore = useProjectStore.getState();
+        if (!projectStore.isClearing) {
+          localStorage.setItem('clean-app-bulk-data', JSON.stringify(newBulkDefects));
+          console.log('📱 Bulk defects saved to localStorage');
+        } else {
+          console.log('⏸️ Skipping localStorage save during project clear');
+        }
+      } catch (error) {
+        console.error('❌ Error saving bulk defects to localStorage:', error);
+      }
       
-      // Auto-save to AWS in background
+      // Auto-save to AWS in background - but only if not clearing
       (async () => {
         try {
+          // Check if project is being cleared
+          const projectStore = useProjectStore.getState();
+          if (projectStore.isClearing) {
+            console.log('⏸️ Skipping auto-save during project clear');
+            return;
+          }
+          
           const storedUser = localStorage.getItem('user');
           const user = storedUser ? JSON.parse(storedUser) : null;
           
