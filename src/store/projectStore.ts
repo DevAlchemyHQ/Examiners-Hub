@@ -65,6 +65,22 @@ export const useProjectStore = create<ProjectState>((set) => ({
           } else {
             console.log('✅ Cleared project data from AWS');
           }
+          
+          // Also update project with empty form data to ensure it's cleared
+          console.log('🔍 Step 1a: Updating project with empty form data...');
+          const updateResult = await DatabaseService.updateProject(userEmail, 'current', {
+            formData: {
+              elr: '',
+              structureNo: '',
+              date: ''
+            }
+          });
+          console.log('📊 Project update result:', updateResult);
+          if (updateResult.error) {
+            console.error('Failed to update project with empty data:', updateResult.error);
+          } else {
+            console.log('✅ Updated project with empty form data');
+          }
         } catch (error) {
           console.error('Error clearing project data from AWS:', error);
         }
@@ -200,6 +216,14 @@ export const useProjectStore = create<ProjectState>((set) => ({
       try {
         useMetadataStore.getState().reset();
         console.log('✅ Metadata store reset');
+        
+        // Explicitly clear form data to ensure it's empty
+        useMetadataStore.getState().setFormData({
+          elr: '',
+          structureNo: '',
+          date: ''
+        });
+        console.log('✅ Form data explicitly cleared');
       } catch (error) {
         console.error('Error resetting metadata store:', error);
       }
@@ -234,7 +258,15 @@ export const useProjectStore = create<ProjectState>((set) => ({
         'form-data',
         'image-selections',
         'defectSets',                 // Defect sets (but preserve Load Defects)
-        'user-pdfs'                   // User PDFs
+        'user-pdfs',                  // User PDFs
+        // Additional form-related keys that might exist
+        'elr',
+        'structureNo', 
+        'date',
+        'project-details',
+        'project-form',
+        'form-settings',
+        'project-settings'
       ];
       
       console.log('🗑️ Step 6: Clearing localStorage keys...');
