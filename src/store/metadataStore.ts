@@ -112,32 +112,40 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
 
   addImages: async (files, isSketch = false) => {
     try {
-      console.log('🚀 Starting optimized batch upload of', files.length, 'files');
+      console.log('🚀 Starting upload of', files.length, 'files');
       
       // Get user info once
       const storedUser = localStorage.getItem('user');
       const user = storedUser ? JSON.parse(storedUser) : null;
       const userId = user?.email || localStorage.getItem('userEmail') || 'anonymous';
       
-      // Process all files in parallel for maximum speed
-      const uploadPromises = files.map(async (file, index) => {
-        console.log(`🔄 Starting upload ${index + 1}/${files.length}:`, file.name);
+      const newImages: ImageMetadata[] = [];
+      
+      // Process files sequentially for reliability
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        console.log(`🔄 Processing file ${i + 1}/${files.length}:`, file.name);
         
         try {
           // Create unique file path with timestamp
-          const timestamp = Date.now() + index; // Add index to ensure unique timestamps
+          const timestamp = Date.now() + i; // Add index to ensure unique timestamps
           const filePath = `users/${userId}/images/${timestamp}-${file.name}`;
           
-          // Upload to S3 and convert to base64 in parallel
-          const [uploadResult, jpgBase64] = await Promise.all([
-            StorageService.uploadFile(file, filePath),
-            convertImageToJpgBase64(file)
-          ]);
+          // Upload to S3 first
+          console.log(`📤 Uploading to S3: ${file.name}`);
+          const uploadResult = await StorageService.uploadFile(file, filePath);
           
           if (uploadResult.error) {
             console.error('❌ Upload failed for', file.name, uploadResult.error);
             throw new Error(`Upload failed for ${file.name}: ${uploadResult.error}`);
           }
+          
+          console.log(`✅ S3 upload successful: ${file.name}`);
+          
+          // Convert to base64 (simplified for reliability)
+          console.log(`🔄 Converting to base64: ${file.name}`);
+          const jpgBase64 = await convertImageToJpgBase64(file);
+          console.log(`✅ Base64 conversion successful: ${file.name}`);
           
           // Generate consistent ID based on filename
           const consistentId = `local-${file.name.replace(/[^a-zA-Z0-9]/g, '-')}`;
@@ -157,76 +165,57 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             base64: jpgBase64
           };
           
-          console.log(`✅ Upload ${index + 1}/${files.length} completed:`, file.name);
-          return imageMetadata;
+          newImages.push(imageMetadata);
+          console.log(`✅ File ${i + 1}/${files.length} completed:`, file.name);
           
         } catch (error) {
-          console.error(`❌ Error processing file ${index + 1}/${files.length}:`, file.name, error);
-          // Return null for failed uploads so we can continue with successful ones
-          return null;
+          console.error(`❌ Error processing file ${i + 1}/${files.length}:`, file.name, error);
+          // Continue with other files instead of stopping
         }
-      });
-      
-      // Wait for all uploads to complete
-      console.log('⏳ Waiting for all uploads to complete...');
-      const results = await Promise.all(uploadPromises);
-      
-      // Filter out failed uploads
-      const successfulImages = results.filter(img => img !== null) as ImageMetadata[];
-      const failedCount = results.length - successfulImages.length;
-      
-      if (failedCount > 0) {
-        console.warn(`⚠️ ${failedCount} uploads failed, ${successfulImages.length} succeeded`);
       }
       
-      if (successfulImages.length === 0) {
-        throw new Error('All uploads failed');
+      if (newImages.length === 0) {
+        throw new Error('No images were successfully processed');
       }
       
-      console.log(`🎉 Batch upload completed: ${successfulImages.length} successful, ${failedCount} failed`);
+      console.log(`🎉 Upload completed: ${newImages.length} successful out of ${files.length} files`);
       
-      // Update state with all successful images at once
-      try {
-        console.log('🔄 Updating state with', successfulImages.length, 'images...');
-        set((state) => {
-          const combined = [...state.images, ...successfulImages];
-          
-          // Sort images
-          combined.sort((a, b) => {
-            const aNum = parseInt(a.photoNumber);
-            const bNum = parseInt(b.photoNumber);
-            if (!isNaN(aNum) && !isNaN(bNum)) return aNum - bNum;
-            if (!isNaN(aNum)) return -1;
-            if (!isNaN(bNum)) return 1;
-            return (a.fileName || a.file?.name || '').localeCompare(b.fileName || b.file?.name || '');
-          });
-          
-          // Save to localStorage (but not during clearing)
-          try {
-            const projectStore = useProjectStore.getState();
-            if (!projectStore.isClearing) {
-              localStorage.setItem('clean-app-images', JSON.stringify(combined));
-              console.log('📱 Images saved to localStorage:', combined.length);
-            } else {
-              console.log('⏸️ Skipping localStorage save during project clear');
-            }
-          } catch (error) {
-            console.error('❌ Error saving images to localStorage:', error);
-          }
-          
-          console.log('✅ State updated with', combined.length, 'total images');
-          return { images: combined };
+      // Update state immediately
+      console.log('🔄 Updating state with', newImages.length, 'images...');
+      set((state) => {
+        const combined = [...state.images, ...newImages];
+        
+        // Sort images
+        combined.sort((a, b) => {
+          const aNum = parseInt(a.photoNumber);
+          const bNum = parseInt(b.photoNumber);
+          if (!isNaN(aNum) && !isNaN(bNum)) return aNum - bNum;
+          if (!isNaN(aNum)) return -1;
+          if (!isNaN(bNum)) return 1;
+          return (a.fileName || a.file?.name || '').localeCompare(b.fileName || b.file?.name || '');
         });
         
-        console.log('🚀 Batch upload process completed successfully');
+        // Save to localStorage (but not during clearing)
+        try {
+          const projectStore = useProjectStore.getState();
+          if (!projectStore.isClearing) {
+            localStorage.setItem('clean-app-images', JSON.stringify(combined));
+            console.log('📱 Images saved to localStorage:', combined.length);
+          } else {
+            console.log('⏸️ Skipping localStorage save during project clear');
+          }
+        } catch (error) {
+          console.error('❌ Error saving images to localStorage:', error);
+        }
         
-      } catch (stateError) {
-        console.error('❌ Error updating state:', stateError);
-        throw new Error(`Failed to update state: ${stateError}`);
-      }
+        console.log('✅ State updated with', combined.length, 'total images');
+        return { images: combined };
+      });
+      
+      console.log('🚀 Upload process completed successfully');
       
     } catch (error: any) {
-      console.error('❌ Error in batch upload:', error);
+      console.error('❌ Error in upload:', error);
       throw error;
     }
   },
