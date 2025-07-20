@@ -222,7 +222,7 @@ export class StorageService {
         Key: filePath,
         Body: new Uint8Array(arrayBuffer), // Convert ArrayBuffer to Uint8Array
         ContentType: file.type,
-        ACL: 'public-read', // Make it publicly readable
+        // Removed ACL: 'public-read' - bucket doesn't allow ACLs
         CacheControl: 'max-age=31536000', // Cache for 1 year
         Metadata: {
           'Access-Control-Allow-Origin': '*',
