@@ -112,16 +112,14 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
 
   addImages: async (files, isSketch = false) => {
     try {
-      console.log('🚀 Starting upload of', files.length, 'files');
+      console.log('🚀 Starting progressive upload of', files.length, 'files');
       
       // Get user info once
       const storedUser = localStorage.getItem('user');
       const user = storedUser ? JSON.parse(storedUser) : null;
       const userId = user?.email || localStorage.getItem('userEmail') || 'anonymous';
       
-      const newImages: ImageMetadata[] = [];
-      
-      // Process files sequentially for reliability
+      // Process files and add them to state immediately after S3 upload
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
         console.log(`🔄 Processing file ${i + 1}/${files.length}:`, file.name);
@@ -142,14 +140,10 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           
           console.log(`✅ S3 upload successful: ${file.name}`);
           
-          // Convert to base64 (simplified for reliability)
-          console.log(`🔄 Converting to base64: ${file.name}`);
-          const jpgBase64 = await convertImageToJpgBase64(file);
-          console.log(`✅ Base64 conversion successful: ${file.name}`);
-          
           // Generate consistent ID based on filename
           const consistentId = `local-${file.name.replace(/[^a-zA-Z0-9]/g, '-')}`;
           
+          // Create image metadata immediately (without base64 for now)
           const imageMetadata: ImageMetadata = {
             id: consistentId,
             file: file,
@@ -162,11 +156,71 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             isSketch,
             publicUrl: uploadResult.url!,
             userId: userId,
-            base64: jpgBase64
+            // base64 will be added later in background
           };
           
-          newImages.push(imageMetadata);
-          console.log(`✅ File ${i + 1}/${files.length} completed:`, file.name);
+          // Add to state immediately after S3 upload
+          console.log(`🎯 Adding to state immediately: ${file.name}`);
+          set((state) => {
+            const combined = [...state.images, imageMetadata];
+            
+            // Sort images
+            combined.sort((a, b) => {
+              const aNum = parseInt(a.photoNumber);
+              const bNum = parseInt(b.photoNumber);
+              if (!isNaN(aNum) && !isNaN(bNum)) return aNum - bNum;
+              if (!isNaN(aNum)) return -1;
+              if (!isNaN(bNum)) return 1;
+              return (a.fileName || a.file?.name || '').localeCompare(b.fileName || b.file?.name || '');
+            });
+            
+            // Save to localStorage (but not during clearing)
+            try {
+              const projectStore = useProjectStore.getState();
+              if (!projectStore.isClearing) {
+                localStorage.setItem('clean-app-images', JSON.stringify(combined));
+                console.log('📱 Images saved to localStorage:', combined.length);
+              } else {
+                console.log('⏸️ Skipping localStorage save during project clear');
+              }
+            } catch (error) {
+              console.error('❌ Error saving images to localStorage:', error);
+            }
+            
+            console.log('✅ State updated with', combined.length, 'total images');
+            return { images: combined };
+          });
+          
+          console.log(`✅ File ${i + 1}/${files.length} added to state:`, file.name);
+          
+          // Convert to base64 in background (non-blocking)
+          console.log(`🔄 Starting background base64 conversion: ${file.name}`);
+          convertImageToJpgBase64(file).then(base64 => {
+            console.log(`✅ Background base64 conversion completed: ${file.name}`);
+            
+            // Update the image with base64 data
+            set((state) => {
+              const updatedImages = state.images.map(img => 
+                img.id === consistentId ? { ...img, base64 } : img
+              );
+              
+              // Update localStorage with base64 data
+              try {
+                const projectStore = useProjectStore.getState();
+                if (!projectStore.isClearing) {
+                  localStorage.setItem('clean-app-images', JSON.stringify(updatedImages));
+                  console.log('📱 Images with base64 saved to localStorage');
+                }
+              } catch (error) {
+                console.error('❌ Error saving images with base64 to localStorage:', error);
+              }
+              
+              return { images: updatedImages };
+            });
+          }).catch(error => {
+            console.error(`❌ Background base64 conversion failed: ${file.name}`, error);
+            // Don't fail the upload - image is still usable without base64
+          });
           
         } catch (error) {
           console.error(`❌ Error processing file ${i + 1}/${files.length}:`, file.name, error);
@@ -174,48 +228,10 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         }
       }
       
-      if (newImages.length === 0) {
-        throw new Error('No images were successfully processed');
-      }
-      
-      console.log(`🎉 Upload completed: ${newImages.length} successful out of ${files.length} files`);
-      
-      // Update state immediately
-      console.log('🔄 Updating state with', newImages.length, 'images...');
-      set((state) => {
-        const combined = [...state.images, ...newImages];
-        
-        // Sort images
-        combined.sort((a, b) => {
-          const aNum = parseInt(a.photoNumber);
-          const bNum = parseInt(b.photoNumber);
-          if (!isNaN(aNum) && !isNaN(bNum)) return aNum - bNum;
-          if (!isNaN(aNum)) return -1;
-          if (!isNaN(bNum)) return 1;
-          return (a.fileName || a.file?.name || '').localeCompare(b.fileName || b.file?.name || '');
-        });
-        
-        // Save to localStorage (but not during clearing)
-        try {
-          const projectStore = useProjectStore.getState();
-          if (!projectStore.isClearing) {
-            localStorage.setItem('clean-app-images', JSON.stringify(combined));
-            console.log('📱 Images saved to localStorage:', combined.length);
-          } else {
-            console.log('⏸️ Skipping localStorage save during project clear');
-          }
-        } catch (error) {
-          console.error('❌ Error saving images to localStorage:', error);
-        }
-        
-        console.log('✅ State updated with', combined.length, 'total images');
-        return { images: combined };
-      });
-      
-      console.log('🚀 Upload process completed successfully');
+      console.log('🚀 Progressive upload process completed successfully');
       
     } catch (error: any) {
-      console.error('❌ Error in upload:', error);
+      console.error('❌ Error in progressive upload:', error);
       throw error;
     }
   },
