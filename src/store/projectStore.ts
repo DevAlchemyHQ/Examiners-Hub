@@ -6,16 +6,18 @@ import { usePDFStore } from './pdfStore';
 interface ProjectState {
   isLoading: boolean;
   error: string | null;
+  isClearing: boolean;
   clearProject: () => Promise<void>;
 }
 
 export const useProjectStore = create<ProjectState>((set) => ({
   isLoading: false,
   error: null,
+  isClearing: false, // Add flag to prevent auto-save during clearing
 
   clearProject: async () => {
     try {
-      set({ isLoading: true, error: null });
+      set({ isLoading: true, error: null, isClearing: true }); // Set clearing flag
 
       // Get current user from localStorage
       const userEmail = localStorage.getItem('userEmail');
@@ -235,7 +237,10 @@ export const useProjectStore = create<ProjectState>((set) => ({
       set({ error: errorMessage });
       // Don't throw the error - just log it and continue
     } finally {
-      set({ isLoading: false });
+      // Wait a bit before re-enabling auto-save to prevent immediate restoration
+      setTimeout(() => {
+        set({ isLoading: false, isClearing: false });
+      }, 2000);
     }
   }
 }));

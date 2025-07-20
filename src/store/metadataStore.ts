@@ -5,6 +5,7 @@ import { ImageMetadata, FormData, BulkDefect } from '../types';
 import { createZipFile } from '../utils/zipUtils';
 import { nanoid } from 'nanoid';
 import { convertImageToJpgBase64, convertBlobToBase64 } from '../utils/fileUtils';
+import { useProjectStore } from './projectStore';
 
 // Make sure initialFormData is truly empty
 const initialFormData: FormData = {
@@ -79,9 +80,16 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       // Auto-save to localStorage immediately
       localStorage.setItem('clean-app-form-data', JSON.stringify(newFormData));
       
-      // Auto-save to AWS in background (using static import)
+      // Auto-save to AWS in background (using static import) - but only if not clearing
       (async () => {
         try {
+          // Check if project is being cleared
+          const projectStore = useProjectStore.getState();
+          if (projectStore.isClearing) {
+            console.log('⏸️ Skipping auto-save during project clear');
+            return;
+          }
+          
           // Get user from localStorage to avoid circular import
           const storedUser = localStorage.getItem('user');
           const user = storedUser ? JSON.parse(storedUser) : null;
@@ -402,9 +410,34 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
 
   reset: () => {
     set(initialState);
-    // Clear localStorage for local testing
-    localStorage.removeItem('clean-app-images');
-    localStorage.removeItem('clean-app-form-data');
+    
+    // Clear ALL localStorage keys related to metadata store
+    const keysToRemove = [
+      'clean-app-images',
+      'clean-app-form-data',
+      'clean-app-bulk-data',
+      'clean-app-selected-images',
+      'clean-app-selections',
+      'viewMode',
+      'selected-images',
+      'project-data',
+      'form-data',
+      'image-selections',
+      'bulk-data',
+      'metadata-storage'
+    ];
+    
+    console.log('🗑️ Clearing metadata store localStorage keys...');
+    keysToRemove.forEach(key => {
+      try {
+        localStorage.removeItem(key);
+        sessionStorage.removeItem(key);
+      } catch (error) {
+        console.error(`Error removing key ${key}:`, error);
+      }
+    });
+    
+    console.log('✅ Metadata store reset completed');
   },
 
   getSelectedCounts: () => {
