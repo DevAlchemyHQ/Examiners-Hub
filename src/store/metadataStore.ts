@@ -741,14 +741,33 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       }
       
       if (selectionsResult.status === 'fulfilled' && selectionsResult.value.length > 0) {
-        // Convert selections to Set of IDs (same as bulk data approach)
+        // Convert selections to Set of IDs with improved matching
         const selectedImageIds = new Set<string>();
+        const loadedImages = imagesResult.status === 'fulfilled' ? imagesResult.value : [];
         
         selectionsResult.value.forEach((selectedItem: any) => {
           // Handle both localStorage format (id) and DynamoDB format (imageId)
           const selectedId = typeof selectedItem === 'string' ? selectedItem : (selectedItem.id || selectedItem.imageId);
+          const selectedFileName = selectedItem.fileName || selectedItem.file?.name || 'unknown';
+          
           if (selectedId) {
-            selectedImageIds.add(selectedId);
+            // First try to match by ID
+            const imageById = loadedImages.find((img: any) => img.id === selectedId);
+            if (imageById) {
+              selectedImageIds.add(selectedId);
+              console.log('✅ Matched selected image by ID:', selectedId);
+            } else {
+              // Fallback: try to match by filename
+              const imageByFileName = loadedImages.find((img: any) => 
+                (img.fileName || img.file?.name || '') === selectedFileName
+              );
+              if (imageByFileName) {
+                selectedImageIds.add(imageByFileName.id);
+                console.log('✅ Matched selected image by filename:', selectedFileName, '→', imageByFileName.id);
+              } else {
+                console.warn('⚠️ Could not match selected image:', selectedFileName);
+              }
+            }
           }
         });
         
