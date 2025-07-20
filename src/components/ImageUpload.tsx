@@ -27,8 +27,8 @@ export const ImageUpload: React.FC = () => {
   const validateFiles = (files: FileList): { valid: File[]; invalid: string[] } => {
     const valid: File[] = [];
     const invalid: string[] = [];
-    const maxSize = 50 * 1024 * 1024; // 50MB per file
-    const maxTotalSize = 500 * 1024 * 1024; // 500MB total
+    const maxSize = 1024 * 1024 * 1024; // 1GB per file
+    const maxTotalSize = 5 * 1024 * 1024 * 1024; // 5GB total
 
     let totalSize = 0;
     
@@ -42,7 +42,7 @@ export const ImageUpload: React.FC = () => {
     });
 
     if (totalSize > maxTotalSize) {
-      invalid.push(`Total size ${formatFileSize(totalSize)} exceeds 500MB limit`);
+      invalid.push(`Total size ${formatFileSize(totalSize)} exceeds 5GB limit`);
       return { valid: [], invalid };
     }
 
@@ -73,8 +73,9 @@ export const ImageUpload: React.FC = () => {
         console.log('Starting upload of', valid.length, 'files');
         
         // For large uploads, show progress
-        if (valid.length > 5 || valid.reduce((sum, file) => sum + file.size, 0) > 100 * 1024 * 1024) {
-          toast.success(`Starting upload of ${valid.length} files (${formatFileSize(valid.reduce((sum, file) => sum + file.size, 0))})`);
+        const totalSize = valid.reduce((sum, file) => sum + file.size, 0);
+        if (valid.length > 10 || totalSize > 500 * 1024 * 1024) {
+          toast.success(`Starting lightning-fast upload of ${valid.length} files (${formatFileSize(totalSize)})`);
         }
 
         console.log('Calling addImages...');
@@ -141,7 +142,7 @@ export const ImageUpload: React.FC = () => {
         
         {/* File size limits info */}
         <div className="text-xs text-slate-500 dark:text-slate-400 text-center">
-          Max 50MB per file, 500MB total • Large uploads may take several minutes
+          Max 1GB per file, 5GB total • Lightning-fast parallel uploads
         </div>
       </div>
     </div>
