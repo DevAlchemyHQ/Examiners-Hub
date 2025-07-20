@@ -120,8 +120,9 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       const user = storedUser ? JSON.parse(storedUser) : null;
       const userId = user?.email || localStorage.getItem('userEmail') || 'anonymous';
       
-      // Process files in parallel for maximum speed
-      const uploadPromises = files.map(async (file, index) => {
+      // Process files one by one for immediate display
+      for (let index = 0; index < files.length; index++) {
+        const file = files[index];
         console.log(`🔄 Starting upload ${index + 1}/${files.length}:`, file.name);
         
         try {
@@ -159,58 +160,45 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             // No base64 - only convert when needed for downloads
           };
           
+          // ADD TO STATE IMMEDIATELY - no waiting!
           console.log(`✅ File ${index + 1}/${files.length} ready for state:`, file.name);
-          return imageMetadata;
+          set((state) => {
+            const combined = [...state.images, imageMetadata];
+            
+            // Sort images
+            combined.sort((a, b) => {
+              const aNum = parseInt(a.photoNumber);
+              const bNum = parseInt(b.photoNumber);
+              if (!isNaN(aNum) && !isNaN(bNum)) return aNum - bNum;
+              if (!isNaN(aNum)) return -1;
+              if (!isNaN(bNum)) return 1;
+              return (a.fileName || a.file?.name || '').localeCompare(b.fileName || b.file?.name || '');
+            });
+            
+            // Save to localStorage (but not during clearing)
+            try {
+              const projectStore = useProjectStore.getState();
+              if (!projectStore.isClearing) {
+                localStorage.setItem('clean-app-images', JSON.stringify(combined));
+                console.log('📱 Images saved to localStorage:', combined.length);
+              } else {
+                console.log('⏸️ Skipping localStorage save during project clear');
+              }
+            } catch (error) {
+              console.error('❌ Error saving images to localStorage:', error);
+            }
+            
+            console.log('✅ State updated with', combined.length, 'total images');
+            return { images: combined };
+          });
           
         } catch (error) {
           console.error(`❌ Error processing file ${index + 1}/${files.length}:`, file.name, error);
-          throw error; // Re-throw to handle in Promise.all
+          throw error;
         }
-      });
+      }
       
-      // Wait for all uploads to complete
-      console.log('⏳ Waiting for all parallel uploads to complete...');
-      const uploadedImages = await Promise.all(uploadPromises);
-      
-      console.log(`🎉 All ${uploadedImages.length} uploads completed successfully!`);
-      
-      // Add all images to state at once - FORCE IMMEDIATE UPDATE
-      console.log('🔄 Adding all images to state...');
-      set((state) => {
-        const combined = [...state.images, ...uploadedImages];
-        
-        // Sort images
-        combined.sort((a, b) => {
-          const aNum = parseInt(a.photoNumber);
-          const bNum = parseInt(b.photoNumber);
-          if (!isNaN(aNum) && !isNaN(bNum)) return aNum - bNum;
-          if (!isNaN(aNum)) return -1;
-          if (!isNaN(bNum)) return 1;
-          return (a.fileName || a.file?.name || '').localeCompare(b.fileName || b.file?.name || '');
-        });
-        
-        // Save to localStorage (but not during clearing)
-        try {
-          const projectStore = useProjectStore.getState();
-          if (!projectStore.isClearing) {
-            localStorage.setItem('clean-app-images', JSON.stringify(combined));
-            console.log('📱 Images saved to localStorage:', combined.length);
-          } else {
-            console.log('⏸️ Skipping localStorage save during project clear');
-          }
-        } catch (error) {
-          console.error('❌ Error saving images to localStorage:', error);
-        }
-        
-        console.log('✅ State updated with', combined.length, 'total images');
-        return { images: combined };
-      });
-      
-      // Force a re-render to ensure UI updates
-      setTimeout(() => {
-        set((state) => ({ ...state }));
-      }, 50);
-      
+      console.log(`🎉 All ${files.length} uploads completed successfully!`);
       console.log('🚀 Lightning-fast upload process completed successfully');
       
     } catch (error: any) {

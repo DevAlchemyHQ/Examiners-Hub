@@ -70,11 +70,6 @@ export const DownloadButton: React.FC = () => {
           throw new Error('Your subscription has expired. Please upgrade to continue.');
         }
 
-        // Convert selected images to base64 for download (hybrid approach)
-        console.log('Converting selected images to base64 for download...');
-        const selectedImageIds = Array.from(selectedImages);
-        await useMetadataStore.getState().convertSelectedImagesToBase64(selectedImageIds);
-
         console.log('Calling generateBulkZip...');
         await generateBulkZip();
         console.log('Bulk zip generated successfully');
@@ -94,11 +89,6 @@ export const DownloadButton: React.FC = () => {
         if (isSubscriptionExpired) {
           throw new Error('Your subscription has expired. Please upgrade to continue.');
         }
-
-        // Convert selected images to base64 for download (hybrid approach)
-        console.log('Converting selected images to base64 for download...');
-        const selectedImageIds = Array.from(selectedImages);
-        await useMetadataStore.getState().convertSelectedImagesToBase64(selectedImageIds);
 
         console.log('Calling createDownloadPackage...');
         const blob = await createDownloadPackage(selectedImagesList, formData);
