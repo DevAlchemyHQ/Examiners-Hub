@@ -113,96 +113,123 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
 
   addImages: async (files, isSketch = false) => {
     try {
-      console.log('🚀 Starting lightning-fast upload of', files.length, 'files');
+      console.log('🚀 Starting ultra-fast parallel upload of', files.length, 'files');
       
       // Get user info once
       const storedUser = localStorage.getItem('user');
       const user = storedUser ? JSON.parse(storedUser) : null;
       const userId = user?.email || localStorage.getItem('userEmail') || 'anonymous';
       
-      // Process files one by one for immediate display
-      for (let index = 0; index < files.length; index++) {
-        const file = files[index];
-        console.log(`🔄 Starting upload ${index + 1}/${files.length}:`, file.name);
+      // Create all image metadata immediately for instant display
+      const imageMetadataArray: ImageMetadata[] = files.map((file, index) => {
+        const timestamp = Date.now() + index;
+        const filePath = `users/${userId}/images/${timestamp}-${file.name}`;
+        const consistentId = `local-${file.name.replace(/[^a-zA-Z0-9]/g, '-')}`;
         
+        // Create temporary metadata with local file for instant display
+        return {
+          id: consistentId,
+          file: file,
+          fileName: file.name,
+          fileSize: file.size,
+          fileType: 'image/jpeg',
+          photoNumber: '',
+          description: '',
+          preview: URL.createObjectURL(file), // Use local blob URL for instant display
+          isSketch,
+          publicUrl: '', // Will be updated after S3 upload
+          userId: userId,
+          isUploading: true, // Mark as uploading
+        };
+      });
+      
+      // ADD ALL IMAGES TO STATE IMMEDIATELY for instant display
+      console.log('⚡ Adding all images to state immediately for instant display');
+      set((state) => {
+        const combined = [...state.images, ...imageMetadataArray];
+        
+        // Sort images
+        combined.sort((a, b) => {
+          const aNum = parseInt(a.photoNumber);
+          const bNum = parseInt(b.photoNumber);
+          if (!isNaN(aNum) && !isNaN(bNum)) return aNum - bNum;
+          if (!isNaN(aNum)) return -1;
+          if (!isNaN(bNum)) return 1;
+          return (a.fileName || a.file?.name || '').localeCompare(b.fileName || b.file?.name || '');
+        });
+        
+        // Save to localStorage
         try {
-          // Create unique file path with timestamp
-          const timestamp = Date.now() + index; // Add index to ensure unique timestamps
+          const projectStore = useProjectStore.getState();
+          if (!projectStore.isClearing) {
+            localStorage.setItem('clean-app-images', JSON.stringify(combined));
+            console.log('📱 Images saved to localStorage:', combined.length);
+          }
+        } catch (error) {
+          console.error('❌ Error saving images to localStorage:', error);
+        }
+        
+        console.log('✅ All images added to state immediately');
+        return { images: combined };
+      });
+      
+      // Now upload to S3 in parallel (background process)
+      console.log('🔄 Starting parallel S3 uploads in background...');
+      const uploadPromises = files.map(async (file, index) => {
+        try {
+          const timestamp = Date.now() + index;
           const filePath = `users/${userId}/images/${timestamp}-${file.name}`;
           
-          // Upload to S3
           console.log(`📤 Uploading to S3: ${file.name}`);
           const uploadResult = await StorageService.uploadFile(file, filePath);
           
           if (uploadResult.error) {
-            console.error('❌ Upload failed for', file.name, uploadResult.error);
             throw new Error(`Upload failed for ${file.name}: ${uploadResult.error}`);
           }
           
           console.log(`✅ S3 upload successful: ${file.name}`);
           
-          // Generate consistent ID based on filename
+          // Update the image metadata with S3 URL
           const consistentId = `local-${file.name.replace(/[^a-zA-Z0-9]/g, '-')}`;
           
-          // Create image metadata with S3 URL for instant display (no base64!)
-          const imageMetadata: ImageMetadata = {
-            id: consistentId,
-            file: file,
-            fileName: file.name,
-            fileSize: file.size,
-            fileType: 'image/jpeg',
-            photoNumber: '',
-            description: '',
-            preview: uploadResult.url!, // Use S3 URL for instant display
-            isSketch,
-            publicUrl: uploadResult.url!,
-            userId: userId,
-            // No base64 - only convert when needed for downloads
-          };
-          
-          // ADD TO STATE IMMEDIATELY - no waiting!
-          console.log(`✅ File ${index + 1}/${files.length} ready for state:`, file.name);
           set((state) => {
-            const combined = [...state.images, imageMetadata];
+            const updatedImages = state.images.map(img => 
+              img.id === consistentId 
+                ? { 
+                    ...img, 
+                    preview: uploadResult.url!, 
+                    publicUrl: uploadResult.url!,
+                    isUploading: false 
+                  }
+                : img
+            );
             
-            // Sort images
-            combined.sort((a, b) => {
-              const aNum = parseInt(a.photoNumber);
-              const bNum = parseInt(b.photoNumber);
-              if (!isNaN(aNum) && !isNaN(bNum)) return aNum - bNum;
-              if (!isNaN(aNum)) return -1;
-              if (!isNaN(bNum)) return 1;
-              return (a.fileName || a.file?.name || '').localeCompare(b.fileName || b.file?.name || '');
-            });
-            
-            // Save to localStorage (but not during clearing)
+            // Save updated state
             try {
               const projectStore = useProjectStore.getState();
               if (!projectStore.isClearing) {
-                localStorage.setItem('clean-app-images', JSON.stringify(combined));
-                console.log('📱 Images saved to localStorage:', combined.length);
-              } else {
-                console.log('⏸️ Skipping localStorage save during project clear');
+                localStorage.setItem('clean-app-images', JSON.stringify(updatedImages));
               }
             } catch (error) {
-              console.error('❌ Error saving images to localStorage:', error);
+              console.error('❌ Error saving updated images to localStorage:', error);
             }
             
-            console.log('✅ State updated with', combined.length, 'total images');
-            return { images: combined };
+            return { images: updatedImages };
           });
           
+          return uploadResult;
         } catch (error) {
-          console.error(`❌ Error processing file ${index + 1}/${files.length}:`, file.name, error);
+          console.error(`❌ Error uploading ${file.name}:`, error);
           throw error;
         }
-      }
+      });
       
-      console.log(`🎉 All ${files.length} uploads completed successfully!`);
-      console.log('🚀 Lightning-fast upload process completed successfully');
+      // Wait for all uploads to complete
+      await Promise.all(uploadPromises);
+      console.log(`🎉 All ${files.length} S3 uploads completed successfully!`);
       
     } catch (error: any) {
-      console.error('❌ Error in lightning-fast upload:', error);
+      console.error('❌ Error in ultra-fast upload:', error);
       throw error;
     }
   },

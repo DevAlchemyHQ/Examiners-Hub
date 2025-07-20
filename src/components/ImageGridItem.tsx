@@ -150,6 +150,16 @@ export const ImageGridItem: React.FC<ImageGridItemProps> = ({ images, gridWidth 
                           draggable="false"
                         />
                         
+                        {/* Upload indicator */}
+                        {(img as any).isUploading && (
+                          <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+                            <div className="bg-white rounded-lg p-3 flex items-center gap-2">
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                              <span className="text-sm font-medium text-gray-700">Uploading...</span>
+                            </div>
+                          </div>
+                        )}
+                        
                         {/* Show numbers based on mode */}
                         {defectNumbers.length > 0 && (
                           <div className="absolute top-2 left-2 flex flex-wrap gap-1 max-w-[calc(100%-16px)]">
