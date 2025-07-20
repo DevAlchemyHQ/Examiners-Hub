@@ -23,7 +23,7 @@ export const useProjectStore = create<ProjectState>((set) => ({
         console.warn('No user email found, clearing local data only');
       }
 
-      console.log('🗑️ Starting project clear for user:', userEmail);
+      console.log('🗑️ Starting comprehensive project clear for user:', userEmail);
 
       // --- Clear AWS data (don't throw errors, just log them) ---
       
@@ -64,8 +64,9 @@ export const useProjectStore = create<ProjectState>((set) => ({
           console.error('Error clearing PDF states from AWS:', error);
         }
 
-        // 4. Clear S3 files (don't throw errors)
+        // 4. Clear ALL S3 files for this user (including images)
         try {
+          // Clear project files
           const projectFiles = await StorageService.listFiles(`users/${userEmail}/project-files/`);
           if (projectFiles.success && projectFiles.data.length > 0) {
             console.log(`🗑️ Deleting ${projectFiles.data.length} project files from S3`);
@@ -77,11 +78,8 @@ export const useProjectStore = create<ProjectState>((set) => ({
               }
             }
           }
-        } catch (error) {
-          console.error('Error clearing S3 files:', error);
-        }
 
-        try {
+          // Clear PDF files
           const pdfFiles = await StorageService.listFiles(`users/${userEmail}/pdfs/`);
           if (pdfFiles.success && pdfFiles.data.length > 0) {
             console.log(`🗑️ Deleting ${pdfFiles.data.length} PDF files from S3`);
@@ -93,8 +91,40 @@ export const useProjectStore = create<ProjectState>((set) => ({
               }
             }
           }
+
+          // Clear ALL user images from S3 (this is the key part!)
+          const userImages = await StorageService.listFiles(`users/${userEmail}/images/`);
+          if (userImages.success && userImages.data.length > 0) {
+            console.log(`🗑️ Deleting ${userImages.data.length} user images from S3`);
+            for (const file of userImages.data) {
+              try {
+                await StorageService.deleteFile(file.key);
+              } catch (error) {
+                console.error(`Failed to delete image file ${file.key}:`, error);
+              }
+            }
+          }
+
+          // Clear any other user files (but preserve Load Defects data)
+          const userFiles = await StorageService.listFiles(`users/${userEmail}/`);
+          if (userFiles.success && userFiles.data.length > 0) {
+            console.log(`🗑️ Deleting ${userFiles.data.length} user files from S3`);
+            for (const file of userFiles.data) {
+              // Skip any files that might be needed for Load Defects functionality
+              if (!file.key.includes('load-defects') && 
+                  !file.key.includes('defects-data') && 
+                  !file.key.includes('defect-sets') &&
+                  !file.key.includes('saved-defects')) {
+                try {
+                  await StorageService.deleteFile(file.key);
+                } catch (error) {
+                  console.error(`Failed to delete file ${file.key}:`, error);
+                }
+              }
+            }
+          }
         } catch (error) {
-          console.error('Error clearing PDF files from S3:', error);
+          console.error('Error clearing S3 files:', error);
         }
       }
 
@@ -122,12 +152,12 @@ export const useProjectStore = create<ProjectState>((set) => ({
         console.error('Error resetting PDF store:', error);
       }
 
-      // Clear localStorage keys (but preserve authentication)
+      // Clear ALL localStorage keys (but preserve authentication)
       const keysToRemove = [
-        'clean-app-images',
-        'clean-app-form-data', 
-        'clean-app-bulk-data',
-        'clean-app-selections',
+        'clean-app-images',           // Images
+        'clean-app-form-data',        // Form data
+        'clean-app-bulk-data',        // Bulk defects
+        'clean-app-selections',       // Selected images
         'viewMode',
         'pdf-storage',
         'metadata-storage',
@@ -138,7 +168,9 @@ export const useProjectStore = create<ProjectState>((set) => ({
         'selected-images',
         'project-data',
         'form-data',
-        'image-selections'
+        'image-selections',
+        'defectSets',                 // Defect sets (but preserve Load Defects)
+        'user-pdfs'                   // User PDFs
       ];
       
       console.log('🗑️ Clearing localStorage keys...');
@@ -161,7 +193,7 @@ export const useProjectStore = create<ProjectState>((set) => ({
         console.error('Failed to clear PDF store persisted storage:', error);
       }
 
-      // Clear any remaining project-related data (but preserve authentication)
+      // Clear any remaining project-related data (but preserve authentication and Load Defects)
       try {
         const remainingKeys = Object.keys(localStorage);
         const projectKeys = remainingKeys.filter(key => 
@@ -169,7 +201,8 @@ export const useProjectStore = create<ProjectState>((set) => ({
            key.includes('image') || 
            key.includes('form') ||
            key.includes('selection') ||
-           key.includes('bulk')) &&
+           key.includes('bulk') ||
+           key.includes('pdf')) &&
           !key.includes('load-defects') &&
           !key.includes('defects-data') &&
           !key.includes('defect-sets') &&
