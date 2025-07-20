@@ -572,75 +572,95 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           }
         })(),
         
-        // Load images from S3 first, then localStorage as fallback
-        (async () => {
-          try {
-            if (userId !== 'anonymous') {
-              console.log('Loading images from S3 for user:', userId);
-              const { files, error } = await StorageService.listFiles(`users/${userId}/images/`);
+              // Load images from S3 first, then localStorage as fallback
+      (async () => {
+        try {
+          if (userId !== 'anonymous') {
+            console.log('Loading images from S3 for user:', userId);
+            const { files, error } = await StorageService.listFiles(`users/${userId}/images/`);
+            
+            if (error) {
+              console.error('Error listing S3 files:', error);
+            } else if (files && files.length > 0) {
+              console.log('Found', files.length, 'images in S3');
               
-              if (error) {
-                console.error('Error listing S3 files:', error);
-              } else if (files && files.length > 0) {
-                console.log('Found', files.length, 'images in S3');
-                
-                const loadedImages: ImageMetadata[] = [];
-                
-                for (const file of files) {
+              const loadedImages: ImageMetadata[] = [];
+              
+              for (const file of files) {
+                try {
+                  const originalFileName = file.name.split('-').slice(1).join('-');
+                  
+                  // Generate consistent ID based on filename to maintain selections
+                  const consistentId = `s3-${originalFileName.replace(/[^a-zA-Z0-9]/g, '-')}`;
+                  
+                  // Create image metadata with S3 URL (no base64 conversion on load!)
+                  const imageMetadata: ImageMetadata = {
+                    id: consistentId,
+                    fileName: originalFileName,
+                    fileSize: file.size,
+                    fileType: 'image/jpeg',
+                    photoNumber: '',
+                    description: '',
+                    preview: file.url, // Use S3 URL for instant display
+                    isSketch: false,
+                    publicUrl: file.url,
+                    userId: userId,
+                    // No base64 - only convert when needed for downloads
+                  };
+                  
+                  loadedImages.push(imageMetadata);
+                } catch (error) {
+                  console.error('Error processing S3 file:', file.name, error);
+                }
+              }
+              
+              console.log('✅ Images loaded from S3 for user:', userId);
+              return loadedImages;
+            }
+          }
+          
+          // Fallback to localStorage
+          const savedImages = localStorage.getItem('clean-app-images');
+          if (savedImages) {
+            const images = JSON.parse(savedImages);
+            console.log('📱 Images loaded from localStorage (fallback):', images.length);
+            
+            // Ensure all localStorage images have consistent IDs
+            const imagesWithConsistentIds = images.map((img: any) => ({
+              ...img,
+              id: img.id || `local-${(img.fileName || img.file?.name || 'unknown').replace(/[^a-zA-Z0-9]/g, '-')}`
+            }));
+            
+            // Auto-recovery: Try to restore local files from S3 for missing files
+            const imagesWithRecovery = await Promise.all(
+              imagesWithConsistentIds.map(async (img: any) => {
+                if (!img.file && !img.localFile && (img.preview || img.publicUrl)) {
+                  console.log('🔄 Attempting to restore local file from S3:', img.fileName || img.file?.name || 'unknown');
                   try {
-                    const originalFileName = file.name.split('-').slice(1).join('-');
-                    
-                    // Generate consistent ID based on filename to maintain selections
-                    const consistentId = `s3-${originalFileName.replace(/[^a-zA-Z0-9]/g, '-')}`;
-                    
-                    // Create image metadata with S3 URL (no base64 conversion on load!)
-                    const imageMetadata: ImageMetadata = {
-                      id: consistentId,
-                      fileName: originalFileName,
-                      fileSize: file.size,
-                      fileType: 'image/jpeg',
-                      photoNumber: '',
-                      description: '',
-                      preview: file.url, // Use S3 URL for instant display
-                      isSketch: false,
-                      publicUrl: file.url,
-                      userId: userId,
-                      // No base64 - only convert when needed for downloads
-                    };
-                    
-                    loadedImages.push(imageMetadata);
+                    const response = await fetch(img.preview || img.publicUrl);
+                    if (response.ok) {
+                      const blob = await response.blob();
+                      img.localFile = blob;
+                      console.log('✅ Successfully restored local file from S3');
+                    }
                   } catch (error) {
-                    console.error('Error processing S3 file:', file.name, error);
+                    console.warn('⚠️ Could not restore local file from S3:', error);
                   }
                 }
-                
-                console.log('✅ Images loaded from S3 for user:', userId);
-                return loadedImages;
-              }
-            }
+                return img;
+              })
+            );
             
-            // Fallback to localStorage
-            const savedImages = localStorage.getItem('clean-app-images');
-            if (savedImages) {
-              const images = JSON.parse(savedImages);
-              console.log('📱 Images loaded from localStorage (fallback):', images.length);
-              
-              // Ensure all localStorage images have consistent IDs
-              const imagesWithConsistentIds = images.map((img: any) => ({
-                ...img,
-                id: img.id || `local-${(img.fileName || img.file?.name || 'unknown').replace(/[^a-zA-Z0-9]/g, '-')}`
-              }));
-              
-              return imagesWithConsistentIds;
-            }
-            
-            console.log('No images found in S3 or localStorage');
-            return [];
-          } catch (error) {
-            console.error('❌ Error loading images:', error);
-            return [];
+            return imagesWithRecovery;
           }
-        })(),
+          
+          console.log('No images found in S3 or localStorage');
+          return [];
+        } catch (error) {
+          console.error('❌ Error loading images:', error);
+          return [];
+        }
+      })(),
           
           // Load saved selections from localStorage first, then AWS (matching bulk data pattern)
           (async () => {
@@ -848,7 +868,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
 
       console.log(`Processing ${defectsWithImages.length} defects with images`);
 
-      // Prepare selected images for download using local files (no base64 conversion)
+      // Prepare selected images for download using smart fallback
       const selectedImageIds = defectsWithImages.map(defect => {
         const image = images.find(img => (img.fileName || img.file?.name || '') === defect.selectedFile);
         return image?.id;
@@ -871,11 +891,9 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         };
       });
 
-
-
       // Create metadata content for bulk defects
       const metadataContent = defectsWithImages.map(defect => {
-        const image = updatedImages.find(img => (img.fileName || img.file?.name || '') === defect.selectedFile);
+        const image = preparedImages.find(img => (img.fileName || img.file?.name || '') === defect.selectedFile);
         if (!image) {
           throw new Error(`Image not found for defect ${defect.photoNumber || 'unknown'}`);
         }
@@ -972,6 +990,35 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       console.error('❌ Error generating bulk zip:', error);
       throw error;
     }
+  },
+
+  // Create error placeholder when file is not available
+  createErrorPlaceholder: (image: ImageMetadata): Blob => {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = 400;
+    canvas.height = 300;
+    
+    // Draw error message on canvas
+    ctx!.fillStyle = '#f0f0f0';
+    ctx!.fillRect(0, 0, 400, 300);
+    ctx!.fillStyle = '#666';
+    ctx!.font = '16px Arial';
+    ctx!.textAlign = 'center';
+    ctx!.fillText('Image not available', 200, 140);
+    ctx!.fillText('File: ' + (image.fileName || image.file?.name || 'unknown'), 200, 170);
+    ctx!.fillText('Please refresh to reload', 200, 200);
+    
+    // Convert to blob
+    return new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob((blob) => {
+        if (blob) {
+          resolve(blob);
+        } else {
+          reject(new Error('Failed to create error placeholder'));
+        }
+      }, 'image/jpeg', 0.9);
+    });
   },
 
   // Helper function to process images for download
@@ -1074,30 +1121,59 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
     }
   },
 
-  // New function: Prepare selected images for download using local files (no base64 conversion)
+  // Smart file detection with fallback system (no base64 conversion)
+  getDownloadableFile: async (image: ImageMetadata): Promise<File | Blob> => {
+    console.log('🔍 Finding best file source for:', image.fileName || image.file?.name || 'unknown');
+    
+    // Priority 1: Local file (fastest, no conversion)
+    if (image.file || (image as any).localFile) {
+      console.log('✅ Using local file for immediate download');
+      return image.file || (image as any).localFile;
+    }
+    
+    // Priority 2: S3 URL (reliable fallback)
+    if (image.preview || image.publicUrl) {
+      console.log('📡 Fetching from S3 for download...');
+      try {
+        const response = await fetch(image.preview || image.publicUrl);
+        if (response.ok) {
+          const blob = await response.blob();
+          console.log('✅ Successfully fetched from S3 for download');
+          return blob;
+        }
+      } catch (error) {
+        console.warn('⚠️ S3 fetch failed:', error);
+      }
+    }
+    
+    // Priority 3: Error placeholder (never fails)
+    console.log('❌ Creating error placeholder for download');
+    return createErrorPlaceholder(image);
+  },
+
+  // Prepare selected images for download using smart fallback
   convertSelectedImagesToBase64: async (selectedImageIds: string[]) => {
     try {
-      console.log('Preparing selected images for download using local files...');
+      console.log('🚀 Preparing selected images for download using smart fallback...');
       const state = get();
       const { images } = state;
       
       const selectedImages = images.filter(img => selectedImageIds.includes(img.id));
       console.log(`Preparing ${selectedImages.length} selected images for download`);
       
-      // Verify all selected images have local files for fast download
-      const imagesWithLocalFiles = selectedImages.map(img => {
-        // Check if image has local file (either file or localFile property)
-        const hasLocalFile = img.file || (img as any).localFile;
-        if (!hasLocalFile) {
-          console.warn('Image missing local file, will use S3 URL:', img.fileName || img.file?.name || 'unknown');
-        } else {
-          console.log('✅ Image has local file for immediate download:', img.fileName || img.file?.name || 'unknown');
-        }
-        return img;
-      });
+      // Get downloadable files for each selected image
+      const imagesWithFiles = await Promise.all(
+        selectedImages.map(async (img) => {
+          const downloadableFile = await get().getDownloadableFile(img);
+          return {
+            ...img,
+            downloadableFile // Add the file for download
+          };
+        })
+      );
       
-      console.log('✅ Selected images prepared for download using local files (no base64 conversion needed)');
-      return imagesWithLocalFiles;
+      console.log('✅ Selected images prepared for download using smart fallback');
+      return imagesWithFiles;
       
     } catch (error) {
       console.error('Error preparing images for download:', error);
