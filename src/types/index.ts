@@ -12,6 +12,7 @@ export interface ImageMetadata {
   userId?: string;
   uploadTimestamp?: number;
   base64?: string; // For localStorage storage
+  s3Key?: string; // Store S3 key for downloads
 }
 
 export interface FormData {

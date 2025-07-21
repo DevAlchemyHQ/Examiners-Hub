@@ -41,7 +41,7 @@ export const ImageGrid: React.FC = () => {
         </div>
       </div>
 
-      <div className="flex-1">
+      <div className="flex-1 overflow-hidden">
         {images.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-slate-500 dark:text-gray-400 p-8">
             <div className="text-6xl mb-4">📷</div>

@@ -684,6 +684,28 @@ export class DatabaseService {
     }
   }
 
+  static async deleteDefectSet(userId: string, setId: string) {
+    try {
+      console.log('🗄️ AWS DynamoDB deleteDefectSet:', userId, setId);
+      
+      const command = new DeleteCommand({
+        TableName: 'mvp-labeler-defect-sets',
+        Key: {
+          user_id: userId,
+          set_id: setId
+        }
+      });
+      
+      await docClient.send(command);
+      console.log('✅ AWS DynamoDB deleteDefectSet successful');
+      
+      return { success: true, error: null };
+    } catch (error) {
+      console.error('AWS DynamoDB deleteDefectSet error:', error);
+      return { success: false, error };
+    }
+  }
+
   static async getPdfState(userId: string, pdfId: string) {
     try {
       console.log('🗄️ AWS DynamoDB getPdfState:', pdfId);

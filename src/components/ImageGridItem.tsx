@@ -114,7 +114,7 @@ export const ImageGridItem: React.FC<ImageGridItemProps> = ({ images, gridWidth 
   return (
     <>
       <div 
-        className="h-full overflow-y-auto scrollbar-thin relative p-2"
+        className="h-full overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 relative p-2"
         style={{ 
           overscrollBehavior: 'contain',
           WebkitOverflowScrolling: 'touch'

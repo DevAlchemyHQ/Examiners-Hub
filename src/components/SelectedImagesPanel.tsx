@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useMetadataStore } from '../store/metadataStore';
 import { useProjectStore } from '../store/projectStore';
 import { X, Trash2, ArrowUpDown, AlertTriangle, Maximize2, Minimize2, Images, FileText } from 'lucide-react';
@@ -10,21 +10,62 @@ import { BulkTextInput } from './BulkTextInput';
 
 // Helper to get all defect sets from localStorage
 function getLocalDefectSets() {
-  return JSON.parse(localStorage.getItem('defectSets') || '[]');
+  try {
+    return JSON.parse(localStorage.getItem('defectSets') || '[]');
+  } catch (error) {
+    console.error('Error reading defect sets from localStorage:', error);
+    return [];
+  }
 }
+
 // Helper to save all defect sets to localStorage
 function setLocalDefectSets(sets: any[]) {
-  localStorage.setItem('defectSets', JSON.stringify(sets));
-}
-// Save a new defect set
-async function saveDefectSet(title: string, data: any) {
   try {
-    // Save to localStorage for immediate access
+    localStorage.setItem('defectSets', JSON.stringify(sets));
+  } catch (error) {
+    console.error('Error saving defect sets to localStorage:', error);
+  }
+}
+
+// Auto-save defect set on every modification
+async function autoSaveDefectSet(formData: any, bulkDefects: any[], selectedImages: Set<string>, images: any[]) {
+  try {
+    // Only save if we have project details
+    if (!formData?.elr?.trim() || !formData?.structureNo?.trim()) {
+      return;
+    }
+
+    const title = `${formData.elr}_${formData.structureNo}_${formData.date || new Date().toISOString().slice(0,10)}`;
+    const data = {
+      defects: bulkDefects,
+      selectedImages: Array.from(selectedImages),
+      formData,
+      selectedImagesMetadata: images
+        .filter(img => selectedImages.has(img.id))
+        .map(img => ({
+          id: img.id,
+          fileName: img.fileName || img.file?.name || '',
+          photoNumber: img.photoNumber,
+          description: img.description,
+          isSketch: img.isSketch
+        }))
+    };
+
+    // Save to localStorage immediately
     const sets = getLocalDefectSets();
-    const id = Math.random().toString(36).slice(2) + Date.now();
-    const created_at = new Date().toISOString();
-    const defectSet = { id, title, data, created_at };
-    sets.push(defectSet);
+    const existingIndex = sets.findIndex((s: any) => s.title === title);
+    const id = existingIndex >= 0 ? sets[existingIndex].id : Math.random().toString(36).slice(2) + Date.now();
+    const created_at = existingIndex >= 0 ? sets[existingIndex].created_at : new Date().toISOString();
+    const updated_at = new Date().toISOString();
+    
+    const defectSet = { id, title, data, created_at, updated_at };
+    
+    if (existingIndex >= 0) {
+      sets[existingIndex] = defectSet;
+    } else {
+      sets.push(defectSet);
+    }
+    
     setLocalDefectSets(sets);
     
     // Save to AWS DynamoDB for cross-device persistence
@@ -34,18 +75,19 @@ async function saveDefectSet(title: string, data: any) {
     if (user?.email) {
       const { DatabaseService } = await import('../lib/services');
       await DatabaseService.saveDefectSet(user.email, defectSet);
-      console.log('Defect set saved to AWS for user:', user.email);
+      console.log('✅ Auto-saved defect set to AWS for user:', user.email);
     }
   } catch (error) {
-    console.error('Error saving defect set:', error);
-    throw error;
+    console.error('Error auto-saving defect set:', error);
   }
 }
 
-// Load all defect sets
-async function loadDefectSets() {
+// Load defect sets filtered by current ELR and structure number
+async function loadDefectSets(currentFormData?: any) {
   try {
     console.log('Loading defect sets...');
+    
+    let allDefectSets: any[] = [];
     
     // Try to load from AWS first
     const storedUser = localStorage.getItem('user');
@@ -57,7 +99,7 @@ async function loadDefectSets() {
         const { defectSets } = await DatabaseService.getDefectSets(user.email);
         if (defectSets && defectSets.length > 0) {
           console.log('✅ Defect sets loaded from AWS for user:', user.email);
-          return defectSets;
+          allDefectSets = defectSets;
         } else {
           console.log('No defect sets found in AWS for user:', user.email);
         }
@@ -66,32 +108,62 @@ async function loadDefectSets() {
       }
     }
     
-    // Fallback to localStorage only if no user or AWS failed
-    const localSets = getLocalDefectSets();
-    console.log('📱 Defect sets loaded from localStorage (fallback)');
-    return localSets;
+    // Fallback to localStorage if AWS failed or no user
+    if (allDefectSets.length === 0) {
+      const localSets = getLocalDefectSets();
+      console.log('📱 Defect sets loaded from localStorage (fallback)');
+      allDefectSets = localSets;
+    }
+    
+    // Filter by current ELR and structure number if provided
+    if (currentFormData?.elr?.trim() && currentFormData?.structureNo?.trim()) {
+      const filteredSets = allDefectSets.filter((set: any) => {
+        const setElr = set.data?.formData?.elr;
+        const setStruct = set.data?.formData?.structureNo;
+        return setElr === currentFormData.elr && setStruct === currentFormData.structureNo;
+      });
+      
+      // Sort by latest updated first
+      filteredSets.sort((a: any, b: any) => {
+        const dateA = new Date(a.updated_at || a.created_at);
+        const dateB = new Date(b.updated_at || b.created_at);
+        return dateB.getTime() - dateA.getTime();
+      });
+      
+      console.log(`📋 Filtered ${filteredSets.length} defect sets for ${currentFormData.elr}_${currentFormData.structureNo}`);
+      return filteredSets;
+    }
+    
+    // If no current form data, return all sets sorted by latest
+    allDefectSets.sort((a: any, b: any) => {
+      const dateA = new Date(a.updated_at || a.created_at);
+      const dateB = new Date(b.updated_at || b.created_at);
+      return dateB.getTime() - dateA.getTime();
+    });
+    
+    return allDefectSets;
   } catch (error) {
     console.error('❌ Error loading defect sets:', error);
     return getLocalDefectSets();
   }
 }
 
-// Delete a defect set by id
+// Delete a defect set by id from both localStorage and DynamoDB
 async function deleteDefectSet(id: string) {
   try {
     // Delete from localStorage
-  const sets = getLocalDefectSets();
+    const sets = getLocalDefectSets();
     const updatedSets = sets.filter((s: any) => s.id !== id);
     setLocalDefectSets(updatedSets);
     
     // Delete from AWS DynamoDB
-    const { AuthService } = await import('../lib/services');
-    const { user } = await AuthService.getCurrentUser();
+    const storedUser = localStorage.getItem('user');
+    const user = storedUser ? JSON.parse(storedUser) : null;
     
     if (user?.email) {
       const { DatabaseService } = await import('../lib/services');
-      await DatabaseService.clearUserProject(user.email, id);
-      console.log('Defect set deleted from AWS for user:', user.email);
+      await DatabaseService.deleteDefectSet(user.email, id);
+      console.log('✅ Defect set deleted from AWS for user:', user.email);
     }
   } catch (error) {
     console.error('Error deleting defect set:', error);
@@ -162,8 +234,19 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
   } = useMetadataStore();
   const [enlargedImage, setEnlargedImage] = useState<string | null>(null);
   const [showLoadTray, setShowLoadTray] = useState(false);
-  const [savedSets, setSavedSets] = useState<{id: string, title: string, data: any, created_at: string}[]>([]);
+  const [savedSets, setSavedSets] = useState<{id: string, title: string, data: any, created_at: string, updated_at?: string}[]>([]);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  // Auto-save on every modification
+  useEffect(() => {
+    if (formData?.elr?.trim() && formData?.structureNo?.trim()) {
+      const timeoutId = setTimeout(() => {
+        autoSaveDefectSet(formData, bulkDefects, selectedImages, images);
+      }, 1000); // Debounce for 1 second
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [formData, bulkDefects, selectedImages, images]);
 
   // Helper to format project details as title
   const getDefectSetTitle = () => {
@@ -173,7 +256,7 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
     return `${elr}_${struct}_${date}`;
   };
 
-  // Save defect set to localStorage
+  // Save defect set to localStorage and AWS
   const handleSaveDefectSet = async () => {
     try {
       // Validate project details
@@ -195,7 +278,6 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
         defects: bulkDefects,
         selectedImages: Array.from(selectedImages),
         formData,
-        // Also save the current state of selected images with their metadata
         selectedImagesMetadata: images
           .filter(img => selectedImages.has(img.id))
           .map(img => ({
@@ -207,8 +289,9 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
           }))
       };
       
-      await saveDefectSet(title, data);
-      toast.success(`Defect set '${title}' saved!`);
+      // Use the auto-save function
+      await autoSaveDefectSet(formData, bulkDefects, selectedImages, images);
+      toast.success(`Defect set '${title}' auto-saved!`);
       
       // Refresh the saved sets list
       await handleShowLoadTray();
@@ -218,10 +301,10 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
     }
   };
 
-  // Load defect sets from Supabase
+  // Load defect sets from AWS/localStorage
   const handleShowLoadTray = async () => {
     try {
-      const sets = await loadDefectSets();
+      const sets = await loadDefectSets(formData);
       setSavedSets(sets || []);
       setShowLoadTray(true);
     } catch (error) {
@@ -363,21 +446,21 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
   const getImageNumber = (img: ImageMetadata) => {
     if (viewMode === 'bulk') {
       // For bulk mode, get number from bulkDefects
-      const defect = bulkDefects.find(d => d.selectedFile === (img.fileName || img.file?.name || ''));
+      const defect = bulkDefects.find(d => d.selectedFile === (img.file?.name || ''));
       return defect?.photoNumber || '';
     }
     // For images mode, use the image's own photoNumber
-    return img.photoNumber;
+    return img.photoNumber || '';
   };
 
   const getImageDescription = (img: ImageMetadata) => {
     if (viewMode === 'bulk') {
       // For bulk mode, get description from bulkDefects
-      const defect = bulkDefects.find(d => d.selectedFile === (img.fileName || img.file?.name || ''));
+      const defect = bulkDefects.find(d => d.selectedFile === (img.file?.name || ''));
       return defect?.description || '';
     }
     // For images mode, use the image's own description
-    return img.description;
+    return img.description || '';
   };
 
   const sortImages = (images: ImageMetadata[], direction: 'asc' | 'desc' | null) => {
@@ -450,7 +533,7 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
   }
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm h-[calc(100vh-96px)] flex flex-col">
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm h-full flex flex-col">
       <div className="p-4 border-b border-slate-200 dark:border-gray-700 flex items-center justify-between">
         <div className="flex-1">
           <h3 className="text-lg font-semibold text-slate-800 dark:text-white">
@@ -506,7 +589,7 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
       <div className="flex-1 overflow-hidden">
         {viewMode === 'images' ? (
           <div 
-            className="h-full overflow-y-auto scrollbar-thin"
+            className="h-full overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600"
             style={{ 
               overscrollBehavior: 'contain',
               WebkitOverflowScrolling: 'touch'
@@ -675,29 +758,52 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
       {showLoadTray && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-end justify-center">
           <div className="bg-white dark:bg-gray-800 rounded-t-2xl shadow-xl w-full max-w-md p-6 max-h-[60vh] overflow-y-auto">
-            <h3 className="text-lg font-semibold mb-4">Load Defect Set</h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold">Load Defect Set</h3>
+              {formData?.elr?.trim() && formData?.structureNo?.trim() && (
+                <span className="text-xs text-slate-500 dark:text-gray-400">
+                  Filtered for {formData.elr}_{formData.structureNo}
+                </span>
+              )}
+            </div>
             {savedSets.length === 0 ? (
-              <div className="text-slate-500 dark:text-gray-400">No saved sets found.</div>
+              <div className="text-slate-500 dark:text-gray-400 text-center py-8">
+                {formData?.elr?.trim() && formData?.structureNo?.trim() ? (
+                  <div>
+                    <p className="mb-2">No saved sets found for</p>
+                    <p className="font-mono text-sm">{formData.elr}_{formData.structureNo}</p>
+                    <p className="text-xs mt-2">Try entering different ELR/Structure details</p>
+                  </div>
+                ) : (
+                  <div>
+                    <p className="mb-2">No saved sets found</p>
+                    <p className="text-xs">Enter ELR and Structure Number to see relevant sets</p>
+                  </div>
+                )}
+              </div>
             ) : (
               <ul className="space-y-2">
                 {savedSets.map((set) => (
-                  <li key={set.id} className="flex items-center justify-between p-2 rounded hover:bg-slate-100 dark:hover:bg-gray-700">
-                    <div className="flex flex-col">
-                      <span className="font-mono text-sm">{set.title}</span>
-                      <span className="text-xs text-slate-500 dark:text-gray-400">
-                        {new Date(set.created_at).toLocaleString()}
+                  <li key={set.id} className="flex items-center justify-between p-3 rounded-lg border border-slate-200 dark:border-gray-700 hover:bg-slate-50 dark:hover:bg-gray-700 transition-colors">
+                    <div className="flex flex-col flex-1">
+                      <span className="font-mono text-sm font-medium">{set.title}</span>
+                      <span className="text-xs text-slate-500 dark:text-gray-400 mt-1">
+                        {set.data?.defects?.length || 0} defects • {set.data?.selectedImages?.length || 0} images
+                      </span>
+                      <span className="text-xs text-slate-400 dark:text-gray-500 mt-1">
+                        {new Date(set.updated_at || set.created_at).toLocaleString()}
                       </span>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 ml-4">
                       <button
                         onClick={() => handleLoadDefectSet(set)}
-                        className="px-2 py-1 rounded bg-indigo-500 text-white hover:bg-indigo-600 text-xs"
+                        className="px-3 py-1.5 rounded bg-indigo-500 text-white hover:bg-indigo-600 text-xs font-medium transition-colors"
                       >
                         Load
                       </button>
                       <button
                         onClick={() => handleDeleteDefectSet(set.id)}
-                        className="px-2 py-1 rounded bg-red-500 text-white hover:bg-red-600 text-xs"
+                        className="px-3 py-1.5 rounded bg-red-500 text-white hover:bg-red-600 text-xs font-medium transition-colors"
                       >
                         Delete
                       </button>

@@ -3,15 +3,18 @@ import { useNavigate } from 'react-router-dom';
 import { Download, AlertCircle, Loader2, WalletCards, CheckCircle } from 'lucide-react';
 import { useMetadataStore } from '../store/metadataStore';
 import { useAuthStore } from '../store/authStore';
-import { createDownloadPackage } from '../utils/fileUtils';
 import { useValidation } from '../hooks/useValidation';
 import { useBulkValidation } from '../hooks/useBulkValidation';
 import { useAnalytics } from '../hooks/useAnalytics';
-import { validateDescription } from '../utils/fileValidation';
+import { 
+  transformSelectedImagesForLambda, 
+  transformBulkDefectsForLambda, 
+  validateTransformedData 
+} from '../utils/downloadTransformers';
 
 export const DownloadButton: React.FC = () => {
   const navigate = useNavigate();
-  const { images, selectedImages, formData, viewMode, bulkDefects, bulkSelectedImages, generateBulkZip } = useMetadataStore();
+  const { images, selectedImages, formData, viewMode, bulkDefects } = useMetadataStore();
   const { isValid, getValidationErrors } = useValidation();
   const { isBulkValid, getBulkValidationErrors, getValidationSummary } = useBulkValidation();
   const { trackEvent } = useAnalytics();
@@ -33,9 +36,6 @@ export const DownloadButton: React.FC = () => {
     if (!user?.user_metadata) return;
     // Only keep subscription logic for images mode if needed
   }, [user]);
-  
-
-  // Remove the unused hasSpecialCharacters variable
 
   const handleUpgradeClick = () => {
     navigate('/subscriptions');
@@ -57,28 +57,56 @@ export const DownloadButton: React.FC = () => {
       setError(null);
 
       if (viewMode === 'bulk') {
-        // Handle bulk mode download
-        console.log('Bulk mode download');
-        const defectsWithImages = bulkDefects.filter(defect => defect.selectedFile);
-        console.log('Defects with images:', defectsWithImages.length);
+        // Handle bulk mode download - Call Lambda function
+        console.log('Bulk mode download - calling Lambda');
         
-        if (defectsWithImages.length === 0) {
-          throw new Error('No defects with images selected');
-        }
-
         if (isSubscriptionExpired) {
           throw new Error('Your subscription has expired. Please upgrade to continue.');
         }
 
-        console.log('Calling generateBulkZip...');
-        await generateBulkZip();
-        console.log('Bulk zip generated successfully');
+        // Transform bulk defects to unified format (preserves all existing functionality)
+        const originalBulkData = { bulkDefects, images, formData };
+        const transformedData = transformBulkDefectsForLambda(bulkDefects, images, formData);
         
-        trackEvent({ action: 'download_bulk_package', category: 'user_action', value: defectsWithImages.length });
+        // Validate that transformation preserves core functionality
+        if (!validateTransformedData(originalBulkData, transformedData, 'bulk')) {
+          throw new Error('Data transformation validation failed');
+        }
+
+        console.log('🚀 Calling Lambda for bulk download with unified format...');
+        console.log('Transformed data sample:', transformedData.selectedImages[0]);
+        
+        // Call Lambda function for bulk mode (now using unified format)
+        const response = await fetch('/api/download', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(transformedData)
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Bulk download failed');
+        }
+
+        const result = await response.json();
+        
+        if (!result.success) {
+          throw new Error(result.error || 'Bulk download failed');
+        }
+
+        console.log('✅ Lambda bulk response received:', result);
+        
+        // Download the file using the presigned URL
+        window.open(result.downloadUrl, '_blank');
+
+        trackEvent({ action: 'download_bulk_package', category: 'user_action', value: transformedData.selectedImages.length });
+        console.log('✅ Bulk download completed successfully');
 
       } else {
-        // Handle images mode download
-        console.log('Images mode download');
+        // Handle images mode download - Call Lambda function
+        console.log('Images mode download - calling Lambda');
         const selectedImagesList = images.filter(img => selectedImages.has(img.id));
         console.log('Selected images:', selectedImagesList.length);
 
@@ -86,26 +114,62 @@ export const DownloadButton: React.FC = () => {
           throw new Error('No images selected');
         }
 
+        // Validate that all selected images have required metadata (preserves existing validation)
+        const imagesWithoutPhotoNumbers = selectedImagesList.filter(img => !img.photoNumber?.trim());
+        if (imagesWithoutPhotoNumbers.length > 0) {
+          throw new Error(`Please add photo numbers for ${imagesWithoutPhotoNumbers.length} image${imagesWithoutPhotoNumbers.length !== 1 ? 's' : ''}`);
+        }
+
+        const imagesWithoutDescriptions = selectedImagesList.filter(img => {
+          if (img.isSketch) return false;
+          return !img.description?.trim();
+        });
+        if (imagesWithoutDescriptions.length > 0) {
+          throw new Error(`Please add descriptions for ${imagesWithoutDescriptions.length} image${imagesWithoutDescriptions.length !== 1 ? 's' : ''}`);
+        }
+
         if (isSubscriptionExpired) {
           throw new Error('Your subscription has expired. Please upgrade to continue.');
         }
 
-        console.log('🚀 Creating download package with selected images...');
+        // Transform selected images to unified format (preserves all existing functionality)
+        const originalImagesData = { selectedImages: selectedImagesList, formData };
+        const transformedData = transformSelectedImagesForLambda(selectedImagesList, formData);
         
-        // Use selected images directly - the ZIP creation will handle file access
-        const blob = await createDownloadPackage(selectedImagesList, formData);
-        console.log('Download package created, size:', blob.size);
-        const url = URL.createObjectURL(blob);
+        // Validate that transformation preserves core functionality
+        if (!validateTransformedData(originalImagesData, transformedData, 'images')) {
+          throw new Error('Data transformation validation failed');
+        }
+
+        console.log('🚀 Calling Lambda download generator with unified format...');
+        console.log('Transformed data sample:', transformedData.selectedImages[0]);
+        
+        // Call Lambda function for images mode (now using unified format)
+        const response = await fetch('/api/download', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(transformedData)
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Download failed');
+        }
+
+        const result = await response.json();
+        
+        if (!result.success) {
+          throw new Error(result.error || 'Download failed');
+        }
+
+        console.log('✅ Lambda response received:', result);
+        
+        // Download the file using the presigned URL
+        window.open(result.downloadUrl, '_blank');
 
         trackEvent({ action: 'download_package', category: 'user_action', value: selectedImagesList.length });
-
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${formData.elr.trim().toUpperCase()}_${formData.structureNo.trim()}_${formData.date ? new Date(formData.date).toISOString().slice(0,10).split('-').reverse().join('-') : 'date'}.zip`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
         console.log('✅ Download completed successfully');
 
       }
@@ -196,14 +260,34 @@ export const DownloadButton: React.FC = () => {
 
       {/* Success message for bulk mode */}
       {viewMode === 'bulk' && isBulkValid() && !isDownloading && (
-        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
-          <div className="flex items-start gap-2 text-amber-700 dark:text-amber-400">
+        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-3">
+          <div className="flex items-start gap-2 text-green-700 dark:text-green-400">
             <CheckCircle size={16} className="mt-0.5 flex-shrink-0" />
             <div className="text-sm">
               <p className="font-medium">Ready to download!</p>
               <p className="text-xs mt-1 opacity-75">
                 {getValidationSummary().totalDefects} defects ready for download
               </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Warning message for bulk mode when some defects are incomplete */}
+      {viewMode === 'bulk' && !isBulkValid() && !isDownloading && (
+        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 mt-2">
+          <div className="flex items-start gap-2 text-amber-700 dark:text-amber-400">
+            <AlertCircle size={16} className="mt-0.5 flex-shrink-0" />
+            <div className="text-sm">
+              <p className="font-medium mb-1">Please complete the following:</p>
+              <ul className="list-disc list-inside space-y-1">
+                {getBulkValidationErrors().slice(0, 3).map((error, index) => (
+                  <li key={index}>{error}</li>
+                ))}
+                {getBulkValidationErrors().length > 3 && (
+                  <li>... and {getBulkValidationErrors().length - 3} more issues</li>
+                )}
+              </ul>
             </div>
           </div>
         </div>

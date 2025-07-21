@@ -3,25 +3,50 @@
 @tailwind utilities;
 
 /* Custom scrollbar styles */
-.scrollbar-hide {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(203 213 225) transparent;
 }
 
-.scrollbar-hide::-webkit-scrollbar {
-  display: none;
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
 }
 
-/* Custom scroll behavior */
-.overflow-container {
-  overflow-y: auto;
-  overflow-x: hidden;
-  scroll-behavior: smooth;
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
 }
 
-/* Prevent scroll bounce on Mac */
-.overflow-container {
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: rgb(203 213 225);
+  border-radius: 3px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background-color: rgb(148 163 184);
+}
+
+/* Dark mode scrollbar */
+.dark .scrollbar-thin {
+  scrollbar-color: rgb(75 85 99) transparent;
+}
+
+.dark .scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: rgb(75 85 99);
+}
+
+.dark .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background-color: rgb(107 114 128);
+}
+
+/* Ensure proper scrolling behavior */
+.overflow-y-auto {
+  overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
+}
+
+/* Prevent page scroll when scrolling within components */
+.overflow-hidden {
+  overscroll-behavior: none;
 }
 
 /* Dark mode support */

@@ -80,9 +80,8 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
     set((state) => {
       const newFormData = { ...state.formData, ...data };
       
-      // Auto-save to localStorage and sessionStorage for cross-browser compatibility
+      // Auto-save to localStorage immediately
       localStorage.setItem('clean-app-form-data', JSON.stringify(newFormData));
-      sessionStorage.setItem('clean-app-form-data', JSON.stringify(newFormData));
       
       // Auto-save to AWS immediately (not in background) for cross-browser persistence
       (async () => {
@@ -127,7 +126,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       const imageMetadataArray: ImageMetadata[] = files.map((file, index) => {
         const timestamp = Date.now() + index;
         const filePath = `users/${userId}/images/${timestamp}-${file.name}`;
-        const consistentId = `local-${file.name.replace(/[^a-zA-Z0-9]/g, '-')}`;
+        const consistentId = `local-${timestamp}-${file.name.replace(/[^a-zA-Z0-9]/g, '-')}`;
         
                     // Create temporary metadata with local file for instant display
             return {
@@ -143,8 +142,6 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
               publicUrl: '', // Will be updated after S3 upload
               userId: userId,
               isUploading: true, // Mark as uploading
-              // Preserve local file for immediate download
-              localFile: file, // Keep local file reference for downloads
             };
       });
       
@@ -153,14 +150,47 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       set((state) => {
         const combined = [...state.images, ...imageMetadataArray];
         
-        // Sort images
+        // Sort images by photo number (extract number after "00" in filenames like P1080001)
         combined.sort((a, b) => {
-          const aNum = parseInt(a.photoNumber);
-          const bNum = parseInt(b.photoNumber);
-          if (!isNaN(aNum) && !isNaN(bNum)) return aNum - bNum;
-          if (!isNaN(aNum)) return -1;
-          if (!isNaN(bNum)) return 1;
-          return (a.fileName || a.file?.name || '').localeCompare(b.fileName || b.file?.name || '');
+          const aFileName = a.fileName || a.file?.name || '';
+          const bFileName = b.fileName || b.file?.name || '';
+          
+          // Extract photo number from filenames like P1080001, P1080005, etc.
+          const extractPhotoNumber = (filename: string) => {
+            // Look for pattern like P1080001, P1080005, etc.
+            const match = filename.match(/P\d{3}00(\d+)/);
+            if (match) {
+              return parseInt(match[1]);
+            }
+            return null;
+          };
+          
+          const aPhotoNum = extractPhotoNumber(aFileName);
+          const bPhotoNum = extractPhotoNumber(bFileName);
+          
+          // If both have photo numbers, sort by them
+          if (aPhotoNum !== null && bPhotoNum !== null) {
+            return aPhotoNum - bPhotoNum; // Lowest number first
+          }
+          
+          // If only one has a photo number, put the one without photo number last
+          if (aPhotoNum !== null && bPhotoNum === null) {
+            return -1; // a comes first
+          }
+          if (aPhotoNum === null && bPhotoNum !== null) {
+            return 1; // b comes first
+          }
+          
+          // If neither has photo numbers, fall back to timestamp sorting
+          const aTimestamp = parseInt(a.s3Key?.split('-')[0] || '0');
+          const bTimestamp = parseInt(b.s3Key?.split('-')[0] || '0');
+          
+          if (!isNaN(aTimestamp) && !isNaN(bTimestamp)) {
+            return aTimestamp - bTimestamp; // Oldest first
+          }
+          
+          // Final fallback to filename comparison
+          return aFileName.localeCompare(bFileName);
         });
         
         // Save to localStorage
@@ -195,7 +225,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           console.log(`✅ S3 upload successful: ${file.name}`);
           
           // Update the image metadata with S3 URL but keep local file for downloads
-          const consistentId = `local-${file.name.replace(/[^a-zA-Z0-9]/g, '-')}`;
+          const consistentId = `local-${timestamp}-${file.name.replace(/[^a-zA-Z0-9]/g, '-')}`;
           
           set((state) => {
             const updatedImages = state.images.map(img => 
@@ -205,9 +235,9 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
                     preview: uploadResult.url!, // Use S3 URL for display
                     publicUrl: uploadResult.url!,
                     isUploading: false,
-                    // Keep local file for fast downloads (no base64 conversion needed)
-                    localFile: img.file || img.localFile, // Preserve local file reference
-                    file: img.file || img.localFile // Also keep original file reference for immediate download
+                    s3Key: `${timestamp}-${file.name}`, // Store the S3 filename for downloads
+                    // Keep original file reference for immediate download
+                    file: img.file // Also keep original file reference for immediate download
                   }
                 : img
             );
@@ -402,7 +432,59 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
   },
 
   setSelectedImages: (selectedImages) => {
-    set({ selectedImages });
+    set((state) => {
+      // Auto-save to localStorage immediately (but not during clearing)
+      try {
+        // Check if project is being cleared
+        const projectStore = useProjectStore.getState();
+        if (!projectStore.isClearing) {
+          const selectedWithFilenames = Array.from(selectedImages).map(id => {
+            const image = state.images.find(img => img.id === id);
+            return {
+              id,
+              fileName: image?.file?.name || 'unknown'
+            };
+          });
+          localStorage.setItem('clean-app-selected-images', JSON.stringify(selectedWithFilenames));
+          console.log('📱 Selected images saved to localStorage:', selectedWithFilenames);
+        } else {
+          console.log('⏸️ Skipping localStorage save during project clear');
+        }
+      } catch (error) {
+        console.error('❌ Error saving selected images to localStorage:', error);
+      }
+      
+      // Auto-save to AWS in background - but only if not clearing
+      (async () => {
+        try {
+          // Check if project is being cleared
+          const projectStore = useProjectStore.getState();
+          if (projectStore.isClearing) {
+            console.log('⏸️ Skipping auto-save during project clear');
+            return;
+          }
+          
+          const storedUser = localStorage.getItem('user');
+          const user = storedUser ? JSON.parse(storedUser) : null;
+          
+          if (user?.email) {
+            const selectedWithFilenames = Array.from(selectedImages).map(id => {
+              const image = state.images.find(img => img.id === id);
+              return {
+                id,
+                fileName: image?.file?.name || 'unknown'
+              };
+            });
+            await DatabaseService.updateSelectedImages(user.email, selectedWithFilenames);
+            console.log('✅ Selected images auto-saved to AWS for user:', user.email);
+          }
+        } catch (error) {
+          console.error('❌ Error auto-saving selected images:', error);
+        }
+      })();
+      
+      return { selectedImages };
+    });
   },
 
   clearSelectedImages: () => {
@@ -520,19 +602,25 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       // Set loading state
       set({ isLoading: true });
       
-      // Get user from localStorage or sessionStorage (for incognito compatibility)
-      const storedUser = localStorage.getItem('user') || sessionStorage.getItem('user');
+      // Get user from localStorage
+      const storedUser = localStorage.getItem('user');
       const user = storedUser ? JSON.parse(storedUser) : null;
-      const userId = user?.email || localStorage.getItem('userEmail') || sessionStorage.getItem('userEmail') || 'anonymous';
+      const userId = user?.email || localStorage.getItem('userEmail') || 'anonymous';
       
       console.log('Loading data for user:', userId);
       
       // Load all data in parallel and batch state updates
       const [formDataResult, bulkDataResult, imagesResult, selectionsResult] = await Promise.allSettled([
-        // Load form data from AWS first (for cross-browser), then localStorage
+        // Load form data from localStorage first, then AWS
         (async () => {
           try {
-            // Try AWS first for cross-browser compatibility
+            const savedFormData = localStorage.getItem('clean-app-form-data');
+            if (savedFormData) {
+              const formData = JSON.parse(savedFormData);
+              console.log('📱 Form data loaded from localStorage');
+              return formData;
+            }
+            
             if (userId !== 'anonymous') {
               const { project } = await DatabaseService.getProject(userId, 'current');
               if (project?.formData) {
@@ -540,15 +628,6 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
                 return project.formData;
               }
             }
-            
-            // Fallback to localStorage
-            const savedFormData = localStorage.getItem('clean-app-form-data');
-            if (savedFormData) {
-              const formData = JSON.parse(savedFormData);
-              console.log('📱 Form data loaded from localStorage (fallback)');
-              return formData;
-            }
-            
             return null;
           } catch (error) {
             console.error('❌ Error loading form data:', error);
@@ -580,7 +659,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           }
         })(),
         
-              // Load images from S3 first (for cross-browser), then localStorage as fallback
+              // Load images from S3 first, then localStorage as fallback
       (async () => {
         try {
           if (userId !== 'anonymous') {
@@ -594,14 +673,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
               
               const loadedImages: ImageMetadata[] = [];
               
-              // Sort files by timestamp to preserve upload order
-              const sortedFiles = files.sort((a, b) => {
-                const aTimestamp = parseInt(a.name.split('-')[0]);
-                const bTimestamp = parseInt(b.name.split('-')[0]);
-                return aTimestamp - bTimestamp;
-              });
-              
-              for (const file of sortedFiles) {
+              for (const file of files) {
                 try {
                   const originalFileName = file.name.split('-').slice(1).join('-');
                   
@@ -609,9 +681,13 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
                   const consistentId = `s3-${originalFileName.replace(/[^a-zA-Z0-9]/g, '-')}`;
                   
                   // Create image metadata with S3 URL (no base64 conversion on load!)
+                  // Extract original filename from the S3 key
+                  const keyParts = file.name.split('-');
+                  const extractedFileName = keyParts.slice(1).join('-');
+                  
                   const imageMetadata: ImageMetadata = {
                     id: consistentId,
-                    fileName: originalFileName,
+                    fileName: extractedFileName,
                     fileSize: file.size,
                     fileType: 'image/jpeg',
                     photoNumber: '',
@@ -620,6 +696,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
                     isSketch: false,
                     publicUrl: file.url,
                     userId: userId,
+                    s3Key: file.name, // Store just the filename for downloads
                     // No base64 - only convert when needed for downloads
                   };
                   
@@ -628,6 +705,49 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
                   console.error('Error processing S3 file:', file.name, error);
                 }
               }
+              
+              // Sort images by photo number (extract number after "00" in filenames like P1080001)
+              loadedImages.sort((a, b) => {
+                const aFileName = a.fileName || '';
+                const bFileName = b.fileName || '';
+                
+                // Extract photo number from filenames like P1080001, P1080005, etc.
+                const extractPhotoNumber = (filename: string) => {
+                  // Look for pattern like P1080001, P1080005, etc.
+                  const match = filename.match(/P\d{3}00(\d+)/);
+                  if (match) {
+                    return parseInt(match[1]);
+                  }
+                  return null;
+                };
+                
+                const aPhotoNum = extractPhotoNumber(aFileName);
+                const bPhotoNum = extractPhotoNumber(bFileName);
+                
+                // If both have photo numbers, sort by them
+                if (aPhotoNum !== null && bPhotoNum !== null) {
+                  return aPhotoNum - bPhotoNum; // Lowest number first
+                }
+                
+                // If only one has a photo number, put the one without photo number last
+                if (aPhotoNum !== null && bPhotoNum === null) {
+                  return -1; // a comes first
+                }
+                if (aPhotoNum === null && bPhotoNum !== null) {
+                  return 1; // b comes first
+                }
+                
+                // If neither has photo numbers, fall back to timestamp sorting
+                const aTimestamp = parseInt(a.s3Key?.split('-')[0] || '0');
+                const bTimestamp = parseInt(b.s3Key?.split('-')[0] || '0');
+                
+                if (!isNaN(aTimestamp) && !isNaN(bTimestamp)) {
+                  return aTimestamp - bTimestamp; // Oldest first
+                }
+                
+                // Final fallback to filename comparison
+                return aFileName.localeCompare(bFileName);
+              });
               
               console.log('✅ Images loaded from S3 for user:', userId);
               return loadedImages;

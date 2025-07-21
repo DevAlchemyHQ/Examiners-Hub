@@ -6,10 +6,10 @@ export const MainContent: React.FC<{ isLoading?: boolean }> = ({ isLoading }) =>
   const [isExpanded, setIsExpanded] = useState(false);
 
   return (
-    <div className="lg:col-span-10 grid grid-cols-1 lg:grid-cols-12 gap-4 h-full overflow-hidden">
+    <div className="lg:col-span-10 grid grid-cols-1 lg:grid-cols-12 gap-4 h-[calc(100vh-96px)] overflow-hidden">
       {/* Image Grid - Hide when expanded */}
       {!isExpanded && (
-        <div className="h-[89.5vh] overflow-hidden lg:col-span-6">
+        <div className="h-full overflow-hidden lg:col-span-6">
           <ImageGrid />
         </div>
       )}

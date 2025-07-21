@@ -43,7 +43,8 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean }> = ({ isExpanded =
     loadSavedPdfs,
     bulkSelectedImages,
     generateBulkZip,
-    setFormData
+    setFormData,
+    formData
   } = useMetadataStore();
   const { user } = useAuthStore();
   
@@ -509,25 +510,46 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean }> = ({ isExpanded =
 
     setIsDownloading(true);
     try {
-      // Create the defects data for the text file
-      const defectsData = bulkDefects
-        .filter(defect => defect.selectedFile) // Only include defects with images
-        .map(defect => ({
-          photoNumber: defect.photoNumber,
-          description: defect.description,
-          imageName: defect.selectedFile
-        }));
+      // Use the same transformation logic as DownloadButton.tsx
+      const { transformBulkDefectsForLambda, validateTransformedData } = await import('../utils/downloadTransformers');
+      
+      // Transform bulk defects to unified format (same as DownloadButton.tsx)
+      const originalBulkData = { bulkDefects, images, formData };
+      const transformedData = transformBulkDefectsForLambda(bulkDefects, images, formData);
+      
+      // Validate that transformation preserves core functionality
+      if (!validateTransformedData(originalBulkData, transformedData, 'bulk')) {
+        throw new Error('Data transformation validation failed');
+      }
 
-      // Get the image IDs that need to be included
-      const imageIds = defectsWithImages
-        .map(defect => {
-          const image = images.find(img => (img.fileName || img.file?.name || '') === defect.selectedFile);
-          return image?.id;
-        })
-        .filter((id): id is string => id !== undefined);
+      console.log('🚀 Calling Lambda for bulk download with unified format...');
+      console.log('Transformed data sample:', transformedData.selectedImages[0]);
+      
+      // Call Lambda function for bulk mode (same as DownloadButton.tsx)
+      const response = await fetch('/api/download', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(transformedData)
+      });
 
-      // Call generateBulkZip with the defects data
-      await generateBulkZip();
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Bulk download failed');
+      }
+
+      const result = await response.json();
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Bulk download failed');
+      }
+
+      console.log('✅ Lambda bulk response received:', result);
+      
+      // Download the file using the presigned URL
+      window.open(result.downloadUrl, '_blank');
+
       toast.success('Package downloaded successfully');
     } catch (error) {
       console.error('Download error:', error);
@@ -646,7 +668,7 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean }> = ({ isExpanded =
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto scrollbar-thin"
+      <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600"
         style={{ 
           overscrollBehavior: 'contain',
           WebkitOverflowScrolling: 'touch'
