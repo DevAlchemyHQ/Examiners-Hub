@@ -35,9 +35,35 @@ export function transformSelectedImagesForLambda(
     if (image.publicUrl && image.publicUrl.trim() !== '') {
       // Extract S3 key from publicUrl (most reliable method)
       // publicUrl format: https://bucket.s3.region.amazonaws.com/users/email/images/timestamp-filename
-      const url = new URL(image.publicUrl);
-      s3Key = decodeURIComponent(url.pathname.substring(1)); // Remove leading slash and decode URL
-      console.log('Extracted S3 key from publicUrl:', s3Key);
+      try {
+        const url = new URL(image.publicUrl);
+        // The pathname should be the S3 key directly
+        s3Key = decodeURIComponent(url.pathname.substring(1)); // Remove leading slash and decode URL
+        console.log('Extracted S3 key from publicUrl:', s3Key);
+        
+        // Validate the extracted S3 key format
+        if (!s3Key.includes('users/') || !s3Key.includes('/images/')) {
+          console.warn('Extracted S3 key format looks incorrect:', s3Key);
+          // Try alternative extraction method
+          const pathParts = url.pathname.split('/');
+          if (pathParts.length >= 4) {
+            // Try to reconstruct: users/email/images/filename
+            const emailIndex = pathParts.findIndex(part => part.includes('@'));
+            if (emailIndex !== -1 && emailIndex + 2 < pathParts.length) {
+              s3Key = `${pathParts[emailIndex]}/${pathParts[emailIndex + 1]}/${pathParts[emailIndex + 2]}/${pathParts.slice(emailIndex + 3).join('/')}`;
+              console.log('Reconstructed S3 key:', s3Key);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error parsing publicUrl:', error);
+        // Fallback to stored s3Key
+        if ((image as any)?.s3Key && (image as any).s3Key.trim() !== '') {
+          const userId = image.userId || 'anonymous';
+          s3Key = `users/${userId}/images/${(image as any).s3Key}`;
+          console.log('Using stored s3Key after URL parse error:', s3Key);
+        }
+      }
     } else if ((image as any)?.s3Key && (image as any).s3Key.trim() !== '') {
       // Fallback to stored s3Key
       const userId = image.userId || 'anonymous';
@@ -116,9 +142,34 @@ export function transformBulkDefectsForLambda(
     if (correspondingImage.publicUrl && correspondingImage.publicUrl.trim() !== '') {
       // Extract S3 key from publicUrl (most reliable method)
       // publicUrl format: https://bucket.s3.region.amazonaws.com/users/email/images/timestamp-filename
-      const url = new URL(correspondingImage.publicUrl);
-      s3Key = decodeURIComponent(url.pathname.substring(1)); // Remove leading slash and decode URL
-      console.log('Extracted S3 key from publicUrl:', s3Key);
+      try {
+        const url = new URL(correspondingImage.publicUrl);
+        // The pathname should be the S3 key directly
+        s3Key = decodeURIComponent(url.pathname.substring(1)); // Remove leading slash and decode URL
+        console.log('Extracted S3 key from publicUrl:', s3Key);
+        
+        // Validate the extracted S3 key format
+        if (!s3Key.includes('users/') || !s3Key.includes('/images/')) {
+          console.warn('Extracted S3 key format looks incorrect:', s3Key);
+          // Try alternative extraction method
+          const pathParts = url.pathname.split('/');
+          if (pathParts.length >= 4) {
+            // Try to reconstruct: users/email/images/filename
+            const emailIndex = pathParts.findIndex(part => part.includes('@'));
+            if (emailIndex !== -1 && emailIndex + 2 < pathParts.length) {
+              s3Key = `${pathParts[emailIndex]}/${pathParts[emailIndex + 1]}/${pathParts[emailIndex + 2]}/${pathParts.slice(emailIndex + 3).join('/')}`;
+              console.log('Reconstructed S3 key:', s3Key);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error parsing publicUrl:', error);
+        // Fallback to stored s3Key
+        if ((correspondingImage as any)?.s3Key && (correspondingImage as any).s3Key.trim() !== '') {
+          s3Key = `users/${correspondingImage.userId || 'anonymous'}/images/${(correspondingImage as any).s3Key}`;
+          console.log('Using stored s3Key after URL parse error:', s3Key);
+        }
+      }
     } else if ((correspondingImage as any)?.s3Key && (correspondingImage as any).s3Key.trim() !== '') {
       s3Key = `users/${correspondingImage.userId || 'anonymous'}/images/${(correspondingImage as any).s3Key}`;
       console.log('Using stored s3Key:', s3Key);

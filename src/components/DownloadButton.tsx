@@ -76,31 +76,50 @@ export const DownloadButton: React.FC = () => {
 
         console.log('🚀 Calling Lambda for bulk download with unified format...');
         console.log('Transformed data sample:', transformedData.selectedImages[0]);
+        console.log('Total defects to download:', transformedData.selectedImages.length);
         
         // Call Lambda function for bulk mode (now using unified format)
         const apiUrl = getFullApiUrl();
         console.log('🌐 Using API endpoint:', apiUrl);
+        
+        const requestBody = JSON.stringify(transformedData);
+        console.log('📤 Request body size:', requestBody.length, 'bytes');
         
         const response = await fetch(apiUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify(transformedData)
+          body: requestBody
         });
 
+        console.log('📥 Response status:', response.status);
+        console.log('📥 Response headers:', Object.fromEntries(response.headers.entries()));
+
         if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'Bulk download failed');
+          let errorMessage = 'Bulk download failed';
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData.error || errorData.message || 'Bulk download failed';
+          } catch (parseError) {
+            console.error('Failed to parse error response:', parseError);
+            errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+          }
+          throw new Error(errorMessage);
         }
 
         const result = await response.json();
+        console.log('📥 Full Lambda bulk response:', result);
         
         if (!result.success) {
-          throw new Error(result.error || 'Bulk download failed');
+          throw new Error(result.error || result.message || 'Bulk download failed');
         }
 
-        console.log('✅ Lambda bulk response received:', result);
+        if (!result.downloadUrl) {
+          throw new Error('No download URL received from Lambda');
+        }
+
+        console.log('✅ Lambda bulk response received, download URL:', result.downloadUrl);
         
         // Download the file using the presigned URL
         window.open(result.downloadUrl, '_blank');
@@ -147,31 +166,50 @@ export const DownloadButton: React.FC = () => {
 
         console.log('🚀 Calling Lambda download generator with unified format...');
         console.log('Transformed data sample:', transformedData.selectedImages[0]);
+        console.log('Total images to download:', transformedData.selectedImages.length);
         
         // Call Lambda function for images mode (now using unified format)
         const apiUrl = getFullApiUrl();
         console.log('🌐 Using API endpoint:', apiUrl);
+        
+        const requestBody = JSON.stringify(transformedData);
+        console.log('📤 Request body size:', requestBody.length, 'bytes');
         
         const response = await fetch(apiUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify(transformedData)
+          body: requestBody
         });
 
+        console.log('📥 Response status:', response.status);
+        console.log('📥 Response headers:', Object.fromEntries(response.headers.entries()));
+
         if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'Download failed');
+          let errorMessage = 'Download failed';
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData.error || errorData.message || 'Download failed';
+          } catch (parseError) {
+            console.error('Failed to parse error response:', parseError);
+            errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+          }
+          throw new Error(errorMessage);
         }
 
         const result = await response.json();
+        console.log('📥 Full Lambda response:', result);
         
         if (!result.success) {
-          throw new Error(result.error || 'Download failed');
+          throw new Error(result.error || result.message || 'Download failed');
         }
 
-        console.log('✅ Lambda response received:', result);
+        if (!result.downloadUrl) {
+          throw new Error('No download URL received from Lambda');
+        }
+
+        console.log('✅ Lambda response received, download URL:', result.downloadUrl);
         
         // Download the file using the presigned URL
         window.open(result.downloadUrl, '_blank');
