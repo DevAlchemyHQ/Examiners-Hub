@@ -1,0 +1,14 @@
+{
+  "selectedImages": [
+    {
+      "id": "test1",
+      "filename": "test.jpg",
+      "s3Key": "users/timsdng@gmail.com/images/test.jpg"
+    }
+  ],
+  "formData": {
+    "projectName": "Test Project",
+    "description": "Test Description"
+  },
+  "mode": "images"
+} 

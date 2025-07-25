@@ -11,6 +11,7 @@ import {
   transformBulkDefectsForLambda, 
   validateTransformedData 
 } from '../utils/downloadTransformers';
+import { getFullApiUrl } from '../utils/apiConfig';
 
 export const DownloadButton: React.FC = () => {
   const navigate = useNavigate();
@@ -77,7 +78,10 @@ export const DownloadButton: React.FC = () => {
         console.log('Transformed data sample:', transformedData.selectedImages[0]);
         
         // Call Lambda function for bulk mode (now using unified format)
-        const response = await fetch('/api/download', {
+        const apiUrl = getFullApiUrl();
+        console.log('🌐 Using API endpoint:', apiUrl);
+        
+        const response = await fetch(apiUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -145,7 +149,10 @@ export const DownloadButton: React.FC = () => {
         console.log('Transformed data sample:', transformedData.selectedImages[0]);
         
         // Call Lambda function for images mode (now using unified format)
-        const response = await fetch('/api/download', {
+        const apiUrl = getFullApiUrl();
+        console.log('🌐 Using API endpoint:', apiUrl);
+        
+        const response = await fetch(apiUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

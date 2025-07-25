@@ -1,6 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { AlertCircle, FileText, Upload, Plus, ArrowUpDown, Loader2, Download, Trash2, CheckCircle, X, Maximize2, Upload as UploadIcon } from 'lucide-react';
 import { useMetadataStore } from '../store/metadataStore';
+import { useAuthStore } from '../store/authStore';
+import { useAnalytics } from '../hooks/useAnalytics';
+import { 
+  transformBulkDefectsForLambda, 
+  validateTransformedData 
+} from '../utils/downloadTransformers';
+import { getFullApiUrl } from '../utils/apiConfig';
 import { validateDescription } from '../utils/fileValidation';
 import { parseDefectText, findMatchingImages } from '../utils/defectParser';
 import {
@@ -22,7 +29,6 @@ import { DefectTile } from './DefectTile';
 import { BulkDefect } from '../types';
 import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
 import { nanoid } from 'nanoid';
-import { useAuthStore } from '../store/authStore';
 import { toast } from 'react-hot-toast';
 import { ImageZoom } from './ImageZoom';
 
@@ -218,7 +224,7 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean }> = ({ isExpanded =
           // If not auto-sorting, restore the original photo number
           return newDefects.map(defect => 
             defect.id === lastDeleted.id 
-              ? { ...defect, photoNumber: lastDeleted.originalPhotoNumber || defect.photoNumber }
+              ? { ...defect, photoNumber: lastDeleted.photoNumber }
               : defect
           );
         }
@@ -526,7 +532,10 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean }> = ({ isExpanded =
       console.log('Transformed data sample:', transformedData.selectedImages[0]);
       
       // Call Lambda function for bulk mode (same as DownloadButton.tsx)
-      const response = await fetch('/api/download', {
+      const apiUrl = getFullApiUrl();
+      console.log('🌐 Using API endpoint:', apiUrl);
+      
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
