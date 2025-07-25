@@ -1,15 +1,10 @@
 {
-  "name": "lambda-package",
+  "name": "download-generator",
   "version": "1.0.0",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "description": "",
+  "type": "module",
   "dependencies": {
-    "jszip": "^3.10.1"
+    "@aws-sdk/client-s3": "^3.0.0",
+    "@aws-sdk/s3-request-presigner": "^3.850.0",
+    "jszip": "^3.10.0"
   }
 }

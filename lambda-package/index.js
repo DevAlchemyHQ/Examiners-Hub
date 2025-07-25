@@ -1,22 +1,58 @@
-import { S3Client, GetObjectCommand, PutObjectCommand, getSignedUrl } from '@aws-sdk/client-s3';
+import pkg from '@aws-sdk/client-s3';
+const { S3Client, GetObjectCommand, PutObjectCommand } = pkg;
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import JSZip from 'jszip';
 
-const s3Client = new S3Client({ region: 'us-east-1' });
+const s3Client = new S3Client({ region: 'eu-west-2' }); // Fixed region to match bucket
 
 export const handler = async (event) => {
   try {
     console.log('Lambda function started');
     console.log('Event:', JSON.stringify(event, null, 2));
 
-    const { selectedImages, formData } = event;
+    // Parse the JSON body from API Gateway or use event directly
+    let requestBody;
+    if (event.body) {
+      // API Gateway invocation
+      try {
+        requestBody = JSON.parse(event.body);
+      } catch (parseError) {
+        console.error('Error parsing request body:', parseError);
+        throw new Error('Invalid JSON in request body');
+      }
+    } else {
+      // Direct invocation
+      requestBody = event;
+    }
+
+    const { selectedImages, formData } = requestBody;
 
     if (!selectedImages || !Array.isArray(selectedImages)) {
+      console.error('selectedImages validation failed:', { selectedImages });
       throw new Error('No selected images provided');
     }
 
     console.log(`Processing ${selectedImages.length} images`);
 
     const zip = new JSZip();
+    
+    // Create base filename from form data
+    const elr = formData?.elr || 'ELR';
+    const structureNo = formData?.structureNo || 'STRUCT';
+    const date = formData?.date || '2025-01-01';
+    
+    // Format date as DD-MM-YY
+    const dateParts = date.split('-');
+    const year = dateParts[0]?.slice(-2) || '25';
+    const month = dateParts[1] || '01';
+    const day = dateParts[2] || '01';
+    const formattedDate = `${day}-${month}-${year}`;
+    
+    // Create base filename for ZIP and TXT
+    const baseFilename = `${elr}_${structureNo}_${formattedDate}`;
+    
+    // Array to store conversion list for TXT file
+    const conversionList = [];
 
     for (const image of selectedImages) {
       try {
@@ -30,8 +66,22 @@ export const handler = async (event) => {
         const s3Response = await s3Client.send(getObjectCommand);
         const imageBuffer = await streamToBuffer(s3Response.Body);
         
-        zip.file(image.filename || `${image.id}.jpg`, imageBuffer);
-        console.log(`Added ${image.filename || image.id} to ZIP`);
+        // Create filename with format: "Photo {photoNumber} ^ {description} ^ {date}"
+        const photoNumber = image.photoNumber || '1';
+        const description = image.description || 'LM';
+        
+        // Get file extension from original filename
+        const originalFilename = image.filename || image.selectedFile || `${image.id}.jpg`;
+        const fileExtension = originalFilename.split('.').pop() || 'jpg';
+        
+        // Create new filename: "Photo {photoNumber} ^ {description} ^ {date}.ext"
+        const newFilename = `Photo ${photoNumber} ^ ${description} ^ ${formattedDate}.${fileExtension}`;
+        
+        // Add to conversion list
+        conversionList.push(`${newFilename}    ${originalFilename}`);
+        
+        zip.file(newFilename, imageBuffer);
+        console.log(`Added ${newFilename} to ZIP (original: ${originalFilename})`);
 
       } catch (imageError) {
         console.error(`Error processing image ${image.filename || image.id}:`, imageError);
@@ -40,20 +90,16 @@ export const handler = async (event) => {
       }
     }
 
-    if (formData) {
-      const metadata = {
-        projectDetails: formData,
-        processedAt: new Date().toISOString(),
-        totalImages: selectedImages.length
-      };
-      zip.file('metadata.json', JSON.stringify(metadata, null, 2));
-    }
+    // Add TXT file with conversion list
+    const txtContent = conversionList.join('\n');
+    zip.file(`${baseFilename}.txt`, txtContent);
+    console.log(`Added ${baseFilename}.txt with ${conversionList.length} conversions`);
 
     console.log('Generating ZIP file...');
     const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' });
     console.log(`ZIP generated, size: ${zipBuffer.length} bytes`);
 
-    const zipKey = `downloads/${Date.now()}_${Math.random().toString(36).substring(7)}.zip`;
+    const zipKey = `downloads/${baseFilename}.zip`;
     
     const putObjectCommand = new PutObjectCommand({
       Bucket: process.env.S3_BUCKET_NAME || 'mvp-labeler-storage',
@@ -82,6 +128,7 @@ export const handler = async (event) => {
         'Access-Control-Allow-Methods': 'POST, OPTIONS'
       },
       body: JSON.stringify({
+        success: true,
         downloadUrl: presignedUrl,
         zipKey: zipKey,
         message: 'Download package created successfully',
@@ -101,8 +148,9 @@ export const handler = async (event) => {
         'Access-Control-Allow-Methods': 'POST, OPTIONS'
       },
       body: JSON.stringify({
+        success: false,
         error: error.message || 'Failed to create download package',
-        details: error.stack
+        message: 'Failed to create ZIP file'
       })
     };
   }

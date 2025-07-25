@@ -51,7 +51,20 @@ export const LoginScreen: React.FC = () => {
             // Then navigate
             navigate('/');
           } else {
-            setError('Invalid email or password');
+            // Handle specific error messages
+            if (signinResult.error) {
+              if (signinResult.error.includes('not confirmed')) {
+                setError('Account not confirmed. Please check your email for confirmation link or contact support.');
+              } else if (signinResult.error.includes('Invalid email or password')) {
+                setError('Invalid email or password');
+              } else if (signinResult.error.includes('not found')) {
+                setError('Account not found. Please sign up first.');
+              } else {
+                setError(signinResult.error);
+              }
+            } else {
+              setError('Sign in failed. Please try again.');
+            }
           }
           break;
         case 'signup':
@@ -77,7 +90,18 @@ export const LoginScreen: React.FC = () => {
             // Then navigate
             navigate('/');
           } else {
-            setError('Signup failed. Please try again.');
+            // Handle specific error messages
+            if (signupResult.error) {
+              if (signupResult.error.includes('already exists')) {
+                setError('An account with this email already exists. Please sign in instead.');
+              } else if (signupResult.error.includes('Password does not meet')) {
+                setError('Password must be at least 8 characters with uppercase, lowercase, and numbers.');
+              } else {
+                setError(signupResult.error);
+              }
+            } else {
+              setError('Signup failed. Please try again.');
+            }
           }
           break;
         case 'reset':
@@ -204,24 +228,44 @@ export const LoginScreen: React.FC = () => {
           )}
 
           {mode === 'signup' && (
-            <div className="flex items-start gap-2">
-              <input
-                type="checkbox"
-                id="terms"
-                checked={acceptedTerms}
-                onChange={(e) => setAcceptedTerms(e.target.checked)}
-                className="mt-1"
-              />
-              <label htmlFor="terms" className="text-sm text-gray-300">
-                I agree to the{' '}
-                <button
-                  type="button"
-                  onClick={() => setShowTerms(true)}
-                  className="text-indigo-400 hover:text-indigo-300 transition"
-                >
-                  Terms and Conditions
-                </button>
-              </label>
+            <div className="space-y-3">
+              <div className="flex items-start gap-3 p-4 bg-gray-700/50 rounded-lg border border-gray-600">
+                <input
+                  type="checkbox"
+                  id="terms"
+                  checked={acceptedTerms}
+                  onChange={(e) => setAcceptedTerms(e.target.checked)}
+                  className="mt-1 h-4 w-4 text-indigo-600 bg-gray-700 border-gray-600 rounded focus:ring-indigo-500 focus:ring-2"
+                  required
+                />
+                <div className="flex-1">
+                  <label htmlFor="terms" className="text-sm text-gray-300 leading-relaxed">
+                    By creating an account, I confirm that I have read, understood, and agree to be bound by the{' '}
+                    <button
+                      type="button"
+                      onClick={() => setShowTerms(true)}
+                      className="text-indigo-400 hover:text-indigo-300 transition font-medium underline"
+                    >
+                      Terms and Conditions
+                    </button>
+                    {' '}and{' '}
+                    <button
+                      type="button"
+                      onClick={() => setShowTerms(true)}
+                      className="text-indigo-400 hover:text-indigo-300 transition font-medium underline"
+                    >
+                      Privacy Policy
+                    </button>
+                    . I understand that my data will be processed in accordance with these policies.
+                  </label>
+                </div>
+              </div>
+              
+              {!acceptedTerms && mode === 'signup' && (
+                <div className="text-xs text-amber-400 bg-amber-400/10 p-2 rounded border border-amber-400/20">
+                  ⚠️ You must accept the Terms and Conditions to create an account
+                </div>
+              )}
             </div>
           )}
 

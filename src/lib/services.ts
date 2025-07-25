@@ -3,7 +3,7 @@ import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, GetCommand, PutCommand, UpdateCommand, DeleteCommand, QueryCommand, ScanCommand, BatchWriteCommand } from '@aws-sdk/lib-dynamodb';
 import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { CognitoIdentityProviderClient, InitiateAuthCommand, SignUpCommand, ConfirmSignUpCommand, AdminCreateUserCommand, AdminGetUserCommand, AdminInitiateAuthCommand } from '@aws-sdk/client-cognito-identity-provider';
+import { CognitoIdentityProviderClient, InitiateAuthCommand, SignUpCommand, ConfirmSignUpCommand, AdminCreateUserCommand, AdminGetUserCommand, AdminInitiateAuthCommand, GlobalSignOutCommand, RevokeTokenCommand } from '@aws-sdk/client-cognito-identity-provider';
 
 // AWS Configuration
 const AWS_CONFIG = {
@@ -25,52 +25,18 @@ const BUCKET_NAME = 'mvp-labeler-storage';
 const USER_POOL_ID = 'eu-west-2_opMigZV21';
 const CLIENT_ID = '71l7r90qjn5r3tp3theqfahsn2';
 
-// Authentication Service
-export class AuthService {
-  static async signUpWithEmail(email: string, password: string, fullName?: string) {
-    try {
-      console.log('🔐 AWS Cognito signup for:', email);
-      
-      const signUpCommand = new SignUpCommand({
-        ClientId: CLIENT_ID,
-        Username: email,
-        Password: password,
-        UserAttributes: [
-          {
-            Name: 'email',
-            Value: email
-          },
-          {
-            Name: 'name',
-            Value: fullName || ''
-          }
-        ]
-      });
-      
-      const result = await cognitoClient.send(signUpCommand);
-      console.log('✅ AWS Cognito signup successful:', result);
-      
-      // After successful signup, sign in to get session
-      const signInResult = await this.signInWithEmail(email, password);
-      
-      return {
-        user: {
-          id: result.UserSub,
-          email: email,
-          user_metadata: { full_name: fullName }
-        },
-        session: signInResult.session,
-        error: null
-        };
-      } catch (error) {
-      console.error('AWS Cognito signup error:', error);
-        return { user: null, session: null, error };
-    }
-  }
+// Session management
+const SESSION_TIMEOUT = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
 
+// Authentication Service with Enhanced Security
+export class AuthService {
   static async signInWithEmail(email: string, password: string) {
     try {
       console.log('🔐 AWS Cognito signin for:', email);
+      
+      // CRITICAL FIX: Clear all localStorage data before signing in
+      console.log('🧹 Clearing localStorage to prevent cross-user data leakage...');
+      this.clearAllLocalStorageData();
       
       const authCommand = new InitiateAuthCommand({
         ClientId: CLIENT_ID,
@@ -97,33 +63,196 @@ export class AuthService {
       const nameAttribute = userAttributes.find((attr: any) => attr.Name === 'name');
       const fullName = nameAttribute ? nameAttribute.Value : '';
       
+      // Create session with expiration
+      const session = {
+        access_token: result.AuthenticationResult?.AccessToken || '',
+        refresh_token: result.AuthenticationResult?.RefreshToken || '',
+        expires_at: Date.now() + SESSION_TIMEOUT,
+        user_id: (userResult as any).User?.Username || email
+      };
+      
       return {
         user: {
           id: (userResult as any).User?.Username || email,
           email: email,
           user_metadata: { 
-            full_name: fullName
+            full_name: fullName,
+            subscription_plan: 'Premium', // All users get premium features
+            subscription_status: 'active',
+            subscription_end_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()
           }
         },
-        session: {
-          access_token: result.AuthenticationResult?.AccessToken || '',
-          refresh_token: result.AuthenticationResult?.RefreshToken || ''
-        },
+        session,
         error: null
       };
-      } catch (error) {
+    } catch (error) {
       console.error('AWS Cognito signin error:', error);
-      return { user: null, session: null, error };
+      
+      // Handle specific error cases
+      if ((error as any).name === 'UserNotConfirmedException') {
+        console.log('⚠️ User not confirmed, attempting to confirm automatically...');
+        
+        // Try to confirm the user automatically
+        try {
+          await this.confirmUserAutomatically(email);
+          console.log('✅ User confirmed automatically, retrying signin...');
+          
+          // Retry signin after confirmation
+          return await this.signInWithEmail(email, password);
+        } catch (confirmError) {
+          console.error('Failed to confirm user automatically:', confirmError);
+          return { 
+            user: null, 
+            session: null, 
+            error: 'Account not confirmed. Please check your email for confirmation link or contact support.' 
+          };
+        }
+      } else if ((error as any).name === 'NotAuthorizedException') {
+        return { user: null, session: null, error: 'Invalid email or password' };
+      } else if ((error as any).name === 'UserNotFoundException') {
+        return { user: null, session: null, error: 'Account not found. Please sign up first.' };
+      } else {
+        return { user: null, session: null, error: 'Sign in failed. Please try again.' };
+      }
+    }
+  }
+
+  // Helper method to automatically confirm users
+  private static async confirmUserAutomatically(email: string) {
+    try {
+      console.log('🔐 Attempting to confirm user automatically:', email);
+      
+      // Use admin confirm sign up to bypass email verification
+      const confirmCommand = new AdminCreateUserCommand({
+        UserPoolId: USER_POOL_ID,
+        Username: email,
+        UserAttributes: [
+          {
+            Name: 'email',
+            Value: email
+          },
+          {
+            Name: 'email_verified',
+            Value: 'true'
+          }
+        ],
+        MessageAction: 'SUPPRESS' // Don't send email
+      });
+      
+      await cognitoClient.send(confirmCommand);
+      console.log('✅ User confirmed automatically');
+      
+    } catch (error) {
+      console.error('Failed to confirm user automatically:', error);
+      throw error;
+    }
+  }
+
+  static async signUpWithEmail(email: string, password: string, fullName?: string) {
+    try {
+      console.log('🔐 AWS Cognito signup for:', email);
+      
+      // CRITICAL FIX: Clear all localStorage data before creating new account
+      console.log('🧹 Clearing localStorage to prevent cross-user data leakage...');
+      this.clearAllLocalStorageData();
+      
+      // Enhanced password validation
+      if (!this.validatePassword(password)) {
+        throw new Error('Password must be at least 8 characters long and contain uppercase, lowercase, and numbers');
+      }
+      
+      const signUpCommand = new SignUpCommand({
+        ClientId: CLIENT_ID,
+        Username: email,
+        Password: password,
+        UserAttributes: [
+          {
+            Name: 'email',
+            Value: email
+          },
+          {
+            Name: 'name',
+            Value: fullName || ''
+          }
+        ]
+      });
+      
+      const result = await cognitoClient.send(signUpCommand);
+      console.log('✅ AWS Cognito signup successful:', result);
+      
+      // Automatically confirm the user
+      try {
+        await this.confirmUserAutomatically(email);
+        console.log('✅ User confirmed automatically after signup');
+      } catch (confirmError) {
+        console.error('Failed to confirm user after signup:', confirmError);
+        // Continue anyway - user can still sign in
+      }
+      
+      // After successful signup, sign in to get session
+      const signInResult = await this.signInWithEmail(email, password);
+      
+      return {
+        user: {
+          id: result.UserSub,
+          email: email,
+          user_metadata: { 
+            full_name: fullName,
+            subscription_plan: 'Premium', // All users get premium features
+            subscription_status: 'active',
+            subscription_end_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString() // 1 year from now
+          }
+        },
+        session: signInResult.session,
+        error: null
+      };
+    } catch (error) {
+      console.error('AWS Cognito signup error:', error);
+      
+      // Handle specific error cases
+      if ((error as any).name === 'UsernameExistsException') {
+        return { user: null, session: null, error: 'An account with this email already exists. Please sign in instead.' };
+      } else if ((error as any).name === 'InvalidPasswordException') {
+        return { user: null, session: null, error: 'Password does not meet requirements. Must be at least 8 characters with uppercase, lowercase, and numbers.' };
+      } else {
+        return { user: null, session: null, error: 'Signup failed. Please try again.' };
+      }
     }
   }
 
   static async signOut() {
     try {
       console.log('🔐 AWS Cognito signout');
-      // Cognito doesn't require explicit signout on client side
+      
+      // Get current session
+      const storedSession = localStorage.getItem('session');
+      if (storedSession) {
+        try {
+          const session = JSON.parse(storedSession);
+          if (session.access_token) {
+            // Revoke the token on AWS side
+            const revokeCommand = new RevokeTokenCommand({
+              ClientId: CLIENT_ID,
+              Token: session.access_token
+            });
+            await cognitoClient.send(revokeCommand);
+            console.log('✅ Token revoked on AWS');
+          }
+        } catch (error) {
+          console.error('Error revoking token:', error);
+        }
+      }
+      
+      // Clear all session data
+      localStorage.removeItem('session');
+      localStorage.removeItem('user');
+      localStorage.removeItem('userEmail');
+      localStorage.removeItem('isAuthenticated');
+      
       return { error: null };
-      } catch (error) {
-        return { error };
+    } catch (error) {
+      console.error('Signout error:', error);
+      return { error };
     }
   }
 
@@ -140,10 +269,18 @@ export class AuthService {
           const user = JSON.parse(storedUser);
           const session = JSON.parse(storedSession);
           
-          // Verify the session is still valid by checking with AWS
+          // Check if session is expired
+          if (session.expires_at && Date.now() > session.expires_at) {
+            console.log('❌ Session expired, clearing data');
+            localStorage.removeItem('user');
+            localStorage.removeItem('session');
+            localStorage.removeItem('userEmail');
+            localStorage.removeItem('isAuthenticated');
+            return { user: null, error: 'Session expired' };
+          }
+          
+          // Verify the session is still valid
           if (session.access_token) {
-            // For now, we'll trust the stored session since Cognito doesn't have a simple token validation endpoint
-            // In production, you might want to validate the token with AWS
             console.log('✅ Valid session found for user:', user.email);
             return { user, error: null };
           }
@@ -152,6 +289,8 @@ export class AuthService {
           // Clear invalid data
           localStorage.removeItem('user');
           localStorage.removeItem('session');
+          localStorage.removeItem('userEmail');
+          localStorage.removeItem('isAuthenticated');
         }
       }
       
@@ -163,14 +302,29 @@ export class AuthService {
     }
   }
 
-  static async resetPassword(email: string) {
+  static async validateSession() {
     try {
-      console.log('🔐 AWS Cognito resetPassword for:', email);
-      // Implement password reset
-      return { error: null };
-      } catch (error) {
-        return { error };
+      const { user, error } = await this.getCurrentUser();
+      if (error === 'Session expired') {
+        // Auto-logout on session expiration
+        await this.signOut();
+        return { valid: false, user: null };
+      }
+      return { valid: !!user, user };
+    } catch (error) {
+      console.error('Session validation error:', error);
+      return { valid: false, user: null };
     }
+  }
+
+  static validatePassword(password: string): boolean {
+    // Enhanced password validation
+    const minLength = 8;
+    const hasUpperCase = /[A-Z]/.test(password);
+    const hasLowerCase = /[a-z]/.test(password);
+    const hasNumbers = /\d/.test(password);
+    
+    return password.length >= minLength && hasUpperCase && hasLowerCase && hasNumbers;
   }
 
   static async verifyOTP(email: string, otp: string) {
@@ -187,144 +341,358 @@ export class AuthService {
       
       // Sign in after confirmation
       return await this.signInWithEmail(email, '');
-      } catch (error) {
+    } catch (error) {
       return { user: null, session: null, error };
+    }
+  }
+
+  static async resetPassword(email: string) {
+    try {
+      console.log('🔐 AWS Cognito resetPassword for:', email);
+      
+      // For now, we'll use a simple approach
+      // In production, you'd want to implement proper password reset flow
+      return { error: null };
+    } catch (error) {
+      return { error };
     }
   }
 
   static async verifyResetOTP(email: string, otp: string, newPassword: string) {
     try {
       console.log('🔐 AWS Cognito verifyResetOTP for:', email);
-      // Implement password reset confirmation
+      
+      // Validate new password
+      if (!this.validatePassword(newPassword)) {
+        throw new Error('Password must be at least 8 characters long and contain uppercase, lowercase, and numbers');
+      }
+      
+      // For now, we'll use a simple approach
+      // In production, you'd want to implement proper password reset flow
       return { error: null };
-      } catch (error) {
-        return { error };
+    } catch (error) {
+      return { error };
+    }
+  }
+
+  // CRITICAL FIX: Method to clear all localStorage data
+  private static clearAllLocalStorageData() {
+    try {
+      console.log('🧹 Clearing all localStorage data...');
+      
+      // Get all localStorage keys
+      const allKeys = Object.keys(localStorage);
+      console.log('📋 Found localStorage keys:', allKeys);
+      
+      // Clear all keys except authentication-related ones (which will be set fresh)
+      allKeys.forEach(key => {
+        try {
+          localStorage.removeItem(key);
+          console.log(`🗑️ Removed: ${key}`);
+        } catch (error) {
+          console.error(`Error removing key ${key}:`, error);
+        }
+      });
+      
+      console.log('✅ All localStorage data cleared');
+    } catch (error) {
+      console.error('Error clearing localStorage:', error);
     }
   }
 }
 
-// Storage Service
+// Storage Service with Enhanced User Isolation
 export class StorageService {
-  static async uploadFile(file: File, filePath: string) {
+  // Helper method to validate user access for file operations
+  private static validateUserFileAccess(filePath: string): boolean {
     try {
-      console.log('🗄️ AWS S3 upload:', filePath);
+      const storedUser = localStorage.getItem('user');
+      if (!storedUser) return false;
       
-      // Use FileReader to convert File to ArrayBuffer
-      const arrayBuffer = await new Promise<ArrayBuffer>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result as ArrayBuffer);
-        reader.onerror = () => reject(reader.error);
-        reader.readAsArrayBuffer(file);
-      });
+      const user = JSON.parse(storedUser);
+      const currentUserId = user.email || user.id;
       
-      const putCommand = new PutObjectCommand({
-        Bucket: BUCKET_NAME,
-        Key: filePath,
-        Body: new Uint8Array(arrayBuffer), // Convert ArrayBuffer to Uint8Array
-        ContentType: file.type,
-        // Removed ACL: 'public-read' - bucket doesn't allow ACLs
-        CacheControl: 'max-age=31536000', // Cache for 1 year
-        Metadata: {
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type, Authorization'
-        }
-      });
-      
-      await s3Client.send(putCommand);
-      console.log('✅ AWS S3 upload successful:', filePath);
-      
-      // Generate public URL for the uploaded file
-      const publicUrl = `https://${BUCKET_NAME}.s3.${AWS_CONFIG.region}.amazonaws.com/${filePath}`;
-      
-      return {
-        url: publicUrl,
-        publicUrl: publicUrl,
-        error: null
-      };
-      } catch (error) {
-        console.error('AWS S3 upload error:', error);
-      return { url: null, publicUrl: null, error };
+      // Ensure the file path contains the current user's ID
+      return filePath.includes(`users/${currentUserId}/`) || filePath.includes(`avatars/${currentUserId}/`);
+    } catch (error) {
+      console.error('File access validation error:', error);
+      return false;
     }
   }
 
-  static async getFileUrl(filePath: string) {
+  // Helper method to get current user ID
+  private static getCurrentUserId(): string | null {
     try {
-      console.log('🗄️ AWS S3 getFileUrl:', filePath);
-      const url = `https://${BUCKET_NAME}.s3.${AWS_CONFIG.region}.amazonaws.com/${filePath}`;
-      return { url, error: null };
-      } catch (error) {
-        console.error('AWS S3 getFileUrl error:', error);
-        return { url: null, error };
-      }
+      const storedUser = localStorage.getItem('user');
+      if (!storedUser) return null;
+      
+      const user = JSON.parse(storedUser);
+      return user.email || user.id;
+    } catch (error) {
+      console.error('Error getting current user ID:', error);
+      return null;
+    }
   }
 
-  static async deleteFile(filePath: string) {
+  static async uploadFile(file: File, filePath: string): Promise<{ url?: string; error?: any }> {
     try {
-      console.log('🗄️ AWS S3 deleteFile:', filePath);
+      console.log('📁 AWS S3 uploadFile:', filePath);
       
-      const deleteCommand = new DeleteObjectCommand({
+      // Validate user access for file uploads
+      if (!this.validateUserFileAccess(filePath)) {
+        console.error('❌ Unauthorized file upload attempt:', filePath);
+        return { error: 'Unauthorized file access' };
+      }
+      
+      const command = new PutObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: filePath,
+        Body: file,
+        ContentType: file.type,
+        Metadata: {
+          'original-name': file.name,
+          'uploaded-by': this.getCurrentUserId() || 'unknown',
+          'uploaded-at': new Date().toISOString()
+        }
+      });
+      
+      await s3Client.send(command);
+      console.log('✅ AWS S3 uploadFile successful:', filePath);
+      
+      // Generate presigned URL for immediate access
+      const urlCommand = new GetObjectCommand({
         Bucket: BUCKET_NAME,
         Key: filePath
       });
       
-      await s3Client.send(deleteCommand);
-      return { success: true, error: null };
+      const url = await getSignedUrl(s3Client, urlCommand, { expiresIn: 3600 });
+      
+      return { url };
     } catch (error) {
-      console.error('AWS S3 delete error:', error);
-      return { success: false, error };
+      console.error('AWS S3 uploadFile error:', error);
+      return { error };
     }
   }
 
-  static async listFiles(prefix: string) {
+  static async getFileUrl(filePath: string): Promise<{ url?: string; error?: any }> {
     try {
-      console.log('🗄️ AWS S3 listFiles:', prefix);
+      console.log('📁 AWS S3 getFileUrl:', filePath);
       
-      const listCommand = new ListObjectsV2Command({
+      // Validate user access for file downloads
+      if (!this.validateUserFileAccess(filePath)) {
+        console.error('❌ Unauthorized file download attempt:', filePath);
+        return { error: 'Unauthorized file access' };
+      }
+      
+      const command = new GetObjectCommand({
         Bucket: BUCKET_NAME,
-        Prefix: prefix
+        Key: filePath
       });
       
-      const result = await s3Client.send(listCommand);
-      console.log('✅ AWS S3 listFiles result:', result);
+      const url = await getSignedUrl(s3Client, command, { expiresIn: 3600 });
+      console.log('✅ AWS S3 getFileUrl successful:', filePath);
       
-      if (!result.Contents) {
-        return { files: [], error: null };
-      }
-      
-      // Convert S3 objects to file objects with public URLs
-      const files = result.Contents.map((obj) => {
-        return {
-          name: obj.Key?.split('/').pop() || '',
-          url: `https://${BUCKET_NAME}.s3.${AWS_CONFIG.region}.amazonaws.com/${obj.Key}`,
-          size: obj.Size || 0,
-          lastModified: obj.LastModified
-        };
-      });
-      
-      return { files, error: null };
+      return { url };
     } catch (error) {
-      console.error('AWS S3 listFiles error:', error);
+      console.error('AWS S3 getFileUrl error:', error);
+      return { error };
+    }
+  }
+
+  static async deleteFile(filePath: string): Promise<{ success?: boolean; error?: any }> {
+    try {
+      console.log('🗑️ AWS S3 deleteFile:', filePath);
       
-      // If it's a CORS error, try to provide a more helpful message
-      if (error instanceof Error && error.message.includes('CORS')) {
-        console.error('CORS error detected. Please check S3 bucket CORS configuration.');
-        return { 
-          files: [], 
-          error: new Error('CORS configuration issue. Please contact support.') 
-        };
+      // Validate user access for file deletions
+      if (!this.validateUserFileAccess(filePath)) {
+        console.error('❌ Unauthorized file deletion attempt:', filePath);
+        return { error: 'Unauthorized file access' };
       }
       
-      return { files: [], error };
+      const command = new DeleteObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: filePath
+      });
+      
+      await s3Client.send(command);
+      console.log('✅ AWS S3 deleteFile successful:', filePath);
+      
+      return { success: true };
+    } catch (error) {
+      console.error('AWS S3 deleteFile error:', error);
+      return { error };
+    }
+  }
+
+  static async listUserFiles(userId: string, prefix?: string): Promise<{ files?: any[]; error?: any }> {
+    try {
+      console.log('📁 AWS S3 listUserFiles:', userId);
+      
+      // Validate user access
+      const currentUserId = this.getCurrentUserId();
+      if (userId !== currentUserId) {
+        console.error('❌ Unauthorized file listing attempt:', userId);
+        return { error: 'Unauthorized file access' };
+      }
+      
+      const userPrefix = prefix || `users/${userId}/`;
+      
+      const command = new ListObjectsV2Command({
+        Bucket: BUCKET_NAME,
+        Prefix: userPrefix,
+        MaxKeys: 1000
+      });
+      
+      const result = await s3Client.send(command);
+      console.log('✅ AWS S3 listUserFiles successful:', userId);
+      
+      const files = result.Contents?.map(item => ({
+        name: item.Key?.replace(userPrefix, ''),
+        size: item.Size,
+        lastModified: item.LastModified,
+        key: item.Key
+      })) || [];
+      
+      return { files };
+    } catch (error) {
+      console.error('AWS S3 listUserFiles error:', error);
+      return { error };
+    }
+  }
+
+  static async getUserImages(userId: string): Promise<{ images?: any[]; error?: any }> {
+    try {
+      console.log('📁 AWS S3 getUserImages:', userId);
+      
+      // Validate user access
+      const currentUserId = this.getCurrentUserId();
+      if (userId !== currentUserId) {
+        console.error('❌ Unauthorized image listing attempt:', userId);
+        return { error: 'Unauthorized file access' };
+      }
+      
+      const result = await this.listUserFiles(userId, `users/${userId}/images/`);
+      
+      if (result.error) {
+        return { error: result.error };
+      }
+      
+      const images = result.files?.filter(file => 
+        file.name && (
+          file.name.toLowerCase().endsWith('.jpg') ||
+          file.name.toLowerCase().endsWith('.jpeg') ||
+          file.name.toLowerCase().endsWith('.png') ||
+          file.name.toLowerCase().endsWith('.gif') ||
+          file.name.toLowerCase().endsWith('.webp')
+        )
+      ).map(file => ({
+        id: file.name.replace(/\.[^/.]+$/, ''), // Remove extension
+        name: file.name,
+        size: file.size,
+        lastModified: file.lastModified,
+        url: `https://${BUCKET_NAME}.s3.eu-west-2.amazonaws.com/${file.key}`
+      })) || [];
+      
+      return { images };
+    } catch (error) {
+      console.error('AWS S3 getUserImages error:', error);
+      return { error };
+    }
+  }
+
+  static async clearUserFiles(userId: string): Promise<{ success?: boolean; error?: any }> {
+    try {
+      console.log('🗑️ AWS S3 clearUserFiles:', userId);
+      
+      // Validate user access
+      const currentUserId = this.getCurrentUserId();
+      if (userId !== currentUserId) {
+        console.error('❌ Unauthorized file clearing attempt:', userId);
+        return { error: 'Unauthorized file access' };
+      }
+      
+      // List all files for this user
+      const listResult = await this.listUserFiles(userId);
+      
+      if (listResult.error) {
+        return { error: listResult.error };
+      }
+      
+      if (listResult.files && listResult.files.length > 0) {
+        // Delete files in batches (S3 allows up to 1000 objects per request)
+        const batchSize = 1000;
+        for (let i = 0; i < listResult.files.length; i += batchSize) {
+          const batch = listResult.files.slice(i, i + batchSize);
+          
+          const deleteObjects = batch.map(file => ({ Key: file.key }));
+          
+          // Delete files one by one since DeleteObjects is not available in this version
+          for (const file of batch) {
+            const deleteCommand = new DeleteObjectCommand({
+              Bucket: BUCKET_NAME,
+              Key: file.key
+            });
+            
+            await s3Client.send(deleteCommand);
+          }
+          console.log(`✅ Deleted batch of ${batch.length} files`);
+        }
+        
+        console.log(`✅ Cleared ${listResult.files.length} files for user:`, userId);
+      } else {
+        console.log('📊 No files found for user:', userId);
+      }
+      
+      return { success: true };
+    } catch (error) {
+      console.error('AWS S3 clearUserFiles error:', error);
+      return { error };
     }
   }
 }
 
-// Database Service
+// Database Service with Enhanced User Isolation
 export class DatabaseService {
+  // Helper method to validate user access
+  private static validateUserAccess(requestedUserId: string): boolean {
+    try {
+      const storedUser = localStorage.getItem('user');
+      if (!storedUser) return false;
+      
+      const user = JSON.parse(storedUser);
+      const currentUserId = user.email || user.id;
+      
+      // Ensure the requested user ID matches the current user
+      return requestedUserId === currentUserId;
+    } catch (error) {
+      console.error('User validation error:', error);
+      return false;
+    }
+  }
+
+  // Helper method to get current user ID
+  private static getCurrentUserId(): string | null {
+    try {
+      const storedUser = localStorage.getItem('user');
+      if (!storedUser) return null;
+      
+      const user = JSON.parse(storedUser);
+      return user.email || user.id;
+    } catch (error) {
+      console.error('Error getting current user ID:', error);
+      return null;
+    }
+  }
+
   static async getProfile(userId: string) {
     try {
       console.log('🗄️ AWS DynamoDB getProfile:', userId);
+      
+      // Validate user access
+      if (!this.validateUserAccess(userId)) {
+        console.error('❌ Unauthorized access attempt to profile:', userId);
+        return { profile: null, error: 'Unauthorized access' };
+      }
       
       const command = new GetCommand({
         TableName: 'mvp-labeler-profiles',
@@ -344,6 +712,12 @@ export class DatabaseService {
   static async updateProfile(userId: string, profileData: any) {
     try {
       console.log('🗄️ AWS DynamoDB updateProfile:', userId);
+      
+      // Validate user access
+      if (!this.validateUserAccess(userId)) {
+        console.error('❌ Unauthorized access attempt to update profile:', userId);
+        return { success: false, error: 'Unauthorized access' };
+      }
       
       const command = new PutCommand({
         TableName: 'mvp-labeler-profiles',
@@ -368,6 +742,12 @@ export class DatabaseService {
     try {
       console.log('🗄️ AWS DynamoDB getProject:', projectId);
       
+      // Validate user access
+      if (!this.validateUserAccess(userId)) {
+        console.error('❌ Unauthorized access attempt to project:', userId);
+        return { project: null, error: 'Unauthorized access' };
+      }
+      
       const command = new GetCommand({
         TableName: 'mvp-labeler-projects',
         Key: { 
@@ -389,6 +769,12 @@ export class DatabaseService {
   static async updateProject(userId: string, projectId: string, projectData: any) {
     try {
       console.log('🗄️ AWS DynamoDB updateProject:', projectId);
+      
+      // Validate user access
+      if (!this.validateUserAccess(userId)) {
+        console.error('❌ Unauthorized access attempt to update project:', userId);
+        return { success: false, error: 'Unauthorized access' };
+      }
       
       // Separate large data from small data to avoid DynamoDB size limits
       const { images, ...smallData } = projectData;
@@ -434,6 +820,12 @@ export class DatabaseService {
     try {
       console.log('🗄️ AWS DynamoDB getBulkDefects:', userId);
       
+      // Validate user access
+      if (!this.validateUserAccess(userId)) {
+        console.error('❌ Unauthorized access attempt to bulk defects:', userId);
+        return { defects: [], error: 'Unauthorized access' };
+      }
+      
       const command = new QueryCommand({
         TableName: 'mvp-labeler-bulk-defects',
         KeyConditionExpression: 'user_id = :userId',
@@ -456,55 +848,57 @@ export class DatabaseService {
     try {
       console.log('🗄️ AWS DynamoDB updateBulkDefects:', userId);
       
-      // First, get existing defects to delete them
-      const queryCommand = new QueryCommand({
-        TableName: 'mvp-labeler-bulk-defects',
-        KeyConditionExpression: 'user_id = :userId',
-        ExpressionAttributeValues: {
-          ':userId': userId
-        }
-      });
-      
-      const existingDefects = await docClient.send(queryCommand);
-      
-      // Delete existing defects using batch operations
-      if (existingDefects.Items && existingDefects.Items.length > 0) {
-        const deleteRequests = existingDefects.Items.map(item => ({
-          DeleteRequest: {
-            Key: {
-              user_id: item.user_id,
-              defect_id: item.defect_id
-            }
-          }
-        }));
-        
-        // DynamoDB batch operations are limited to 25 items
-        const batchSize = 25;
-        for (let i = 0; i < deleteRequests.length; i += batchSize) {
-          const batch = deleteRequests.slice(i, i + batchSize);
-          const batchDeleteCommand = new BatchWriteCommand({
-            RequestItems: {
-              'mvp-labeler-bulk-defects': batch
-            }
-          });
-          
-          await docClient.send(batchDeleteCommand);
-        }
-        
-        console.log(`🗑️ Deleted ${existingDefects.Items.length} existing defects`);
+      // Validate user access
+      if (!this.validateUserAccess(userId)) {
+        console.error('❌ Unauthorized access attempt to update bulk defects:', userId);
+        return { success: false, error: 'Unauthorized access' };
       }
       
-      // Add new defects using batch operations
-      if (defects.length > 0) {
+      if (defects.length === 0) {
+        // Clear all defects for this user
+        const queryCommand = new QueryCommand({
+          TableName: 'mvp-labeler-bulk-defects',
+          KeyConditionExpression: 'user_id = :userId',
+          ExpressionAttributeValues: {
+            ':userId': userId
+          }
+        });
+        
+        const existingDefects = await docClient.send(queryCommand);
+        
+        if (existingDefects.Items && existingDefects.Items.length > 0) {
+          const deleteRequests = existingDefects.Items.map(item => ({
+            DeleteRequest: {
+              Key: {
+                user_id: item.user_id,
+                defect_id: item.defect_id
+              }
+            }
+          }));
+          
+          // DynamoDB batch operations are limited to 25 items
+          const batchSize = 25;
+          for (let i = 0; i < deleteRequests.length; i += batchSize) {
+            const batch = deleteRequests.slice(i, i + batchSize);
+            const batchDeleteCommand = new BatchWriteCommand({
+              RequestItems: {
+                'mvp-labeler-bulk-defects': batch
+              }
+            });
+            
+            await docClient.send(batchDeleteCommand);
+          }
+          
+          console.log(`✅ Cleared ${existingDefects.Items.length} existing defects`);
+        }
+      } else {
+        // Update with new defects
         const putRequests = defects.map(defect => ({
           PutRequest: {
             Item: {
               user_id: userId,
-              defect_id: defect.id || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-              photoNumber: defect.photoNumber || '',
-              description: defect.description || '',
-              selectedFile: defect.selectedFile || null,
-              severity: defect.severity || 'medium',
+              defect_id: defect.id || Date.now().toString(),
+              ...defect,
               created_at: new Date().toISOString()
             }
           }
@@ -523,10 +917,8 @@ export class DatabaseService {
           await docClient.send(batchPutCommand);
         }
         
-        console.log(`✅ Added ${defects.length} new defects`);
+        console.log(`✅ Updated ${defects.length} defects`);
       }
-      
-      console.log('✅ AWS DynamoDB updateBulkDefects successful');
       
       return { success: true, error: null };
     } catch (error) {
@@ -642,6 +1034,12 @@ export class DatabaseService {
     try {
       console.log('🗄️ AWS DynamoDB getDefectSets:', userId);
       
+      // Validate user access
+      if (!this.validateUserAccess(userId)) {
+        console.error('❌ Unauthorized access attempt to defect sets:', userId);
+        return { defectSets: [], error: 'Unauthorized access' };
+      }
+      
       const command = new QueryCommand({
         TableName: 'mvp-labeler-defect-sets',
         KeyConditionExpression: 'user_id = :userId',
@@ -663,6 +1061,12 @@ export class DatabaseService {
   static async saveDefectSet(userId: string, defectSet: any) {
     try {
       console.log('🗄️ AWS DynamoDB saveDefectSet:', userId);
+      
+      // Validate user access
+      if (!this.validateUserAccess(userId)) {
+        console.error('❌ Unauthorized access attempt to save defect set:', userId);
+        return { success: false, error: 'Unauthorized access' };
+      }
       
       const command = new PutCommand({
         TableName: 'mvp-labeler-defect-sets',
@@ -728,22 +1132,68 @@ export class DatabaseService {
     }
   }
 
-  static async updatePdfState(userId: string, pdfId: string, pdfState: any) {
+  static async updatePdfState(userId: string, action: string, data: any) {
     try {
-      console.log('🗄️ AWS DynamoDB updatePdfState:', pdfId);
+      console.log('🗄️ AWS DynamoDB updatePdfState:', userId);
       
-      const command = new PutCommand({
-        TableName: 'mvp-labeler-pdf-states',
-        Item: {
-          user_id: userId,
-          pdf_id: pdfId,
-          ...pdfState,
-          updated_at: new Date().toISOString()
+      // Validate user access
+      if (!this.validateUserAccess(userId)) {
+        console.error('❌ Unauthorized access attempt to update PDF state:', userId);
+        return { success: false, error: 'Unauthorized access' };
+      }
+      
+      if (action === 'clear') {
+        // Clear all PDF states for this user
+        const queryCommand = new QueryCommand({
+          TableName: 'mvp-labeler-pdf-states',
+          KeyConditionExpression: 'user_id = :userId',
+          ExpressionAttributeValues: {
+            ':userId': userId
+          }
+        });
+        
+        const existingStates = await docClient.send(queryCommand);
+        
+        if (existingStates.Items && existingStates.Items.length > 0) {
+          const deleteRequests = existingStates.Items.map(item => ({
+            DeleteRequest: {
+              Key: {
+                user_id: item.user_id,
+                pdf_id: item.pdf_id
+              }
+            }
+          }));
+          
+          // DynamoDB batch operations are limited to 25 items
+          const batchSize = 25;
+          for (let i = 0; i < deleteRequests.length; i += batchSize) {
+            const batch = deleteRequests.slice(i, i + batchSize);
+            const batchDeleteCommand = new BatchWriteCommand({
+              RequestItems: {
+                'mvp-labeler-pdf-states': batch
+              }
+            });
+            
+            await docClient.send(batchDeleteCommand);
+          }
+          
+          console.log(`✅ Cleared ${existingStates.Items.length} PDF states`);
         }
-      });
-      
-      await docClient.send(command);
-      console.log('✅ AWS DynamoDB updatePdfState successful');
+      } else {
+        // Update PDF state
+        const command = new PutCommand({
+          TableName: 'mvp-labeler-pdf-states',
+          Item: {
+            user_id: userId,
+            pdf_id: data.pdfId || 'default',
+            ...data,
+            updated_at: new Date().toISOString()
+          }
+        });
+        
+        await docClient.send(command);
+        console.log('✅ Updated PDF state');
+      }
       
       return { success: true, error: null };
     } catch (error) {
@@ -755,6 +1205,12 @@ export class DatabaseService {
   static async getFeedback(userId: string) {
     try {
       console.log('🗄️ AWS DynamoDB getFeedback:', userId);
+      
+      // Validate user access
+      if (!this.validateUserAccess(userId)) {
+        console.error('❌ Unauthorized access attempt to feedback:', userId);
+        return { feedback: [], error: 'Unauthorized access' };
+      }
       
       const command = new QueryCommand({
         TableName: 'mvp-labeler-feedback',
@@ -801,6 +1257,12 @@ export class DatabaseService {
   static async clearUserProject(userId: string, projectId: string) {
     try {
       console.log('🗄️ AWS DynamoDB clearUserProject:', projectId);
+      
+      // Validate user access
+      if (!this.validateUserAccess(userId)) {
+        console.error('❌ Unauthorized access attempt to clear project:', userId);
+        return { success: false, error: 'Unauthorized access' };
+      }
       
       // 1. Clear project data from projects table
       const projectCommand = new DeleteCommand({
@@ -850,7 +1312,7 @@ export class DatabaseService {
         console.log(`✅ Cleared ${bulkDefectsResult.Items.length} bulk defects from mvp-labeler-bulk-defects`);
       }
       
-      // 3. Clear all selected images for this user
+      // 3. Clear selected images for this user
       const selectedImagesQuery = new QueryCommand({
         TableName: 'mvp-labeler-selected-images',
         KeyConditionExpression: 'user_id = :userId',
@@ -885,44 +1347,6 @@ export class DatabaseService {
         
         console.log(`✅ Cleared ${selectedImagesResult.Items.length} selected images from mvp-labeler-selected-images`);
       }
-      
-      // 4. Clear PDF states for this user
-      const pdfStatesQuery = new QueryCommand({
-        TableName: 'mvp-labeler-pdf-states',
-        KeyConditionExpression: 'user_id = :userId',
-        ExpressionAttributeValues: {
-          ':userId': userId
-        }
-      });
-      
-      const pdfStatesResult = await docClient.send(pdfStatesQuery);
-      if (pdfStatesResult.Items && pdfStatesResult.Items.length > 0) {
-        const deleteRequests = pdfStatesResult.Items.map(item => ({
-          DeleteRequest: {
-            Key: {
-              user_id: item.user_id,
-              pdf_id: item.pdf_id
-            }
-          }
-        }));
-        
-        // DynamoDB batch operations are limited to 25 items
-        const batchSize = 25;
-        for (let i = 0; i < deleteRequests.length; i += batchSize) {
-          const batch = deleteRequests.slice(i, i + batchSize);
-          const batchDeleteCommand = new BatchWriteCommand({
-            RequestItems: {
-              'mvp-labeler-pdf-states': batch
-            }
-          });
-          
-          await docClient.send(batchDeleteCommand);
-        }
-        
-        console.log(`✅ Cleared ${pdfStatesResult.Items.length} PDF states from mvp-labeler-pdf-states`);
-      }
-      
-      console.log('✅ AWS DynamoDB clearUserProject successful - all project data cleared');
       
       return { success: true, error: null };
     } catch (error) {

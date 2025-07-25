@@ -2,17 +2,9 @@ import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { useAuthStore } from './store/authStore';
-import { LoginScreen } from './components/LoginScreen';
 import MainApp from './pages/MainApp';
 import { LandingPage } from './pages/LandingPage';
-import { FeedbackAdmin } from './pages/FeedbackAdmin';
-import { CalculatorPage } from './pages/calculator.page';
-import { GamesPage } from './pages/games.page';
-import { GridReferenceFinderPage } from './pages/grid.page';
-import { PDFViewerPage } from './pages/pdf.page';
-import { ProjectsPage } from './pages/projects.pages';
-import { SubscriptionPage } from './pages/subscription.page';
-import './index.css';
+import { SessionMonitor } from './components/SessionMonitor';
 
 // Error Boundary Component
 class ErrorBoundary extends React.Component<
@@ -80,6 +72,7 @@ function App() {
       <Router>
         <div className="App">
           <Toaster position="top-right" />
+          <SessionMonitor />
           <Routes>
             <Route path="/" element={
               isAuthenticated === null ? (
@@ -96,18 +89,16 @@ function App() {
                 <LandingPage />
               )
             } />
-            <Route path="/login" element={<LoginScreen />} />
+            <Route path="/login" element={<MainApp />} />
             <Route path="/app" element={<MainApp />} />
             <Route path="/dashboard" element={<MainApp />} />
             <Route path="/subscriptions" element={<MainApp />} />
             <Route path="/bcmi" element={<MainApp />} />
-            <Route path="/feedback-admin" element={<FeedbackAdmin />} />
-            <Route path="/calculator" element={<CalculatorPage />} />
-            <Route path="/games" element={<GamesPage />} />
-            <Route path="/grid" element={<GridReferenceFinderPage />} />
-            <Route path="/pdf" element={<PDFViewerPage />} />
-            <Route path="/projects" element={<ProjectsPage />} />
-            <Route path="/subscription" element={<SubscriptionPage />} />
+            <Route path="/feedback-admin" element={<MainApp />} />
+            <Route path="/calculator" element={<MainApp />} />
+            <Route path="/games" element={<MainApp />} />
+            <Route path="/grid" element={<MainApp />} />
+            <Route path="/pdf" element={<MainApp />} />
           </Routes>
         </div>
       </Router>
