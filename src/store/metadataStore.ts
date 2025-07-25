@@ -358,7 +358,8 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         if (state.defectSortDirection === 'asc') {
           newSelected = new Set([id, ...newSelected]);
         } else if (state.defectSortDirection === 'desc') {
-          newSelected = new Set([...newSelected, id]);
+          // For high to low, add to the beginning so it appears at top-left
+          newSelected = new Set([id, ...newSelected]);
         } else {
           // No sort direction, just add to the end
           newSelected.add(id);

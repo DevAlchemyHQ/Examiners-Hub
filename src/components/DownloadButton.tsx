@@ -235,52 +235,7 @@ export const DownloadButton: React.FC = () => {
         </button>
       )}
 
-      {/* Only one error message below the button, show only the first error */}
-      {viewMode === 'bulk' && !isBulkValid() && (
-        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 mt-2">
-          <div className="flex items-start gap-2 text-amber-700 dark:text-amber-400">
-            <AlertCircle size={16} className="mt-0.5 flex-shrink-0" />
-            <div className="text-sm">
-              <p className="font-medium mb-1">Please complete the following:</p>
-              <ul className="list-disc list-inside space-y-1">
-                <li>{getBulkValidationErrors()[0]}</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Error message for images mode */}
-      {viewMode === 'images' && !isValid() && (
-        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 mt-2">
-          <div className="flex items-start gap-2 text-amber-700 dark:text-amber-400">
-            <AlertCircle size={16} className="mt-0.5 flex-shrink-0" />
-            <div className="text-sm">
-                  <p className="font-medium mb-1">Please complete the following:</p>
-                  <ul className="list-disc list-inside space-y-1">
-                <li>{getValidationErrors()[0]}</li>
-                  </ul>
-            </div>
-          </div>
-        </div>
-              )}
-
-      {/* Success message for bulk mode */}
-      {viewMode === 'bulk' && isBulkValid() && !isDownloading && (
-        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-3">
-          <div className="flex items-start gap-2 text-green-700 dark:text-green-400">
-            <CheckCircle size={16} className="mt-0.5 flex-shrink-0" />
-            <div className="text-sm">
-              <p className="font-medium">Ready to download!</p>
-              <p className="text-xs mt-1 opacity-75">
-                {getValidationSummary().totalDefects} defects ready for download
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Warning message for bulk mode when some defects are incomplete */}
+      {/* Error messages - consolidated to prevent duplicates */}
       {viewMode === 'bulk' && !isBulkValid() && !isDownloading && (
         <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 mt-2">
           <div className="flex items-start gap-2 text-amber-700 dark:text-amber-400">
@@ -295,6 +250,36 @@ export const DownloadButton: React.FC = () => {
                   <li>... and {getBulkValidationErrors().length - 3} more issues</li>
                 )}
               </ul>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Error message for images mode */}
+      {viewMode === 'images' && !isValid() && (
+        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 mt-2">
+          <div className="flex items-start gap-2 text-amber-700 dark:text-amber-400">
+            <AlertCircle size={16} className="mt-0.5 flex-shrink-0" />
+            <div className="text-sm">
+              <p className="font-medium mb-1">Please complete the following:</p>
+              <ul className="list-disc list-inside space-y-1">
+                <li>{getValidationErrors()[0]}</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Success message for bulk mode */}
+      {viewMode === 'bulk' && isBulkValid() && !isDownloading && (
+        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-3">
+          <div className="flex items-start gap-2 text-green-700 dark:text-green-400">
+            <CheckCircle size={16} className="mt-0.5 flex-shrink-0" />
+            <div className="text-sm">
+              <p className="font-medium">Ready to download!</p>
+              <p className="text-xs mt-1 opacity-75">
+                {getValidationSummary().totalDefects} defects ready for download
+              </p>
             </div>
           </div>
         </div>

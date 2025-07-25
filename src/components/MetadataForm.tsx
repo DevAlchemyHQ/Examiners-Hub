@@ -12,11 +12,34 @@ export const MetadataForm: React.FC = () => {
 
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
-    const [year] = value.split('-');
-    if (year) {
-      const yearNum = parseInt(year);
-      if (yearNum < 1900 || yearNum > 9999) return;
+    if (!value) return;
+    
+    // If the value is a complete date (YYYY-MM-DD format)
+    if (value.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      setFormData({ date: value });
+      return;
     }
+    
+    // If user is typing and we have a previous date, preserve month/day
+    if (formData.date && value.length < 10) {
+      const currentDate = new Date(formData.date);
+      const [year] = value.split('-');
+      
+      if (year && year.length === 4) {
+        const yearNum = parseInt(year);
+        if (yearNum >= 1900 && yearNum <= 9999) {
+          // Preserve month and day from current date
+          const month = currentDate.getMonth();
+          const day = currentDate.getDate();
+          const newDate = new Date(yearNum, month, day);
+          const formattedDate = newDate.toISOString().split('T')[0];
+          setFormData({ date: formattedDate });
+          return;
+        }
+      }
+    }
+    
+    // Default behavior for complete dates
     setFormData({ date: value });
   };
 

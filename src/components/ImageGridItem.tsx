@@ -114,7 +114,7 @@ export const ImageGridItem: React.FC<ImageGridItemProps> = ({ images, gridWidth 
   return (
     <>
       <div 
-        className="h-full overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 relative p-2"
+        className="h-full overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 relative p-2 flex flex-col"
         style={{ 
           overscrollBehavior: 'contain',
           WebkitOverflowScrolling: 'touch'
@@ -124,8 +124,10 @@ export const ImageGridItem: React.FC<ImageGridItemProps> = ({ images, gridWidth 
           className="grid gap-2"
           style={{
             gridTemplateColumns: `repeat(${gridWidth}, 1fr)`,
-                }}
-              >
+            minHeight: '100%',
+            alignContent: 'start'
+          }}
+        >
           {images.map((img, index) => {
                   const isSelected = selections.has(img.id);
                   const defectNumbers = getDefectNumbers(img);

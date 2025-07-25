@@ -259,6 +259,8 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
   // Save defect set to localStorage and AWS
   const handleSaveDefectSet = async () => {
     try {
+      console.log('💾 Manual save defect set triggered');
+      
       // Validate project details
       if (!formData.elr?.trim()) {
         toast.error('Please enter the ELR before saving.');
@@ -274,6 +276,13 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
       }
 
       const title = getDefectSetTitle();
+      console.log('📋 Saving defect set:', title);
+      console.log('📊 Data to save:', {
+        defects: bulkDefects.length,
+        selectedImages: selectedImages.size,
+        formData
+      });
+      
       const data = {
         defects: bulkDefects,
         selectedImages: Array.from(selectedImages),
@@ -291,12 +300,15 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
       
       // Use the auto-save function
       await autoSaveDefectSet(formData, bulkDefects, selectedImages, images);
-      toast.success(`Defect set '${title}' auto-saved!`);
+      console.log('✅ Auto-save completed');
+      
+      toast.success(`Defect set '${title}' saved successfully!`);
       
       // Refresh the saved sets list
       await handleShowLoadTray();
+      console.log('✅ Load tray refreshed');
     } catch (error) {
-      console.error('Error saving defect set:', error);
+      console.error('❌ Error saving defect set:', error);
       toast.error('Failed to save defect set. Please try again.');
     }
   };
@@ -586,8 +598,14 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
         </div>
       </div>
       
-      <div className="flex-1 overflow-hidden">
-        {viewMode === 'images' ? (
+      <div className="flex-1 overflow-hidden relative">
+        <div 
+          className={`absolute inset-0 transition-all duration-300 ease-in-out ${
+            viewMode === 'images' 
+              ? 'opacity-100 translate-x-0' 
+              : 'opacity-0 -translate-x-4 pointer-events-none'
+          }`}
+        >
           <div 
             className="h-full overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600"
             style={{ 
@@ -721,13 +739,29 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
               )}
             </div>
           </div>
-        ) : viewMode === 'bulk' ? (
+        </div>
+        
+        <div 
+          className={`absolute inset-0 transition-all duration-300 ease-in-out ${
+            viewMode === 'bulk' 
+              ? 'opacity-100 translate-x-0' 
+              : 'opacity-0 translate-x-4 pointer-events-none'
+          }`}
+        >
           <BulkTextInput isExpanded={isExpanded} />
-        ) : (
+        </div>
+        
+        <div 
+          className={`absolute inset-0 transition-all duration-300 ease-in-out ${
+            viewMode === 'text' 
+              ? 'opacity-100 translate-x-0' 
+              : 'opacity-0 translate-x-4 pointer-events-none'
+          }`}
+        >
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm h-[calc(100vh-96px)] flex items-center justify-center p-8 text-slate-400 dark:text-gray-500">
             Coming Soon!
           </div>
-        )}
+        </div>
 
         {/* ImageZoom positioned within the panel */}
       {enlargedImage && (
