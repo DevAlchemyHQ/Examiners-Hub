@@ -13,7 +13,7 @@ interface DefectTileProps {
   onDelete: () => void;
   onDescriptionChange: (value: string) => void;
   onFileChange: (fileName: string) => void;
-  onPhotoNumberChange: (oldNumber: string, newNumber: string) => void;
+  onPhotoNumberChange: (defectId: string, oldNumber: string, newNumber: string) => void;
   isExpanded?: boolean;
   showImages?: boolean;
   images?: any[];
@@ -90,7 +90,7 @@ export const DefectTile: React.FC<DefectTileProps> = ({
   const handleNumberBlur = () => {
     setIsEditing(false);
     // Always propagate the change, even if the number is empty
-    onPhotoNumberChange(photoNumber, localPhotoNumber);
+    onPhotoNumberChange(id, photoNumber, localPhotoNumber);
   };
 
   const handleNumberFocus = () => {

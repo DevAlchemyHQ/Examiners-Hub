@@ -21,6 +21,12 @@ export const useBulkValidation = () => {
       errors.push(`Select images for ${defectsWithoutImages.length} defect${defectsWithoutImages.length !== 1 ? 's' : ''}`);
     }
 
+    // Check for missing photo numbers
+    const defectsWithoutPhotoNumbers = bulkDefects.filter(defect => !defect.photoNumber?.trim());
+    if (defectsWithoutPhotoNumbers.length > 0) {
+      errors.push(`Add photo numbers for ${defectsWithoutPhotoNumbers.length} defect${defectsWithoutPhotoNumbers.length !== 1 ? 's' : ''}`);
+    }
+
     // Check for duplicate photo numbers
     const photoNumbers = bulkDefects.map(defect => defect.photoNumber?.trim()).filter(Boolean);
     const duplicatePhotoNumbers = photoNumbers.filter((number, index) => photoNumbers.indexOf(number) !== index);

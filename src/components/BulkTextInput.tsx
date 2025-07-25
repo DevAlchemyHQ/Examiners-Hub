@@ -444,7 +444,7 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean }> = ({ isExpanded =
     });
   };
 
-  const handlePhotoNumberChange = (oldNumber: string, newNumber: string) => {
+  const handlePhotoNumberChange = (defectId: string, oldNumber: string, newNumber: string) => {
     try {
       // DO NOT return early if newNumber is empty!
       // Allow numbers followed by optional letters
@@ -453,12 +453,13 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean }> = ({ isExpanded =
         return;
       }
 
-      // Check for duplicates using ID to ensure we don't match the current defect
-      const currentDefect = bulkDefects.find(d => d.photoNumber === oldNumber);
+      // Find the defect by its unique ID
+      const currentDefect = bulkDefects.find(d => d.id === defectId);
       if (!currentDefect) return;
 
+      // Check for duplicates, excluding the current defect by ID
       const isDuplicate = bulkDefects.some(d => 
-        d.photoNumber === newNumber && d.id !== currentDefect.id
+        d.photoNumber === newNumber && d.id !== defectId
       );
 
       if (isDuplicate) {
@@ -468,7 +469,7 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean }> = ({ isExpanded =
 
       setBulkDefects(prevDefects => 
         prevDefects.map(defect => 
-          defect.id === currentDefect.id 
+          defect.id === defectId 
             ? { ...defect, photoNumber: newNumber }
             : defect
         )
@@ -715,7 +716,7 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean }> = ({ isExpanded =
                         onDelete={() => deleteDefect(defect.photoNumber)}
                         onDescriptionChange={(value) => updateDefectDescription(defect.photoNumber, value)}
                         onFileChange={(fileName) => handleFileSelect(defect.photoNumber, fileName)}
-                        onPhotoNumberChange={(oldNumber, newNumber) => handlePhotoNumberChange(oldNumber, newNumber)}
+                        onPhotoNumberChange={(oldNumber, newNumber) => handlePhotoNumberChange(defect.id || defect.photoNumber, oldNumber, newNumber)}
                         isExpanded={isExpanded}
                         showImages={showImages}
                         images={images}
@@ -837,7 +838,7 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean }> = ({ isExpanded =
                                   <input
                                     type="text"
                                     value={defect.photoNumber}
-                                    onChange={(e) => handlePhotoNumberChange(defect.photoNumber, e.target.value)}
+                                    onChange={(e) => handlePhotoNumberChange(defect.id || defect.photoNumber, defect.photoNumber, e.target.value)}
                                     className={`w-full p-2 text-sm border rounded-lg focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 
                                       bg-white/50 dark:bg-gray-800/50 text-slate-900 dark:text-white text-center
                                       ${!/^\d+[a-zA-Z]*$/.test(defect.photoNumber) && defect.photoNumber ? 'border-red-300 dark:border-red-600' : 
