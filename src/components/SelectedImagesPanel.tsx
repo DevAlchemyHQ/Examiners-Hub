@@ -560,7 +560,7 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
           <div className="flex p-1 bg-slate-100 dark:bg-gray-700 rounded-lg">
             <button
               onClick={() => setViewMode('images')}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-md transition-all ${
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-md ${
                 viewMode === 'images'
                   ? 'bg-white dark:bg-gray-600 text-indigo-600 dark:text-indigo-400 shadow-sm'
                   : 'text-slate-600 dark:text-gray-300 hover:text-slate-900 dark:hover:text-white'
@@ -571,7 +571,7 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
             </button>
             <button
               onClick={() => setViewMode('bulk')}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-md transition-all ${
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-md ${
                 viewMode === 'bulk'
                   ? 'bg-white dark:bg-gray-600 text-indigo-600 dark:text-indigo-400 shadow-sm'
                   : 'text-slate-600 dark:text-gray-300 hover:text-slate-900 dark:hover:text-white'
@@ -598,14 +598,8 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
         </div>
       </div>
       
-      <div className="flex-1 overflow-hidden relative">
-        <div 
-          className={`absolute inset-0 transition-all duration-300 ease-in-out ${
-            viewMode === 'images' 
-              ? 'opacity-100 translate-x-0' 
-              : 'opacity-0 -translate-x-4 pointer-events-none'
-          }`}
-        >
+      <div className="flex-1 overflow-hidden">
+        {viewMode === 'images' && (
           <div 
             className="h-full overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600"
             style={{ 
@@ -739,29 +733,17 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
               )}
             </div>
           </div>
-        </div>
+        )}
         
-        <div 
-          className={`absolute inset-0 transition-all duration-300 ease-in-out ${
-            viewMode === 'bulk' 
-              ? 'opacity-100 translate-x-0' 
-              : 'opacity-0 translate-x-4 pointer-events-none'
-          }`}
-        >
+        {viewMode === 'bulk' && (
           <BulkTextInput isExpanded={isExpanded} />
-        </div>
+        )}
         
-        <div 
-          className={`absolute inset-0 transition-all duration-300 ease-in-out ${
-            viewMode === 'text' 
-              ? 'opacity-100 translate-x-0' 
-              : 'opacity-0 translate-x-4 pointer-events-none'
-          }`}
-        >
+        {viewMode === 'text' && (
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm h-[calc(100vh-96px)] flex items-center justify-center p-8 text-slate-400 dark:text-gray-500">
             Coming Soon!
           </div>
-        </div>
+        )}
 
         {/* ImageZoom positioned within the panel */}
       {enlargedImage && (
