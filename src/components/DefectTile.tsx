@@ -14,6 +14,7 @@ interface DefectTileProps {
   onDescriptionChange: (value: string) => void;
   onFileChange: (fileName: string) => void;
   onPhotoNumberChange: (defectId: string, oldNumber: string, newNumber: string) => void;
+  onQuickAdd?: () => void;
   isExpanded?: boolean;
   showImages?: boolean;
   images?: any[];
@@ -31,6 +32,7 @@ export const DefectTile: React.FC<DefectTileProps> = ({
   onDescriptionChange,
   onFileChange,
   onPhotoNumberChange,
+  onQuickAdd,
   isExpanded = false,
   showImages = true,
   images = [],
@@ -457,12 +459,23 @@ export const DefectTile: React.FC<DefectTileProps> = ({
             </div>
           )}
         </div>
-        <button
-          onClick={onDelete}
-          className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-        >
-          <X size={16} />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={onDelete}
+            className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+          >
+            <X size={16} />
+          </button>
+          {onQuickAdd && (
+            <button
+              onClick={onQuickAdd}
+              className="p-1.5 text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg transition-colors"
+              title="Add defect below"
+            >
+              <Plus size={16} />
+            </button>
+          )}
+        </div>
       </div>
           </div>
         )}

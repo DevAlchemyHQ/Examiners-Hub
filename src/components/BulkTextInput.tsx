@@ -160,22 +160,30 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean }> = ({ isExpanded =
     }
   };
 
-  const addNewDefect = () => {
+  const addNewDefect = (afterIndex?: number) => {
     setBulkDefects(currentDefects => {
       // Find the highest numeric photo number
       const numbers = currentDefects
         .map(d => parseInt(d.photoNumber, 10))
         .filter(n => !isNaN(n));
       const nextNum = numbers.length > 0 ? Math.max(...numbers) + 1 : 1;
-      return [
-        ...currentDefects,
-        {
-          id: nanoid(),
-          photoNumber: String(nextNum),
-          description: '',
-          selectedFile: ''
-        }
-      ];
+      
+      const newDefect = {
+        id: nanoid(),
+        photoNumber: String(nextNum),
+        description: '',
+        selectedFile: ''
+      };
+
+      if (afterIndex !== undefined) {
+        // Insert after the specified index
+        const newDefects = [...currentDefects];
+        newDefects.splice(afterIndex + 1, 0, newDefect);
+        return newDefects;
+      } else {
+        // Add to the end
+        return [...currentDefects, newDefect];
+      }
     });
   };
 
@@ -705,7 +713,7 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean }> = ({ isExpanded =
                   strategy={verticalListSortingStrategy}
                 >
                   <div className="space-y-2">
-                    {bulkDefects.map((defect) => (
+                    {bulkDefects.map((defect, index) => (
                       <DefectTile
                         key={`defect-${defect.photoNumber}`}
                         id={defect.photoNumber}
@@ -717,6 +725,7 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean }> = ({ isExpanded =
                         onDescriptionChange={(value) => updateDefectDescription(defect.photoNumber, value)}
                         onFileChange={(fileName) => handleFileSelect(defect.photoNumber, fileName)}
                         onPhotoNumberChange={(oldNumber, newNumber) => handlePhotoNumberChange(defect.id || defect.photoNumber, oldNumber, newNumber)}
+                        onQuickAdd={() => addNewDefect(index)}
                         isExpanded={isExpanded}
                         showImages={showImages}
                         images={images}
@@ -730,7 +739,7 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean }> = ({ isExpanded =
             </div>
             {/* Separate Add Button */}
             <button
-              onClick={addNewDefect}
+              onClick={() => addNewDefect()}
               className="w-full p-3 rounded-full border-2 border-dashed border-slate-200/50 dark:border-gray-700/50 hover:border-indigo-500/50 dark:hover:border-indigo-500/50 transition-colors group bg-white/30 dark:bg-gray-800/30 backdrop-blur-sm"
             >
               <div className="flex items-center justify-center gap-2 text-slate-400 dark:text-gray-500 group-hover:text-indigo-500 dark:group-hover:text-indigo-400 transition-colors">
