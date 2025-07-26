@@ -475,6 +475,12 @@ export const DefectTile: React.FC<DefectTileProps> = ({
               <Plus size={16} />
             </button>
           )}
+          {/* Debug: Show if onQuickAdd is not provided */}
+          {!onQuickAdd && (
+            <div className="p-1.5 text-xs text-red-500">
+              No onQuickAdd
+            </div>
+          )}
         </div>
       </div>
           </div>

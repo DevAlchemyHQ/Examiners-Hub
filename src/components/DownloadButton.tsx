@@ -40,7 +40,8 @@ export const DownloadButton: React.FC = () => {
         bulkDefects: bulkDefects.length,
         isBulkValid: isBulkValid(),
         validationErrors: getBulkValidationErrors(),
-        validationKey
+        validationKey,
+        bulkDefectsWithNumbers: bulkDefects.map(d => ({ id: d.id, photoNumber: d.photoNumber, hasNumber: !!d.photoNumber?.trim() }))
       });
     }
   }, [viewMode, bulkDefects, validationKey]);
