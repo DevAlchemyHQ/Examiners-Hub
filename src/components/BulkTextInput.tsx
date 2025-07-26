@@ -780,17 +780,21 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean }> = ({ isExpanded =
                   modifiers={[restrictToVerticalAxis]}
                 >
                   <SortableContext
-                    items={bulkDefects.filter(d => d.selectedFile).map(d => d.id || d.photoNumber)}
+                    items={bulkDefects.filter(d => d.selectedFile).map((d, index) => `${d.id || d.photoNumber}-${index}`)}
                     strategy={verticalListSortingStrategy}
                   >
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                       {bulkDefects
                         .filter(defect => defect.selectedFile)
-                        .map((defect) => {
+                        .map((defect, index) => {
                           const img = images.find(img => (img.fileName || img.file?.name || '') === defect.selectedFile);
                           if (!img) return null;
                           return (
-                            <div key={`selected-${defect.id}-${img.id}`} className="relative group bg-white/80 dark:bg-gray-800/80 rounded-lg border border-slate-200/50 dark:border-gray-700/50 p-3">
+                            <div key={`selected-${defect.id}-${img.id}-${index}`} className="relative group bg-white/80 dark:bg-gray-800/80 rounded-lg border border-slate-200/50 dark:border-gray-700/50 p-3">
+                              {/* Position indicator */}
+                              <div className="absolute top-2 left-2 z-10 bg-indigo-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center">
+                                {index + 1}
+                              </div>
                               {/* Image at top */}
                               <div 
                                 className="aspect-square rounded-lg overflow-hidden bg-slate-100 dark:bg-gray-700 mb-3 relative"

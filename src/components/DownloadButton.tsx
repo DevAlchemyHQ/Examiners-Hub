@@ -33,6 +33,18 @@ export const DownloadButton: React.FC = () => {
     setValidationKey(prev => prev + 1);
   }, [selectedImages, formData, images, viewMode, bulkDefects]);
 
+  // Debug validation state
+  useEffect(() => {
+    if (viewMode === 'bulk') {
+      console.log('🔍 DownloadButton validation debug:', {
+        bulkDefects: bulkDefects.length,
+        isBulkValid: isBulkValid(),
+        validationErrors: getBulkValidationErrors(),
+        validationKey
+      });
+    }
+  }, [viewMode, bulkDefects, validationKey]);
+
   useEffect(() => {
     if (!user?.user_metadata) return;
     // Only keep subscription logic for images mode if needed
