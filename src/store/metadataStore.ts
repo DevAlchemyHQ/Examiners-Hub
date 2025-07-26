@@ -60,6 +60,20 @@ interface MetadataState extends MetadataStateOnly {
   createErrorPlaceholder: (image: ImageMetadata) => Blob;
 }
 
+// Helper function to get user-specific localStorage keys
+const getUserSpecificKeys = () => {
+  const storedUser = localStorage.getItem('user');
+  const user = storedUser ? JSON.parse(storedUser) : null;
+  const userId = user?.email || localStorage.getItem('userEmail') || 'anonymous';
+  
+  return {
+    formData: `clean-app-form-data-${userId}`,
+    images: `clean-app-images-${userId}`,
+    bulkData: `clean-app-bulk-data-${userId}`,
+    selections: `clean-app-selections-${userId}`
+  };
+};
+
 const initialState: MetadataStateOnly = {
   images: [],
   selectedImages: new Set(),
@@ -81,7 +95,8 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       const newFormData = { ...state.formData, ...data };
       
       // Auto-save to localStorage immediately
-      localStorage.setItem('clean-app-form-data', JSON.stringify(newFormData));
+      const keys = getUserSpecificKeys();
+      localStorage.setItem(keys.formData, JSON.stringify(newFormData));
       
       // Auto-save to AWS immediately (not in background) for cross-browser persistence
       (async () => {
@@ -513,7 +528,8 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         // Check if project is being cleared
         const projectStore = useProjectStore.getState();
         if (!projectStore.isClearing) {
-          localStorage.setItem('clean-app-bulk-data', JSON.stringify(newBulkDefects));
+          const keys = getUserSpecificKeys();
+        localStorage.setItem(keys.bulkData, JSON.stringify(newBulkDefects));
           console.log('📱 Bulk defects saved to localStorage');
         } else {
           console.log('⏸️ Skipping localStorage save during project clear');
@@ -608,6 +624,14 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       const user = storedUser ? JSON.parse(storedUser) : null;
       const userId = user?.email || localStorage.getItem('userEmail') || 'anonymous';
       
+      // Create user-specific localStorage keys to prevent data leakage
+      const userSpecificKeys = {
+        formData: `clean-app-form-data-${userId}`,
+        images: `clean-app-images-${userId}`,
+        bulkData: `clean-app-bulk-data-${userId}`,
+        selections: `clean-app-selections-${userId}`
+      };
+      
       console.log('Loading data for user:', userId);
       
       // Load all data in parallel and batch state updates
@@ -615,7 +639,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         // Load form data from localStorage first, then AWS
         (async () => {
           try {
-            const savedFormData = localStorage.getItem('clean-app-form-data');
+            const savedFormData = localStorage.getItem(userSpecificKeys.formData);
             if (savedFormData) {
               const formData = JSON.parse(savedFormData);
               console.log('📱 Form data loaded from localStorage');
@@ -639,7 +663,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         // Load bulk data from localStorage first, then AWS
         (async () => {
           try {
-            const savedBulkData = localStorage.getItem('clean-app-bulk-data');
+            const savedBulkData = localStorage.getItem(userSpecificKeys.bulkData);
             if (savedBulkData) {
               const bulkDefects = JSON.parse(savedBulkData);
               console.log('📱 Bulk defects loaded from localStorage');

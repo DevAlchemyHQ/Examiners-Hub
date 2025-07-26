@@ -800,10 +800,7 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean }> = ({ isExpanded =
                           if (!img) return null;
                           return (
                             <div key={`selected-${defect.id}-${img.id}-${index}`} className="relative group bg-white/80 dark:bg-gray-800/80 rounded-lg border border-slate-200/50 dark:border-gray-700/50 p-3">
-                              {/* Position indicator - shows defect photo number, not position */}
-                              <div className="absolute top-2 left-2 z-10 bg-indigo-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center">
-                                {defect.photoNumber || '?'}
-                              </div>
+                              {/* Removed blue badge - user wants only editable fields */}
                               {/* Image at top */}
                               <div 
                                 className="aspect-square rounded-lg overflow-hidden bg-slate-100 dark:bg-gray-700 mb-3 relative"
@@ -846,12 +843,20 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean }> = ({ isExpanded =
                                 {img.fileName || img.file?.name || 'Unknown file'}
                               </div>
                               
-                              {/* Defect number display (read-only) */}
+                              {/* Defect number input - editable */}
                               {defect && (
                                 <div className="mb-2">
-                                  <div className="w-full p-2 text-sm border rounded-lg bg-slate-100 dark:bg-gray-700 text-slate-600 dark:text-gray-400 text-center">
-                                    {defect.photoNumber || 'No number'}
-                                  </div>
+                                  <input
+                                    type="text"
+                                    value={defect.photoNumber}
+                                    onChange={(e) => handlePhotoNumberChange(defect.id || defect.photoNumber, defect.photoNumber, e.target.value)}
+                                    className={`w-full p-2 text-sm border rounded-lg focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 
+                                      bg-white/50 dark:bg-gray-800/50 text-slate-900 dark:text-white text-center
+                                      ${!/^\d+[a-zA-Z]*$/.test(defect.photoNumber) && defect.photoNumber ? 'border-red-300 dark:border-red-600' : 
+                                        getDuplicatePhotoNumbers().has(defect.photoNumber) ? 'border-orange-400 dark:border-orange-500 bg-orange-50 dark:bg-orange-900/20' : 
+                                        'border-slate-200/50 dark:border-gray-600/50'}`}
+                                    placeholder="#"
+                                  />
                                 </div>
                               )}
                               

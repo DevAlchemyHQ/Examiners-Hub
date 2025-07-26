@@ -22,7 +22,7 @@ export const useBulkValidation = () => {
     }
 
     // Check for missing photo numbers
-    const defectsWithoutPhotoNumbers = bulkDefects.filter(defect => !defect.photoNumber?.trim());
+    const defectsWithoutPhotoNumbers = bulkDefects.filter(defect => !defect.photoNumber?.trim() || defect.photoNumber === '#');
     if (defectsWithoutPhotoNumbers.length > 0) {
       errors.push(`Add photo numbers for ${defectsWithoutPhotoNumbers.length} defect${defectsWithoutPhotoNumbers.length !== 1 ? 's' : ''}`);
     }
