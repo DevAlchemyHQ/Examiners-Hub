@@ -36,12 +36,29 @@ export const DownloadButton: React.FC = () => {
   // Debug validation state
   useEffect(() => {
     if (viewMode === 'bulk') {
+      const errors = getBulkValidationErrors();
+      const isValid = isBulkValid();
       console.log('🔍 DownloadButton validation debug:', {
         bulkDefects: bulkDefects.length,
-        isBulkValid: isBulkValid(),
-        validationErrors: getBulkValidationErrors(),
+        isBulkValid: isValid,
+        validationErrors: errors,
         validationKey,
-        bulkDefectsWithNumbers: bulkDefects.map(d => ({ id: d.id, photoNumber: d.photoNumber, hasNumber: !!d.photoNumber?.trim() }))
+        bulkDefectsWithNumbers: bulkDefects.map(d => ({ 
+          id: d.id, 
+          photoNumber: d.photoNumber, 
+          hasNumber: !!d.photoNumber?.trim(),
+          isEmpty: !d.photoNumber?.trim(),
+          isHash: d.photoNumber === '#'
+        }))
+      });
+      
+      // Check specifically for missing numbers
+      const defectsWithoutNumbers = bulkDefects.filter(d => !d.photoNumber?.trim() || d.photoNumber === '#');
+      console.log('🔍 Missing numbers check:', {
+        totalDefects: bulkDefects.length,
+        defectsWithoutNumbers: defectsWithoutNumbers.length,
+        defectsWithHash: bulkDefects.filter(d => d.photoNumber === '#').length,
+        defectsWithEmpty: bulkDefects.filter(d => !d.photoNumber?.trim()).length
       });
     }
   }, [viewMode, bulkDefects, validationKey]);
@@ -273,7 +290,9 @@ export const DownloadButton: React.FC = () => {
               isValid: isValid(),
               selectedImages: selectedImages.size,
               formData,
-              validationKey
+              validationKey,
+              bulkDefectsWithHash: bulkDefects.filter(d => d.photoNumber === '#').length,
+              bulkDefectsEmpty: bulkDefects.filter(d => !d.photoNumber?.trim()).length
             });
           }}
         >
