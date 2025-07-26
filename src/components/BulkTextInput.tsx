@@ -758,14 +758,14 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean }> = ({ isExpanded =
                   onDragEnd={(event) => {
                     const { active, over } = event;
                     if (over && active.id !== over.id) {
-                      // Find the defects being reordered
-                      const activeDefect = bulkDefects.find(d => d.photoNumber === active.id);
-                      const overDefect = bulkDefects.find(d => d.photoNumber === over.id);
+                      // Find the defects being reordered by ID
+                      const activeDefect = bulkDefects.find(d => (d.id || d.photoNumber) === active.id);
+                      const overDefect = bulkDefects.find(d => (d.id || d.photoNumber) === over.id);
                       
                       if (activeDefect && overDefect) {
                         setBulkDefects(prev => {
-                          const oldIndex = prev.findIndex(d => d.photoNumber === active.id);
-                          const newIndex = prev.findIndex(d => d.photoNumber === over.id);
+                          const oldIndex = prev.findIndex(d => (d.id || d.photoNumber) === active.id);
+                          const newIndex = prev.findIndex(d => (d.id || d.photoNumber) === over.id);
                           const reorderedItems = arrayMove(prev, oldIndex, newIndex);
                           
                           // If auto-sorting is enabled, renumber all defects
@@ -780,16 +780,17 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean }> = ({ isExpanded =
                   modifiers={[restrictToVerticalAxis]}
                 >
                   <SortableContext
-                    items={bulkDefects.filter(d => d.selectedFile).map(d => d.photoNumber)}
+                    items={bulkDefects.filter(d => d.selectedFile).map(d => d.id || d.photoNumber)}
                     strategy={verticalListSortingStrategy}
                   >
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                      {images
-                        .filter(img => bulkDefects.some(d => d.selectedFile === (img.fileName || img.file?.name || '')))
-                        .map((img) => {
-                          const defect = bulkDefects.find(d => d.selectedFile === (img.fileName || img.file?.name || ''));
+                      {bulkDefects
+                        .filter(defect => defect.selectedFile)
+                        .map((defect) => {
+                          const img = images.find(img => (img.fileName || img.file?.name || '') === defect.selectedFile);
+                          if (!img) return null;
                           return (
-                            <div key={`selected-${img.id}`} className="relative group bg-white/80 dark:bg-gray-800/80 rounded-lg border border-slate-200/50 dark:border-gray-700/50 p-3">
+                            <div key={`selected-${defect.id}-${img.id}`} className="relative group bg-white/80 dark:bg-gray-800/80 rounded-lg border border-slate-200/50 dark:border-gray-700/50 p-3">
                               {/* Image at top */}
                               <div 
                                 className="aspect-square rounded-lg overflow-hidden bg-slate-100 dark:bg-gray-700 mb-3 relative"
@@ -797,7 +798,7 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean }> = ({ isExpanded =
                                   e.preventDefault();
                                   try {
                                     const data = JSON.parse(e.dataTransfer.getData('application/json'));
-                                    if (data.type === 'image' && defect) {
+                                    if (data.type === 'image') {
                                       handleFileSelect(defect.photoNumber, data.fileName);
                                     }
                                   } catch (error) {
