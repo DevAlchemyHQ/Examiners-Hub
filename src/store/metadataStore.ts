@@ -974,7 +974,8 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       const { bulkDefects } = state;
       
       // Save to localStorage for immediate access
-      localStorage.setItem('clean-app-bulk-data', JSON.stringify(bulkDefects));
+              const keys = getUserSpecificKeys();
+        localStorage.setItem(keys.bulkData, JSON.stringify(bulkDefects));
       
       // Save to AWS DynamoDB for cross-device persistence
       const storedUser = localStorage.getItem('user');
@@ -1015,7 +1016,8 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       }
       
       // Fallback to localStorage only if no user or AWS failed
-      const savedBulkData = localStorage.getItem('clean-app-bulk-data');
+      const keys = getUserSpecificKeys();
+      const savedBulkData = localStorage.getItem(keys.bulkData);
       if (savedBulkData) {
         const bulkDefects = JSON.parse(savedBulkData);
         set({ bulkDefects });

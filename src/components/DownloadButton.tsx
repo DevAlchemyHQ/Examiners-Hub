@@ -60,6 +60,12 @@ export const DownloadButton: React.FC = () => {
         defectsWithHash: bulkDefects.filter(d => d.photoNumber === '#').length,
         defectsWithEmpty: bulkDefects.filter(d => !d.photoNumber?.trim()).length
       });
+      
+      // Force re-render if validation state changes
+      if (defectsWithoutNumbers.length > 0 && isValid) {
+        console.log('⚠️ WARNING: Validation state mismatch!');
+        setValidationKey(prev => prev + 1);
+      }
     }
   }, [viewMode, bulkDefects, validationKey]);
 
@@ -282,6 +288,10 @@ export const DownloadButton: React.FC = () => {
               ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
               : 'bg-green-500 text-white hover:bg-green-600'
           }`}
+          style={{
+            // Force visual feedback for debugging
+            border: viewMode === 'bulk' && !isBulkValid() ? '2px solid red' : 'none'
+          }}
           onMouseEnter={() => {
             console.log('Download button validation state:', {
               isDownloading,
