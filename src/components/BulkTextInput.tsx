@@ -725,7 +725,10 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean }> = ({ isExpanded =
                         onDescriptionChange={(value) => updateDefectDescription(defect.photoNumber, value)}
                         onFileChange={(fileName) => handleFileSelect(defect.photoNumber, fileName)}
                         onPhotoNumberChange={(oldNumber, newNumber) => handlePhotoNumberChange(defect.id || defect.photoNumber, oldNumber, newNumber)}
-                        onQuickAdd={() => addNewDefect(index)}
+                        onQuickAdd={() => {
+                          console.log('🔍 Quick add called for index:', index);
+                          addNewDefect(index);
+                        }}
                         isExpanded={isExpanded}
                         showImages={showImages}
                         images={images}
