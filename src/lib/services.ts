@@ -416,14 +416,13 @@ export class AuthService {
           Username: email
         });
         const userResult = await cognitoClient.send(getUserCommand);
-        const userAttributes = userResult.UserAttributes || [];
-        const emailVerifiedAttr = userAttributes.find(attr => attr.Name === 'email_verified');
-        const emailVerified = emailVerifiedAttr ? emailVerifiedAttr.Value === 'true' : false;
-        if (!emailVerified) {
+        
+        // Check UserStatus instead of email_verified attribute
+        if (userResult.UserStatus !== 'CONFIRMED') {
           return {
             error: {
-              message: 'Your email is not verified. Please sign up for a new account.',
-              originalError: new Error('Email not verified')
+              message: 'Your account is not verified. Please verify your email first or sign up for a new account.',
+              originalError: new Error('Account not confirmed')
             }
           };
         }
