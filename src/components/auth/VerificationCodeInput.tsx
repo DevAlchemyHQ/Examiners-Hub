@@ -129,10 +129,10 @@ export const VerificationCodeInput: React.FC<VerificationCodeInputProps> = ({
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {/* Code Input Boxes with Paste Button */}
-      <div className="flex items-center justify-center gap-3">
-        <div className="flex gap-2">
+      <div className="flex items-center justify-center gap-2">
+        <div className="flex gap-1">
           {code.map((digit, index) => (
             <input
               key={index}
@@ -149,8 +149,8 @@ export const VerificationCodeInput: React.FC<VerificationCodeInputProps> = ({
               onFocus={(e) => e.target.select()}
               disabled={isLoading}
               className={`
-                w-12 h-12 text-center text-2xl font-bold border-2 rounded-lg
-                focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500
+                w-8 h-8 text-center text-lg font-bold border rounded
+                focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500
                 transition-all duration-200
                 ${error 
                   ? 'border-red-500 bg-red-100 dark:bg-red-900/30 dark:border-red-400' 
@@ -160,7 +160,7 @@ export const VerificationCodeInput: React.FC<VerificationCodeInputProps> = ({
                 }
                 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}
                 text-white
-                shadow-lg
+                shadow-sm
                 outline-none
                 placeholder:text-gray-400
                 caret-color: transparent
@@ -168,8 +168,8 @@ export const VerificationCodeInput: React.FC<VerificationCodeInputProps> = ({
               autoFocus={autoFocus && index === 0}
               style={{
                 color: 'white',
-                textShadow: '0 0 8px rgba(255,255,255,0.9), 0 0 16px rgba(255,255,255,0.7)',
-                fontWeight: '700',
+                textShadow: '0 0 4px rgba(255,255,255,0.8)',
+                fontWeight: '600',
                 borderColor: error ? undefined : success ? undefined : '#6366f1' // indigo-500
               }}
             />
@@ -181,9 +181,9 @@ export const VerificationCodeInput: React.FC<VerificationCodeInputProps> = ({
           type="button"
           onClick={handlePaste}
           disabled={isLoading}
-          className="flex items-center gap-2 text-sm text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300 transition-colors ml-4"
+          className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300 transition-colors ml-2"
         >
-          <Clipboard size={16} />
+          <Clipboard size={14} />
           {isPasting ? 'Pasted!' : 'Paste'}
         </button>
       </div>
@@ -207,7 +207,7 @@ export const VerificationCodeInput: React.FC<VerificationCodeInputProps> = ({
           type="button"
           onClick={clearCode}
           disabled={isLoading}
-          className="text-sm text-slate-500 hover:text-slate-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
+          className="text-xs text-slate-500 hover:text-slate-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
         >
           Clear code
         </button>
@@ -215,7 +215,7 @@ export const VerificationCodeInput: React.FC<VerificationCodeInputProps> = ({
 
       {/* Resend Code */}
       <div className="text-center">
-        <p className="text-sm text-slate-600 dark:text-gray-400 mb-2">
+        <p className="text-xs text-slate-600 dark:text-gray-400 mb-1">
           Didn't receive the code?
         </p>
         <button
@@ -223,7 +223,7 @@ export const VerificationCodeInput: React.FC<VerificationCodeInputProps> = ({
           onClick={handleResendCode}
           disabled={resendCountdown > 0 || isLoading}
           className={`
-            text-sm font-medium transition-colors
+            text-xs font-medium transition-colors
             ${resendCountdown > 0 || isLoading
               ? 'text-slate-400 dark:text-gray-500 cursor-not-allowed'
               : 'text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300'
@@ -239,8 +239,8 @@ export const VerificationCodeInput: React.FC<VerificationCodeInputProps> = ({
 
       {/* Loading State */}
       {isLoading && (
-        <div className="flex items-center justify-center gap-2 text-sm text-slate-600 dark:text-gray-400">
-          <div className="w-4 h-4 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+        <div className="flex items-center justify-center gap-2 text-xs text-slate-600 dark:text-gray-400">
+          <div className="w-3 h-3 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
           <span>Verifying...</span>
         </div>
       )}
