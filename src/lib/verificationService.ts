@@ -11,6 +11,12 @@ let dynamoClient: DynamoDBDocumentClient | null = null;
 // Check if we're in a browser environment
 const IS_BROWSER = typeof window !== 'undefined';
 
+// Check if we're in Amplify production environment
+const IS_AMPLIFY_PRODUCTION = IS_BROWSER && window.location.hostname.includes('amplifyapp.com');
+
+// Development mode flag - only true if explicitly in development
+const IS_DEVELOPMENT = process.env.NODE_ENV === 'development' && !IS_AMPLIFY_PRODUCTION;
+
 if (!IS_BROWSER) {
   // Only initialize AWS clients in Node.js environment
   sesClient = new SESClient({ region: 'eu-west-2' });
@@ -21,9 +27,6 @@ if (!IS_BROWSER) {
 const VERIFICATION_CODE_EXPIRY = 60 * 60 * 1000; // 1 hour in milliseconds
 const MAX_ATTEMPTS_PER_HOUR = 3;
 const LOCKOUT_DURATION = 30 * 60 * 1000; // 30 minutes
-
-// Development mode flag
-const IS_DEVELOPMENT = process.env.NODE_ENV === 'development' || !process.env.NODE_ENV;
 
 // Email templates are now imported from emailTemplates.ts
 
@@ -53,6 +56,45 @@ function generateVerificationCode(): string {
 }
 
 // replaceTemplateVariables function is now imported from emailTemplates.ts
+
+// Function to call Lambda API for email sending
+async function sendEmailViaLambda(email: string, userId: string, type: 'verification' | 'password_reset', code: string): Promise<VerificationResult> {
+  try {
+    const userName = email.split('@')[0];
+    
+    const response = await fetch('/api/sendEmail', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email,
+        userId,
+        type,
+        code,
+        userName
+      })
+    });
+
+    const result = await response.json();
+    
+    if (result.success) {
+      return {
+        success: true,
+        message: 'Email sent successfully',
+        code: code // For testing purposes only
+      };
+    } else {
+      throw new Error(result.message || 'Failed to send email');
+    }
+  } catch (error) {
+    console.error('Error calling Lambda API:', error);
+    return {
+      success: false,
+      message: 'Failed to send email. Please try again.'
+    };
+  }
+}
 
 // Rate limiting functions
 async function checkRateLimit(email: string, type: 'verification' | 'password_reset'): Promise<boolean> {
@@ -134,8 +176,8 @@ export class VerificationService {
         VERIFICATION_CODE: code
       });
 
-      if (IS_DEVELOPMENT || IS_BROWSER) {
-        // In development or browser, just log the email details
+      if (IS_DEVELOPMENT) {
+        // In development, just log the email details
         console.log('📧 DEVELOPMENT MODE - Verification Email:');
         console.log('To:', email);
         console.log('Subject: Verify Your Email - Exametry');
@@ -147,8 +189,11 @@ export class VerificationService {
           message: 'Verification email sent successfully (DEV MODE)',
           code: code // Include code for testing
         };
+      } else if (IS_AMPLIFY_PRODUCTION) {
+        // In Amplify production, use Lambda API
+        return await sendEmailViaLambda(email, userId, 'verification', code);
       } else {
-        // In production (Amplify), use SES directly
+        // In production (Node.js), use SES directly
         if (sesClient) {
           const sendEmailCommand = new SendEmailCommand({
             Source: 'infor@exametry.xyz', // Use the verified email address
@@ -240,8 +285,8 @@ export class VerificationService {
         VERIFICATION_CODE: code
       });
 
-      if (IS_DEVELOPMENT || IS_BROWSER) {
-        // In development or browser, just log the email details
+      if (IS_DEVELOPMENT) {
+        // In development, just log the email details
         console.log('📧 DEVELOPMENT MODE - Password Reset Email:');
         console.log('To:', email);
         console.log('Subject: Reset Your Password - Exametry');
@@ -253,8 +298,11 @@ export class VerificationService {
           message: 'Password reset email sent successfully (DEV MODE)',
           code: code // Include code for testing
         };
+      } else if (IS_AMPLIFY_PRODUCTION) {
+        // In Amplify production, use Lambda API
+        return await sendEmailViaLambda(email, userId, 'password_reset', code);
       } else {
-        // In production (Amplify), use SES directly
+        // In production (Node.js), use SES directly
         if (sesClient) {
           const sendEmailCommand = new SendEmailCommand({
             Source: 'infor@exametry.xyz', // Use the verified email address
@@ -299,8 +347,8 @@ export class VerificationService {
   // Verify code
   static async verifyCode(email: string, code: string, type: 'verification' | 'password_reset'): Promise<VerificationResult> {
     try {
-      if (IS_DEVELOPMENT || IS_BROWSER) {
-        // In development or browser, accept any 6-digit code for testing
+      if (IS_DEVELOPMENT) {
+        // In development, accept any 6-digit code for testing
         if (code.length === 6 && /^\d{6}$/.test(code)) {
           console.log('✅ DEVELOPMENT MODE - Code verified successfully');
           return {
@@ -375,8 +423,8 @@ export class VerificationService {
   // Check if account is verified
   static async isAccountVerified(email: string): Promise<boolean> {
     try {
-      if (IS_DEVELOPMENT || IS_BROWSER) {
-        // In development or browser, assume all accounts are verified
+      if (IS_DEVELOPMENT) {
+        // In development, assume all accounts are verified
         return true;
       }
 
