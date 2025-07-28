@@ -3,7 +3,7 @@ import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, GetCommand, PutCommand, UpdateCommand, DeleteCommand, QueryCommand, ScanCommand, BatchWriteCommand } from '@aws-sdk/lib-dynamodb';
 import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { CognitoIdentityProviderClient, InitiateAuthCommand, SignUpCommand, ConfirmSignUpCommand, AdminCreateUserCommand, AdminGetUserCommand, AdminInitiateAuthCommand, AdminDeleteUserCommand, AdminConfirmSignUpCommand, ForgotPasswordCommand, ConfirmForgotPasswordCommand, ResendConfirmationCodeCommand } from '@aws-sdk/client-cognito-identity-provider';
+import { CognitoIdentityProviderClient, InitiateAuthCommand, SignUpCommand, ConfirmSignUpCommand, AdminCreateUserCommand, AdminGetUserCommand, AdminInitiateAuthCommand, AdminDeleteUserCommand, AdminConfirmSignUpCommand, AdminUpdateUserAttributesCommand, ForgotPasswordCommand, ConfirmForgotPasswordCommand, ResendConfirmationCodeCommand } from '@aws-sdk/client-cognito-identity-provider';
 
 // AWS Configuration
 const AWS_CONFIG = {
@@ -506,6 +506,26 @@ export class AuthService {
       
       await cognitoClient.send(confirmCommand);
       console.log('✅ User confirmed in Cognito successfully');
+      
+      // Also set email_verified to true
+      try {
+        const updateCommand = new AdminUpdateUserAttributesCommand({
+          UserPoolId: USER_POOL_ID,
+          Username: email,
+          UserAttributes: [
+            {
+              Name: 'email_verified',
+              Value: 'true'
+            }
+          ]
+        });
+        
+        await cognitoClient.send(updateCommand);
+        console.log('✅ Email verified attribute set to true');
+      } catch (updateError) {
+        console.warn('⚠️ Could not set email_verified attribute:', updateError);
+        // Don't fail the whole operation if this fails
+      }
       
       return { success: true, error: null };
     } catch (error: any) {
