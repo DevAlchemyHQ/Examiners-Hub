@@ -43,11 +43,27 @@ export const EmailVerification: React.FC<EmailVerificationProps> = ({
         setSuccess('Verification OTP sent! Check your email for the 6-digit code.');
         // Clear success message after 3 seconds
         setTimeout(() => setSuccess(''), 3000);
+        
+        // If in development mode, show the code in console
+        if (result.code) {
+          console.log('🔐 DEVELOPMENT MODE - Verification Code:', result.code);
+        }
       } else {
-        setError(result.message);
+        // Handle specific error messages
+        if (result.message.includes('Credential is missing')) {
+          setError('Email service temporarily unavailable. Please try again later.');
+        } else {
+          setError(result.message);
+        }
       }
-    } catch (err) {
-      setError('Failed to send verification OTP. Please try again.');
+    } catch (err: any) {
+      console.error('Verification service error:', err);
+      // Handle verification service errors
+      if (err.message?.includes('Credential is missing')) {
+        setError('Email service temporarily unavailable. Please try again later.');
+      } else {
+        setError('Failed to send verification OTP. Please try again.');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -91,40 +107,60 @@ export const EmailVerification: React.FC<EmailVerificationProps> = ({
           }, 1500);
         } else {
           // User is not confirmed, try to confirm them
-          const cognitoResult = await AuthService.confirmUserInCognito(email);
-          
-          if (cognitoResult.success) {
-            setSuccess('Email verified successfully!');
-            setVerificationAttempts(0);
+          try {
+            const cognitoResult = await AuthService.confirmUserInCognito(email);
             
-            // Update user verification status
-            const currentUser = useAuthStore.getState().user;
-            if (currentUser) {
-              const updatedUser = {
-                ...currentUser,
-                user_metadata: {
-                  ...currentUser.user_metadata,
-                  email_verified: true
-                }
-              };
-              setUser(updatedUser);
+            if (cognitoResult.success) {
+              setSuccess('Email verified successfully!');
+              setVerificationAttempts(0);
+              
+              // Update user verification status
+              const currentUser = useAuthStore.getState().user;
+              if (currentUser) {
+                const updatedUser = {
+                  ...currentUser,
+                  user_metadata: {
+                    ...currentUser.user_metadata,
+                    email_verified: true
+                  }
+                };
+                setUser(updatedUser);
+              }
+              
+              // Redirect after a short delay
+              setTimeout(() => {
+                onVerificationSuccess();
+              }, 1500);
+            } else {
+              setError('Email verification failed. Please try again.');
+              setVerificationAttempts(prev => prev + 1);
             }
-            
-            // Redirect after a short delay
-            setTimeout(() => {
-              onVerificationSuccess();
-            }, 1500);
-          } else {
-            setError('Email verification failed. Please try again.');
-            setVerificationAttempts(prev => prev + 1);
+          } catch (cognitoError: any) {
+            console.error('Cognito confirmation error:', cognitoError);
+            // Handle specific Cognito errors
+            if (cognitoError.message?.includes('User cannot be confirmed')) {
+              setError('Email already verified. Please proceed to login.');
+              setTimeout(() => {
+                onVerificationSuccess();
+              }, 1500);
+            } else {
+              setError('Email verification failed. Please try again.');
+              setVerificationAttempts(prev => prev + 1);
+            }
           }
         }
       } else {
         setError('Invalid or expired OTP code. Please check your email and try again.');
         setVerificationAttempts(prev => prev + 1);
       }
-    } catch (err) {
-      setError('Failed to verify OTP code. Please try again.');
+    } catch (err: any) {
+      console.error('Verification error:', err);
+      // Handle verification service errors
+      if (err.message?.includes('Credential is missing')) {
+        setError('Verification service temporarily unavailable. Please try again later.');
+      } else {
+        setError('Failed to verify OTP code. Please try again.');
+      }
       setVerificationAttempts(prev => prev + 1);
     } finally {
       setIsLoading(false);

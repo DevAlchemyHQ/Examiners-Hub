@@ -118,13 +118,32 @@ export const LoginScreen: React.FC = () => {
               localStorage.setItem('userEmail', email);
               
               // Send verification email
-              const verificationResult = await VerificationService.sendVerificationEmail(email, signupResult.user.id);
-              if (verificationResult.success) {
-                // Switch to email verification mode
-                setMode('email-verification');
-                setMessage('Please check your email and enter the 6-digit OTP code.');
-              } else {
-                setError(verificationResult.message);
+              try {
+                const verificationResult = await VerificationService.sendVerificationEmail(email, signupResult.user.id);
+                if (verificationResult.success) {
+                  // Switch to email verification mode
+                  setMode('email-verification');
+                  setMessage('Please check your email and enter the 6-digit OTP code.');
+                  // If in development mode, show the code in console
+                  if (verificationResult.code) {
+                    console.log('🔐 DEVELOPMENT MODE - Verification Code:', verificationResult.code);
+                  }
+                } else {
+                  // Handle verification service errors gracefully
+                  if (verificationResult.message.includes('Credential is missing')) {
+                    setError('Email service temporarily unavailable. Please try again later.');
+                  } else {
+                    setError(verificationResult.message);
+                  }
+                }
+              } catch (verificationError: any) {
+                console.error('Verification service error:', verificationError);
+                // Handle verification service errors
+                if (verificationError.message?.includes('Credential is missing')) {
+                  setError('Email service temporarily unavailable. Please try again later.');
+                } else {
+                  setError('Failed to send verification email. Please try again.');
+                }
               }
             } else {
               // Check for specific AWS Cognito errors

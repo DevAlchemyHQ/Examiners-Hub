@@ -51,16 +51,16 @@ export const SetNewPassword: React.FC = () => {
               </div>
               <div className="bg">
                 <div className="bg-inner"></div>
-              </div>
+        </div>
               <div className="text">
-                <input
-                  type={showPassword ? "text" : "password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter new password"
-                  required
-                  minLength={8}
-                />
+            <input
+              type={showPassword ? "text" : "password"}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Enter new password"
+              required
+              minLength={8}
+            />
               </div>
             </div>
           </div>
@@ -77,14 +77,14 @@ export const SetNewPassword: React.FC = () => {
                 <div className="bg-inner"></div>
               </div>
               <div className="text">
-                <input
-                  type={showPassword ? "text" : "password"}
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="Confirm new password"
-                  required
-                  minLength={8}
-                />
+            <input
+              type={showPassword ? "text" : "password"}
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="Confirm new password"
+              required
+              minLength={8}
+            />
               </div>
             </div>
           </div>
@@ -107,20 +107,20 @@ export const SetNewPassword: React.FC = () => {
                 <div className="bg-inner"></div>
               </div>
               <div className="text">
-                <button
-                  type="submit"
-                  disabled={isLoading}
+          <button
+            type="submit"
+            disabled={isLoading}
                   className="btn"
-                >
-                  {isLoading ? (
-                    <>
-                      <Loader2 size={18} className="animate-spin" />
-                      Updating password...
-                    </>
-                  ) : (
-                    'Update Password'
-                  )}
-                </button>
+          >
+            {isLoading ? (
+              <>
+                <Loader2 size={18} className="animate-spin" />
+                Updating password...
+              </>
+            ) : (
+              'Update Password'
+            )}
+          </button>
               </div>
             </div>
           </div>

@@ -1,0 +1,18 @@
+{
+  "paths": {
+    "/send-verification-email": {
+      "name": "/send-verification-email",
+      "lambdaFunction": "sendEmail",
+      "permissions": {
+        "setting": "open"
+      }
+    },
+    "/send-password-reset-email": {
+      "name": "/send-password-reset-email", 
+      "lambdaFunction": "sendEmail",
+      "permissions": {
+        "setting": "open"
+      }
+    }
+  }
+} 

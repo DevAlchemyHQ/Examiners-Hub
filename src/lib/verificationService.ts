@@ -4,9 +4,18 @@ import { DynamoDBDocumentClient, PutCommand, GetCommand, DeleteCommand, QueryCom
 import { nanoid } from 'nanoid';
 import { VERIFICATION_EMAIL_TEMPLATE, PASSWORD_RESET_EMAIL_TEMPLATE, replaceTemplateVariables } from './emailTemplates';
 
-// AWS Configuration
-const sesClient = new SESClient({ region: 'eu-west-2' });
-const dynamoClient = DynamoDBDocumentClient.from(new DynamoDBClient({ region: 'eu-west-2' }));
+// AWS Configuration - Only initialize if we're in a Node.js environment
+let sesClient: SESClient | null = null;
+let dynamoClient: DynamoDBDocumentClient | null = null;
+
+// Check if we're in a browser environment
+const IS_BROWSER = typeof window !== 'undefined';
+
+if (!IS_BROWSER) {
+  // Only initialize AWS clients in Node.js environment
+  sesClient = new SESClient({ region: 'eu-west-2' });
+  dynamoClient = DynamoDBDocumentClient.from(new DynamoDBClient({ region: 'eu-west-2' }));
+}
 
 // Constants
 const VERIFICATION_CODE_EXPIRY = 60 * 60 * 1000; // 1 hour in milliseconds
@@ -48,6 +57,11 @@ function generateVerificationCode(): string {
 // Rate limiting functions
 async function checkRateLimit(email: string, type: 'verification' | 'password_reset'): Promise<boolean> {
   try {
+    if (IS_BROWSER || !dynamoClient) {
+      // In browser environment, skip rate limiting
+      return true;
+    }
+
     const oneHourAgo = Date.now() - (60 * 60 * 1000);
     
     const response = await dynamoClient.send(new QueryCommand({
@@ -86,28 +100,30 @@ export class VerificationService {
       const code = generateVerificationCode();
       const expiresAt = Date.now() + VERIFICATION_CODE_EXPIRY;
 
-      // Store code in DynamoDB
-      const verificationCode: VerificationCode = {
-        id: nanoid(),
-        userId,
-        email,
-        code,
-        type: 'verification',
-        expiresAt,
-        used: false,
-        createdAt: Date.now()
-      };
+      // Store code in DynamoDB (only if not in browser)
+      if (!IS_BROWSER && dynamoClient) {
+        const verificationCode: VerificationCode = {
+          id: nanoid(),
+          userId,
+          email,
+          code,
+          type: 'verification',
+          expiresAt,
+          used: false,
+          createdAt: Date.now()
+        };
 
-      try {
-        await dynamoClient.send(new PutCommand({
-          TableName: 'mvp-labeler-verification-codes',
-          Item: verificationCode
-        }));
-      } catch (dbError) {
-        console.error('Error storing verification code:', dbError);
-        // In development, we'll continue without storing to DB
-        if (!IS_DEVELOPMENT) {
-          throw dbError;
+        try {
+          await dynamoClient.send(new PutCommand({
+            TableName: 'mvp-labeler-verification-codes',
+            Item: verificationCode
+          }));
+        } catch (dbError) {
+          console.error('Error storing verification code:', dbError);
+          // In development, we'll continue without storing to DB
+          if (!IS_DEVELOPMENT) {
+            throw dbError;
+          }
         }
       }
 
@@ -118,8 +134,8 @@ export class VerificationService {
         VERIFICATION_CODE: code
       });
 
-      if (IS_DEVELOPMENT) {
-        // In development, just log the email details
+      if (IS_DEVELOPMENT || IS_BROWSER) {
+        // In development or browser, just log the email details
         console.log('📧 DEVELOPMENT MODE - Verification Email:');
         console.log('To:', email);
         console.log('Subject: Verify Your Email - Exametry');
@@ -132,33 +148,37 @@ export class VerificationService {
           code: code // Include code for testing
         };
       } else {
-        // Send email via SES
-        const sendEmailCommand = new SendEmailCommand({
-          Source: 'noreply@exametry.xyz', // Replace with your verified domain
-          Destination: {
-            ToAddresses: [email]
-          },
-          Message: {
-            Subject: {
-              Data: 'Verify Your Email - Exametry',
-              Charset: 'UTF-8'
+        // In production (Amplify), use SES directly
+        if (sesClient) {
+          const sendEmailCommand = new SendEmailCommand({
+            Source: 'infor@exametry.xyz', // Use the verified email address
+            Destination: {
+              ToAddresses: [email]
             },
-            Body: {
-              Html: {
-                Data: emailHtml,
+            Message: {
+              Subject: {
+                Data: 'Verify Your Email - Exametry',
                 Charset: 'UTF-8'
+              },
+              Body: {
+                Html: {
+                  Data: emailHtml,
+                  Charset: 'UTF-8'
+                }
               }
             }
-          }
-        });
+          });
 
-        await sesClient.send(sendEmailCommand);
+          await sesClient.send(sendEmailCommand);
 
-        return {
-          success: true,
-          message: 'Verification email sent successfully',
-          code: code // For testing purposes only
-        };
+          return {
+            success: true,
+            message: 'Verification email sent successfully',
+            code: code // For testing purposes only
+          };
+        } else {
+          throw new Error('SES client not available');
+        }
       }
 
     } catch (error) {
@@ -186,28 +206,30 @@ export class VerificationService {
       const code = generateVerificationCode();
       const expiresAt = Date.now() + VERIFICATION_CODE_EXPIRY;
 
-      // Store code in DynamoDB
-      const resetCode: VerificationCode = {
-        id: nanoid(),
-        userId,
-        email,
-        code,
-        type: 'password_reset',
-        expiresAt,
-        used: false,
-        createdAt: Date.now()
-      };
+      // Store code in DynamoDB (only if not in browser)
+      if (!IS_BROWSER && dynamoClient) {
+        const resetCode: VerificationCode = {
+          id: nanoid(),
+          userId,
+          email,
+          code,
+          type: 'password_reset',
+          expiresAt,
+          used: false,
+          createdAt: Date.now()
+        };
 
-      try {
-        await dynamoClient.send(new PutCommand({
-          TableName: 'mvp-labeler-verification-codes',
-          Item: resetCode
-        }));
-      } catch (dbError) {
-        console.error('Error storing reset code:', dbError);
-        // In development, we'll continue without storing to DB
-        if (!IS_DEVELOPMENT) {
-          throw dbError;
+        try {
+          await dynamoClient.send(new PutCommand({
+            TableName: 'mvp-labeler-verification-codes',
+            Item: resetCode
+          }));
+        } catch (dbError) {
+          console.error('Error storing reset code:', dbError);
+          // In development, we'll continue without storing to DB
+          if (!IS_DEVELOPMENT) {
+            throw dbError;
+          }
         }
       }
 
@@ -218,9 +240,9 @@ export class VerificationService {
         VERIFICATION_CODE: code
       });
 
-      if (IS_DEVELOPMENT) {
-        // In development, just log the email details
-        console.log('�� DEVELOPMENT MODE - Password Reset Email:');
+      if (IS_DEVELOPMENT || IS_BROWSER) {
+        // In development or browser, just log the email details
+        console.log('📧 DEVELOPMENT MODE - Password Reset Email:');
         console.log('To:', email);
         console.log('Subject: Reset Your Password - Exametry');
         console.log('Code:', code);
@@ -232,33 +254,37 @@ export class VerificationService {
           code: code // Include code for testing
         };
       } else {
-        // Send email via SES
-        const sendEmailCommand = new SendEmailCommand({
-          Source: 'noreply@exametry.xyz', // Replace with your verified domain
-          Destination: {
-            ToAddresses: [email]
-          },
-          Message: {
-            Subject: {
-              Data: 'Reset Your Password - Exametry',
-              Charset: 'UTF-8'
+        // In production (Amplify), use SES directly
+        if (sesClient) {
+          const sendEmailCommand = new SendEmailCommand({
+            Source: 'infor@exametry.xyz', // Use the verified email address
+            Destination: {
+              ToAddresses: [email]
             },
-            Body: {
-              Html: {
-                Data: emailHtml,
+            Message: {
+              Subject: {
+                Data: 'Reset Your Password - Exametry',
                 Charset: 'UTF-8'
+              },
+              Body: {
+                Html: {
+                  Data: emailHtml,
+                  Charset: 'UTF-8'
+                }
               }
             }
-          }
-        });
+          });
 
-        await sesClient.send(sendEmailCommand);
+          await sesClient.send(sendEmailCommand);
 
-        return {
-          success: true,
-          message: 'Password reset email sent successfully',
-          code: code // For testing purposes only
-        };
+          return {
+            success: true,
+            message: 'Password reset email sent successfully',
+            code: code // For testing purposes only
+          };
+        } else {
+          throw new Error('SES client not available');
+        }
       }
 
     } catch (error) {
@@ -273,8 +299,8 @@ export class VerificationService {
   // Verify code
   static async verifyCode(email: string, code: string, type: 'verification' | 'password_reset'): Promise<VerificationResult> {
     try {
-      if (IS_DEVELOPMENT) {
-        // In development, accept any 6-digit code for testing
+      if (IS_DEVELOPMENT || IS_BROWSER) {
+        // In development or browser, accept any 6-digit code for testing
         if (code.length === 6 && /^\d{6}$/.test(code)) {
           console.log('✅ DEVELOPMENT MODE - Code verified successfully');
           return {
@@ -289,7 +315,11 @@ export class VerificationService {
         }
       }
 
-      // Find the verification code
+      // Find the verification code (only if not in browser)
+      if (!dynamoClient) {
+        throw new Error('DynamoDB client not available');
+      }
+
       const response = await dynamoClient.send(new QueryCommand({
         TableName: 'mvp-labeler-verification-codes',
         KeyConditionExpression: 'email = :email',
@@ -345,9 +375,13 @@ export class VerificationService {
   // Check if account is verified
   static async isAccountVerified(email: string): Promise<boolean> {
     try {
-      if (IS_DEVELOPMENT) {
-        // In development, assume all accounts are verified
+      if (IS_DEVELOPMENT || IS_BROWSER) {
+        // In development or browser, assume all accounts are verified
         return true;
+      }
+
+      if (!dynamoClient) {
+        return false;
       }
 
       // This would typically check against your user database
@@ -378,6 +412,10 @@ export class VerificationService {
   // Clean up expired codes (can be run periodically)
   static async cleanupExpiredCodes(): Promise<void> {
     try {
+      if (IS_BROWSER || !dynamoClient) {
+        return; // Skip in browser environment
+      }
+
       const expiredTime = Date.now() - VERIFICATION_CODE_EXPIRY;
       
       // Note: This is a simplified cleanup. In production, you might want to use a scheduled Lambda function
