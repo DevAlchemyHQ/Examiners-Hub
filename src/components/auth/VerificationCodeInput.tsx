@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Clipboard, Check, AlertCircle } from 'lucide-react';
+import { Clipboard, Check, AlertCircle, Loader2 } from 'lucide-react';
+import './cyberpunk-auth.css';
 
 interface VerificationCodeInputProps {
   onCodeSubmit: (code: string) => void;
@@ -131,48 +132,49 @@ export const VerificationCodeInput: React.FC<VerificationCodeInputProps> = ({
   return (
     <div className="space-y-3">
       {/* Code Input Boxes with Paste Button */}
-      <div className="flex items-center justify-center gap-2">
-        <div className="flex gap-1">
+      <div className="flex items-center justify-center gap-3">
+        <div className="flex gap-2">
           {code.map((digit, index) => (
-            <input
-              key={index}
-              ref={(el) => (inputRefs.current[index] = el)}
-              type="text"
-              inputMode="numeric"
-              pattern="[0-9]*"
-              maxLength={1}
-              value={digit}
-              placeholder="•"
-              onChange={(e) => handleInputChange(index, e.target.value)}
-              onKeyDown={(e) => handleKeyDown(index, e)}
-              onPaste={handlePasteEvent}
-              onFocus={(e) => e.target.select()}
-              disabled={isLoading}
-              className={`
-                w-8 h-8 text-center text-lg font-bold border rounded
-                focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500
-                transition-all duration-200
-                ${error 
-                  ? 'border-red-500 bg-red-100 dark:bg-red-900/30 dark:border-red-400' 
-                  : success 
-                    ? 'border-green-500 bg-green-100 dark:bg-green-900/30 dark:border-green-400'
-                    : 'border-indigo-500 dark:border-indigo-400 bg-gray-900 dark:bg-gray-800'
-                }
-                ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}
-                text-white
-                shadow-sm
-                outline-none
-                placeholder:text-gray-400
-                caret-color: transparent
-              `}
-              autoFocus={autoFocus && index === 0}
-              style={{
-                color: 'white',
-                textShadow: '0 0 4px rgba(255,255,255,0.8)',
-                fontWeight: '600',
-                borderColor: error ? undefined : success ? undefined : '#6366f1' // indigo-500
-              }}
-            />
+            <div key={index} className="block-cube block-input" style={{ width: '40px', height: '50px' }}>
+              <div className="bg-top">
+                <div className="bg-inner"></div>
+              </div>
+              <div className="bg-right">
+                <div className="bg-inner"></div>
+              </div>
+              <div className="bg">
+                <div className="bg-inner"></div>
+              </div>
+              <div className="text">
+                <input
+                  ref={(el) => (inputRefs.current[index] = el)}
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={1}
+                  value={digit}
+                  placeholder="•"
+                  onChange={(e) => handleInputChange(index, e.target.value)}
+                  onKeyDown={(e) => handleKeyDown(index, e)}
+                  onPaste={handlePasteEvent}
+                  onFocus={(e) => e.target.select()}
+                  disabled={isLoading}
+                  style={{ 
+                    width: '100%', 
+                    height: '100%', 
+                    textAlign: 'center', 
+                    fontSize: '18px',
+                    fontWeight: 'bold',
+                    background: 'transparent',
+                    border: 'none',
+                    outline: 'none',
+                    color: 'white'
+                  }}
+                  autoFocus={autoFocus && index === 0}
+                  autoComplete="one-time-code"
+                />
+              </div>
+            </div>
           ))}
         </div>
         
@@ -181,22 +183,23 @@ export const VerificationCodeInput: React.FC<VerificationCodeInputProps> = ({
           type="button"
           onClick={handlePaste}
           disabled={isLoading}
-          className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300 transition-colors ml-2"
+          className="form-links"
+          style={{ marginLeft: '10px' }}
         >
-          <Clipboard size={14} />
+          <Clipboard size={16} style={{ marginRight: '5px' }} />
           {isPasting ? 'Pasted!' : 'Paste'}
         </button>
       </div>
 
       {/* Error/Success Messages */}
       {error && (
-        <div className="text-center text-amber-600 dark:text-amber-400 text-sm">
+        <div className="error-message">
           <span>{error}</span>
         </div>
       )}
 
       {success && (
-        <div className="text-center text-green-600 dark:text-green-400 text-sm">
+        <div className="success-message">
           <span>{success}</span>
         </div>
       )}
@@ -207,7 +210,7 @@ export const VerificationCodeInput: React.FC<VerificationCodeInputProps> = ({
           type="button"
           onClick={clearCode}
           disabled={isLoading}
-          className="text-xs text-slate-500 hover:text-slate-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
+          className="form-links"
         >
           Clear code
         </button>
@@ -215,20 +218,18 @@ export const VerificationCodeInput: React.FC<VerificationCodeInputProps> = ({
 
       {/* Resend Code */}
       <div className="text-center">
-        <p className="text-xs text-slate-600 dark:text-gray-400 mb-1">
+        <p style={{ color: '#ccc', fontSize: '14px', marginBottom: '10px' }}>
           Didn't receive the code?
         </p>
         <button
           type="button"
           onClick={handleResendCode}
           disabled={resendCountdown > 0 || isLoading}
-          className={`
-            text-xs font-medium transition-colors
-            ${resendCountdown > 0 || isLoading
-              ? 'text-slate-400 dark:text-gray-500 cursor-not-allowed'
-              : 'text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300'
-            }
-          `}
+          className="form-links"
+          style={{
+            opacity: resendCountdown > 0 || isLoading ? 0.5 : 1,
+            cursor: resendCountdown > 0 || isLoading ? 'not-allowed' : 'pointer'
+          }}
         >
           {resendCountdown > 0 
             ? `Resend in ${resendCountdown}s` 
@@ -239,9 +240,26 @@ export const VerificationCodeInput: React.FC<VerificationCodeInputProps> = ({
 
       {/* Loading State */}
       {isLoading && (
-        <div className="flex items-center justify-center gap-2 text-xs text-slate-600 dark:text-gray-400">
-          <div className="w-3 h-3 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
-          <span>Verifying...</span>
+        <div style={{ textAlign: 'center', color: '#ccc', fontSize: '14px' }}>
+          <div className="control">
+            <div className="block-cube block-cube-hover">
+              <div className="bg-top">
+                <div className="bg-inner"></div>
+              </div>
+              <div className="bg-right">
+                <div className="bg-inner"></div>
+              </div>
+              <div className="bg">
+                <div className="bg-inner"></div>
+              </div>
+              <div className="text">
+                <button className="btn" disabled>
+                  <Loader2 size={18} className="animate-spin" style={{ marginRight: '8px' }} />
+                  Verifying...
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

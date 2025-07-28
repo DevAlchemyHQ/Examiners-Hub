@@ -25,52 +25,110 @@ export const ImageGrid: React.FC = () => {
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-slate-200 dark:border-gray-700 h-full flex flex-col">
-      {/* Single horizontal header: Project details form (left), Upload, Grid controls (right) */}
-      <div className="flex items-center justify-between p-2 border-b border-slate-200 dark:border-gray-700">
-        <div className="flex items-center gap-2">
-          <label className="text-xs font-medium text-slate-600 dark:text-gray-400 mr-1 whitespace-nowrap">ELR</label>
-          <input
-            type="text"
-            value={formData.elr}
-            onChange={handleELRChange}
-            className="p-1 text-xs border border-slate-200 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-slate-900 dark:text-white max-w-[70px] mr-2"
-            placeholder="ELR"
-            maxLength={8}
-          />
-          <label className="text-xs font-medium text-slate-600 dark:text-gray-400 mr-1 whitespace-nowrap">Structure No</label>
-          <input
-            type="text"
-            value={formData.structureNo}
-            onChange={handleStructureNoChange}
-            className="p-1 text-xs border border-slate-200 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-slate-900 dark:text-white max-w-[70px] mr-2"
-            placeholder="No"
-            maxLength={8}
-          />
-          <label className="text-xs font-medium text-slate-600 dark:text-gray-400 mr-1 whitespace-nowrap">Date</label>
-          <input
-            type="date"
-            value={formData.date}
-            onChange={handleDateChange}
-            className="p-1 text-xs border border-slate-200 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-slate-900 dark:text-white max-w-[120px] mr-2"
-          />
-          <ImageUpload compact={true} />
+      {/* Responsive header: Project details form and controls */}
+      <div className="p-2 border-b border-slate-200 dark:border-gray-700">
+        {/* Mobile: Stack vertically */}
+        <div className="md:hidden space-y-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1">
+              <label className="text-xs font-medium text-slate-600 dark:text-gray-400">ELR</label>
+              <input
+                type="text"
+                value={formData.elr}
+                onChange={handleELRChange}
+                className="p-1 text-xs border border-slate-200 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-slate-900 dark:text-white w-16"
+                placeholder="ELR"
+                maxLength={8}
+              />
+            </div>
+            <div className="flex items-center gap-1">
+              <label className="text-xs font-medium text-slate-600 dark:text-gray-400">No</label>
+              <input
+                type="text"
+                value={formData.structureNo}
+                onChange={handleStructureNoChange}
+                className="p-1 text-xs border border-slate-200 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-slate-900 dark:text-white w-16"
+                placeholder="No"
+                maxLength={8}
+              />
+            </div>
+            <div className="flex items-center gap-1">
+              <label className="text-xs font-medium text-slate-600 dark:text-gray-400">Date</label>
+              <input
+                type="date"
+                value={formData.date}
+                onChange={handleDateChange}
+                className="p-1 text-xs border border-slate-200 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-slate-900 dark:text-white w-28"
+              />
+            </div>
+          </div>
+          <div className="flex items-center justify-between">
+            <ImageUpload compact={true} />
+            <div className="flex items-center gap-1">
+              <span className="text-xs text-slate-500 dark:text-gray-400">Grid: {gridWidth}</span>
+              <button
+                onClick={() => setGridWidth(Math.max(3, gridWidth - 1))}
+                className="px-1.5 py-0.5 text-xs bg-slate-100 dark:bg-gray-700 rounded hover:bg-slate-200 dark:hover:bg-gray-600"
+              >
+                -
+              </button>
+              <button
+                onClick={() => setGridWidth(Math.min(8, gridWidth + 1))}
+                className="px-1.5 py-0.5 text-xs bg-slate-100 dark:bg-gray-700 rounded hover:bg-slate-200 dark:hover:bg-gray-600"
+              >
+                +
+              </button>
+            </div>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-slate-500 dark:text-gray-400">
-            Grid: {gridWidth}
-          </span>
-          <button
-            onClick={() => setGridWidth(Math.max(3, gridWidth - 1))}
-            className="px-2 py-1 text-sm bg-slate-100 dark:bg-gray-700 rounded hover:bg-slate-200 dark:hover:bg-gray-600"
-          >
-            -
-          </button>
-          <button
-            onClick={() => setGridWidth(Math.min(8, gridWidth + 1))}
-            className="px-2 py-1 text-sm bg-slate-100 dark:bg-gray-700 rounded hover:bg-slate-200 dark:hover:bg-gray-600"
-          >
-            +
-          </button>
+        
+        {/* Desktop: Horizontal layout */}
+        <div className="hidden md:flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <label className="text-xs font-medium text-slate-600 dark:text-gray-400 mr-1 whitespace-nowrap">ELR</label>
+            <input
+              type="text"
+              value={formData.elr}
+              onChange={handleELRChange}
+              className="p-1 text-xs border border-slate-200 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-slate-900 dark:text-white max-w-[70px] mr-2"
+              placeholder="ELR"
+              maxLength={8}
+            />
+            <label className="text-xs font-medium text-slate-600 dark:text-gray-400 mr-1 whitespace-nowrap">Structure No</label>
+            <input
+              type="text"
+              value={formData.structureNo}
+              onChange={handleStructureNoChange}
+              className="p-1 text-xs border border-slate-200 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-slate-900 dark:text-white max-w-[70px] mr-2"
+              placeholder="No"
+              maxLength={8}
+            />
+            <label className="text-xs font-medium text-slate-600 dark:text-gray-400 mr-1 whitespace-nowrap">Date</label>
+            <input
+              type="date"
+              value={formData.date}
+              onChange={handleDateChange}
+              className="p-1 text-xs border border-slate-200 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-slate-900 dark:text-white max-w-[120px] mr-2"
+            />
+            <ImageUpload compact={true} />
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-slate-500 dark:text-gray-400">
+              Grid: {gridWidth}
+            </span>
+            <button
+              onClick={() => setGridWidth(Math.max(3, gridWidth - 1))}
+              className="px-2 py-1 text-sm bg-slate-100 dark:bg-gray-700 rounded hover:bg-slate-200 dark:hover:bg-gray-600"
+            >
+              -
+            </button>
+            <button
+              onClick={() => setGridWidth(Math.min(8, gridWidth + 1))}
+              className="px-2 py-1 text-sm bg-slate-100 dark:bg-gray-700 rounded hover:bg-slate-200 dark:hover:bg-gray-600"
+            >
+              +
+            </button>
+          </div>
         </div>
       </div>
 

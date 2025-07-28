@@ -398,7 +398,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         newSelected.delete(id);
       } else {
         // Simply add the image to selection - no validation here
-        newSelected.add(id);
+            newSelected.add(id);
       }
       
       // Auto-save selections to localStorage immediately with filenames for cross-session matching (but not during clearing)

@@ -107,7 +107,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           } catch (profileError) {
             console.error('Error loading profile data:', profileError);
             // Still set user even if profile loading fails
-            set({ isAuthenticated: true, user });
+          set({ isAuthenticated: true, user });
           }
         } catch (parseError) {
           console.error('Error parsing stored user:', parseError);

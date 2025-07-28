@@ -120,23 +120,23 @@ export const OTPVerification: React.FC<OTPVerificationProps> = ({
   return (
     <div className="cyberpunk-auth">
       <div className="form">
-        <div>
-          <button
-            onClick={onBack}
+      <div>
+        <button
+          onClick={onBack}
             className="form-links"
-          >
+        >
             ← Back
-          </button>
+        </button>
           <h1>Enter Verification Code</h1>
           <p style={{ textAlign: 'center', marginBottom: '20px', color: '#ccc' }}>
-            We sent a verification code to {email}. Please enter it below.
-          </p>
-        </div>
+          We sent a verification code to {email}. Please enter it below.
+        </p>
+      </div>
 
         <form onSubmit={handleSubmit}>
           <div className="control" style={{ marginBottom: '30px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px' }}>
-              {otp.map((digit, index) => (
+          {otp.map((digit, index) => (
                 <div key={index} className="block-cube block-input" style={{ width: '40px', height: '50px' }}>
                   <div className="bg-top">
                     <div className="bg-inner"></div>
@@ -148,15 +148,15 @@ export const OTPVerification: React.FC<OTPVerificationProps> = ({
                     <div className="bg-inner"></div>
                   </div>
                   <div className="text">
-                    <input
-                      ref={el => inputRefs.current[index] = el}
-                      type="text"
-                      inputMode="numeric"
-                      pattern="\d*"
-                      maxLength={1}
-                      value={digit}
-                      onChange={e => handleChange(index, e.target.value)}
-                      onKeyDown={e => handleKeyDown(index, e)}
+            <input
+              ref={el => inputRefs.current[index] = el}
+              type="text"
+              inputMode="numeric"
+              pattern="\d*"
+              maxLength={1}
+              value={digit}
+              onChange={e => handleChange(index, e.target.value)}
+              onKeyDown={e => handleKeyDown(index, e)}
                       style={{ 
                         width: '100%', 
                         height: '100%', 
@@ -164,19 +164,19 @@ export const OTPVerification: React.FC<OTPVerificationProps> = ({
                         fontSize: '18px',
                         fontWeight: 'bold'
                       }}
-                      autoComplete="one-time-code"
-                    />
+              autoComplete="one-time-code"
+            />
                   </div>
                 </div>
-              ))}
-            </div>
+          ))}
+        </div>
           </div>
 
-          {error && (
+        {error && (
             <div className="error-message">
               {error}
-            </div>
-          )}
+          </div>
+        )}
 
           <div className="control">
             <div className="block-cube block-cube-hover">
@@ -190,20 +190,20 @@ export const OTPVerification: React.FC<OTPVerificationProps> = ({
                 <div className="bg-inner"></div>
               </div>
               <div className="text">
-                <button
-                  type="submit"
-                  disabled={isLoading || otp.some(d => !d)}
+          <button
+            type="submit"
+            disabled={isLoading || otp.some(d => !d)}
                   className="btn"
-                >
-                  {isLoading ? (
-                    <>
-                      <Loader2 size={18} className="animate-spin" />
-                      Verifying...
-                    </>
-                  ) : (
-                    'Verify Code'
-                  )}
-                </button>
+          >
+            {isLoading ? (
+              <>
+                <Loader2 size={18} className="animate-spin" />
+                Verifying...
+              </>
+            ) : (
+              'Verify Code'
+            )}
+          </button>
               </div>
             </div>
           </div>
@@ -228,7 +228,7 @@ export const OTPVerification: React.FC<OTPVerificationProps> = ({
             </button>
           </div>
         </form>
-      </div>
+        </div>
     </div>
   );
 };

@@ -121,9 +121,8 @@ export const ImageGridItem: React.FC<ImageGridItemProps> = ({ images, gridWidth 
         }}
       >
         <div
-          className="grid gap-2"
+          className="grid gap-2 grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8"
           style={{
-            gridTemplateColumns: `repeat(${gridWidth}, 1fr)`,
             minHeight: '100%',
             alignContent: 'start'
           }}
@@ -140,6 +139,7 @@ export const ImageGridItem: React.FC<ImageGridItemProps> = ({ images, gridWidth 
                       draggable={viewMode === 'bulk'}
                       onDragStart={(e) => handleDragStart(e, img)}
                       onDragEnd={handleDragEnd}
+                      style={{ touchAction: 'manipulation' }}
                     >
                       <div className={`relative rounded-lg overflow-hidden h-full ${
                         isSelected ? 'ring-2 ring-indigo-500' : ''

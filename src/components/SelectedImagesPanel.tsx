@@ -742,94 +742,179 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
 
   return (
     <div className={`bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-slate-200 dark:border-gray-700 h-full flex flex-col ${getBorderColor()}`}>
-      <div className="flex items-center justify-between p-2 border-b border-slate-200 dark:border-gray-700">
-        {/* Mode Switch */}
-        <div className="flex items-center gap-2 flex-1">
-          <button
-            onClick={() => setViewMode('images')}
-            className={`flex items-center gap-1 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-              viewMode === 'images'
-                ? 'bg-white dark:bg-gray-600 text-indigo-600 dark:text-indigo-400 shadow-sm'
-                : 'text-slate-600 dark:text-gray-300 hover:text-slate-900 dark:hover:text-white'
-            }`}
-          >
-            <Images size={18} /> Images
-          </button>
-          <button
-            onClick={() => setViewMode('bulk')}
-            className={`flex items-center gap-1 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-              viewMode === 'bulk'
-                ? 'bg-white dark:bg-gray-600 text-indigo-600 dark:text-indigo-400 shadow-sm'
-                : 'text-slate-600 dark:text-gray-300 hover:text-slate-900 dark:hover:text-white'
-            }`}
-          >
-            <FileText size={18} /> Bulk
-          </button>
-          {/* Bulk Paste button (Bulk mode only) */}
-          {viewMode === 'bulk' && (
+      <div className="p-2 border-b border-slate-200 dark:border-gray-700">
+        {/* Mobile: Stack vertically */}
+        <div className="md:hidden space-y-2">
+          <div className="flex items-center gap-2">
             <button
-              onClick={() => setShowBulkPaste(!showBulkPaste)}
-              className="flex items-center gap-1 px-3 py-1.5 rounded-md text-sm font-medium transition-colors bg-white dark:bg-gray-600 text-slate-700 dark:text-gray-300 border border-slate-200 dark:border-gray-700 hover:bg-slate-100 dark:hover:bg-gray-700"
-            >
-              <FileText size={16} />
-            </button>
-          )}
-          {/* Icon controls: sort, undo, bin (delete all) */}
-          <div className="flex items-center gap-2 ml-2">
-            <button
-              title="Sort"
-              className="p-2 text-slate-500 dark:text-gray-300 hover:bg-slate-100 dark:hover:bg-gray-700 rounded transition-colors"
-              onClick={viewMode === 'bulk' ? toggleSorting : handleSortImages}
-            >
-              <ArrowUpDown size={20} />
-            </button>
-            <button
-              title="Undo"
-              className={`p-2 rounded transition-colors ${
-                viewMode === 'bulk' 
-                  ? (deletedDefects && deletedDefects.length > 0 
-                      ? 'text-slate-500 dark:text-gray-300 hover:bg-slate-100 dark:hover:bg-gray-700' 
-                      : 'text-slate-300 dark:text-gray-600 cursor-not-allowed')
-                  : (canUndoImages 
-                      ? 'text-slate-500 dark:text-gray-300 hover:bg-slate-100 dark:hover:bg-gray-700' 
-                      : 'text-slate-300 dark:text-gray-600 cursor-not-allowed')
+              onClick={() => setViewMode('images')}
+              className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors ${
+                viewMode === 'images'
+                  ? 'bg-white dark:bg-gray-600 text-indigo-600 dark:text-indigo-400 shadow-sm'
+                  : 'text-slate-600 dark:text-gray-300 hover:text-slate-900 dark:hover:text-white'
               }`}
-              onClick={viewMode === 'bulk' ? undoDelete : handleUndoImages}
-              disabled={viewMode === 'bulk' ? (!deletedDefects || deletedDefects.length === 0) : !canUndoImages}
             >
-              <Undo size={20} />
+              <Images size={14} /> Images
             </button>
             <button
-              title="Delete All"
-              className="p-2 text-slate-500 dark:text-gray-300 hover:bg-slate-100 dark:hover:bg-gray-700 rounded transition-colors"
-              onClick={viewMode === 'bulk' ? handleDeleteAllBulk : handleDeleteAllImages}
+              onClick={() => setViewMode('bulk')}
+              className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors ${
+                viewMode === 'bulk'
+                  ? 'bg-white dark:bg-gray-600 text-indigo-600 dark:text-indigo-400 shadow-sm'
+                  : 'text-slate-600 dark:text-gray-300 hover:text-slate-900 dark:hover:text-white'
+              }`}
             >
-              <Trash2 size={20} />
+              <FileText size={14} /> Bulk
             </button>
+            {viewMode === 'bulk' && (
+              <button
+                onClick={() => setShowBulkPaste(!showBulkPaste)}
+                className="flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors bg-white dark:bg-gray-600 text-slate-700 dark:text-gray-300 border border-slate-200 dark:border-gray-700 hover:bg-slate-100 dark:hover:bg-gray-700"
+              >
+                <FileText size={12} />
+              </button>
+            )}
+          </div>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1">
+              <button
+                title="Sort"
+                className="p-1 text-slate-500 dark:text-gray-300 hover:bg-slate-100 dark:hover:bg-gray-700 rounded transition-colors"
+                onClick={viewMode === 'bulk' ? toggleSorting : handleSortImages}
+              >
+                <ArrowUpDown size={16} />
+              </button>
+              <button
+                title="Undo"
+                className={`p-1 rounded transition-colors ${
+                  viewMode === 'bulk' 
+                    ? (deletedDefects && deletedDefects.length > 0 
+                        ? 'text-slate-500 dark:text-gray-300 hover:bg-slate-100 dark:hover:bg-gray-700' 
+                        : 'text-slate-300 dark:text-gray-600 cursor-not-allowed')
+                    : (canUndoImages 
+                        ? 'text-slate-500 dark:text-gray-300 hover:bg-slate-100 dark:hover:bg-gray-700' 
+                        : 'text-slate-300 dark:text-gray-600 cursor-not-allowed')
+                }`}
+                onClick={viewMode === 'bulk' ? undoDelete : handleUndoImages}
+                disabled={viewMode === 'bulk' ? (!deletedDefects || deletedDefects.length === 0) : !canUndoImages}
+              >
+                <Undo size={16} />
+              </button>
+              <button
+                title="Delete All"
+                className="p-1 text-slate-500 dark:text-gray-300 hover:bg-slate-100 dark:hover:bg-gray-700 rounded transition-colors"
+                onClick={viewMode === 'bulk' ? handleDeleteAllBulk : handleDeleteAllImages}
+              >
+                <Trash2 size={16} />
+              </button>
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="text-xs font-medium text-slate-500 dark:text-gray-400">
+                {viewMode === 'bulk'
+                  ? `(${bulkDefects.length})`
+                  : `(${defectImages.length})`}
+              </span>
+              <DownloadButton />
+              <button
+                onClick={onExpand}
+                className="p-1 hover:bg-slate-100 dark:hover:bg-gray-700 rounded transition-colors"
+                title={isExpanded ? "Collapse view" : "Expand view"}
+              >
+                {isExpanded ? (
+                  <Minimize2 size={16} className="text-slate-600 dark:text-gray-300" />
+                ) : (
+                  <Maximize2 size={16} className="text-slate-600 dark:text-gray-300" />
+                )}
+              </button>
+            </div>
           </div>
         </div>
-        {/* Right-aligned counter */}
-        <div className="flex items-center gap-2 ml-auto">
-          <span className="text-sm font-medium text-slate-500 dark:text-gray-400">
-            {viewMode === 'bulk'
-              ? `(${bulkDefects.length})`
-              : `(${defectImages.length})`}
-          </span>
-        </div>
-        {/* Download and Expand */}
-        <div className="flex items-center gap-2">
-          <DownloadButton />
-          <button
-            onClick={onExpand}
-            className="p-2 hover:bg-slate-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-            title={isExpanded ? "Collapse view" : "Expand view"}
-          >
-            {isExpanded ? (
-              <Minimize2 size={20} className="text-slate-600 dark:text-gray-300" />
-            ) : (
-              <Maximize2 size={20} className="text-slate-600 dark:text-gray-300" />
+        
+        {/* Desktop: Horizontal layout */}
+        <div className="hidden md:flex items-center justify-between">
+          <div className="flex items-center gap-2 flex-1">
+            <button
+              onClick={() => setViewMode('images')}
+              className={`flex items-center gap-1 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                viewMode === 'images'
+                  ? 'bg-white dark:bg-gray-600 text-indigo-600 dark:text-indigo-400 shadow-sm'
+                  : 'text-slate-600 dark:text-gray-300 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <Images size={18} /> Images
+            </button>
+            <button
+              onClick={() => setViewMode('bulk')}
+              className={`flex items-center gap-1 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                viewMode === 'bulk'
+                  ? 'bg-white dark:bg-gray-600 text-indigo-600 dark:text-indigo-400 shadow-sm'
+                  : 'text-slate-600 dark:text-gray-300 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <FileText size={18} /> Bulk
+            </button>
+            {viewMode === 'bulk' && (
+              <button
+                onClick={() => setShowBulkPaste(!showBulkPaste)}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-md text-sm font-medium transition-colors bg-white dark:bg-gray-600 text-slate-700 dark:text-gray-300 border border-slate-200 dark:border-gray-700 hover:bg-slate-100 dark:hover:bg-gray-700"
+              >
+                <FileText size={16} />
+              </button>
             )}
-          </button>
+            <div className="flex items-center gap-2 ml-2">
+              <button
+                title="Sort"
+                className="p-2 text-slate-500 dark:text-gray-300 hover:bg-slate-100 dark:hover:bg-gray-700 rounded transition-colors"
+                onClick={viewMode === 'bulk' ? toggleSorting : handleSortImages}
+              >
+                <ArrowUpDown size={20} />
+              </button>
+              <button
+                title="Undo"
+                className={`p-2 rounded transition-colors ${
+                  viewMode === 'bulk' 
+                    ? (deletedDefects && deletedDefects.length > 0 
+                        ? 'text-slate-500 dark:text-gray-300 hover:bg-slate-100 dark:hover:bg-gray-700' 
+                        : 'text-slate-300 dark:text-gray-600 cursor-not-allowed')
+                    : (canUndoImages 
+                        ? 'text-slate-500 dark:text-gray-300 hover:bg-slate-100 dark:hover:bg-gray-700' 
+                        : 'text-slate-300 dark:text-gray-600 cursor-not-allowed')
+                }`}
+                onClick={viewMode === 'bulk' ? undoDelete : handleUndoImages}
+                disabled={viewMode === 'bulk' ? (!deletedDefects || deletedDefects.length === 0) : !canUndoImages}
+              >
+                <Undo size={20} />
+              </button>
+              <button
+                title="Delete All"
+                className="p-2 text-slate-500 dark:text-gray-300 hover:bg-slate-100 dark:hover:bg-gray-700 rounded transition-colors"
+                onClick={viewMode === 'bulk' ? handleDeleteAllBulk : handleDeleteAllImages}
+              >
+                <Trash2 size={20} />
+              </button>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 ml-auto">
+            <span className="text-sm font-medium text-slate-500 dark:text-gray-400">
+              {viewMode === 'bulk'
+                ? `(${bulkDefects.length})`
+                : `(${defectImages.length})`}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <DownloadButton />
+            <button
+              onClick={onExpand}
+              className="p-2 hover:bg-slate-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              title={isExpanded ? "Collapse view" : "Expand view"}
+            >
+              {isExpanded ? (
+                <Minimize2 size={20} className="text-slate-600 dark:text-gray-300" />
+              ) : (
+                <Maximize2 size={20} className="text-slate-600 dark:text-gray-300" />
+              )}
+            </button>
+          </div>
         </div>
       </div>
       {/* Subtle message for validation status (no background, just colored text) */}
