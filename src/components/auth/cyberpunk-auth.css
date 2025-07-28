@@ -1,0 +1,282 @@
+*, ::after, ::before {
+    box-sizing: border-box;
+}
+
+.cyberpunk-auth {
+  --bg-body: #212121; 
+  --bg-gradient-last-color: rgba(0,212,255,1);
+  --bg-gradient: linear-gradient(90deg, rgba(2,0,36,1) 0%, rgba(52,9,121,1) 37%, var(--bg-gradient-last-color) 94%);
+}
+
+.cyberpunk-auth {
+  background-color: var(--bg-body);
+  color: #fff;
+  font-family: monospace, serif;
+  letter-spacing: 0.05em;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.cyberpunk-auth h1 {
+  font-size: 23px;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.cyberpunk-auth .logo-container {
+  text-align: center;
+  margin-bottom: 30px;
+}
+
+.cyberpunk-auth .logo-image {
+  display: block;
+  margin: 0 auto 20px;
+  transition: all 0.3s ease-in-out;
+}
+
+.cyberpunk-auth .logo-image:hover {
+  transform: scale(1.05);
+  filter: drop-shadow(0 0 12px rgba(255,255,255,0.5)) !important;
+}
+
+.cyberpunk-auth .form {
+  width: 300px;
+  padding: 64px 15px 24px;
+  margin: 0 auto;
+}
+
+.cyberpunk-auth .control {
+  margin: 0 0 24px;
+}
+
+.cyberpunk-auth .control input {
+  width: 100%;
+  padding: 14px 16px;
+  border: 0;
+  background: transparent;
+  color: #fff;
+  font-family: monospace, serif;
+  letter-spacing: 0.05em;
+  font-size: 16px;
+}
+
+.cyberpunk-auth .control input:hover,
+.cyberpunk-auth .control input:focus {
+  outline: none;
+  border: 0;
+}
+
+.cyberpunk-auth .btn {
+  width: 100%;
+  display: block;
+  padding: 14px 16px;
+  background: transparent;
+  outline: none;
+  border: 0;
+  color: #fff;
+  letter-spacing: 0.1em;
+  font-weight: bold;
+  font-family: monospace;
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+}
+
+.cyberpunk-auth .btn:hover {
+  transform: translateY(-2px);
+}
+
+.cyberpunk-auth .block-cube {
+  position: relative;
+}
+
+.cyberpunk-auth .block-cube .bg-top {
+  position: absolute;
+  height: 10px;
+  background: rgb(2,0,36);
+  background: var(--bg-gradient);
+  bottom: 100%;
+  left: 5px;
+  right: -5px;
+  transform: skew(-45deg, 0);
+  margin: 0;
+}
+
+.cyberpunk-auth .block-cube .bg-top .bg-inner {
+  bottom: 0;
+}
+
+.cyberpunk-auth .block-cube .bg {
+  position: absolute;
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  background: rgb(2,0,36);
+  background: var(--bg-gradient);
+}
+
+.cyberpunk-auth .block-cube .bg-right {
+  position: absolute;
+  background: rgb(2,0,36);
+  background: rgba(0,212,255,1);
+  top: -5px;
+  z-index: 0;
+  bottom: 5px;
+  width: 10px;
+  left: 100%;
+  transform: skew(0, -45deg);
+}
+
+.cyberpunk-auth .block-cube .bg-right .bg-inner {
+  left: 0;
+}
+
+.cyberpunk-auth .block-cube .bg .bg-inner {
+  transition: all 0.2s ease-in-out;
+}
+
+.cyberpunk-auth .block-cube .bg-inner {
+  background: var(--bg-body);
+  position: absolute;
+  left: 2px;
+  top: 2px;
+  right: 2px;
+  bottom: 2px;
+}
+
+.cyberpunk-auth .block-cube .text {
+  position: relative;
+  z-index: 2;
+}
+
+.cyberpunk-auth .block-cube.block-input input {
+  position: relative;
+  z-index: 2;
+}
+
+.cyberpunk-auth .block-cube.block-input input:focus ~ .bg-right .bg-inner,
+.cyberpunk-auth .block-cube.block-input input:focus ~ .bg-top .bg-inner,
+.cyberpunk-auth .block-cube.block-input input:focus ~ .bg-inner .bg-inner {
+  top: 100%;
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.cyberpunk-auth .block-cube.block-input .bg-top,
+.cyberpunk-auth .block-cube.block-input .bg-right,
+.cyberpunk-auth .block-cube.block-input .bg {
+  background: rgba(255, 255, 255, 0.5);
+  transition: background 0.2s ease-in-out;
+}
+
+.cyberpunk-auth .block-cube.block-input .bg-right,
+.cyberpunk-auth .block-cube.block-input .bg-top {
+  .bg-inner {
+    transition: all 0.2s ease-in-out;
+  }
+}
+
+.cyberpunk-auth .block-cube.block-input:focus,
+.cyberpunk-auth .block-cube.block-input:hover {
+  .bg-top,
+  .bg-right,
+  .bg {
+    background: rgba(255, 255, 255, 0.8);
+  }
+}
+
+.cyberpunk-auth .block-cube.block-cube-hover:focus,
+.cyberpunk-auth .block-cube.block-cube-hover:hover {
+  .bg .bg-inner {
+    top: 100%;
+  }
+}
+
+.cyberpunk-auth .credits {
+  position: fixed;
+  left: 0;
+  bottom: 0;
+  padding: 15px 15px;
+  width: 100%;
+  z-index: 111;
+}
+
+.cyberpunk-auth .credits a {
+  opacity: 0.6;
+  color: #fff;
+  font-size: 11px;
+  text-decoration: none;
+}
+
+.cyberpunk-auth .credits a:hover {
+  opacity: 1;
+}
+
+/* Additional styles for form elements */
+.cyberpunk-auth .form-group {
+  margin-bottom: 20px;
+}
+
+.cyberpunk-auth .form-links {
+  margin-top: 20px;
+  text-align: center;
+}
+
+.cyberpunk-auth .form-links button {
+  background: none;
+  border: none;
+  color: #00d4ff;
+  text-decoration: none;
+  font-size: 14px;
+  cursor: pointer;
+  margin: 0 10px;
+}
+
+.cyberpunk-auth .form-links button:hover {
+  color: #fff;
+}
+
+.cyberpunk-auth .error-message {
+  color: #ff4444;
+  font-size: 14px;
+  margin-top: 10px;
+  text-align: center;
+}
+
+.cyberpunk-auth .success-message {
+  color: #00ff88;
+  font-size: 14px;
+  margin-top: 10px;
+  text-align: center;
+}
+
+.cyberpunk-auth .checkbox-group {
+  display: flex;
+  align-items: center;
+  margin: 20px 0;
+}
+
+.cyberpunk-auth .checkbox-group input[type="checkbox"] {
+  margin-right: 10px;
+  transform: scale(1.2);
+}
+
+.cyberpunk-auth .checkbox-group label {
+  font-size: 14px;
+  color: #ccc;
+}
+
+.cyberpunk-auth .checkbox-group label button {
+  background: none;
+  border: none;
+  color: #00d4ff;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.cyberpunk-auth .checkbox-group label button:hover {
+  color: #fff;
+} 

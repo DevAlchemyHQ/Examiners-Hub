@@ -60,12 +60,6 @@ export const DownloadButton: React.FC = () => {
         defectsWithHash: bulkDefects.filter(d => d.photoNumber === '#').length,
         defectsWithEmpty: bulkDefects.filter(d => !d.photoNumber?.trim()).length
       });
-      
-      // Force re-render if validation state changes
-      if (defectsWithoutNumbers.length > 0 && isValid) {
-        console.log('⚠️ WARNING: Validation state mismatch!');
-        setValidationKey(prev => prev + 1);
-      }
     }
   }, [viewMode, bulkDefects, validationKey]);
 
@@ -262,6 +256,8 @@ export const DownloadButton: React.FC = () => {
     }
   };
 
+
+
   return (
     <div className="space-y-2">
       {isSubscriptionExpired ? (
@@ -281,17 +277,13 @@ export const DownloadButton: React.FC = () => {
             (viewMode === 'bulk' && !isBulkValid()) ||
             (viewMode === 'images' && !isValid())
           }
-          className={`w-full flex items-center justify-center gap-2 px-6 py-3 rounded-lg ${
+          className={`flex items-center gap-2 px-3 py-1.5 rounded ${
             isDownloading ||
             (viewMode === 'bulk' && !isBulkValid()) ||
             (viewMode === 'images' && !isValid())
-              ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-              : 'bg-green-500 text-white hover:bg-green-600'
-          }`}
-          style={{
-            // Force visual feedback for debugging
-            border: viewMode === 'bulk' && !isBulkValid() ? '2px solid red' : 'none'
-          }}
+              ? 'bg-gray-400 text-gray-500 cursor-not-allowed'
+              : 'bg-gray-700 dark:bg-gray-600 text-white border border-gray-600 dark:border-gray-500 hover:bg-gray-600 dark:hover:bg-gray-500'
+          } transition-colors`}
           onMouseEnter={() => {
             console.log('Download button validation state:', {
               isDownloading,
@@ -306,8 +298,9 @@ export const DownloadButton: React.FC = () => {
             });
           }}
         >
-          {isDownloading ? <Loader2 size={20} className="animate-spin" /> : <Download size={20} />}
-          {isDownloading
+          {/* Only show Loader2 spinner if not in bulk mode */}
+          {isDownloading && viewMode !== 'bulk' ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+          {isDownloading && viewMode !== 'bulk'
             ? 'Preparing download...'
             : viewMode === 'bulk'
             ? 'Download Bulk Package'
@@ -315,70 +308,8 @@ export const DownloadButton: React.FC = () => {
         </button>
       )}
 
-      {/* Error messages - consolidated to prevent duplicates */}
-      {viewMode === 'bulk' && !isBulkValid() && !isDownloading && (
-        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 mt-2">
-          <div className="flex items-start gap-2 text-amber-700 dark:text-amber-400">
-            <AlertCircle size={16} className="mt-0.5 flex-shrink-0" />
-            <div className="text-sm">
-              <p className="font-medium mb-1">Please complete the following:</p>
-              <ul className="list-disc list-inside space-y-1">
-                {getBulkValidationErrors().slice(0, 3).map((error, index) => (
-                  <li key={index}>{error}</li>
-                ))}
-                {getBulkValidationErrors().length > 3 && (
-                  <li>... and {getBulkValidationErrors().length - 3} more issues</li>
-                )}
-              </ul>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Removed all status boxes - now using line-based messages in SelectedImagesPanel */}
 
-      {/* Error message for images mode */}
-      {viewMode === 'images' && !isValid() && (
-        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 mt-2">
-          <div className="flex items-start gap-2 text-amber-700 dark:text-amber-400">
-            <AlertCircle size={16} className="mt-0.5 flex-shrink-0" />
-            <div className="text-sm">
-              <p className="font-medium mb-1">Please complete the following:</p>
-              <ul className="list-disc list-inside space-y-1">
-                <li>{getValidationErrors()[0]}</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Success message for bulk mode */}
-      {viewMode === 'bulk' && isBulkValid() && !isDownloading && (
-        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-3">
-          <div className="flex items-start gap-2 text-green-700 dark:text-green-400">
-            <CheckCircle size={16} className="mt-0.5 flex-shrink-0" />
-            <div className="text-sm">
-              <p className="font-medium">Ready to download!</p>
-              <p className="text-xs mt-1 opacity-75">
-                {getValidationSummary().totalDefects} defects ready for download
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Success message for images mode */}
-      {viewMode === 'images' && isValid() && !isDownloading && selectedImages.size > 0 && (
-        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
-          <div className="flex items-start gap-2 text-amber-700 dark:text-amber-400">
-            <CheckCircle size={16} className="mt-0.5 flex-shrink-0" />
-            <div className="text-sm">
-              <p className="font-medium">Ready to download!</p>
-              <p className="text-xs mt-1 opacity-75">
-                {selectedImages.size} image{selectedImages.size !== 1 ? 's' : ''} ready for download
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

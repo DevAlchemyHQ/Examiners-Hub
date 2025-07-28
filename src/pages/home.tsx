@@ -2,8 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { Loader2, Trash2 } from 'lucide-react';
 import { useMetadataStore } from '../store/metadataStore';
 import { useProjectStore } from '../store/projectStore';
-import { Header } from '../components/Header';
-import { Sidebar } from '../components/layout/Sidebar';
 import { MainContent } from '../components/layout/MainContent';
 
 interface MainLayoutProps {
@@ -56,9 +54,9 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-gray-900 flex flex-col">
-        <main className="flex-1 max-w-[1920px] mx-auto w-full px-2 overflow-hidden ">
+        <main className="flex-1 w-full overflow-hidden">
             <div className="flex-shrink-0">
-                <div className="flex h-5 items-center justify-between  border-slate-200 dark:border-gray-700">
+                <div className="flex h-5 items-center justify-between border-slate-200 dark:border-gray-700">
                     <div className="flex items-center gap-0.5">
                     </div>
 
@@ -79,11 +77,10 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                 </div>
             </div>
 
-            <div className="h-full grid grid-cols-1 lg:grid-cols-12 gap-4">
-                <div className="lg:col-span-2 overflow-hidden">
-                    <Sidebar />
+            <div className="h-full grid grid-cols-1 lg:grid-cols-12 gap-4 p-1">
+                <div className="lg:col-span-12 overflow-hidden">
+                    <MainContent />
                 </div>
-                <MainContent />
             </div>
         </main>
 

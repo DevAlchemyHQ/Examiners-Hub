@@ -3,10 +3,10 @@ import { Header } from '../Header';
 import { Sidebar } from './Sidebar';
 import { MainContent } from './MainContent';
 import { GridReferenceFinder } from '../GridReferenceFinder/GridReferenceFinder';
-import { PDFViewer } from '../PDFViewer/PDFViewer';
+
 import { CalculatorTabs } from '../calculators/CalculatorTabs';
 import { GameTabs } from '../games/GameTabs';
-import { Images, Map, FileText, Calculator, Brain, Trash2, TowerControl as GameController, Loader2, FolderOpen } from 'lucide-react';
+import { Images, Map, Calculator, Brain, Trash2, TowerControl as GameController, Loader2, FolderOpen } from 'lucide-react';
 import { useMetadataStore } from '../../store/metadataStore';
 import { usePDFStore } from '../../store/pdfStore';
 import { useProjectStore } from '../../store/projectStore';
@@ -15,7 +15,7 @@ import { MigrationStatus } from '../MigrationStatus';
 import { MigrationControls } from '../MigrationControls';
 import { useLocation } from 'react-router-dom';
 
-type TabType = 'images' | 'pdf' | 'calculator' | 'bcmi' | 'grid' | 'games' | 'project';
+type TabType = 'images' | 'calculator' | 'bcmi' | 'grid' | 'games' | 'project';
 
 interface MainLayoutProps {
   children?: React.ReactNode;
@@ -52,7 +52,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         useMetadataStore.getState().saveUserData().catch(error => {
           console.error('Error saving user data:', error);
         });
-      }, 1000);
+      }, 15000);
 
       return () => clearTimeout(saveTimeout);
     }
@@ -114,7 +114,6 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             <div className="flex items-center gap-0.5">
               {[
                 { id: 'images', icon: Images, label: 'Images' },
-                { id: 'pdf', icon: FileText, label: 'PDF' },
                 { id: 'calculator', icon: Calculator, label: 'Calc' },
                 { id: 'grid', icon: Map, label: 'Grid' },
                 { id: 'bcmi', icon: Brain, label: 'BCMI & AI' },
@@ -159,7 +158,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           </div>
         </div>
 
-        <div className="flex-1 h-[calc(100vh-96px)] overflow-auto">
+        <div className="flex-1 h-[calc(100vh-120px)] overflow-auto">
           {/* Remove opacity transition to prevent flickering */}
           <div className="h-full">
             {activeTab === 'images' ? (
@@ -170,10 +169,6 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                 </div>
                 {/* Pass isLoading to MainContent for skeletons */}
                 <MainContent isLoading={isLoading} />
-              </div>
-            ) : activeTab === 'pdf' ? (
-              <div className="h-full">
-                <PDFViewer />
               </div>
             ) : activeTab === 'calculator' ? (
               <CalculatorTabs />
@@ -205,10 +200,6 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                         <div className="flex justify-between">
                           <span>Selected Images:</span>
                           <span className="font-medium">{selectedImages.size}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Bulk Defects:</span>
-                          <span className="font-medium">{useMetadataStore.getState().bulkDefects.length}</span>
                         </div>
                       </div>
                     </div>

@@ -53,7 +53,7 @@ const PDFViewerSection: React.FC<PDFViewerSectionProps> = ({
   };
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm h-[calc(100vh-96px)] flex flex-col">
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm h-[calc(100vh-120px)] flex flex-col">
       <div className="p-2 border-b border-slate-200 dark:border-gray-700">
         <div className="flex items-center justify-between mb-2">
           <h3 className="text-sm font-medium text-slate-800 dark:text-white">{title}</h3>

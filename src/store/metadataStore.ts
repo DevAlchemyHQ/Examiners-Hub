@@ -6,6 +6,7 @@ import { createZipFile } from '../utils/zipUtils';
 import { nanoid } from 'nanoid';
 import { convertImageToJpgBase64, convertBlobToBase64 } from '../utils/fileUtils';
 import { useProjectStore } from './projectStore';
+import { toast } from 'react-toastify';
 
 // Make sure initialFormData is truly empty
 const initialFormData: FormData = {
@@ -23,6 +24,7 @@ interface MetadataStateOnly {
   defectSortDirection: 'asc' | 'desc' | null;
   sketchSortDirection: 'asc' | 'desc' | null;
   bulkDefects: BulkDefect[];
+  deletedDefects: BulkDefect[];
   viewMode: 'images' | 'bulk';
   isLoading: boolean;
   isInitialized: boolean;
@@ -42,6 +44,7 @@ interface MetadataState extends MetadataStateOnly {
   setDefectSortDirection: (direction: 'asc' | 'desc' | null) => void;
   setSketchSortDirection: (direction: 'asc' | 'desc' | null) => void;
   setBulkDefects: (defects: BulkDefect[] | ((prev: BulkDefect[]) => BulkDefect[])) => void;
+  setDeletedDefects: (defects: BulkDefect[] | ((prev: BulkDefect[]) => BulkDefect[])) => void;
   reset: () => void;
   getSelectedCounts: () => { sketches: number; defects: number };
   loadUserData: () => Promise<void>;
@@ -82,6 +85,7 @@ const initialState: MetadataStateOnly = {
   defectSortDirection: null,
   sketchSortDirection: null,
   bulkDefects: [],
+  deletedDefects: [],
   viewMode: 'images',
   isLoading: false,
   isInitialized: false,
@@ -98,13 +102,21 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       const keys = getUserSpecificKeys();
       localStorage.setItem(keys.formData, JSON.stringify(newFormData));
       
-      // Auto-save to AWS immediately (not in background) for cross-browser persistence
+      // Auto-save to AWS with throttling to reduce costs
       (async () => {
         try {
           // Check if project is being cleared
           const projectStore = useProjectStore.getState();
           if (projectStore.isClearing) {
             console.log('⏸️ Skipping auto-save during project clear');
+            return;
+          }
+          
+          // Throttle auto-saves to reduce DynamoDB costs
+          const lastSaveTime = localStorage.getItem('last-aws-save');
+          const now = Date.now();
+          if (lastSaveTime && (now - parseInt(lastSaveTime)) < 30000) { // 30 second throttle
+            console.log('⏸️ Throttling auto-save to reduce costs');
             return;
           }
           
@@ -289,6 +301,22 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
 
   updateImageMetadata: async (id, data) => {
     set((state) => {
+      // Check for duplicate photo numbers if photoNumber is being updated
+      if (data.photoNumber !== undefined) {
+        const newPhotoNumber = parseInt(data.photoNumber) || 0;
+        if (newPhotoNumber > 0) {
+          const hasDuplicate = state.images.some(img => 
+            img.id !== id && 
+            parseInt(img.photoNumber || '0') === newPhotoNumber
+          );
+          if (hasDuplicate) {
+            console.warn('Duplicate photo number detected:', newPhotoNumber);
+            // Don't update if duplicate found - let the UI handle the error
+            return { images: state.images };
+          }
+        }
+      }
+      
       const updatedImages = state.images.map((img) =>
         img.id === id ? { ...img, ...data } : img
       );
@@ -369,16 +397,8 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       if (newSelected.has(id)) {
         newSelected.delete(id);
       } else {
-        // Add to the beginning if we have a sort direction
-        if (state.defectSortDirection === 'asc') {
-          newSelected = new Set([id, ...newSelected]);
-        } else if (state.defectSortDirection === 'desc') {
-          // For high to low, add to the beginning so it appears at top-left
-          newSelected = new Set([id, ...newSelected]);
-        } else {
-          // No sort direction, just add to the end
-          newSelected.add(id);
-        }
+        // Simply add the image to selection - no validation here
+        newSelected.add(id);
       }
       
       // Auto-save selections to localStorage immediately with filenames for cross-session matching (but not during clearing)
@@ -420,7 +440,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
               const image = state.images.find(img => img.id === id);
               return {
                 id,
-                fileName: image?.fileName || image?.file?.name || 'unknown'
+                fileName: image?.file?.name || 'unknown'
               };
             });
             await DatabaseService.updateSelectedImages(user.email, selectedWithFilenames);
@@ -562,6 +582,29 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       })();
       
       return { bulkDefects: newBulkDefects };
+    });
+  },
+
+  setDeletedDefects: (defects) => {
+    set((state) => {
+      const newDeletedDefects = typeof defects === 'function' ? defects(state.deletedDefects) : defects;
+      
+      // Auto-save to localStorage immediately (but not during clearing)
+      try {
+        // Check if project is being cleared
+        const projectStore = useProjectStore.getState();
+        if (!projectStore.isClearing) {
+          const keys = getUserSpecificKeys();
+          localStorage.setItem(`${keys.bulkData}-deleted`, JSON.stringify(newDeletedDefects));
+          console.log('📱 Deleted defects saved to localStorage:', newDeletedDefects.length);
+        } else {
+          console.log('⏸️ Skipping localStorage save during project clear');
+        }
+      } catch (error) {
+        console.error('❌ Error saving deleted defects to localStorage:', error);
+      }
+      
+      return { deletedDefects: newDeletedDefects };
     });
   },
 
@@ -974,8 +1017,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       const { bulkDefects } = state;
       
       // Save to localStorage for immediate access
-              const keys = getUserSpecificKeys();
-        localStorage.setItem(keys.bulkData, JSON.stringify(bulkDefects));
+      localStorage.setItem('clean-app-bulk-data', JSON.stringify(bulkDefects));
       
       // Save to AWS DynamoDB for cross-device persistence
       const storedUser = localStorage.getItem('user');
@@ -1016,8 +1058,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       }
       
       // Fallback to localStorage only if no user or AWS failed
-      const keys = getUserSpecificKeys();
-      const savedBulkData = localStorage.getItem(keys.bulkData);
+      const savedBulkData = localStorage.getItem('clean-app-bulk-data');
       if (savedBulkData) {
         const bulkDefects = JSON.parse(savedBulkData);
         set({ bulkDefects });

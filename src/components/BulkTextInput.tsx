@@ -38,7 +38,7 @@ interface ParsedEntry {
   selectedFile: string;
 }
 
-export const BulkTextInput: React.FC<{ isExpanded?: boolean }> = ({ isExpanded = false }) => {
+export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: (show: boolean) => void; showBulkPaste?: boolean }> = ({ isExpanded = false, setShowBulkPaste, showBulkPaste: parentShowBulkPaste }) => {
   const { 
     bulkDefects, 
     setBulkDefects, 
@@ -50,14 +50,15 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean }> = ({ isExpanded =
     bulkSelectedImages,
     generateBulkZip,
     setFormData,
-    formData
+    formData,
+    deletedDefects,
+    setDeletedDefects
   } = useMetadataStore();
   const { user } = useAuthStore();
   
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [bulkText, setBulkText] = useState('');
-  const [showBulkPaste, setShowBulkPaste] = useState(false);
   const [isSortingEnabled, setIsSortingEnabled] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [isDownloading, setIsDownloading] = useState(false);
@@ -66,7 +67,14 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean }> = ({ isExpanded =
   const [showDefectImport, setShowDefectImport] = useState(false);
   const [defectImportText, setDefectImportText] = useState('');
   const [missingImages, setMissingImages] = useState<string[]>([]);
-  const [deletedDefects, setDeletedDefects] = useState<BulkDefect[]>([]);
+  const [showBulkPaste, setShowBulkPasteLocal] = useState(false);
+
+  // Use prop if provided, otherwise use local state
+  const showBulkPasteState = setShowBulkPaste ? false : showBulkPaste;
+  const setShowBulkPasteState = setShowBulkPaste || setShowBulkPasteLocal;
+
+  // Get the actual show state from parent or local
+  const actualShowBulkPaste = setShowBulkPaste ? false : showBulkPaste;
 
   // Load bulk data on mount
   useEffect(() => {
@@ -268,15 +276,22 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean }> = ({ isExpanded =
   const handleBulkPaste = () => {
     console.log('Processing text:', bulkText);
     
+    // Remove forward slashes from the text before processing
+    const cleanedText = bulkText.replace(/\//g, '');
+    if (cleanedText !== bulkText) {
+      console.log('Removed forward slashes from pasted text');
+      setBulkText(cleanedText);
+    }
+    
     // Check if the text looks like defect format (contains ^ and file extensions)
-    const hasDefectFormat = bulkText.includes('^') && (bulkText.includes('.JPG') || bulkText.includes('.jpg'));
+    const hasDefectFormat = cleanedText.includes('^') && (cleanedText.includes('.JPG') || cleanedText.includes('.jpg'));
     console.log('Has defect format:', hasDefectFormat);
     
     if (hasDefectFormat) {
       // Parse as defect format
       try {
         console.log('Attempting to parse as defect format...');
-        const parseResult = parseDefectText(bulkText);
+        const parseResult = parseDefectText(cleanedText);
         console.log('Parse result:', parseResult);
         
         if (parseResult.defects.length === 0) {
@@ -313,44 +328,46 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean }> = ({ isExpanded =
         // Add defects and select corresponding images
         setBulkDefects(prev => [...prev, ...newDefects]);
         
-        // Select the images for the imported defects
+        // Select corresponding images
         newDefects.forEach(defect => {
           const image = images.find(img => (img.fileName || img.file?.name || '') === defect.selectedFile);
-          if (image) {
+          if (image && !bulkSelectedImages.has(image.id)) {
             toggleBulkImageSelection(image.id);
           }
         });
-
+        
         setBulkText('');
-        setShowBulkPaste(false);
+        setShowBulkPasteState(false);
         toast.success(`Imported ${newDefects.length} defects successfully!`);
       } catch (error) {
-        console.error('Error parsing defect text:', error);
-        setError(`Failed to parse defect text: ${error instanceof Error ? error.message : 'Unknown error'}. Please check the format.`);
+        console.error('Error parsing defect format:', error);
+        setError('Failed to parse defect format. Please check the format and try again.');
       }
     } else {
-      console.log('Processing as simple text format...');
-      // Original bulk paste behavior for simple text
-      const lines = bulkText.split(/(?:\r\n|\r|\n|\u2028|\u2029)/).filter(line => line.trim());
-      console.log('Lines to process:', lines);
+      // Parse as simple format (one description per line)
+      const lines = cleanedText.trim().split('\n').filter(line => line.trim());
       
-      const invalidLines = lines.filter(line => !validateDescription(line.trim()).isValid);
-      if (invalidLines.length > 0) {
-        setError('Some descriptions contain invalid characters (/ or \\). Please remove them before proceeding.');
+      if (lines.length === 0) {
+        setError('No valid text found. Please enter some defect descriptions.');
         return;
       }
-      
-      const newDefects = lines.map((line, index) => ({
-        id: nanoid(),
-        photoNumber: String(bulkDefects.length + index + 1),
-        description: line.trim(),
-        selectedFile: ''
-      }));
-      
-      console.log('New defects from simple text:', newDefects);
+
+      // Create new defects from lines
+      const newDefects = lines.map((line, index) => {
+        const existingNumbers = bulkDefects.map(d => parseInt(d.photoNumber) || 0);
+        const nextNumber = existingNumbers.length > 0 ? Math.max(...existingNumbers) + index + 1 : index + 1;
+        
+        return {
+          id: nanoid(),
+          photoNumber: String(nextNumber),
+          description: line.trim(),
+          selectedFile: ''
+        };
+      });
+
       setBulkDefects(prev => [...prev, ...newDefects]);
       setBulkText('');
-      setShowBulkPaste(false);
+      setShowBulkPasteState(false);
       toast.success(`Added ${newDefects.length} defects from text!`);
     }
   };
@@ -410,9 +427,9 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean }> = ({ isExpanded =
   };
 
   const updateDefectDescription = (photoNumber: string, description: string) => {
-    const { isValid, invalidChars } = validateDescription(description);
+    const { isValid, invalidChars, hasForwardSlashes } = validateDescription(description);
     if (!isValid) {
-      setError(`Invalid characters found: ${invalidChars.join(' ')}`);
+      setError(hasForwardSlashes ? 'Forward slashes (/) are not allowed in descriptions' : `Invalid characters found: ${invalidChars.join(' ')}`);
       return;
     }
     setError(null);
@@ -595,66 +612,10 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean }> = ({ isExpanded =
 
   return (
     <div className="h-full flex flex-col p-4 space-y-4">
-      {/* Remove the old top-level Show Images toggle */}
-      {/* --- Tab bar and controls row --- */}
-              <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
-          <div className="flex items-center gap-2">
-          </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* Show Images toggle moved here */}
-          {isExpanded && (
-            <button
-              onClick={() => setShowImages((v) => !v)}
-              className={`px-4 py-2 rounded-full border text-sm font-medium transition-colors shadow-sm hover:shadow backdrop-blur-sm ${showImages ? 'bg-indigo-500 text-white border-indigo-500' : 'bg-white/80 dark:bg-gray-800/80 text-slate-700 dark:text-gray-300 border-slate-200/50 dark:border-gray-700/50'}`}
-              style={{ minWidth: 120 }}
-            >
-              {showImages ? 'List Only' : 'Show Images'}
-            </button>
-          )}
-          <button
-            onClick={() => setShowBulkPaste(!showBulkPaste)}
-            className="flex items-center gap-2 px-4 py-2 bg-white/50 dark:bg-gray-800/50 text-slate-700 dark:text-gray-300 rounded-full border border-slate-200/50 dark:border-gray-700/50 hover:bg-white dark:hover:bg-gray-800 transition-all shadow-sm hover:shadow backdrop-blur-sm"
-          >
-            <FileText size={16} />
-            <span className="text-sm font-medium">Bulk Paste</span>
-          </button>
-
-          <button
-            onClick={toggleSorting}
-            className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all shadow-sm hover:shadow-md ${isSortingEnabled ? 'bg-indigo-500/90 text-white hover:bg-indigo-500' : 'bg-white/50 dark:bg-gray-800/50 text-slate-700 dark:text-gray-300 border border-slate-200/50 dark:border-gray-700/50 hover:bg-white dark:hover:bg-gray-800'}`}
-          >
-            <ArrowUpDown size={16} />
-            <span className="text-sm font-medium">{isSortingEnabled ? 'Auto Sorting' : 'Manual Order'}</span>
-          </button>
-          {deletedDefects.length > 0 && (
-            <button
-              onClick={undoDelete}
-              className="flex items-center gap-2 px-4 py-2 bg-green-500/90 text-white rounded-full border border-green-500/50 hover:bg-green-500 transition-all shadow-sm hover:shadow backdrop-blur-sm"
-              title="Undo last deletion"
-            >
-              <CheckCircle size={16} />
-              <span className="text-sm font-medium">Undo</span>
-            </button>
-          )}
-          {bulkDefects.length > 0 && (
-            <button
-              onClick={() => {
-                if (window.confirm('Are you sure you want to delete ALL bulk defects? This action cannot be undone.')) {
-                  setBulkDefects([]);
-                  setDeletedDefects([]);
-                  toast.success('All bulk defects deleted');
-                }
-              }}
-              className="p-2 bg-red-500/90 text-white rounded-full border border-red-500/50 hover:bg-red-500 transition-all shadow-sm hover:shadow backdrop-blur-sm"
-              title="Delete all bulk defects"
-            >
-              <Trash2 size={16} />
-            </button>
-          )}
-        </div>
-      </div>
+      {/* Remove all duplicate controls - they're now in the header */}
+      
       {/* --- Bulk Paste Modal --- */}
-      {showBulkPaste && (
+      {(parentShowBulkPaste !== undefined ? parentShowBulkPaste : showBulkPaste) && (
         <div className="animate-slideDown">
           <div className="bg-white/50 dark:bg-gray-800/50 rounded-2xl p-4 border border-slate-200/50 dark:border-gray-700/50 backdrop-blur-sm shadow-sm">
             {/* --- Single instructional helper text location --- */}
@@ -665,15 +626,26 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean }> = ({ isExpanded =
               <div>
                 <b>Defect format:</b> Paste in format: <code className="bg-slate-100 dark:bg-gray-700 px-1 rounded">Photo 01 ^ description ^ date filename.JPG</code>
               </div>
+              <div className="mt-2 text-amber-600 dark:text-amber-400">
+                <b>Note:</b> Forward slashes (/) will be automatically removed from descriptions.
+              </div>
             </div>
             <textarea
               ref={textareaRef}
               value={bulkText}
               placeholder="Paste multiple defect descriptions here, one per line..."
               onChange={(e) => setBulkText(e.target.value)}
-              className="w-full min-h-[96px] p-3 text-sm border border-slate-200/50 dark:border-gray-700/50 rounded-xl focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 bg-white/80 dark:bg-gray-800/80 text-slate-900 dark:text-white resize-y"
+              className={`w-full min-h-[96px] p-3 text-sm border rounded-xl focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 bg-white/80 dark:bg-gray-800/80 text-slate-900 dark:text-white resize-y ${
+                bulkText.includes('/') ? 'border-amber-300 dark:border-amber-600' : 'border-slate-200/50 dark:border-gray-700/50'
+              }`}
               style={{ height: Math.max(96, Math.min(300, 24 * (bulkText.split('\n').length + 2))) + 'px' }}
             />
+            {bulkText.includes('/') && (
+              <div className="mt-2 text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                <AlertCircle size={12} />
+                <span>Forward slashes (/) will be automatically removed when processing</span>
+              </div>
+            )}
             <button
               onClick={handleBulkPaste}
               disabled={!bulkText.trim()}
@@ -725,10 +697,7 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean }> = ({ isExpanded =
                         onDescriptionChange={(value) => updateDefectDescription(defect.photoNumber, value)}
                         onFileChange={(fileName) => handleFileSelect(defect.photoNumber, fileName)}
                         onPhotoNumberChange={(oldNumber, newNumber) => handlePhotoNumberChange(defect.id || defect.photoNumber, oldNumber, newNumber)}
-                        onQuickAdd={() => {
-                          console.log('🔍 Quick add called for index:', index);
-                          addNewDefect(index);
-                        }}
+                        onQuickAdd={() => addNewDefect(index)}
                         isExpanded={isExpanded}
                         showImages={showImages}
                         images={images}
@@ -743,10 +712,10 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean }> = ({ isExpanded =
             {/* Separate Add Button */}
             <button
               onClick={() => addNewDefect()}
-              className="w-full p-3 rounded-full border-2 border-dashed border-slate-200/50 dark:border-gray-700/50 hover:border-indigo-500/50 dark:hover:border-indigo-500/50 transition-colors group bg-white/30 dark:bg-gray-800/30 backdrop-blur-sm"
+              className="w-full p-4 rounded-lg border-2 border-dashed border-slate-300 dark:border-gray-600 hover:border-indigo-500 dark:hover:border-indigo-400 transition-colors group bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm hover:bg-indigo-50 dark:hover:bg-indigo-900/20"
             >
-              <div className="flex items-center justify-center gap-2 text-slate-400 dark:text-gray-500 group-hover:text-indigo-500 dark:group-hover:text-indigo-400 transition-colors">
-                <Plus size={20} />
+              <div className="flex items-center justify-center gap-3 text-slate-500 dark:text-gray-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                <Plus size={24} className="group-hover:scale-110 transition-transform" />
                 <span className="text-sm font-medium">{bulkDefects.length === 0 ? 'Add First Defect' : 'Add Defect'}</span>
               </div>
             </button>

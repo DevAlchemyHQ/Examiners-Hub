@@ -1,12 +1,28 @@
 import React, { useState, useEffect } from 'react';
+import { 
+  Images, 
+  FileText, 
+  Download, 
+  X, 
+  Maximize2, 
+  Minimize2, 
+  AlertTriangle, 
+  CheckCircle, 
+  ArrowUpDown, 
+  Trash2,
+  Undo
+} from 'lucide-react';
 import { useMetadataStore } from '../store/metadataStore';
-import { useProjectStore } from '../store/projectStore';
-import { X, Trash2, ArrowUpDown, AlertTriangle, Maximize2, Minimize2, Images, FileText } from 'lucide-react';
+import { ImageMetadata } from '../types';
+import { DefectTile } from './DefectTile';
 import { ImageZoom } from './ImageZoom';
-import { validateDescription } from '../utils/fileValidation';
 import { BulkTextInput } from './BulkTextInput';
-// REMOVE: import { saveDefectSet, loadDefectSets, deleteDefectSet } from '../lib/supabase';
-// ADD: Local defect set storage helpers
+import { DownloadButton } from './DownloadButton';
+import { toast } from 'react-hot-toast';
+import { validateDescription } from '../utils/fileValidation';
+import { useSortable, SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
 
 // Helper to get all defect sets from localStorage
 function getLocalDefectSets() {
@@ -170,11 +186,9 @@ async function deleteDefectSet(id: string) {
     throw error;
   }
 }
-import { toast } from 'react-hot-toast';
-import type { ImageMetadata } from '../types';
 
 
-type ViewMode = 'images' | 'text' | 'bulk';
+type ViewMode = 'images' | 'bulk';
 
 const SortButton: React.FC<{
   direction: 'asc' | 'desc' | null;
@@ -230,19 +244,24 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
     bulkDefects,
     setBulkDefects,
     setFormData,
-    setSelectedImages
+    setSelectedImages,
+    deletedDefects,
+    setDeletedDefects
   } = useMetadataStore();
   const [enlargedImage, setEnlargedImage] = useState<string | null>(null);
   const [showLoadTray, setShowLoadTray] = useState(false);
   const [savedSets, setSavedSets] = useState<{id: string, title: string, data: any, created_at: string, updated_at?: string}[]>([]);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
+  const [showBulkPaste, setShowBulkPaste] = useState(false);
+  const [isSortingEnabled, setIsSortingEnabled] = useState(false);
 
   // Auto-save on every modification
   useEffect(() => {
     if (formData?.elr?.trim() && formData?.structureNo?.trim()) {
       const timeoutId = setTimeout(() => {
         autoSaveDefectSet(formData, bulkDefects, selectedImages, images);
-      }, 1000); // Debounce for 1 second
+      }, 15000); // Debounce for 15 seconds
       
       return () => clearTimeout(timeoutId);
     }
@@ -254,6 +273,98 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
     const struct = formData?.structureNo || 'STRUCT';
     const date = formData?.date || new Date().toISOString().slice(0,10);
     return `${elr}_${struct}_${date}`;
+  };
+
+  // Check for duplicate photo numbers
+  const getDuplicatePhotoNumbers = () => {
+    const photoNumbers = images
+      .filter(img => selectedImages.has(img.id))
+      .map(img => img.photoNumber)
+      .filter(num => num && num.trim() && num !== '#');
+    
+    const duplicates = new Set<string>();
+    const seen = new Set<string>();
+    
+    photoNumbers.forEach(num => {
+      if (seen.has(num)) {
+        duplicates.add(num);
+      } else {
+        seen.add(num);
+      }
+    });
+    
+    return duplicates;
+  };
+
+  // Check if a specific image has a duplicate photo number
+  const hasDuplicatePhotoNumber = (img: ImageMetadata) => {
+    if (!img.photoNumber || img.photoNumber === '#') return false;
+    const duplicates = getDuplicatePhotoNumbers();
+    return duplicates.has(img.photoNumber);
+  };
+
+  // Sort images function
+  const handleSortImages = () => {
+    const newDirection = defectSortDirection === 'asc' ? 'desc' : defectSortDirection === 'desc' ? null : 'asc';
+    setDefectSortDirection(newDirection);
+  };
+
+  // Undo for images (placeholder - implement based on your needs)
+  const handleUndoImages = () => {
+    // Implement undo logic for images mode
+    toast.success('Undo functionality for images mode');
+  };
+
+  // Check if undo is available for images
+  const canUndoImages = false; // Implement based on your needs
+
+  // Delete all images
+  const handleDeleteAllImages = () => {
+    setShowDeleteConfirm(true);
+  };
+
+  // Delete all bulk defects
+  const handleDeleteAllBulk = () => {
+    setShowBulkDeleteConfirm(true);
+  };
+
+  // Execute delete all images
+  const executeDeleteAllImages = () => {
+    clearSelectedImages();
+    setShowDeleteConfirm(false);
+    toast.success('All selected images cleared');
+  };
+
+  // Execute delete all bulk defects
+  const executeDeleteAllBulk = () => {
+    setBulkDefects([]);
+    setDeletedDefects([]);
+    setShowBulkDeleteConfirm(false);
+    toast.success('All bulk defects deleted');
+  };
+
+  // Sort bulk defects
+  const toggleSorting = () => {
+    setIsSortingEnabled(!isSortingEnabled);
+    if (!isSortingEnabled) {
+      // Reorder defects when sorting is enabled
+      const reorderedDefects = [...bulkDefects].sort((a, b) => {
+        const aNum = parseInt(a.photoNumber) || 0;
+        const bNum = parseInt(b.photoNumber) || 0;
+        return aNum - bNum;
+      });
+      setBulkDefects(reorderedDefects);
+    }
+  };
+
+  // Undo delete for bulk defects
+  const undoDelete = () => {
+    if (deletedDefects.length > 0) {
+      const lastDeleted = deletedDefects[deletedDefects.length - 1];
+      setDeletedDefects(prev => prev.slice(0, -1));
+      setBulkDefects(prev => [...prev, lastDeleted]);
+      toast.success('Defect restored');
+    }
   };
 
   // Save defect set to localStorage and AWS
@@ -425,7 +536,18 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
               });
             }
             
-            return selectedFileName === fileName;
+            // More flexible filename matching
+            const normalizeFileName = (name: string) => {
+              return name
+                .replace(/\.(jpg|jpeg|png|gif|bmp|webp)$/i, '') // Remove extension
+                .replace(/[^a-zA-Z0-9]/g, '') // Remove special characters
+                .toLowerCase();
+            };
+            
+            const normalizedCurrent = normalizeFileName(fileName);
+            const normalizedSelected = normalizeFileName(selectedFileName);
+            
+            return normalizedCurrent === normalizedSelected || selectedFileName === fileName;
           });
           return hasMatchingFilename;
         }
@@ -458,7 +580,8 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
   const getImageNumber = (img: ImageMetadata) => {
     if (viewMode === 'bulk') {
       // For bulk mode, get number from bulkDefects
-      const defect = bulkDefects.find(d => d.selectedFile === (img.file?.name || ''));
+      const fileName = img.fileName || (img.file ? img.file.name : '');
+      const defect = bulkDefects.find(d => d.selectedFile === fileName);
       return defect?.photoNumber || '';
     }
     // For images mode, use the image's own photoNumber
@@ -468,7 +591,8 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
   const getImageDescription = (img: ImageMetadata) => {
     if (viewMode === 'bulk') {
       // For bulk mode, get description from bulkDefects
-      const defect = bulkDefects.find(d => d.selectedFile === (img.file?.name || ''));
+      const fileName = img.fileName || (img.file ? img.file.name : '');
+      const defect = bulkDefects.find(d => d.selectedFile === fileName);
       return defect?.description || '';
     }
     // For images mode, use the image's own description
@@ -479,15 +603,18 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
     if (!direction) return images;
 
     return [...images].sort((a, b) => {
-      // Put images without numbers at the bottom
-      const aNum = a.photoNumber ? parseInt(a.photoNumber) : Infinity;
-      const bNum = b.photoNumber ? parseInt(b.photoNumber) : Infinity;
-
-      if (aNum === Infinity && bNum === Infinity) {
+      // Get photo numbers, defaulting to 0 for empty or invalid numbers
+      const aNum = a.photoNumber ? parseInt(a.photoNumber) : 0;
+      const bNum = b.photoNumber ? parseInt(b.photoNumber) : 0;
+      
+      // If both have no numbers, maintain original order
+      if (aNum === 0 && bNum === 0) {
         return 0;
       }
-      if (aNum === Infinity) return 1;
-      if (bNum === Infinity) return -1;
+      
+      // Put images without numbers at the end
+      if (aNum === 0) return 1;
+      if (bNum === 0) return -1;
 
       return direction === 'asc' ? aNum - bNum : bNum - aNum;
     });
@@ -506,7 +633,7 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
   const renderDescriptionField = (img: ImageMetadata) => {
     if (img.isSketch) return null;
 
-    const { isValid, invalidChars } = validateDescription(img.description || '');
+    const { isValid, hasForwardSlashes } = validateDescription(img.description || '');
 
     return (
       <div>
@@ -523,11 +650,11 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
           <div className="text-slate-400 dark:text-gray-500">
             {img.description?.length || 0}/100
           </div>
-          {!isValid && invalidChars.length > 0 && (
+          {!isValid && (
             <div className="flex items-center gap-1 text-amber-600">
               <AlertTriangle size={12} />
               <span>
-                Slashes not allowed: {invalidChars.join(' ')}
+                {hasForwardSlashes ? 'Forward slashes (/) are not allowed' : 'Invalid characters in description'}
               </span>
             </div>
           )}
@@ -536,54 +663,162 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
     );
   };
 
+  // Check for validation errors
+  const hasValidationErrors = () => {
+    // Check if ELR is empty (basic validation)
+    if (!formData.elr || formData.elr.trim() === '') {
+      return true;
+    }
+    
+    // Check for duplicate photo numbers
+    const duplicates = getDuplicatePhotoNumbers();
+    if (duplicates.size > 0) {
+      return true;
+    }
+    
+    // Check if selected images have descriptions (if in images mode)
+    if (viewMode === 'images' && selectedImagesList.length > 0) {
+      const hasIncompleteDescriptions = selectedImagesList.some(img => 
+        !img.description || img.description.trim() === ''
+      );
+      if (hasIncompleteDescriptions) {
+        return true;
+      }
+    }
+    
+    // Check bulk defects validation (if in bulk mode)
+    if (viewMode === 'bulk' && bulkDefects.length > 0) {
+      const hasIncompleteBulkDefects = bulkDefects.some(defect => 
+        !defect.description || defect.description.trim() === ''
+      );
+      if (hasIncompleteBulkDefects) {
+        return true;
+      }
+    }
+    
+    return false;
+  };
+
+  // Get border color based on validation status
+  const getBorderColor = () => {
+    if (hasValidationErrors()) {
+      return 'border-red-500'; // Red for errors
+    }
+    if (selectedImagesList.length > 0) {
+      return 'border-green-500'; // Green for success
+    }
+    return 'border-slate-200 dark:border-gray-700'; // Default border
+  };
+
+  // Check if bulk defects are valid
+  const isBulkValid = () => {
+    if (viewMode === 'bulk') {
+      return bulkDefects.length > 0 && bulkDefects.every(defect => 
+        defect.description && defect.description.trim() !== ''
+      );
+    }
+    return true; // Images mode is always valid for descriptions
+  };
+
+  // Get validation summary for bulk mode
+  const getValidationSummary = () => {
+    if (viewMode === 'bulk') {
+      const totalDefects = bulkDefects.length;
+      const validDefects = bulkDefects.filter(defect => 
+        defect.description && defect.description.trim() !== ''
+      ).length;
+      return { totalDefects, validDefects };
+    }
+    return { totalDefects: 0, validDefects: 0 };
+  };
+
   if (images.length === 0) {
     return (
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm h-[calc(100vh-96px)] flex items-center justify-center p-8 text-slate-400 dark:text-gray-500">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm h-[calc(100vh-120px)] flex items-center justify-center p-8 text-slate-400 dark:text-gray-500">
         No images uploaded
       </div>
     );
   }
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm h-full flex flex-col">
-      <div className="p-4 border-b border-slate-200 dark:border-gray-700 flex items-center justify-between">
-        <div className="flex-1">
-          <h3 className="text-lg font-semibold text-slate-800 dark:text-white">
-            {viewMode === 'images' ? `Selected Images (${selectedImagesList.length})` : viewMode === 'bulk' ? 'Bulk Defect Entry' : 'Bulk'}
-          </h3>
-          {viewMode === 'images' && <div className="text-sm text-slate-500 dark:text-gray-400 mt-1">
-            {sketches} Sketches, {defects} Exam Photos
-          </div>}
-        </div>
-        
-        <div className="flex items-center gap-4 mx-4">
-          <div className="flex p-1 bg-slate-100 dark:bg-gray-700 rounded-lg">
+    <div className={`bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-slate-200 dark:border-gray-700 h-full flex flex-col ${getBorderColor()}`}>
+      <div className="flex items-center justify-between p-2 border-b border-slate-200 dark:border-gray-700">
+        {/* Mode Switch */}
+        <div className="flex items-center gap-2 flex-1">
+          <button
+            onClick={() => setViewMode('images')}
+            className={`flex items-center gap-1 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+              viewMode === 'images'
+                ? 'bg-white dark:bg-gray-600 text-indigo-600 dark:text-indigo-400 shadow-sm'
+                : 'text-slate-600 dark:text-gray-300 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <Images size={18} /> Images
+          </button>
+          <button
+            onClick={() => setViewMode('bulk')}
+            className={`flex items-center gap-1 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+              viewMode === 'bulk'
+                ? 'bg-white dark:bg-gray-600 text-indigo-600 dark:text-indigo-400 shadow-sm'
+                : 'text-slate-600 dark:text-gray-300 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <FileText size={18} /> Bulk
+          </button>
+          {/* Bulk Paste button (Bulk mode only) */}
+          {viewMode === 'bulk' && (
             <button
-              onClick={() => setViewMode('images')}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-md ${
-                viewMode === 'images'
-                  ? 'bg-white dark:bg-gray-600 text-indigo-600 dark:text-indigo-400 shadow-sm'
-                  : 'text-slate-600 dark:text-gray-300 hover:text-slate-900 dark:hover:text-white'
-              }`}
+              onClick={() => setShowBulkPaste(!showBulkPaste)}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-md text-sm font-medium transition-colors bg-white dark:bg-gray-600 text-slate-700 dark:text-gray-300 border border-slate-200 dark:border-gray-700 hover:bg-slate-100 dark:hover:bg-gray-700"
             >
-              <Images size={18} />
-              <span className="text-sm font-medium">Images</span>
+              <FileText size={16} />
+            </button>
+          )}
+          {/* Icon controls: sort, undo, bin (delete all) */}
+          <div className="flex items-center gap-2 ml-2">
+            <button
+              title="Sort"
+              className="p-2 text-slate-500 dark:text-gray-300 hover:bg-slate-100 dark:hover:bg-gray-700 rounded transition-colors"
+              onClick={viewMode === 'bulk' ? toggleSorting : handleSortImages}
+            >
+              <ArrowUpDown size={20} />
             </button>
             <button
-              onClick={() => setViewMode('bulk')}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-md ${
-                viewMode === 'bulk'
-                  ? 'bg-white dark:bg-gray-600 text-indigo-600 dark:text-indigo-400 shadow-sm'
-                  : 'text-slate-600 dark:text-gray-300 hover:text-slate-900 dark:hover:text-white'
+              title="Undo"
+              className={`p-2 rounded transition-colors ${
+                viewMode === 'bulk' 
+                  ? (deletedDefects && deletedDefects.length > 0 
+                      ? 'text-slate-500 dark:text-gray-300 hover:bg-slate-100 dark:hover:bg-gray-700' 
+                      : 'text-slate-300 dark:text-gray-600 cursor-not-allowed')
+                  : (canUndoImages 
+                      ? 'text-slate-500 dark:text-gray-300 hover:bg-slate-100 dark:hover:bg-gray-700' 
+                      : 'text-slate-300 dark:text-gray-600 cursor-not-allowed')
               }`}
+              onClick={viewMode === 'bulk' ? undoDelete : handleUndoImages}
+              disabled={viewMode === 'bulk' ? (!deletedDefects || deletedDefects.length === 0) : !canUndoImages}
             >
-              <FileText size={18} />
-              <span className="text-sm font-medium">Bulk</span>
+              <Undo size={20} />
+            </button>
+            <button
+              title="Delete All"
+              className="p-2 text-slate-500 dark:text-gray-300 hover:bg-slate-100 dark:hover:bg-gray-700 rounded transition-colors"
+              onClick={viewMode === 'bulk' ? handleDeleteAllBulk : handleDeleteAllImages}
+            >
+              <Trash2 size={20} />
             </button>
           </div>
         </div>
-        
+        {/* Right-aligned counter */}
+        <div className="flex items-center gap-2 ml-auto">
+          <span className="text-sm font-medium text-slate-500 dark:text-gray-400">
+            {viewMode === 'bulk'
+              ? `(${bulkDefects.length})`
+              : `(${defectImages.length})`}
+          </span>
+        </div>
+        {/* Download and Expand */}
         <div className="flex items-center gap-2">
+          <DownloadButton />
           <button
             onClick={onExpand}
             className="p-2 hover:bg-slate-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
@@ -597,8 +832,25 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
           </button>
         </div>
       </div>
+      {/* Subtle message for validation status (no background, just colored text) */}
+      {((viewMode === 'images' && hasValidationErrors()) || (viewMode === 'bulk' && !isBulkValid())) && (
+        <div className="flex items-center gap-2 px-2 py-1">
+          <AlertTriangle size={16} className="text-amber-500" />
+          <span className="text-sm font-medium text-amber-600">
+            {viewMode === 'bulk'
+              ? 'Please complete all bulk defect entries (numbers, descriptions, and image selections)'
+              : (!formData.elr || formData.elr.trim() === '' 
+                  ? 'Please enter ELR' 
+                  : 'Please add photo numbers and descriptions for all selected images')
+            }
+          </span>
+        </div>
+      )}
+      {/* Removed success message for Bulk mode - silent success when valid */}
+      {/* Add vertical space below header */}
+      <div className="h-4" />
       
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 overflow-hidden min-h-0">
         {viewMode === 'images' && (
           <div 
             className="h-full overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600"
@@ -644,7 +896,7 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
                         </button>
                       </div>
                       
-                      <div className="p-2">
+                      <div className="p-1.5">
                         <div className="text-xs text-slate-500 dark:text-gray-400 truncate mb-1 min-h-[1rem]">
                           {img.fileName || img.file?.name || 'Unknown file'}
                         </div>
@@ -652,9 +904,19 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
                           type="number"
                           value={img.photoNumber}
                           onChange={(e) => updateImageMetadata(img.id, { photoNumber: e.target.value })}
-                          className="w-full p-1 text-sm border border-slate-200 dark:border-gray-600 rounded focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white dark:bg-gray-800 text-slate-900 dark:text-white"
+                          className={`w-full p-1 text-sm border rounded focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white dark:bg-gray-800 text-slate-900 dark:text-white ${
+                            hasDuplicatePhotoNumber(img) 
+                              ? 'border-orange-400 dark:border-orange-500 bg-orange-50 dark:bg-orange-900/20' 
+                              : 'border-slate-200 dark:border-gray-600'
+                          }`}
                           placeholder="Sketch #"
                         />
+                        {hasDuplicatePhotoNumber(img) && (
+                          <div className="flex items-center gap-1 mt-1 text-xs text-orange-600">
+                            <AlertTriangle size={10} />
+                            <span>Duplicate photo number</span>
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -664,34 +926,9 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
               {/* Defects Section */}
               {defectImages.length > 0 && (
                 <>
-                  <div className="col-span-full flex items-center justify-between py-2">
-                    <h4 className="text-sm font-medium text-slate-500 dark:text-gray-400">
-                      EXAM PHOTOS ({defectImages.length})
-                    </h4>
-                    <div className="flex items-center gap-2">
-                      <SortButton
-                        direction={defectSortDirection}
-                        onChange={setDefectSortDirection}
-                      />
-                      <button
-                        onClick={clearSelectedImages}
-                        className="p-1.5 text-slate-500 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                        title="Clear all selected images"
-                      >
-                        <Trash2 size={18} />
-                      </button>
-                      <button
-                        onClick={() => setShowDeleteConfirm(true)}
-                        className="p-1.5 text-slate-500 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                        title="Delete all images"
-                      >
-                        <X size={18} />
-                      </button>
-                    </div>
-                  </div>
                   {defectImages.map((img) => (
                     <div key={img.id} className="flex flex-col bg-slate-50 dark:bg-gray-700 rounded-lg overflow-hidden">
-                      <div className="relative aspect-square">
+                      <div className="relative" style={{ aspectRatio: '1/1', height: '90px', minHeight: '90px', maxHeight: '90px' }}>
                         <img
                           src={img.preview}
                           alt={img.fileName || img.file?.name || 'Image'}
@@ -706,8 +943,7 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
                           <X size={12} />
                         </button>
                       </div>
-                      
-                      <div className="p-2 space-y-1">
+                      <div className="p-1 space-y-0.5">
                         <div className="text-xs text-slate-500 dark:text-gray-400 truncate min-h-[1rem]">
                           {img.fileName || img.file?.name || 'Unknown file'}
                         </div>
@@ -715,16 +951,49 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
                           type="number"
                           value={getImageNumber(img)}
                           onChange={(e) => updateImageMetadata(img.id, { photoNumber: e.target.value })}
-                          className="w-full p-1 text-sm border border-slate-200 dark:border-gray-600 rounded focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white dark:bg-gray-800 text-slate-900 dark:text-white"
+                          className={`w-14 h-7 p-0.5 text-xs border rounded focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-slate-100 dark:bg-gray-800 text-slate-900 dark:text-white text-center ${
+                            hasDuplicatePhotoNumber(img) 
+                              ? 'border-orange-400 dark:border-orange-500 bg-orange-50 dark:bg-orange-900/20' 
+                              : 'border-slate-300 dark:border-gray-600'
+                          }`}
                           placeholder="#"
+                          style={{ minHeight: '24px', fontSize: '12px', width: '3.5rem' }}
                         />
+                        {hasDuplicatePhotoNumber(img) && (
+                          <div className="flex items-center gap-1 mt-1 text-xs text-orange-600">
+                            <AlertTriangle size={10} />
+                            <span>Duplicate photo number</span>
+                          </div>
+                        )}
                         {!img.isSketch && (
-                          <textarea
-                            value={getImageDescription(img)}
-                            onChange={(e) => updateImageMetadata(img.id, { description: e.target.value })}
-                            className="w-full p-1.5 text-sm border rounded focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white dark:bg-gray-800 text-slate-900 dark:text-white resize-y min-h-[60px]"
-                            placeholder="Description"
-                          />
+                          <div>
+                            <textarea
+                              value={getImageDescription(img)}
+                              onChange={(e) => {
+                                console.log('Textarea changed:', e.target.value);
+                                updateImageMetadata(img.id, { description: e.target.value });
+                              }}
+                              className={`w-full p-1 text-xs rounded focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-slate-100 dark:bg-gray-800 text-slate-900 dark:text-white resize-y min-h-[28px] border ${
+                                (() => {
+                                  const { isValid, hasForwardSlashes } = validateDescription(getImageDescription(img) || '');
+                                  return !isValid ? 'border-amber-300' : 'border-slate-200 dark:border-gray-600';
+                                })()
+                              }`}
+                              placeholder="Description"
+                              style={{ minHeight: '28px', fontSize: '12px' }}
+                            />
+                            {(() => {
+                              const { isValid, hasForwardSlashes } = validateDescription(getImageDescription(img) || '');
+                              return !isValid ? (
+                                <div className="flex items-center gap-1 mt-1 text-xs text-amber-600">
+                                  <AlertTriangle size={10} />
+                                  <span>
+                                    {hasForwardSlashes ? 'Forward slashes (/) are not allowed' : 'Invalid characters in description'}
+                                  </span>
+                                </div>
+                              ) : null;
+                            })()}
+                          </div>
                         )}
                       </div>
                     </div>
@@ -736,14 +1005,12 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
         )}
         
         {viewMode === 'bulk' && (
-          <BulkTextInput isExpanded={isExpanded} />
-        )}
-        
-        {viewMode === 'text' && (
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm h-[calc(100vh-96px)] flex items-center justify-center p-8 text-slate-400 dark:text-gray-500">
-            Coming Soon!
+          <div className="h-full overflow-hidden">
+            <BulkTextInput isExpanded={isExpanded} setShowBulkPaste={setShowBulkPaste} showBulkPaste={showBulkPaste} />
           </div>
         )}
+        
+
 
         {/* ImageZoom positioned within the panel */}
       {enlargedImage && (
@@ -759,14 +1026,16 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
       <div className="flex items-center gap-2 p-2 border-t border-slate-200 dark:border-gray-700">
         <button
           onClick={handleSaveDefectSet}
-          className="px-3 py-1 rounded bg-indigo-500 text-white hover:bg-indigo-600 text-sm"
+          className="flex items-center gap-2 px-3 py-1.5 bg-gray-700 dark:bg-gray-600 text-white text-sm rounded border border-gray-600 dark:border-gray-500 hover:bg-gray-600 dark:hover:bg-gray-500 transition-colors"
         >
+          <FileText size={14} />
           Save Defect Set
         </button>
         <button
           onClick={handleShowLoadTray}
-          className="px-3 py-1 rounded bg-slate-200 dark:bg-gray-700 text-slate-700 dark:text-gray-200 hover:bg-slate-300 dark:hover:bg-gray-600 text-sm"
+          className="flex items-center gap-2 px-3 py-1.5 bg-gray-700 dark:bg-gray-600 text-white text-sm rounded border border-gray-600 dark:border-gray-500 hover:bg-gray-600 dark:hover:bg-gray-500 transition-colors"
         >
+          <FileText size={14} />
           Load Defect Set
         </button>
       </div>
@@ -866,10 +1135,45 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
                 Cancel
               </button>
               <button
-                onClick={() => {
-                  useProjectStore.getState().clearProject();
-                  setShowDeleteConfirm(false);
-                }}
+                onClick={executeDeleteAllImages}
+                className="flex-1 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+              >
+                Delete All
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modern Delete Confirmation Modal for Bulk Defects */}
+      {showBulkDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full p-6 border border-slate-200/50 dark:border-gray-700/50">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 bg-red-100 dark:bg-red-900/20 rounded-full flex items-center justify-center">
+                <X size={24} className="text-red-600 dark:text-red-400" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
+                  Delete All Bulk Defects
+                </h3>
+                <p className="text-sm text-slate-600 dark:text-gray-400">
+                  This will permanently delete all bulk defect entries.
+                </p>
+              </div>
+            </div>
+            <p className="text-slate-700 dark:text-gray-300 mb-6">
+              Are you sure you want to delete ALL bulk defect entries? This action cannot be undone.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowBulkDeleteConfirm(false)}
+                className="flex-1 px-4 py-2 text-slate-700 dark:text-gray-300 hover:text-slate-900 dark:hover:text-white transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={executeDeleteAllBulk}
                 className="flex-1 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
               >
                 Delete All

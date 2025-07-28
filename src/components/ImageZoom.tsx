@@ -88,9 +88,34 @@ export const ImageZoom: React.FC<ImageZoomProps> = ({
 
   // Calculate modal position based on click position
   const getModalPosition = () => {
-    // Always center the modal in the images section
+    if (position) {
+      // Use the click position to position the modal near where the user clicked
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+      const modalWidth = Math.min(800, viewportWidth * 0.9);
+      const modalHeight = Math.min(600, viewportHeight * 0.9);
+      
+      // Calculate position to keep modal within viewport
+      let left = position.x - (modalWidth / 2);
+      let top = position.y - (modalHeight / 2);
+      
+      // Ensure modal stays within viewport bounds
+      if (left < 20) left = 20;
+      if (left + modalWidth > viewportWidth - 20) left = viewportWidth - modalWidth - 20;
+      if (top < 20) top = 20;
+      if (top + modalHeight > viewportHeight - 20) top = viewportHeight - modalHeight - 20;
+      
+      return {
+        position: 'fixed' as const,
+        left: `${left}px`,
+        top: `${top}px`,
+        transform: 'none'
+      };
+    }
+    
+    // Fallback to center if no position provided
     return {
-      position: 'absolute' as const,
+      position: 'fixed' as const,
       left: '50%',
       top: '50%',
       transform: 'translate(-50%, -50%)'
@@ -99,7 +124,7 @@ export const ImageZoom: React.FC<ImageZoomProps> = ({
 
   return (
     <div 
-      className="absolute inset-0 bg-black/80 flex items-center justify-center z-[9999] rounded-lg"
+      className="fixed inset-0 bg-black/80 z-[9999]"
       onClick={onClose}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
@@ -110,8 +135,8 @@ export const ImageZoom: React.FC<ImageZoomProps> = ({
         style={{
           width: '90%',
           height: '90%',
-          maxWidth: '600px',
-          maxHeight: '500px',
+          maxWidth: '800px',
+          maxHeight: '600px',
           ...getModalPosition()
         }}
         onClick={e => e.stopPropagation()}

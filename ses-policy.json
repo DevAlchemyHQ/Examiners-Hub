@@ -1,0 +1,40 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "ses:SendEmail",
+        "ses:SendRawEmail",
+        "ses:GetSendQuota",
+        "ses:GetSendStatistics",
+        "ses:VerifyDomainIdentity",
+        "ses:VerifyEmailIdentity",
+        "ses:GetIdentityVerificationAttributes",
+        "ses:ListIdentities",
+        "ses:GetIdentityDkimAttributes",
+        "ses:GetIdentityMailFromDomainAttributes",
+        "ses:GetIdentityNotificationTopic",
+        "ses:GetIdentityPolicies",
+        "ses:ListIdentityPolicies",
+        "ses:ListVerifiedEmailAddresses"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "dynamodb:PutItem",
+        "dynamodb:GetItem",
+        "dynamodb:DeleteItem",
+        "dynamodb:Query",
+        "dynamodb:Scan",
+        "dynamodb:UpdateItem"
+      ],
+      "Resource": [
+        "arn:aws:dynamodb:eu-west-2:913524945607:table/mvp-labeler-verification-codes",
+        "arn:aws:dynamodb:eu-west-2:913524945607:table/mvp-labeler-verification-codes/index/*"
+      ]
+    }
+  ]
+} 

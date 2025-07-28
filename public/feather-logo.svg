@@ -1,0 +1,44 @@
+<svg width="120" height="60" viewBox="0 0 120 60" xmlns="http://www.w3.org/2000/svg">
+  <!-- Feather shape -->
+  <defs>
+    <linearGradient id="featherGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#ffffff;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#e0e7ff;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#ffffff;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Main feather shaft -->
+  <path d="M60 5 L60 55" stroke="url(#featherGradient)" stroke-width="2" fill="none"/>
+  
+  <!-- Feather barbs -->
+  <g stroke="url(#featherGradient)" stroke-width="1" fill="none">
+    <!-- Left side barbs -->
+    <path d="M60 10 L45 8"/>
+    <path d="M60 15 L42 12"/>
+    <path d="M60 20 L40 16"/>
+    <path d="M60 25 L38 20"/>
+    <path d="M60 30 L36 24"/>
+    <path d="M60 35 L34 28"/>
+    <path d="M60 40 L32 32"/>
+    <path d="M60 45 L30 36"/>
+    <path d="M60 50 L28 40"/>
+    
+    <!-- Right side barbs -->
+    <path d="M60 10 L75 8"/>
+    <path d="M60 15 L78 12"/>
+    <path d="M60 20 L80 16"/>
+    <path d="M60 25 L82 20"/>
+    <path d="M60 30 L84 24"/>
+    <path d="M60 35 L86 28"/>
+    <path d="M60 40 L88 32"/>
+    <path d="M60 45 L90 36"/>
+    <path d="M60 50 L92 40"/>
+  </g>
+  
+  <!-- Feather tip -->
+  <circle cx="60" cy="5" r="3" fill="url(#featherGradient)"/>
+  
+  <!-- Glow effect -->
+  <circle cx="60" cy="5" r="6" fill="none" stroke="url(#featherGradient)" stroke-width="1" opacity="0.3"/>
+</svg> 

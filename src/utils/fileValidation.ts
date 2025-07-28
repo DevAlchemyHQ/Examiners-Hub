@@ -10,11 +10,16 @@ export const validateFormData = (formData: FormData): string | null => {
 export const validateDescription = (description: string): { 
   isValid: boolean;
   invalidChars: string[];
+  hasForwardSlashes: boolean;
 } => {
-  const slashChars = description.match(/[/\\]/g) || [];
+  const forwardSlashes = description.match(/\//g) || [];
+  const backslashes = description.match(/\\/g) || [];
+  const allSlashChars = [...forwardSlashes, ...backslashes];
+  
   return {
-    isValid: slashChars.length === 0,
-    invalidChars: [...new Set(slashChars)]
+    isValid: allSlashChars.length === 0,
+    invalidChars: [...new Set(allSlashChars)],
+    hasForwardSlashes: forwardSlashes.length > 0
   };
 };
 

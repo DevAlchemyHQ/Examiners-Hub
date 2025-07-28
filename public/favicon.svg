@@ -1,0 +1,41 @@
+<svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle for better visibility -->
+  <circle cx="16" cy="16" r="15" fill="#ffffff" stroke="#e5e7eb" stroke-width="1"/>
+
+  <!-- Feather with enhanced visibility -->
+  <defs>
+    <linearGradient id="featherGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#6366f1;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#4f46e5;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#6366f1;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+
+  <!-- Main feather shaft -->
+  <path d="M16 4 L16 28" stroke="url(#featherGradient)" stroke-width="2" fill="none"/>
+
+  <!-- Feather barbs - more prominent -->
+  <g stroke="url(#featherGradient)" stroke-width="1.5" fill="none">
+    <!-- Left side barbs -->
+    <path d="M16 6 L8 5"/>
+    <path d="M16 10 L6 8"/>
+    <path d="M16 14 L5 11"/>
+    <path d="M16 18 L4 14"/>
+    <path d="M16 22 L3 17"/>
+    <path d="M16 26 L2 20"/>
+
+    <!-- Right side barbs -->
+    <path d="M16 6 L24 5"/>
+    <path d="M16 10 L26 8"/>
+    <path d="M16 14 L27 11"/>
+    <path d="M16 18 L28 14"/>
+    <path d="M16 22 L29 17"/>
+    <path d="M16 26 L30 20"/>
+  </g>
+
+  <!-- Feather tip -->
+  <circle cx="16" cy="4" r="2" fill="url(#featherGradient)"/>
+
+  <!-- Glow effect -->
+  <circle cx="16" cy="4" r="4" fill="none" stroke="url(#featherGradient)" stroke-width="0.5" opacity="0.4"/>
+</svg> 

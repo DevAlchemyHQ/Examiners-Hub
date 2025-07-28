@@ -9,7 +9,7 @@ import { FeedbackAdmin } from './pages/FeedbackAdmin';
 import { CalculatorPage } from './pages/calculator.page';
 import { GamesPage } from './pages/games.page';
 import { GridReferenceFinderPage } from './pages/grid.page';
-import { PDFViewerPage } from './pages/pdf.page';
+
 import { ProjectsPage } from './pages/projects.pages';
 import { SubscriptionPage } from './pages/subscription.page';
 import './index.css';
@@ -81,21 +81,7 @@ function App() {
         <div className="App">
           <Toaster position="top-right" />
           <Routes>
-            <Route path="/" element={
-              isAuthenticated === null ? (
-                // Show loading while checking auth
-                <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-                  <div className="text-center text-white">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500 mx-auto mb-4"></div>
-                    <p>Loading...</p>
-                  </div>
-                </div>
-              ) : isAuthenticated ? (
-                <MainApp />
-              ) : (
-                <LandingPage />
-              )
-            } />
+            <Route path="/" element={<LoginScreen />} />
             <Route path="/login" element={<LoginScreen />} />
             <Route path="/app" element={<MainApp />} />
             <Route path="/dashboard" element={<MainApp />} />
@@ -105,7 +91,7 @@ function App() {
             <Route path="/calculator" element={<CalculatorPage />} />
             <Route path="/games" element={<GamesPage />} />
             <Route path="/grid" element={<GridReferenceFinderPage />} />
-            <Route path="/pdf" element={<PDFViewerPage />} />
+
             <Route path="/projects" element={<ProjectsPage />} />
             <Route path="/subscription" element={<SubscriptionPage />} />
           </Routes>

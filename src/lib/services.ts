@@ -3,7 +3,7 @@ import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, GetCommand, PutCommand, UpdateCommand, DeleteCommand, QueryCommand, ScanCommand, BatchWriteCommand } from '@aws-sdk/lib-dynamodb';
 import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { CognitoIdentityProviderClient, InitiateAuthCommand, SignUpCommand, ConfirmSignUpCommand, AdminCreateUserCommand, AdminGetUserCommand, AdminInitiateAuthCommand } from '@aws-sdk/client-cognito-identity-provider';
+import { CognitoIdentityProviderClient, InitiateAuthCommand, SignUpCommand, ConfirmSignUpCommand, AdminCreateUserCommand, AdminGetUserCommand, AdminInitiateAuthCommand, AdminDeleteUserCommand, AdminConfirmSignUpCommand, ForgotPasswordCommand, ConfirmForgotPasswordCommand, ResendConfirmationCodeCommand } from '@aws-sdk/client-cognito-identity-provider';
 
 // AWS Configuration
 const AWS_CONFIG = {
@@ -27,7 +27,97 @@ const CLIENT_ID = '71l7r90qjn5r3tp3theqfahsn2';
 
 // Authentication Service
 export class AuthService {
-  static async signUpWithEmail(email: string, password: string, fullName?: string) {
+  static async checkUserStatus(email: string) {
+    console.log('🔍 checkUserStatus called for:', email);
+    try {
+      const userCommand = new AdminGetUserCommand({
+        UserPoolId: USER_POOL_ID,
+        Username: email
+      });
+      
+      console.log('📞 Sending AdminGetUserCommand to Cognito...');
+      const userResult = await cognitoClient.send(userCommand);
+      console.log('✅ AdminGetUserCommand successful:', userResult);
+      
+      // The user data is directly in the response, not in a 'User' property
+      const user = userResult;
+      console.log('👤 User object:', user);
+      
+      // Check if user exists and has UserStatus
+      if (!user || !user.UserStatus) {
+        console.log('❌ User object is null or missing UserStatus');
+        return {
+          exists: false,
+          verified: false,
+          status: 'NOT_FOUND'
+        };
+      }
+      
+      console.log('✅ User found with status:', user.UserStatus);
+      return {
+        exists: true,
+        verified: user.UserStatus === 'CONFIRMED',
+        status: user.UserStatus
+      };
+    } catch (error: any) {
+      console.error('❌ Error in checkUserStatus:', error);
+      console.error('❌ Error name:', error.name);
+      console.error('❌ Error message:', error.message);
+      
+      if (error.name === 'UserNotFoundException') {
+        console.log('✅ UserNotFoundException caught - user does not exist');
+        return {
+          exists: false,
+          verified: false,
+          status: 'NOT_FOUND'
+        };
+      }
+      
+      console.log('❌ Unknown error type, re-throwing:', error.name);
+      throw error;
+    }
+  }
+
+  static async checkUnverifiedUserVerificationCode(email: string) {
+    try {
+      // Import VerificationService dynamically to avoid circular dependencies
+      const { VerificationService } = await import('./verificationService');
+      
+      // Check if there's a valid verification code for this email
+      const oneHourAgo = Date.now() - (60 * 60 * 1000); // 1 hour ago
+      
+      const { DynamoDBClient } = await import('@aws-sdk/client-dynamodb');
+      const { DynamoDBDocumentClient, QueryCommand } = await import('@aws-sdk/lib-dynamodb');
+      
+      const dynamoClient = DynamoDBDocumentClient.from(new DynamoDBClient({ region: 'eu-west-2' }));
+      
+      const response = await dynamoClient.send(new QueryCommand({
+        TableName: 'mvp-labeler-verification-codes',
+        KeyConditionExpression: 'email = :email',
+        FilterExpression: 'type = :type AND createdAt > :oneHourAgo AND used = :used',
+        ExpressionAttributeValues: {
+          ':email': email,
+          ':type': 'verification',
+          ':oneHourAgo': oneHourAgo,
+          ':used': false
+        }
+      }));
+
+      return {
+        hasValidCode: (response.Items?.length || 0) > 0,
+        codeCount: response.Items?.length || 0
+      };
+    } catch (error) {
+      console.error('Error checking verification code:', error);
+      return {
+        hasValidCode: false,
+        codeCount: 0
+      };
+    }
+  }
+
+  static async signUpWithEmail(email: string, password: string, fullName?: string): Promise<{ user: any; session: any; error: any }> {
+    console.log('🚀 NEW CODE VERSION - signUpWithEmail called for:', email);
     try {
       console.log('🔐 AWS Cognito signup for:', email);
       
@@ -50,21 +140,158 @@ export class AuthService {
       const result = await cognitoClient.send(signUpCommand);
       console.log('✅ AWS Cognito signup successful:', result);
       
-      // After successful signup, sign in to get session
-      const signInResult = await this.signInWithEmail(email, password);
-      
       return {
         user: {
           id: result.UserSub,
           email: email,
           user_metadata: { full_name: fullName }
         },
-        session: signInResult.session,
+        session: null,
         error: null
-        };
-      } catch (error) {
+      };
+    } catch (error: any) {
       console.error('AWS Cognito signup error:', error);
-        return { user: null, session: null, error };
+      
+      // Handle UsernameExistsException with our custom logic
+      if (error.name === 'UsernameExistsException') {
+        return await this.handleUsernameExistsException(email, password, fullName);
+      }
+      
+      // Return a generic error for any other exceptions
+      return { 
+        user: null, 
+        session: null, 
+        error: { 
+          message: 'Please check your information and try again.',
+          originalError: error 
+        }
+      };
+    }
+  }
+
+  static async handleUsernameExistsException(email: string, password: string, fullName?: string): Promise<{ user: any; session: any; error: any }> {
+    console.log('🔄 User exists, checking verification status...');
+    
+    try {
+      // Check if user exists and their verification status
+      console.log('🔍 Checking user status for:', email);
+      const userStatus = await this.checkUserStatus(email);
+      console.log('📊 User status result:', userStatus);
+      
+      if (userStatus.exists && userStatus.verified) {
+        console.log('✅ User exists and is verified - redirecting to signin');
+        // User exists and is verified - they should sign in
+        return { 
+          user: null, 
+          session: null, 
+          error: { 
+            message: 'An account with this email already exists and is verified. Please sign in instead.',
+            type: 'USER_EXISTS_VERIFIED'
+          }
+        };
+      } else if (userStatus.exists && !userStatus.verified) {
+        console.log('⏳ User exists but is not verified - checking verification codes');
+        // User exists but is not verified - check if they have a valid verification code
+        const verificationCheck = await this.checkUnverifiedUserVerificationCode(email);
+        console.log('🔐 Verification check result:', verificationCheck);
+        
+        if (verificationCheck.hasValidCode) {
+          console.log('✅ User has valid verification code - redirecting to verification');
+          // User has a valid verification code - ask them to check their email
+          return {
+            user: null,
+            session: null,
+            error: {
+              message: 'An account with this email exists but is not verified. Please check your email for the verification code and complete the signup process.',
+              type: 'USER_EXISTS_UNVERIFIED_WITH_CODE'
+            }
+          };
+        } else {
+          console.log('🗑️ User has no valid code - deleting and recreating account');
+          // User exists but no valid code - delete the old account and create new one
+          try {
+            const deleteCommand = new AdminDeleteUserCommand({
+              UserPoolId: USER_POOL_ID,
+              Username: email
+            });
+            await cognitoClient.send(deleteCommand);
+            console.log('🗑️ Deleted unverified user account for:', email);
+            
+            // Now try to create the account again (but avoid infinite recursion)
+            try {
+              const signUpCommand = new SignUpCommand({
+                ClientId: CLIENT_ID,
+                Username: email,
+                Password: password,
+                UserAttributes: [
+                  {
+                    Name: 'email',
+                    Value: email
+                  },
+                  {
+                    Name: 'name',
+                    Value: fullName || ''
+                  }
+                ]
+              });
+              
+              const result = await cognitoClient.send(signUpCommand);
+              console.log('✅ AWS Cognito signup successful after deletion:', result);
+              
+              return {
+                user: {
+                  id: result.UserSub,
+                  email: email,
+                  user_metadata: { full_name: fullName }
+                },
+                session: null,
+                error: null
+              };
+            } catch (retryError: any) {
+              console.error('Retry signup failed:', retryError);
+              return { 
+                user: null, 
+                session: null, 
+                error: { 
+                  message: 'Please check your information and try again.',
+                  originalError: retryError 
+                }
+              };
+            }
+          } catch (deleteError) {
+            console.error('Failed to delete unverified user:', deleteError);
+            return {
+              user: null,
+              session: null,
+              error: {
+                message: 'Please check your information and try again.',
+                originalError: deleteError
+              }
+            };
+          }
+        }
+      }
+      
+      // Fallback for any other case
+      console.log('❓ Unknown user status - returning generic error');
+      return {
+        user: null,
+        session: null,
+        error: {
+          message: 'Please check your information and try again.',
+          originalError: new Error('Unknown user status')
+        }
+      };
+    } catch (error) {
+      console.error('❌ Error in handleUsernameExistsException:', error);
+      return {
+        user: null,
+        session: null,
+        error: {
+          message: 'Please check your information and try again.',
+          originalError: error
+        }
+      };
     }
   }
 
@@ -111,9 +338,25 @@ export class AuthService {
         },
         error: null
       };
-      } catch (error) {
+      } catch (error: any) {
       console.error('AWS Cognito signin error:', error);
-      return { user: null, session: null, error };
+      
+      // Provide more helpful error messages
+      let errorMessage = 'Invalid email or password';
+      
+      if (error.name === 'NotAuthorizedException') {
+        errorMessage = 'Invalid email or password. Please check your credentials.';
+      } else if (error.name === 'UserNotFoundException') {
+        errorMessage = 'No account found with this email address. Please sign up first.';
+      } else if (error.name === 'UserNotConfirmedException') {
+        errorMessage = 'Please verify your email address before signing in.';
+      } else if (error.name === 'LimitExceededException') {
+        errorMessage = 'Too many login attempts. Please wait before trying again.';
+      } else if (error.name === 'InvalidParameterException') {
+        errorMessage = 'Invalid email format. Please check your email address.';
+      }
+      
+      return { user: null, session: null, error: { message: errorMessage, originalError: error } };
     }
   }
 
@@ -166,10 +409,71 @@ export class AuthService {
   static async resetPassword(email: string) {
     try {
       console.log('🔐 AWS Cognito resetPassword for:', email);
-      // Implement password reset
+      // Check if the user exists and is verified
+      try {
+        const getUserCommand = new AdminGetUserCommand({
+          UserPoolId: USER_POOL_ID,
+          Username: email
+        });
+        const userResult = await cognitoClient.send(getUserCommand);
+        const userAttributes = userResult.UserAttributes || [];
+        const emailVerifiedAttr = userAttributes.find(attr => attr.Name === 'email_verified');
+        const emailVerified = emailVerifiedAttr ? emailVerifiedAttr.Value === 'true' : false;
+        if (!emailVerified) {
+          return {
+            error: {
+              message: 'Your email is not verified. Please sign up for a new account.',
+              originalError: new Error('Email not verified')
+            }
+          };
+        }
+      } catch (userError) {
+        if ((userError as any).name === 'UserNotFoundException') {
+          return {
+            error: {
+              message: 'No account found with this email address. Please sign up for a new account.',
+              originalError: userError
+            }
+          };
+        }
+        // If we can't check the user, do not proceed
+        return {
+          error: {
+            message: 'Unable to check user status. Please contact support.',
+            originalError: userError
+          }
+        };
+      }
+      // If verified, proceed with password reset
+      const forgotPasswordCommand = new ForgotPasswordCommand({
+        ClientId: CLIENT_ID,
+        Username: email
+      });
+      await cognitoClient.send(forgotPasswordCommand);
+      console.log('✅ AWS Cognito resetPassword successful');
       return { error: null };
-      } catch (error) {
-        return { error };
+    } catch (error: any) {
+      console.error('AWS Cognito resetPassword error:', error);
+      // Provide more helpful error messages
+      let errorMessage = 'Failed to send password reset email. Please try again.';
+      if (error.name === 'InvalidParameterException') {
+        if (error.message.includes('no registered/verified email')) {
+          errorMessage = 'This email address is not registered. Please sign up first or check your email address.';
+        } else if (error.message.includes('phone_number')) {
+          errorMessage = 'This account is registered with a phone number, not email. Please contact support.';
+        }
+      } else if (error.name === 'UserNotFoundException') {
+        errorMessage = 'No account found with this email address. Please check your email or sign up.';
+      } else if (error.name === 'NotAuthorizedException') {
+        if (error.message.includes('Auto verification not turned on')) {
+          errorMessage = 'Password reset is not available. Please contact support to reset your password.';
+        } else {
+          errorMessage = 'This account is not authorized for password reset. Please contact support.';
+        }
+      } else if (error.name === 'LimitExceededException') {
+        errorMessage = 'Too many password reset attempts. Please wait before trying again.';
+      }
+      return { error: { message: errorMessage, originalError: error } };
     }
   }
 
@@ -192,13 +496,102 @@ export class AuthService {
     }
   }
 
+  static async confirmUserInCognito(email: string) {
+    try {
+      console.log('🔐 Confirming user in Cognito for:', email);
+      
+      const confirmCommand = new AdminConfirmSignUpCommand({
+        UserPoolId: USER_POOL_ID,
+        Username: email
+      });
+      
+      await cognitoClient.send(confirmCommand);
+      console.log('✅ User confirmed in Cognito successfully');
+      
+      return { success: true, error: null };
+    } catch (error: any) {
+      console.error('AWS Cognito user confirmation error:', error);
+      return { success: false, error };
+    }
+  }
+
+  static async resendVerificationEmail(email: string) {
+    try {
+      console.log('🔐 AWS Cognito resendVerificationEmail for:', email);
+      
+      const resendCommand = new ResendConfirmationCodeCommand({
+        ClientId: CLIENT_ID,
+        Username: email
+      });
+      
+      const result = await cognitoClient.send(resendCommand);
+      console.log('✅ AWS Cognito resendVerificationEmail successful');
+      
+      // In development mode, we'll simulate the OTP being sent
+      // In production, this would be handled by AWS SES
+      if (process.env.NODE_ENV === 'development' || !process.env.NODE_ENV) {
+        console.log('📧 DEVELOPMENT MODE - Verification OTP sent to:', email);
+        console.log('📧 Check your email for the verification code');
+        console.log('📧 (In production, this would be sent via AWS SES)');
+      }
+      
+      return { error: null };
+    } catch (error: any) {
+      console.error('AWS Cognito resendVerificationEmail error:', error);
+      
+      // Provide more helpful error messages
+      let errorMessage = 'Failed to resend verification email. Please try again.';
+      
+      if (error.name === 'UserNotFoundException') {
+        errorMessage = 'No account found with this email address.';
+      } else if (error.name === 'InvalidParameterException') {
+        errorMessage = 'Invalid email format. Please check your email address.';
+      } else if (error.name === 'LimitExceededException') {
+        errorMessage = 'Too many attempts. Please wait before trying again.';
+      } else if (error.name === 'NotAuthorizedException') {
+        if (error.message.includes('Auto verification not turned on')) {
+          errorMessage = 'Password reset is not available. Please contact support to reset your password.';
+        } else {
+          errorMessage = 'Not authorized to resend verification codes. Please contact support.';
+        }
+      }
+      
+      return { error: { message: errorMessage, originalError: error } };
+    }
+  }
+
   static async verifyResetOTP(email: string, otp: string, newPassword: string) {
     try {
       console.log('🔐 AWS Cognito verifyResetOTP for:', email);
-      // Implement password reset confirmation
+      
+      const confirmForgotPasswordCommand = new ConfirmForgotPasswordCommand({
+        ClientId: CLIENT_ID,
+        Username: email,
+        ConfirmationCode: otp,
+        Password: newPassword
+      });
+      
+      await cognitoClient.send(confirmForgotPasswordCommand);
+      console.log('✅ AWS Cognito verifyResetOTP successful');
+      
       return { error: null };
-      } catch (error) {
-        return { error };
+    } catch (error: any) {
+      console.error('AWS Cognito verifyResetOTP error:', error);
+      
+      // Provide more helpful error messages
+      let errorMessage = 'Failed to reset password. Please try again.';
+      
+      if (error.name === 'CodeMismatchException') {
+        errorMessage = 'Invalid verification code. Please check your email and try again.';
+      } else if (error.name === 'ExpiredCodeException') {
+        errorMessage = 'Verification code has expired. Please request a new code.';
+      } else if (error.name === 'InvalidPasswordException') {
+        errorMessage = 'Password does not meet requirements. Use at least 8 characters with uppercase, lowercase, numbers, and symbols.';
+      } else if (error.name === 'LimitExceededException') {
+        errorMessage = 'Too many attempts. Please wait before trying again.';
+      }
+      
+      return { error: { message: errorMessage, originalError: error } };
     }
   }
 }

@@ -10,6 +10,10 @@ export const MetadataForm: React.FC = () => {
     setFormData({ elr: e.target.value.toUpperCase() });
   };
 
+  const handleStructureNoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData({ structureNo: e.target.value });
+  };
+
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     if (!value) return;
@@ -43,71 +47,34 @@ export const MetadataForm: React.FC = () => {
     setFormData({ date: value });
   };
 
-  if (collapsed) {
-    return (
-      <div className="bg-white dark:bg-gray-800 p-2 rounded-lg shadow-sm border border-slate-200 dark:border-gray-700 flex items-center justify-between cursor-pointer select-none" onClick={() => setCollapsed(false)}>
-        <span className="text-base sm:text-lg font-semibold text-slate-800 dark:text-white">Project Details</span>
-        <ChevronDown size={20} className="text-slate-500 dark:text-slate-300" />
-      </div>
-    );
-  }
-
   return (
-    <div className="bg-white dark:bg-gray-800 p-3 sm:p-4 rounded-lg shadow-sm border border-slate-200 dark:border-gray-700">
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-base sm:text-lg font-semibold text-slate-800 dark:text-white">Project Details</h2>
-        <button onClick={() => setCollapsed(true)} className="p-1 rounded hover:bg-slate-100 dark:hover:bg-gray-700 transition-colors">
-          <ChevronUp size={20} className="text-slate-500 dark:text-slate-300" />
-        </button>
-      </div>
-      <div className="space-y-3">
-        <div>
-          <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">
-            <div className="flex items-center gap-2">
-              <Building2 size={16} className="text-indigo-500" />
-              ELR
-            </div>
-          </label>
-          <input
-            type="text"
-            value={formData.elr}
-            onChange={handleELRChange}
-            className="w-full p-2 border border-slate-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all uppercase bg-white dark:bg-gray-800 text-slate-900 dark:text-white"
-            placeholder="Enter ELR"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">
-            <div className="flex items-center gap-2">
-              <Hash size={16} className="text-indigo-500" />
-              Structure No
-            </div>
-          </label>
-          <input
-            type="text"
-            value={formData.structureNo}
-            onChange={(e) => setFormData({ structureNo: e.target.value })}
-            className="w-full p-2 border border-slate-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all bg-white dark:bg-gray-800 text-slate-900 dark:text-white"
-            placeholder="Enter Structure No"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">
-            <div className="flex items-center gap-2">
-              <Calendar size={16} className="text-indigo-500" />
-              Date
-            </div>
-          </label>
-          <input
-            type="date"
-            value={formData.date}
-            onChange={handleDateChange}
-            min="1900-01-01"
-            max="9999-12-31"
-            className="w-full p-2 border border-slate-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all bg-white dark:bg-gray-800 text-slate-900 dark:text-white"
-          />
-        </div>
-      </div>
+    <div className="bg-slate-50 dark:bg-gray-700 rounded-lg px-2 py-1 flex items-center gap-3">
+      <span className="text-xs font-medium text-slate-700 dark:text-gray-300 mr-2">Project Details</span>
+      <label className="text-xs font-medium text-slate-600 dark:text-gray-400 mr-1">ELR</label>
+      <input
+        type="text"
+        value={formData.elr}
+        onChange={handleELRChange}
+        className="p-1 text-xs border border-slate-200 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-slate-900 dark:text-white max-w-[70px] mr-2"
+        placeholder="ELR"
+        maxLength={8}
+      />
+      <label className="text-xs font-medium text-slate-600 dark:text-gray-400 mr-1">Structure No</label>
+      <input
+        type="text"
+        value={formData.structureNo}
+        onChange={handleStructureNoChange}
+        className="p-1 text-xs border border-slate-200 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-slate-900 dark:text-white max-w-[70px] mr-2"
+        placeholder="No"
+        maxLength={8}
+      />
+      <label className="text-xs font-medium text-slate-600 dark:text-gray-400 mr-1">Date</label>
+      <input
+        type="date"
+        value={formData.date}
+        onChange={handleDateChange}
+        className="p-1 text-xs border border-slate-200 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-slate-900 dark:text-white max-w-[120px]"
+      />
     </div>
   );
 };

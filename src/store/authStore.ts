@@ -1,6 +1,6 @@
 // authStore.ts
 import { create } from 'zustand';
-import { AuthService } from '../lib/services';
+import { AuthService, ProfileService } from '../lib/services';
 
 // Define our own User type to match AWS service response
 interface User {
@@ -85,9 +85,30 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           const user = JSON.parse(storedUser);
           console.log('Found stored user session:', user.email);
           
-          // Trust the stored session - don't validate with AWS during initialization
-          console.log('✅ Using stored session for user:', user.email);
-          set({ isAuthenticated: true, user });
+          // Load profile data to get avatar_url and other metadata
+          try {
+            const profileResult = await ProfileService.getOrCreateUserProfile(user.id, user.email);
+            if (profileResult) {
+              // Update user with profile data including avatar_url
+              const updatedUser = {
+                ...user,
+                user_metadata: {
+                  ...user.user_metadata,
+                  avatar_url: profileResult.avatar_url,
+                  subscription_plan: (profileResult as any).subscription_plan || 'Basic',
+                  subscription_status: (profileResult as any).subscription_status || 'active',
+                  subscription_end_date: (profileResult as any).subscription_end_date || null
+                }
+              };
+              set({ isAuthenticated: true, user: updatedUser });
+            } else {
+              set({ isAuthenticated: true, user });
+            }
+          } catch (profileError) {
+            console.error('Error loading profile data:', profileError);
+            // Still set user even if profile loading fails
+            set({ isAuthenticated: true, user });
+          }
         } catch (parseError) {
           console.error('Error parsing stored user:', parseError);
           // Clear invalid data

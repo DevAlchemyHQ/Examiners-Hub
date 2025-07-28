@@ -10,7 +10,11 @@ interface UploadProgress {
   status: 'uploading' | 'success' | 'error';
 }
 
-export const ImageUpload: React.FC = () => {
+interface ImageUploadProps {
+  compact?: boolean;
+}
+
+export const ImageUpload: React.FC<ImageUploadProps> = ({ compact = false }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const addImages = useMetadataStore((state) => state.addImages);
   const [isLoadingExam, setIsLoadingExam] = useState(false);
@@ -92,6 +96,33 @@ export const ImageUpload: React.FC = () => {
       }
     }
   };
+
+  if (compact) {
+    return (
+      <div>
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleFileChange}
+          className="hidden"
+          multiple
+          accept="image/*"
+        />
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          disabled={isLoadingExam}
+          className="flex items-center gap-2 px-3 py-1.5 bg-gray-700 dark:bg-gray-600 text-white text-sm rounded border border-gray-600 dark:border-gray-500 hover:bg-gray-600 dark:hover:bg-gray-500 transition-colors disabled:opacity-50"
+        >
+          {isLoadingExam ? (
+            <Loader2 size={14} className="animate-spin" />
+          ) : (
+            <Upload size={14} />
+          )}
+          <span>{isLoadingExam ? "Uploading..." : "Upload"}</span>
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="mb-6">

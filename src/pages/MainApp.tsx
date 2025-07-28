@@ -12,7 +12,7 @@ import { SubscriptionPage } from './subscription.page';
 import { CalculatorPage } from './calculator.page';
 import { GamesPage } from './games.page';
 import { GridReferenceFinderPage } from './grid.page';
-import { PDFViewerPage } from './pdf.page';
+
 
 const MainApp = () => {
   const { isAuthenticated, checkAuth } = useAuthStore();
@@ -78,7 +78,7 @@ const MainApp = () => {
         <Route path="calculator" element={<CalculatorPage />} />
         <Route path="games" element={<GamesPage />} />
         <Route path="grid" element={<GridReferenceFinderPage />} />
-        <Route path="pdf" element={<PDFViewerPage />} />
+
         <Route path="bcmi" element={<MainLayout />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

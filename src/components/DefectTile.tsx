@@ -39,8 +39,6 @@ export const DefectTile: React.FC<DefectTileProps> = ({
   setEnlargedImage,
   isDuplicate = false,
 }) => {
-  // Debug: Log onQuickAdd prop
-  console.log('🔍 DefectTile render:', { id, photoNumber, onQuickAdd: !!onQuickAdd });
   const [isDropdownOpen, setIsDropdownOpen] = React.useState(false);
   const [localPhotoNumber, setLocalPhotoNumber] = useState(photoNumber);
   const [isEditing, setIsEditing] = React.useState(false);
@@ -184,9 +182,9 @@ export const DefectTile: React.FC<DefectTileProps> = ({
     if (!description?.trim()) {
       errors.push('No description');
     } else {
-      const { isValid } = validateDescription(description);
+      const { isValid, hasForwardSlashes } = validateDescription(description);
       if (!isValid) {
-        errors.push('Invalid characters in description');
+        errors.push(hasForwardSlashes ? 'Forward slashes (/) are not allowed' : 'Invalid characters in description');
       }
     }
     
@@ -285,7 +283,7 @@ export const DefectTile: React.FC<DefectTileProps> = ({
               </button>
               {isDropdownOpen && (
                 <div className="absolute right-0 top-full mt-1 w-48 max-h-48 bg-white dark:bg-gray-800 
-                  rounded-lg shadow-xl border border-slate-200 dark:border-gray-700 overflow-hidden z-[99999]">
+                  rounded-lg shadow-xl border border-slate-200 dark:border-gray-700 overflow-hidden z-[999999]">
                   <div className="overflow-y-auto max-h-48 py-1">
                     <button
                       type="button"
@@ -402,29 +400,34 @@ export const DefectTile: React.FC<DefectTileProps> = ({
                 </div>
         </div>
               <div className="relative" ref={dropdownRef}>
-          <button
+                <button
                   type="button"
-            onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-            className={`flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg ${
-              selectedFile
-                ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400'
-                : 'text-slate-600 dark:text-gray-300 hover:bg-slate-50 dark:hover:bg-gray-700'
-            }`}
-          >
-            <div className="max-w-[150px] truncate">
-              {selectedFile || 'Select image'}
-            </div>
+                  onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                  className={`flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg ${
+                    selectedFile
+                      ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400'
+                      : 'text-slate-600 dark:text-gray-300 hover:bg-slate-50 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  <div className="max-w-[150px] truncate">
+                    {selectedFile || 'Select image'}
+                  </div>
                   <ChevronDown size={16} className={`transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
-          </button>
+                </button>
                 {!selectedFile && (
                   <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full flex items-center justify-center">
                     <AlertCircle size={8} className="text-white" />
                   </div>
                 )}
-          {isDropdownOpen && (
+                {isDropdownOpen && (
                   <div 
-                    className="absolute right-0 top-full mt-1 w-64 max-h-48 bg-white dark:bg-gray-800 
-                      rounded-lg shadow-xl border border-slate-200 dark:border-gray-700 overflow-hidden z-[99999]"
+                    className="fixed w-64 max-h-48 bg-white dark:bg-gray-800 
+                      rounded-lg shadow-xl border border-slate-200 dark:border-gray-700 overflow-hidden"
+                    style={{ 
+                      zIndex: 99999999,
+                      top: (dropdownRef.current?.getBoundingClientRect().bottom || 0) + 4,
+                      left: (dropdownRef.current?.getBoundingClientRect().right || 0) - 256
+                    }}
                   >
                     <div className="overflow-y-auto max-h-48 py-1">
                       <button
@@ -461,11 +464,10 @@ export const DefectTile: React.FC<DefectTileProps> = ({
             </div>
           )}
         </div>
-        <div className="flex items-center gap-1" style={{ border: '1px solid blue' }}> {/* Debug: Add blue border to container */}
+        <div className="flex items-center gap-1">
           <button
             onClick={onDelete}
             className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-            style={{ border: '1px solid green' }} // Debug: Add green border to delete button
           >
             <X size={16} />
           </button>
@@ -474,21 +476,9 @@ export const DefectTile: React.FC<DefectTileProps> = ({
               onClick={onQuickAdd}
               className="p-1.5 text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg transition-colors"
               title="Add defect below"
-              style={{ 
-                border: '2px solid red', 
-                backgroundColor: 'yellow',
-                zIndex: 9999,
-                position: 'relative'
-              }} // Debug: Make it very visible
             >
               <Plus size={16} />
             </button>
-          )}
-          {/* Debug: Show if onQuickAdd is not provided */}
-          {!onQuickAdd && (
-            <div className="p-1.5 text-xs text-red-500 bg-red-100 dark:bg-red-900/20 rounded">
-              No onQuickAdd
-            </div>
           )}
         </div>
       </div>

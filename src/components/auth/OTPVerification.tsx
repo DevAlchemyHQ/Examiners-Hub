@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Loader2, AlertCircle, ArrowLeft, RefreshCw } from 'lucide-react';
+import './cyberpunk-auth.css';
 
 interface OTPVerificationProps {
   email: string;
@@ -117,71 +118,101 @@ export const OTPVerification: React.FC<OTPVerificationProps> = ({
   };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <button
-          onClick={onBack}
-          className="flex items-center gap-2 text-gray-400 hover:text-white transition mb-6"
-        >
-          <ArrowLeft size={18} />
-          Back
-        </button>
-        <h2 className="text-2xl font-bold text-white mb-2">
-          Enter Verification Code
-        </h2>
-        <p className="text-gray-400">
-          We sent a verification code to {email}. Please enter it below.
-        </p>
-      </div>
-
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="flex justify-between gap-2">
-          {otp.map((digit, index) => (
-            <input
-              key={index}
-              ref={el => inputRefs.current[index] = el}
-              type="text"
-              inputMode="numeric"
-              pattern="\d*"
-              maxLength={1}
-              value={digit}
-              onChange={e => handleChange(index, e.target.value)}
-              onKeyDown={e => handleKeyDown(index, e)}
-              className="w-12 h-14 text-center text-xl font-bold border border-gray-600 rounded-lg bg-gray-700 text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
-              autoComplete="one-time-code"
-            />
-          ))}
+    <div className="cyberpunk-auth">
+      <div className="form">
+        <div>
+          <button
+            onClick={onBack}
+            className="form-links"
+          >
+            ← Back
+          </button>
+          <h1>Enter Verification Code</h1>
+          <p style={{ textAlign: 'center', marginBottom: '20px', color: '#ccc' }}>
+            We sent a verification code to {email}. Please enter it below.
+          </p>
         </div>
 
-        {error && (
-          <div className="flex items-center gap-2 text-red-400 bg-red-400/10 p-3 rounded-lg">
-            <AlertCircle size={18} />
-            <span className="text-sm">{error}</span>
+        <form onSubmit={handleSubmit}>
+          <div className="control" style={{ marginBottom: '30px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px' }}>
+              {otp.map((digit, index) => (
+                <div key={index} className="block-cube block-input" style={{ width: '40px', height: '50px' }}>
+                  <div className="bg-top">
+                    <div className="bg-inner"></div>
+                  </div>
+                  <div className="bg-right">
+                    <div className="bg-inner"></div>
+                  </div>
+                  <div className="bg">
+                    <div className="bg-inner"></div>
+                  </div>
+                  <div className="text">
+                    <input
+                      ref={el => inputRefs.current[index] = el}
+                      type="text"
+                      inputMode="numeric"
+                      pattern="\d*"
+                      maxLength={1}
+                      value={digit}
+                      onChange={e => handleChange(index, e.target.value)}
+                      onKeyDown={e => handleKeyDown(index, e)}
+                      style={{ 
+                        width: '100%', 
+                        height: '100%', 
+                        textAlign: 'center', 
+                        fontSize: '18px',
+                        fontWeight: 'bold'
+                      }}
+                      autoComplete="one-time-code"
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
-        )}
 
-        <div className="flex flex-col gap-4">
-          <button
-            type="submit"
-            disabled={isLoading || otp.some(d => !d)}
-            className="w-full bg-indigo-500 text-white py-3 rounded-lg font-semibold hover:bg-indigo-600 transition flex items-center justify-center gap-2 shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isLoading ? (
-              <>
-                <Loader2 size={18} className="animate-spin" />
-                Verifying...
-              </>
-            ) : (
-              'Verify Code'
-            )}
-          </button>
+          {error && (
+            <div className="error-message">
+              {error}
+            </div>
+          )}
 
-          <div className="flex items-center justify-center gap-2">
+          <div className="control">
+            <div className="block-cube block-cube-hover">
+              <div className="bg-top">
+                <div className="bg-inner"></div>
+              </div>
+              <div className="bg-right">
+                <div className="bg-inner"></div>
+              </div>
+              <div className="bg">
+                <div className="bg-inner"></div>
+              </div>
+              <div className="text">
+                <button
+                  type="submit"
+                  disabled={isLoading || otp.some(d => !d)}
+                  className="btn"
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 size={18} className="animate-spin" />
+                      Verifying...
+                    </>
+                  ) : (
+                    'Verify Code'
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="form-links">
             <button
               type="button"
               onClick={handleResendOTP}
               disabled={resendTimer > 0 || isResending}
-              className="text-sm text-indigo-400 hover:text-indigo-300 transition flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isResending ? (
                 <>
@@ -196,8 +227,8 @@ export const OTPVerification: React.FC<OTPVerificationProps> = ({
               )}
             </button>
           </div>
-        </div>
-      </form>
+        </form>
+      </div>
     </div>
   );
 };

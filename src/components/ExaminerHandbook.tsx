@@ -3,7 +3,7 @@ import { Book, FileText } from 'lucide-react';
 
 export const ExaminerHandbook: React.FC = () => {
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm h-[calc(100vh-96px)]">
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm h-[calc(100vh-120px)]">
       <div className="p-4 border-b border-slate-200 dark:border-gray-700">
         <h2 className="text-lg font-semibold text-slate-800 dark:text-white flex items-center gap-2">
           <Book className="text-indigo-500" />

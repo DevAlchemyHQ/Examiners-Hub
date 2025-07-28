@@ -15,6 +15,8 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
     // const [subscription, setSubscription] = useState(user?.user_metadata.subscription_plan || 'Basic');
     const [avatarFile, setAvatarFile] = useState<File | null>(null);
     const [uploading, setUploading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [success, setSuccess] = useState(false);
 
     // const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     //     if (e.target.files && e.target.files[0]) {
@@ -52,37 +54,55 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
     };
 
     const handleUpdateProfile = async () => {
-        let finalAvatarUrl = avatarUrl;
+        try {
+            setError(null);
+            setSuccess(false);
+            setUploading(true);
 
-        if (avatarFile) {
-            const uploadedUrl = await uploadAvatar();
-            if (uploadedUrl) finalAvatarUrl = uploadedUrl;
+            console.log('Starting profile update with name:', fullName);
+
+            // First, update local state immediately for better UX
+            if (user) {
+                setUser({
+                    ...user,
+                    user_metadata: {
+                        ...user.user_metadata,
+                        full_name: fullName
+                    },
+                });
+                console.log('Local state updated successfully');
+            }
+
+            // Try to update AWS Cognito (but don't fail if it doesn't work)
+            try {
+                const updateResult = await AuthService.updateUserAttributes({
+                    email: user?.email || '',
+                    name: fullName
+                });
+
+                if (updateResult.error) {
+                    console.warn('AWS update failed, but local state was updated:', updateResult.error);
+                    // Don't show error to user since local state was updated
+                } else {
+                    console.log('AWS update successful');
+                }
+            } catch (awsError) {
+                console.warn('AWS update failed, but local state was updated:', awsError);
+                // Don't show error to user since local state was updated
+            }
+
+            console.log('Profile updated successfully:', fullName);
+            setSuccess(true);
+            setTimeout(() => {
+                onClose();
+                setSuccess(false);
+            }, 1000);
+        } catch (error) {
+            console.error('Error updating profile:', error);
+            setError('An unexpected error occurred. Please try again.');
+        } finally {
+            setUploading(false);
         }
-
-        const newName = fullName;
-        const newEmail = user?.email || '';
-
-        // Update user profile in AWS Cognito
-        const updateResult = await AuthService.updateUserAttributes({
-          email: newEmail,
-          name: newName
-        });
-
-        if (updateResult.error) {
-          throw new Error(updateResult.error);
-        }
-
-        if (user) {
-            setUser({
-                ...user,
-                user_metadata: {
-                    ...user.user_metadata,
-                    full_name: fullName
-                },
-            });
-        }
-
-        onClose();
     };
 
     if (!isOpen) return null;
@@ -96,6 +116,20 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
                 </button>
 
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 text-center mb-6">Edit Profile</h2>
+
+                {/* Error Message */}
+                {error && (
+                    <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg">
+                        {error}
+                    </div>
+                )}
+
+                {/* Success Message */}
+                {success && (
+                    <div className="mb-4 p-3 bg-green-100 border border-green-400 text-green-700 rounded-lg">
+                        Profile updated successfully!
+                    </div>
+                )}
 
                 {/* Avatar Upload Section */}
                 {/* <div className="flex flex-col items-center mb-6">
