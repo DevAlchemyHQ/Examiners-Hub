@@ -6,28 +6,7 @@ exports.handler = async (event) => {
   try {
     // Parse the request body
     const body = JSON.parse(event.body);
-    const { action, email, userId, code, type } = body;
-    
-    // Handle different actions
-    if (action === 'sendVerificationEmail') {
-      return await sendVerificationEmail(email, userId);
-    } else if (action === 'sendPasswordResetEmail') {
-      return await sendPasswordResetEmail(email, userId);
-    } else {
-      return {
-        statusCode: 400,
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Headers': 'Content-Type',
-          'Access-Control-Allow-Methods': 'POST, OPTIONS'
-        },
-        body: JSON.stringify({
-          success: false,
-          message: 'Invalid action'
-        })
-      };
-    }
+    const { email, userId, type, code, userName } = body;
 
     // Email templates (simplified versions)
     const verificationEmailTemplate = `
@@ -98,9 +77,34 @@ exports.handler = async (event) => {
       </html>
     `;
 
-    // This code is now handled by separate functions
+    // Choose template based on type
+    const emailHtml = type === 'verification' ? verificationEmailTemplate : passwordResetTemplate;
+    const subject = type === 'verification' ? 'Verify Your Email - Exametry' : 'Reset Your Password - Exametry';
+
+    // Send email via SES
+    const sendEmailCommand = new SendEmailCommand({
+      Source: 'infor@exametry.xyz',
+      Destination: {
+        ToAddresses: [email]
+      },
+      Message: {
+        Subject: {
+          Data: subject,
+          Charset: 'UTF-8'
+        },
+        Body: {
+          Html: {
+            Data: emailHtml,
+            Charset: 'UTF-8'
+          }
+        }
+      }
+    });
+
+    await sesClient.send(sendEmailCommand);
+
     return {
-      statusCode: 400,
+      statusCode: 200,
       headers: {
         'Content-Type': 'application/json',
         'Access-Control-Allow-Origin': '*',
@@ -108,8 +112,8 @@ exports.handler = async (event) => {
         'Access-Control-Allow-Methods': 'POST, OPTIONS'
       },
       body: JSON.stringify({
-        success: false,
-        message: 'Invalid action'
+        success: true,
+        message: 'Email sent successfully'
       })
     };
 
@@ -131,128 +135,4 @@ exports.handler = async (event) => {
       })
     };
   }
-};
-
-// Send verification email
-async function sendVerificationEmail(email, userId) {
-  try {
-    const userName = email.split('@')[0];
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-    
-    const emailHtml = verificationEmailTemplate
-      .replace('${userName}', userName)
-      .replace('${code}', code);
-    
-    const sendEmailCommand = new SendEmailCommand({
-      Source: 'infor@exametry.xyz',
-      Destination: {
-        ToAddresses: [email]
-      },
-      Message: {
-        Subject: {
-          Data: 'Verify Your Email - Exametry',
-          Charset: 'UTF-8'
-        },
-        Body: {
-          Html: {
-            Data: emailHtml,
-            Charset: 'UTF-8'
-          }
-        }
-      }
-    });
-
-    await sesClient.send(sendEmailCommand);
-
-    return {
-      statusCode: 200,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS'
-      },
-      body: JSON.stringify({
-        success: true,
-        message: 'Verification email sent successfully'
-      })
-    };
-  } catch (error) {
-    console.error('Error sending verification email:', error);
-    return {
-      statusCode: 500,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS'
-      },
-      body: JSON.stringify({
-        success: false,
-        message: 'Failed to send verification email'
-      })
-    };
-  }
-}
-
-// Send password reset email
-async function sendPasswordResetEmail(email, userId) {
-  try {
-    const userName = email.split('@')[0];
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-    
-    const emailHtml = passwordResetTemplate
-      .replace('${userName}', userName)
-      .replace('${code}', code);
-    
-    const sendEmailCommand = new SendEmailCommand({
-      Source: 'infor@exametry.xyz',
-      Destination: {
-        ToAddresses: [email]
-      },
-      Message: {
-        Subject: {
-          Data: 'Reset Your Password - Exametry',
-          Charset: 'UTF-8'
-        },
-        Body: {
-          Html: {
-            Data: emailHtml,
-            Charset: 'UTF-8'
-          }
-        }
-      }
-    });
-
-    await sesClient.send(sendEmailCommand);
-
-    return {
-      statusCode: 200,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS'
-      },
-      body: JSON.stringify({
-        success: true,
-        message: 'Password reset email sent successfully'
-      })
-    };
-  } catch (error) {
-    console.error('Error sending password reset email:', error);
-    return {
-      statusCode: 500,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS'
-      },
-      body: JSON.stringify({
-        success: false,
-        message: 'Failed to send password reset email'
-      })
-    };
-  }
-} 
+}; 

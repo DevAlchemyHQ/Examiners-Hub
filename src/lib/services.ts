@@ -534,6 +534,46 @@ export class AuthService {
     }
   }
 
+  static async confirmUserWithCode(email: string, code: string) {
+    try {
+      console.log('🔐 Confirming user in Cognito with code for:', email);
+      
+      const confirmCommand = new ConfirmSignUpCommand({
+        ClientId: CLIENT_ID,
+        Username: email,
+        ConfirmationCode: code
+      });
+      
+      await cognitoClient.send(confirmCommand);
+      console.log('✅ User confirmed in Cognito successfully with code');
+      
+      // Also set email_verified to true
+      try {
+        const updateCommand = new AdminUpdateUserAttributesCommand({
+          UserPoolId: USER_POOL_ID,
+          Username: email,
+          UserAttributes: [
+            {
+              Name: 'email_verified',
+              Value: 'true'
+            }
+          ]
+        });
+        
+        await cognitoClient.send(updateCommand);
+        console.log('✅ Email verified attribute set to true');
+      } catch (updateError) {
+        console.warn('⚠️ Could not set email_verified attribute:', updateError);
+        // Don't fail the whole operation if this fails
+      }
+      
+      return { success: true, error: null };
+    } catch (error: any) {
+      console.error('AWS Cognito user confirmation with code error:', error);
+      return { success: false, error };
+    }
+  }
+
   static async resendVerificationEmail(email: string) {
     try {
       console.log('🔐 AWS Cognito resendVerificationEmail for:', email);
@@ -554,7 +594,7 @@ export class AuthService {
         console.log('📧 (In production, this would be sent via AWS SES)');
       }
       
-      return { error: null };
+      return { success: true, error: null };
     } catch (error: any) {
       console.error('AWS Cognito resendVerificationEmail error:', error);
       
@@ -575,7 +615,7 @@ export class AuthService {
         }
       }
       
-      return { error: { message: errorMessage, originalError: error } };
+      return { success: false, error: { message: errorMessage, originalError: error } };
     }
   }
 

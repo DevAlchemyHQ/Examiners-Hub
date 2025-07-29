@@ -4,10 +4,7 @@
   "description": "Lambda function to send emails via SES",
   "main": "index.js",
   "dependencies": {
-    "@aws-sdk/client-ses": "^3.0.0",
-    "@aws-sdk/client-dynamodb": "^3.0.0",
-    "@aws-sdk/lib-dynamodb": "^3.0.0",
-    "nanoid": "^3.3.0"
+    "@aws-sdk/client-ses": "^3.0.0"
   },
   "devDependencies": {},
   "scripts": {

@@ -109,42 +109,17 @@ export const LoginScreen: React.FC = () => {
             return;
           }
           try {
-            const signupResult = await AuthService.signUpWithEmail(email, password, fullName);
-            if (signupResult.user && !signupResult.error) {
-              // Store session data for persistence
-              if (signupResult.session) {
-                localStorage.setItem('session', JSON.stringify(signupResult.session));
-              }
-              localStorage.setItem('userEmail', email);
-              
-              // Send verification email
-              try {
-                const verificationResult = await VerificationService.sendVerificationEmail(email, signupResult.user.id);
-                if (verificationResult.success) {
-                  // Switch to email verification mode
-                  setMode('email-verification');
-                  setMessage('Please check your email and enter the 6-digit OTP code.');
-                  // If in development mode, show the code in console
-                  if (verificationResult.code) {
-                    console.log('🔐 DEVELOPMENT MODE - Verification Code:', verificationResult.code);
-                  }
-                } else {
-                  // Handle verification service errors gracefully
-                  if (verificationResult.message.includes('Credential is missing')) {
-                    setError('Email service temporarily unavailable. Please try again later.');
-                  } else {
-                    setError(verificationResult.message);
-                  }
-                }
-              } catch (verificationError: any) {
-                console.error('Verification service error:', verificationError);
-                // Handle verification service errors
-                if (verificationError.message?.includes('Credential is missing')) {
-                  setError('Email service temporarily unavailable. Please try again later.');
-                } else {
-                  setError('Failed to send verification email. Please try again.');
-                }
-              }
+          const signupResult = await AuthService.signUpWithEmail(email, password, fullName);
+          if (signupResult.user && !signupResult.error) {
+            // Store session data for persistence
+            if (signupResult.session) {
+              localStorage.setItem('session', JSON.stringify(signupResult.session));
+            }
+            localStorage.setItem('userEmail', email);
+            
+            // Use Cognito's built-in email verification
+            setMode('email-verification');
+            setMessage('Please check your email and enter the 6-digit verification code sent by AWS Cognito.');
             } else {
               // Check for specific AWS Cognito errors
               const errorMessage = signupResult.error?.message || '';
@@ -170,7 +145,7 @@ export const LoginScreen: React.FC = () => {
                 setError('Password must be at least 8 characters long and contain uppercase, lowercase, and special characters.');
               } else if (errorMessage.includes('InvalidParameterException')) {
                 setError('Please check your email format and ensure all fields are filled correctly.');
-              } else {
+          } else {
                 setError('Please check your information and try again.');
               }
             }
@@ -288,9 +263,9 @@ export const LoginScreen: React.FC = () => {
   }
 
   if (mode === 'forgot-password') {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 to-gray-800 p-6">
-        <div className="bg-gray-800/90 p-8 rounded-2xl shadow-xl w-full max-w-md border border-gray-700 backdrop-blur-lg">
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 to-gray-800 p-6">
+      <div className="bg-gray-800/90 p-8 rounded-2xl shadow-xl w-full max-w-md border border-gray-700 backdrop-blur-lg">
           <ForgotPassword
             onBack={() => setMode('signin')}
             onSuccess={() => setMode('signin')}
@@ -330,13 +305,13 @@ export const LoginScreen: React.FC = () => {
                   <div className="bg-inner"></div>
                 </div>
                 <div className="text">
-                  <input
-                    type="text"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    placeholder="Enter your full name"
-                    required
-                  />
+              <input
+                type="text"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                placeholder="Enter your full name"
+                required
+              />
                 </div>
               </div>
             </div>
@@ -354,13 +329,13 @@ export const LoginScreen: React.FC = () => {
                 <div className="bg-inner"></div>
               </div>
               <div className="text">
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Enter your email"
-                  required
-                />
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Enter your email"
+              required
+            />
               </div>
             </div>
           </div>
@@ -378,17 +353,17 @@ export const LoginScreen: React.FC = () => {
                   <div className="bg-inner"></div>
                 </div>
                 <div className="text">
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    value={password}
-                    onChange={(e) => {
-                      setPassword(e.target.value);
-                      setError(null);
-                    }}
-                    placeholder="Enter your password"
-                    required
-                    minLength={8}
-                  />
+              <input
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  setError(null);
+                }}
+                placeholder="Enter your password"
+                required
+                minLength={8}
+              />
                 </div>
               </div>
             </div>
@@ -443,24 +418,24 @@ export const LoginScreen: React.FC = () => {
                 <div className="bg-inner"></div>
               </div>
               <div className="text">
-                <button
-                  type="submit"
-                  disabled={isLoading}
+          <button
+            type="submit"
+            disabled={isLoading}
                   className="btn"
-                >
-                  {isLoading ? (
-                    <>
-                      <Loader2 size={18} className="animate-spin" />
-                      {mode === 'signin' ? 'Signing in...' :
-                       mode === 'signup' ? 'Creating account...' :
-                       'Sending reset email...'}
-                    </>
-                  ) : (
-                    mode === 'signin' ? 'Sign In' :
-                    mode === 'signup' ? 'Create Account' :
-                    'Reset Password'
-                  )}
-                </button>
+          >
+            {isLoading ? (
+              <>
+                <Loader2 size={18} className="animate-spin" />
+                {mode === 'signin' ? 'Signing in...' :
+                 mode === 'signup' ? 'Creating account...' :
+                 'Sending reset email...'}
+              </>
+            ) : (
+              mode === 'signin' ? 'Sign In' :
+              mode === 'signup' ? 'Create Account' :
+              'Reset Password'
+            )}
+          </button>
               </div>
             </div>
           </div>
@@ -476,11 +451,11 @@ export const LoginScreen: React.FC = () => {
               </button>
               <br />
               <span>Don't have an account?{' '}</span>
-              <button
-                onClick={() => setMode('signup')}
-              >
-                Sign up
-              </button>
+                <button
+                  onClick={() => setMode('signup')}
+                >
+                  Sign up
+                </button>
             </>
           ) : mode === 'signup' ? (
             <>
@@ -504,11 +479,11 @@ export const LoginScreen: React.FC = () => {
         </div>
 
         <div className="credits">
-          <button
-            onClick={handleEmailClick}
-          >
+            <button
+              onClick={handleEmailClick}
+            >
             Need help? Contact support
-          </button>
+            </button>
         </div>
       </div>
 
