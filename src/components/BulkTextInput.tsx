@@ -1132,19 +1132,6 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
     };
   }, [bulkDefects]); // Removed saveBulkData from dependencies temporarily
 
-  // Manual save function for testing
-  const testSaveBulkData = async () => {
-    try {
-      console.log('🧪 Testing saveBulkData function...');
-      console.log('🧪 Current bulk defects count:', bulkDefects.length);
-      console.log('🧪 saveBulkData function exists:', typeof saveBulkData);
-      await saveBulkData();
-      console.log('✅ saveBulkData test successful');
-    } catch (error) {
-      console.error('❌ saveBulkData test failed:', error);
-    }
-  };
-
   // Enhanced data validation and logging
   useEffect(() => {
     if (bulkDefects.length > 0) {
@@ -1487,26 +1474,6 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
             </div>
           </div>
         )}
-
-        {/* Test button for saveBulkData */}
-        <div className="fixed bottom-4 left-4 bg-yellow-500 text-white px-4 py-2 rounded-lg shadow-lg z-50">
-          <button
-            onClick={testSaveBulkData}
-            className="text-sm font-medium"
-          >
-            Test SaveBulkData
-          </button>
-        </div>
-
-        {/* Cleanup button for invalid defects */}
-        <div className="fixed bottom-4 left-48 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg z-50">
-          <button
-            onClick={cleanupInvalidDefects}
-            className="text-sm font-medium"
-          >
-            Cleanup Invalid Defects
-          </button>
-        </div>
       </div>
     </ErrorBoundary>
   );
