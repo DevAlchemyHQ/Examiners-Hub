@@ -979,18 +979,52 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
     }, 100);
   };
 
-  // Test function for saveBulkData
-  const testSaveBulkData = async () => {
-    try {
-      console.log('🧪 Testing saveBulkData function...');
-      console.log('🧪 Current bulk defects count:', bulkDefects.length);
-      console.log('🧪 saveBulkData function exists:', typeof saveBulkData);
-      await saveBulkData();
-      console.log('✅ saveBulkData test successful');
-    } catch (error) {
-      console.error('❌ saveBulkData test failed:', error);
+  // Enhanced data validation and logging
+  useEffect(() => {
+    if (bulkDefects.length > 0) {
+      // Log data state for debugging
+      console.log('📊 Bulk defects state:', {
+        totalDefects: bulkDefects.length,
+        defectsWithImages: bulkDefects.filter(d => d.selectedFile).length,
+        defectsWithNumbers: bulkDefects.filter(d => d.photoNumber && d.photoNumber.trim()).length,
+        defectsWithDescriptions: bulkDefects.filter(d => d.description && d.description.trim()).length
+      });
+      
+      // Validate data integrity
+      const invalidDefects = bulkDefects.filter(d => !d.id);
+      if (invalidDefects.length > 0) {
+        console.warn('⚠️ Found defects without IDs:', invalidDefects.length);
+      }
+      
+      const duplicateIds = bulkDefects.filter((d, index) => 
+        bulkDefects.findIndex(d2 => d2.id === d.id) !== index
+      );
+      if (duplicateIds.length > 0) {
+        console.warn('⚠️ Found duplicate defect IDs:', duplicateIds.length);
+      }
     }
-  };
+  }, [bulkDefects]);
+
+  // Cleanup function to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      // Clear any pending timeouts
+      if (debouncedAutoSave.current) {
+        clearTimeout(debouncedAutoSave.current);
+      }
+      
+      // Clear any pending auto-sort timeouts
+      const autoSortTimeouts = document.querySelectorAll('[data-auto-sort-timeout]');
+      autoSortTimeouts.forEach(timeout => {
+        if (timeout instanceof HTMLElement) {
+          const timeoutId = timeout.dataset.autoSortTimeout;
+          if (timeoutId) {
+            clearTimeout(parseInt(timeoutId));
+          }
+        }
+      });
+    };
+  }, []);
 
   // --- 1. Utility for selected images count ---
   // const defectsWithImagesCount = bulkDefects.filter(d => d.selectedFile).length;
