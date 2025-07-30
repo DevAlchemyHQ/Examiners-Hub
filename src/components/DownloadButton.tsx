@@ -34,13 +34,7 @@ export const DownloadButton: React.FC = () => {
   const [hasActiveSubscription, setHasActiveSubscription] = useState(false);
   const [isSubscriptionExpired, setIsSubscriptionExpired] = useState(false);
   
-  // Force re-render when validation changes
-  const [validationKey, setValidationKey] = useState(0);
-  
-  useEffect(() => {
-    // Update validation key when relevant data changes
-    setValidationKey(prev => prev + 1);
-  }, [selectedImages, formData, images, viewMode, bulkDefects]);
+  // Remove the problematic validationKey state and useEffect that causes infinite loop
 
   // Debug validation state
   useEffect(() => {
@@ -51,7 +45,6 @@ export const DownloadButton: React.FC = () => {
         bulkDefects: bulkDefects.length,
         isBulkValid: isValid,
         validationErrors: errors,
-        validationKey,
         bulkDefectsWithNumbers: bulkDefects.map(d => ({ 
           id: d.id, 
           photoNumber: d.photoNumber, 
@@ -70,7 +63,7 @@ export const DownloadButton: React.FC = () => {
         defectsWithEmpty: bulkDefects.filter(d => !d.photoNumber?.trim()).length
       });
     }
-  }, [viewMode, bulkDefects, validationKey, getBulkValidationErrors, isBulkValid]);
+  }, [viewMode, bulkDefects, getBulkValidationErrors, isBulkValid]);
 
   useEffect(() => {
     if (!user?.user_metadata) return;
@@ -276,7 +269,7 @@ export const DownloadButton: React.FC = () => {
         </button>
       ) : (
         <button
-          key={validationKey}
+          // key={validationKey} // This line is removed
           onClick={handleDownload}
           disabled={
             isDownloading ||
@@ -298,7 +291,7 @@ export const DownloadButton: React.FC = () => {
               isValid: isValid(),
               selectedImages: selectedImages.size,
               formData,
-              validationKey,
+              // validationKey, // This line is removed
               bulkDefectsWithHash: bulkDefects.filter(d => d.photoNumber === '#').length,
               bulkDefectsEmpty: bulkDefects.filter(d => !d.photoNumber?.trim()).length
             });
