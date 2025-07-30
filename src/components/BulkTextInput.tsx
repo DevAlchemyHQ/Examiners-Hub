@@ -979,6 +979,19 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
     }, 100);
   };
 
+  // Test function for saveBulkData
+  const testSaveBulkData = async () => {
+    try {
+      console.log('🧪 Testing saveBulkData function...');
+      console.log('🧪 Current bulk defects count:', bulkDefects.length);
+      console.log('🧪 saveBulkData function exists:', typeof saveBulkData);
+      await saveBulkData();
+      console.log('✅ saveBulkData test successful');
+    } catch (error) {
+      console.error('❌ saveBulkData test failed:', error);
+    }
+  };
+
   // --- 1. Utility for selected images count ---
   // const defectsWithImagesCount = bulkDefects.filter(d => d.selectedFile).length;
 
@@ -1014,7 +1027,9 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
         const projectStore = useProjectStore.getState();
         if (!projectStore.isClearing) {
           try {
-            await saveBulkData();
+            // Temporarily disable auto-save to isolate the error
+            // await saveBulkData();
+            console.log('⏸️ Auto-save temporarily disabled for debugging');
           } catch (error) {
             console.error('❌ Auto-save failed:', error);
             // Don't show error to user for auto-save failures
@@ -1028,7 +1043,20 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
         clearTimeout(debouncedAutoSave.current);
       }
     };
-  }, [bulkDefects, saveBulkData]);
+  }, [bulkDefects]); // Removed saveBulkData from dependencies temporarily
+
+  // Manual save function for testing
+  const testSaveBulkData = async () => {
+    try {
+      console.log('🧪 Testing saveBulkData function...');
+      console.log('🧪 Current bulk defects count:', bulkDefects.length);
+      console.log('🧪 saveBulkData function exists:', typeof saveBulkData);
+      await saveBulkData();
+      console.log('✅ saveBulkData test successful');
+    } catch (error) {
+      console.error('❌ saveBulkData test failed:', error);
+    }
+  };
 
   // Enhanced data validation and logging
   useEffect(() => {
@@ -1372,6 +1400,16 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
             </div>
           </div>
         )}
+
+        {/* Test button for saveBulkData */}
+        <div className="fixed bottom-4 left-4 bg-yellow-500 text-white px-4 py-2 rounded-lg shadow-lg z-50">
+          <button
+            onClick={testSaveBulkData}
+            className="text-sm font-medium"
+          >
+            Test SaveBulkData
+          </button>
+        </div>
       </div>
     </ErrorBoundary>
   );
