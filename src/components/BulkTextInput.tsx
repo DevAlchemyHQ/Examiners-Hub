@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, Component, ErrorInfo, ReactNode } from 'react';
 import { AlertCircle, FileText, Upload, Plus, ArrowUpDown, Loader2, Download, Trash2, CheckCircle, X, Maximize2, Upload as UploadIcon } from 'lucide-react';
 import { useMetadataStore } from '../store/metadataStore';
 import { useAuthStore } from '../store/authStore';
@@ -37,6 +37,43 @@ interface ParsedEntry {
   photoNumber: string;
   description: string;
   selectedFile: string;
+}
+
+// Error Boundary Component
+class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error('BulkTextInput Error Boundary caught an error:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+          <h3 className="text-red-800 dark:text-red-200 font-medium mb-2">Something went wrong</h3>
+          <p className="text-red-600 dark:text-red-300 text-sm">
+            The bulk defects component encountered an error. Please refresh the page to try again.
+          </p>
+          <button
+            onClick={() => this.setState({ hasError: false })}
+            className="mt-2 px-3 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700"
+          >
+            Try Again
+          </button>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
 }
 
 export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: (show: boolean) => void; showBulkPaste?: boolean }> = ({ isExpanded = false, setShowBulkPaste, showBulkPaste: parentShowBulkPaste }) => {
@@ -140,14 +177,44 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
     };
   }, []); // Empty dependency array - only run once on mount
 
-  // Performance optimization: Memoize expensive calculations
-  const memoizedDuplicatePhotoNumbers = useMemo(() => getDuplicatePhotoNumbers(), [bulkDefects]);
-  const memoizedDefectsWithImagesCount = useMemo(() => 
-    bulkDefects.filter(d => d.selectedFile).length, [bulkDefects]
-  );
+  // Function to check for duplicate photo numbers - MOVED BEFORE useMemo hooks
+  const getDuplicatePhotoNumbers = () => {
+    const photoNumbers = bulkDefects.map(d => d.photoNumber);
+    const duplicates = new Set<string>();
+    const seen = new Set<string>();
+    
+    photoNumbers.forEach(num => {
+      if (seen.has(num)) {
+        duplicates.add(num);
+      } else {
+        seen.add(num);
+      }
+    });
+    
+    return duplicates;
+  };
+
+  // Performance optimization: Memoize expensive calculations with error handling
+  const memoizedDuplicatePhotoNumbers = useMemo(() => {
+    try {
+      return getDuplicatePhotoNumbers();
+    } catch (error) {
+      console.error('Error in memoizedDuplicatePhotoNumbers:', error);
+      return new Set<string>();
+    }
+  }, [bulkDefects]);
+  
+  const memoizedDefectsWithImagesCount = useMemo(() => {
+    try {
+      return bulkDefects.filter(d => d.selectedFile).length;
+    } catch (error) {
+      console.error('Error in memoizedDefectsWithImagesCount:', error);
+      return 0;
+    }
+  }, [bulkDefects]);
 
   // Performance optimization: Debounce error clearing
-  const debouncedErrorClear = useRef<NodeJS.Timeout | null>(null);
+  const debouncedErrorClear = useRef<number | null>(null);
   
   useEffect(() => {
     if (error) {
@@ -181,6 +248,11 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
     useSensor(PointerSensor, {
       activationConstraint: {
         distance: 8, // 8px movement required before drag starts
+      },
+      // Add better Edge compatibility
+      pointerActivationConstraint: {
+        delay: 100, // 100ms delay for touch devices
+        tolerance: 5, // 5px tolerance for movement
       },
     }),
     useSensor(KeyboardSensor, {
@@ -229,7 +301,10 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
         const oldIndex = items.findIndex((item) => item.id === active.id);
         const newIndex = items.findIndex((item) => item.id === over.id);
         
-        if (oldIndex === -1 || newIndex === -1) return items;
+        if (oldIndex === -1 || newIndex === -1) {
+          console.warn('⚠️ Drag operation failed - could not find items');
+          return items;
+        }
         
         const reorderedItems = arrayMove(items, oldIndex, newIndex);
         
@@ -404,23 +479,6 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
     }
     
     return errors;
-  };
-
-  // Function to check for duplicate photo numbers
-  const getDuplicatePhotoNumbers = () => {
-    const photoNumbers = bulkDefects.map(d => d.photoNumber);
-    const duplicates = new Set<string>();
-    const seen = new Set<string>();
-    
-    photoNumbers.forEach(num => {
-      if (seen.has(num)) {
-        duplicates.add(num);
-      } else {
-        seen.add(num);
-      }
-    });
-    
-    return duplicates;
   };
 
   const handleBulkPaste = () => {
@@ -926,7 +984,10 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
   // Add keyboard shortcut for undo
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+      // Check for both Ctrl and Cmd (Mac) keys for better cross-platform support
+      const isCtrlOrCmd = e.ctrlKey || e.metaKey;
+      
+      if (isCtrlOrCmd && e.key === 'z') {
         e.preventDefault();
         enhancedUndoDelete();
       }
@@ -937,7 +998,7 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
   }, [deletedDefects]);
 
   // Debounced auto-save to prevent performance issues
-  const debouncedAutoSave = useRef<NodeJS.Timeout | null>(null);
+  const debouncedAutoSave = useRef<number | null>(null);
   
   useEffect(() => {
     if (bulkDefects.length > 0) {
@@ -985,304 +1046,302 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
   }, []);
 
   return (
-    <div className="h-full flex flex-col p-4 space-y-4">
-      {/* Remove all duplicate controls - they're now in the header */}
-      
-      {/* --- Bulk Paste Modal --- */}
-      {(parentShowBulkPaste !== undefined ? parentShowBulkPaste : showBulkPaste) && (
-        <div className="animate-slideDown">
-          <div className="bg-white/50 dark:bg-gray-800/50 rounded-2xl p-4 border border-slate-200/50 dark:border-gray-700/50 backdrop-blur-sm shadow-sm">
-            {/* --- Single instructional helper text location --- */}
-            <div className="mb-2 text-xs text-slate-500 dark:text-slate-400">
-              <div className="mb-2">
-                <b>Simple format:</b> Paste each defect on a separate line. Each line becomes a separate defect.
+    <ErrorBoundary>
+      <div className="h-full flex flex-col p-4 space-y-4">
+        {/* Remove all duplicate controls - they're now in the header */}
+        
+        {/* --- Bulk Paste Modal --- */}
+        {(parentShowBulkPaste !== undefined ? parentShowBulkPaste : showBulkPaste) && (
+          <div className="animate-slideDown">
+            <div className="bg-white/50 dark:bg-gray-800/50 rounded-2xl p-4 border border-slate-200/50 dark:border-gray-700/50 backdrop-blur-sm shadow-sm">
+              {/* --- Single instructional helper text location --- */}
+              <div className="mb-2 text-xs text-slate-500 dark:text-slate-400">
+                <div className="mb-2">
+                  <b>Simple format:</b> Paste each defect on a separate line. Each line becomes a separate defect.
+                </div>
+                <div>
+                  <b>Defect format:</b> Paste in format: <code className="bg-slate-100 dark:bg-gray-700 px-1 rounded">Photo 01 ^ description ^ date filename.JPG</code>
+                </div>
+                <div className="mt-2 text-amber-600 dark:text-amber-400">
+                  <b>Note:</b> Forward slashes (/) will be automatically removed from descriptions.
+                </div>
               </div>
-              <div>
-                <b>Defect format:</b> Paste in format: <code className="bg-slate-100 dark:bg-gray-700 px-1 rounded">Photo 01 ^ description ^ date filename.JPG</code>
-              </div>
-              <div className="mt-2 text-amber-600 dark:text-amber-400">
-                <b>Note:</b> Forward slashes (/) will be automatically removed from descriptions.
-              </div>
-            </div>
-            <textarea
-              ref={textareaRef}
-              value={bulkText}
-              placeholder="Paste multiple defect descriptions here, one per line..."
-              onChange={(e) => setBulkText(e.target.value)}
-              className={`w-full min-h-[96px] p-3 text-sm border rounded-xl focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 bg-white/80 dark:bg-gray-800/80 text-slate-900 dark:text-white resize-y ${
-                bulkText.includes('/') ? 'border-amber-300 dark:border-amber-600' : 'border-slate-200/50 dark:border-gray-700/50'
-              }`}
-              style={{ height: Math.max(96, Math.min(300, 24 * (bulkText.split('\n').length + 2))) + 'px' }}
-            />
-            {bulkText.includes('/') && (
-              <div className="mt-2 text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
-                <AlertCircle size={12} />
-                <span>Forward slashes (/) will be automatically removed when processing</span>
-              </div>
-            )}
-            <button
-              onClick={handleBulkPaste}
-              disabled={!bulkText.trim()}
-              className="mt-3 w-full flex items-center justify-center gap-2 px-4 py-2 bg-indigo-500/90 text-white rounded-full hover:bg-indigo-500 transition-all shadow-sm hover:shadow-md disabled:opacity-50 disabled:hover:bg-indigo-500/90 disabled:cursor-not-allowed"
-            >
-              <FileText size={16} />
-              <span className="text-sm font-medium">Process Text</span>
-            </button>
-          </div>
-        </div>
-      )}
-
-      <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600"
-        style={{ 
-          overscrollBehavior: 'contain',
-          WebkitOverflowScrolling: 'touch'
-        }}
-      >
-        {isLoading ? (
-          // Simple loading state - only show briefly
-          <div className="flex items-center justify-center p-4">
-            <div className="text-slate-500 dark:text-slate-400 text-sm">Loading defects...</div>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <div className="rounded-2xl border border-slate-200/50 dark:border-gray-700/50 bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm shadow-sm p-2">
-              <DndContext
-                sensors={sensors}
-                collisionDetection={closestCenter}
-                onDragEnd={handleDragEnd}
-                modifiers={[restrictToVerticalAxis]}
-              >
-                <SortableContext
-                  items={bulkDefects.map(d => d.id)}
-                  strategy={verticalListSortingStrategy}
-                >
-                  <div className="space-y-2">
-                    {bulkDefects.map((defect, index) => (
-                      <DefectTile
-                        key={defect.id}
-                        id={defect.id}
-                        photoNumber={defect.photoNumber}
-                        description={defect.description}
-                        selectedFile={defect.selectedFile || ''}
-                        availableFiles={images.filter(img => !img.isSketch).map((img) => (img.fileName || img.file?.name || ''))}
-                        onDelete={() => enhancedDeleteDefect(defect.id || defect.photoNumber)}
-                        onDescriptionChange={(value) => updateDefectDescription(defect.photoNumber, value)}
-                        onFileChange={(fileName) => handleFileSelect(defect.photoNumber, fileName)}
-                        onPhotoNumberChange={(oldNumber, newNumber) => handlePhotoNumberChange(defect.id || defect.photoNumber, oldNumber, newNumber)}
-                        onQuickAdd={() => addNewDefect(index)}
-                        isExpanded={isExpanded}
-                        showImages={showImages}
-                        images={images}
-                        setEnlargedImage={setEnlargedImage}
-                        isDuplicate={memoizedDuplicatePhotoNumbers.has(defect.photoNumber)}
-                      />
-                    ))}
-                  </div>
-                </SortableContext>
-              </DndContext>
-            </div>
-            {/* Add First Defect button - only show when no defects exist */}
-            {bulkDefects.length === 0 && (
+              <textarea
+                ref={textareaRef}
+                value={bulkText}
+                placeholder="Paste multiple defect descriptions here, one per line..."
+                onChange={(e) => setBulkText(e.target.value)}
+                className={`w-full min-h-[96px] p-3 text-sm border rounded-xl focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 bg-white/80 dark:bg-gray-800/80 text-slate-900 dark:text-white resize-y ${
+                  bulkText.includes('/') ? 'border-amber-300 dark:border-amber-600' : 'border-slate-200/50 dark:border-gray-700/50'
+                }`}
+                style={{ height: Math.max(96, Math.min(300, 24 * (bulkText.split('\n').length + 2))) + 'px' }}
+              />
+              {bulkText.includes('/') && (
+                <div className="mt-2 text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                  <AlertCircle size={12} />
+                  <span>Forward slashes (/) will be automatically removed when processing</span>
+                </div>
+              )}
               <button
-                onClick={() => addNewDefect()}
-                className="w-full p-4 rounded-lg border-2 border-dashed border-slate-300 dark:border-gray-600 hover:border-indigo-500 dark:hover:border-indigo-400 transition-colors group bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm hover:bg-indigo-50 dark:hover:bg-indigo-900/20"
+                onClick={handleBulkPaste}
+                disabled={!bulkText.trim()}
+                className="mt-3 w-full flex items-center justify-center gap-2 px-4 py-2 bg-indigo-500/90 text-white rounded-full hover:bg-indigo-500 transition-all shadow-sm hover:shadow-md disabled:opacity-50 disabled:hover:bg-indigo-500/90 disabled:cursor-not-allowed"
               >
-                <div className="flex items-center justify-center gap-3 text-slate-500 dark:text-gray-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
-                  <Plus size={24} className="group-hover:scale-110 transition-transform" />
-                  <span className="text-sm font-medium">Add First Defect</span>
-                </div>
+                <FileText size={16} />
+                <span className="text-sm font-medium">Process Text</span>
               </button>
-            )}
-            {/* --- Selected Images Display --- */}
-            {memoizedDefectsWithImagesCount > 0 && (
-              <div className="rounded-2xl border border-slate-200/50 dark:border-gray-700/50 bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm shadow-sm p-4 relative">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold text-slate-800 dark:text-white">
-                    Selected Images ({memoizedDefectsWithImagesCount})
-                  </h3>
-                  <button
-                    onClick={() => setEnlargedImage(null)}
-                    className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors rounded-lg hover:bg-slate-100 dark:hover:bg-gray-700"
-                  >
-                    <X size={16} />
-                  </button>
-                </div>
+            </div>
+          </div>
+        )}
+
+        <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600"
+          style={{ 
+            overscrollBehavior: 'contain',
+            WebkitOverflowScrolling: 'touch'
+          }}
+        >
+          {isLoading ? (
+            // Simple loading state - only show briefly
+            <div className="flex items-center justify-center p-4">
+              <div className="text-slate-500 dark:text-slate-400 text-sm">Loading defects...</div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="rounded-2xl border border-slate-200/50 dark:border-gray-700/50 bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm shadow-sm p-2">
                 <DndContext
                   sensors={sensors}
                   collisionDetection={closestCenter}
-                  onDragEnd={(event) => {
-                    const { active, over } = event;
-                    if (over && active.id !== over.id) {
-                      // Temporarily disable auto-sorting during drag
-                      const wasAutoSorting = isSortingEnabled;
-                      setIsSortingEnabled(false);
-                      
-                      // Find the defects being reordered by ID
-                      const activeId = active.id.toString().split('-')[0];
-                      const overId = over.id.toString().split('-')[0];
-                      
-                      const activeDefect = bulkDefects.find(d => d.id === activeId);
-                      const overDefect = bulkDefects.find(d => d.id === overId);
-                      
-                      if (activeDefect && overDefect) {
-                        setBulkDefects(prev => {
-                          const oldIndex = prev.findIndex(d => d.id === activeId);
-                          const newIndex = prev.findIndex(d => d.id === overId);
-                          
-                          if (oldIndex === -1 || newIndex === -1) return prev;
-                          
-                          const reorderedItems = arrayMove(prev, oldIndex, newIndex);
-                          
-                          // Re-enable auto-sorting after a delay if it was enabled
-                          if (wasAutoSorting) {
-                            setTimeout(() => setIsSortingEnabled(true), 500);
-                          }
-                          
-                          return reorderedItems;
-                        });
-                      }
-                    }
-                  }}
+                  onDragEnd={handleDragEnd}
                   modifiers={[restrictToVerticalAxis]}
                 >
                   <SortableContext
-                    items={bulkDefects.filter(d => d.selectedFile).map((d, index) => `${d.id}-${index}`)}
+                    items={bulkDefects.map(d => d.id)}
                     strategy={verticalListSortingStrategy}
                   >
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                      {bulkDefects
-                        .filter(defect => defect.selectedFile)
-                        .map((defect, index) => {
-                          const img = images.find(img => (img.fileName || img.file?.name || '') === defect.selectedFile);
-                          if (!img) return null;
-                          return (
-                            <div key={`selected-${defect.id}-${img.id}`} className="relative group bg-white/80 dark:bg-gray-800/80 rounded-lg border border-slate-200/50 dark:border-gray-700/50 p-3">
-                              {/* Removed blue badge - user wants only editable fields */}
-                              {/* Image at top */}
-                              <div 
-                                className="aspect-square rounded-lg overflow-hidden bg-slate-100 dark:bg-gray-700 mb-3 relative"
-                                onDrop={(e) => {
-                                  e.preventDefault();
-                                  try {
-                                    const data = JSON.parse(e.dataTransfer.getData('application/json'));
-                                    if (data.type === 'image') {
-                                      handleFileSelect(defect.photoNumber, data.fileName);
-                                    }
-                                  } catch (error) {
-                                    console.error('Error handling drop:', error);
-                                  }
-                                }}
-                                onDragOver={(e) => {
-                                  e.preventDefault();
-                                  e.dataTransfer.dropEffect = 'copy';
-                                }}
-                                onDragLeave={(e) => {
-                                  e.preventDefault();
-                                }}
-                              >
-                                <img
-                                  src={img.preview}
-                                  alt={img.fileName || img.file?.name || 'Image'}
-                                  className="w-full h-full object-cover cursor-pointer hover:opacity-95 transition-opacity select-none"
-                                  onClick={() => setEnlargedImage(img.preview)}
-                                  draggable="false"
-                                />
-                                <button
-                                  onClick={() => toggleBulkImageSelection(img.id)}
-                                  className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors shadow-sm opacity-0 group-hover:opacity-100"
-                                >
-                                  <X size={12} />
-                                </button>
-                              </div>
-                              
-                              {/* Filename below image */}
-                              <div className="text-xs text-slate-500 dark:text-gray-400 truncate mb-2">
-                                {img.fileName || img.file?.name || 'Unknown file'}
-                              </div>
-                              
-                              {/* Defect number input - editable */}
-                              {defect && (
-                                <div className="mb-2">
-                                  <input
-                                    type="text"
-                                    value={defect.photoNumber}
-                                    onChange={(e) => handlePhotoNumberChange(defect.id || defect.photoNumber, defect.photoNumber, e.target.value)}
-                                    className={`w-full p-2 text-sm border rounded-lg focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 
-                                      bg-white/50 dark:bg-gray-800/50 text-slate-900 dark:text-white text-center
-                                      ${!/^\d+[a-zA-Z]*$/.test(defect.photoNumber) && defect.photoNumber ? 'border-red-300 dark:border-red-600' : 
-                                        memoizedDuplicatePhotoNumbers.has(defect.photoNumber) ? 'border-orange-400 dark:border-orange-500 bg-orange-50 dark:bg-orange-900/20' : 
-                                        'border-slate-200/50 dark:border-gray-600/50'}`}
-                                    placeholder="#"
-                                  />
-                                </div>
-                              )}
-                              
-                              {/* Description textarea at bottom */}
-                              {defect && (
-                                <div>
-                                  <textarea
-                                    value={defect.description}
-                                    onChange={(e) => updateDefectDescription(defect.photoNumber, e.target.value)}
-                                    className={`w-full p-2 text-sm border rounded-lg focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 
-                                      bg-white/50 dark:bg-gray-800/50 text-slate-900 dark:text-white resize-none
-                                      ${defect.description && !validateDescription(defect.description).isValid ? 'border-red-300 dark:border-red-600' : 'border-slate-200/50 dark:border-gray-600/50'}`}
-                                    placeholder="Description"
-                                    rows={2}
-                                    style={{ minHeight: '48px' }}
-                                  />
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
+                    <div className="space-y-2">
+                      {bulkDefects.map((defect, index) => (
+                        <DefectTile
+                          key={defect.id}
+                          id={defect.id}
+                          photoNumber={defect.photoNumber}
+                          description={defect.description}
+                          selectedFile={defect.selectedFile || ''}
+                          availableFiles={images.filter(img => !img.isSketch).map((img) => (img.fileName || img.file?.name || ''))}
+                          onDelete={() => enhancedDeleteDefect(defect.id || defect.photoNumber)}
+                          onDescriptionChange={(value) => updateDefectDescription(defect.photoNumber, value)}
+                          onFileChange={(fileName) => handleFileSelect(defect.photoNumber, fileName)}
+                          onPhotoNumberChange={(oldNumber, newNumber) => handlePhotoNumberChange(defect.id || defect.photoNumber, oldNumber, newNumber)}
+                          onQuickAdd={() => addNewDefect(index)}
+                          isExpanded={isExpanded}
+                          showImages={showImages}
+                          images={images}
+                          setEnlargedImage={setEnlargedImage}
+                          isDuplicate={memoizedDuplicatePhotoNumbers.has(defect.photoNumber)}
+                        />
+                      ))}
                     </div>
                   </SortableContext>
                 </DndContext>
-
-                {/* ImageZoom positioned within the selected images section */}
-                {enlargedImage && (
-                  <ImageZoom
-                    src={enlargedImage}
-                    alt="Selected image"
-                    title="Selected image"
-                    onClose={() => setEnlargedImage(null)}
-                  />
-                )}
               </div>
-            )}
+              {/* Add First Defect button - only show when no defects exist */}
+              {bulkDefects.length === 0 && (
+                <button
+                  onClick={() => addNewDefect()}
+                  className="w-full p-4 rounded-lg border-2 border-dashed border-slate-300 dark:border-gray-600 hover:border-indigo-500 dark:hover:border-indigo-400 transition-colors group bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm hover:bg-indigo-50 dark:hover:bg-indigo-900/20"
+                >
+                  <div className="flex items-center justify-center gap-3 text-slate-500 dark:text-gray-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                    <Plus size={24} className="group-hover:scale-110 transition-transform" />
+                    <span className="text-sm font-medium">Add First Defect</span>
+                  </div>
+                </button>
+              )}
+              {/* --- Selected Images Display --- */}
+              {memoizedDefectsWithImagesCount > 0 && (
+                <div className="rounded-2xl border border-slate-200/50 dark:border-gray-700/50 bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm shadow-sm p-4 relative">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold text-slate-800 dark:text-white">
+                      Selected Images ({memoizedDefectsWithImagesCount})
+                    </h3>
+                    <button
+                      onClick={() => setEnlargedImage(null)}
+                      className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors rounded-lg hover:bg-slate-100 dark:hover:bg-gray-700"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                  <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={(event) => {
+                      const { active, over } = event;
+                      if (over && active.id !== over.id) {
+                        // Temporarily disable auto-sorting during drag
+                        const wasAutoSorting = isSortingEnabled;
+                        setIsSortingEnabled(false);
+                        
+                        // Find the defects being reordered by ID
+                        const activeId = active.id.toString().split('-')[0];
+                        const overId = over.id.toString().split('-')[0];
+                        
+                        const activeDefect = bulkDefects.find(d => d.id === activeId);
+                        const overDefect = bulkDefects.find(d => d.id === overId);
+                        
+                        if (activeDefect && overDefect) {
+                          setBulkDefects(prev => {
+                            const oldIndex = prev.findIndex(d => d.id === activeId);
+                            const newIndex = prev.findIndex(d => d.id === overId);
+                            
+                            if (oldIndex === -1 || newIndex === -1) return prev;
+                            
+                            const reorderedItems = arrayMove(prev, oldIndex, newIndex);
+                            
+                            // Re-enable auto-sorting after a delay if it was enabled
+                            if (wasAutoSorting) {
+                              setTimeout(() => setIsSortingEnabled(true), 500);
+                            }
+                            
+                            return reorderedItems;
+                          });
+                        }
+                      }
+                    }}
+                    modifiers={[restrictToVerticalAxis]}
+                  >
+                    <SortableContext
+                      items={bulkDefects.filter(d => d.selectedFile).map((d, index) => `${d.id}-${index}`)}
+                      strategy={verticalListSortingStrategy}
+                    >
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                        {bulkDefects
+                          .filter(defect => defect.selectedFile)
+                          .map((defect, index) => {
+                            const img = images.find(img => (img.fileName || img.file?.name || '') === defect.selectedFile);
+                            if (!img) return null;
+                            return (
+                              <div key={`selected-${defect.id}-${img.id}`} className="relative group bg-white/80 dark:bg-gray-800/80 rounded-lg border border-slate-200/50 dark:border-gray-700/50 p-3">
+                                {/* Removed blue badge - user wants only editable fields */}
+                                {/* Image at top */}
+                                <div 
+                                  className="aspect-square rounded-lg overflow-hidden bg-slate-100 dark:bg-gray-700 mb-3 relative"
+                                  onDrop={(e) => {
+                                    e.preventDefault();
+                                    try {
+                                      const data = JSON.parse(e.dataTransfer.getData('application/json'));
+                                      if (data.type === 'image') {
+                                        handleFileSelect(defect.photoNumber, data.fileName);
+                                      }
+                                    } catch (error) {
+                                      console.error('Error handling drop:', error);
+                                    }
+                                  }}
+                                  onDragOver={(e) => {
+                                    e.preventDefault();
+                                    e.dataTransfer.dropEffect = 'copy';
+                                  }}
+                                  onDragLeave={(e) => {
+                                    e.preventDefault();
+                                  }}
+                                >
+                                  <img
+                                    src={img.preview}
+                                    alt={img.fileName || img.file?.name || 'Image'}
+                                    className="w-full h-full object-cover cursor-pointer hover:opacity-95 transition-opacity select-none"
+                                    onClick={() => setEnlargedImage(img.preview)}
+                                    draggable="false"
+                                  />
+                                  <button
+                                    onClick={() => toggleBulkImageSelection(img.id)}
+                                    className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors shadow-sm opacity-0 group-hover:opacity-100"
+                                  >
+                                    <X size={12} />
+                                  </button>
+                                </div>
+                                
+                                {/* Filename below image */}
+                                <div className="text-xs text-slate-500 dark:text-gray-400 truncate mb-2">
+                                  {img.fileName || img.file?.name || 'Unknown file'}
+                                </div>
+                                
+                                {/* Defect number input - editable */}
+                                {defect && (
+                                  <div className="mb-2">
+                                    <input
+                                      type="text"
+                                      value={defect.photoNumber}
+                                      onChange={(e) => handlePhotoNumberChange(defect.id || defect.photoNumber, defect.photoNumber, e.target.value)}
+                                      className={`w-full p-2 text-sm border rounded-lg focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 
+                                        bg-white/50 dark:bg-gray-800/50 text-slate-900 dark:text-white text-center
+                                        ${!/^\d+[a-zA-Z]*$/.test(defect.photoNumber) && defect.photoNumber ? 'border-red-300 dark:border-red-600' : 
+                                          memoizedDuplicatePhotoNumbers.has(defect.photoNumber) ? 'border-orange-400 dark:border-orange-500 bg-orange-50 dark:bg-orange-900/20' : 
+                                          'border-slate-200/50 dark:border-gray-600/50'}`}
+                                      placeholder="#"
+                                    />
+                                  </div>
+                                )}
+                                
+                                {/* Description textarea at bottom */}
+                                {defect && (
+                                  <div>
+                                    <textarea
+                                      value={defect.description}
+                                      onChange={(e) => updateDefectDescription(defect.photoNumber, e.target.value)}
+                                      className={`w-full p-2 text-sm border rounded-lg focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 
+                                        bg-white/50 dark:bg-gray-800/50 text-slate-900 dark:text-white resize-none
+                                        ${defect.description && !validateDescription(defect.description).isValid ? 'border-red-300 dark:border-red-600' : 'border-slate-200/50 dark:border-gray-600/50'}`}
+                                      placeholder="Description"
+                                      rows={2}
+                                      style={{ minHeight: '48px' }}
+                                    />
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                      </div>
+                    </SortableContext>
+                  </DndContext>
+
+                  {/* ImageZoom positioned within the selected images section */}
+                  {enlargedImage && (
+                    <ImageZoom
+                      src={enlargedImage}
+                      alt="Selected image"
+                      title="Selected image"
+                      onClose={() => setEnlargedImage(null)}
+                    />
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {error && (
+          <div className="flex items-center gap-2 text-red-500 bg-red-100/10 p-3 rounded-lg">
+            <AlertCircle size={18} />
+            <span>{error}</span>
+          </div>
+        )}
+
+        {/* Show validation errors for bulk mode */}
+        {/* (Removed: error panel for bulk mode, now only shown below download button) */}
+        
+        {/* Undo indicator */}
+        {deletedDefects.length > 0 && (
+          <div className="fixed bottom-4 right-4 bg-indigo-500 text-white px-4 py-2 rounded-lg shadow-lg z-50">
+            <div className="flex items-center gap-2">
+              <span className="text-sm">Press Ctrl+Z to undo deletion</span>
+              <button
+                onClick={enhancedUndoDelete}
+                className="bg-white/20 hover:bg-white/30 px-2 py-1 rounded text-xs transition-colors"
+              >
+                Undo
+              </button>
+            </div>
           </div>
         )}
       </div>
-
-
-
-      {error && (
-        <div className="flex items-center gap-2 text-red-500 bg-red-100/10 p-3 rounded-lg">
-          <AlertCircle size={18} />
-          <span>{error}</span>
-        </div>
-      )}
-
-
-
-      {/* Show validation errors for bulk mode */}
-      {/* (Removed: error panel for bulk mode, now only shown below download button) */}
-      
-      {/* Undo indicator */}
-      {deletedDefects.length > 0 && (
-        <div className="fixed bottom-4 right-4 bg-indigo-500 text-white px-4 py-2 rounded-lg shadow-lg z-50">
-          <div className="flex items-center gap-2">
-            <span className="text-sm">Press Ctrl+Z to undo deletion</span>
-            <button
-              onClick={enhancedUndoDelete}
-              className="bg-white/20 hover:bg-white/30 px-2 py-1 rounded text-xs transition-colors"
-            >
-              Undo
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
+    </ErrorBoundary>
   );
 };
 
