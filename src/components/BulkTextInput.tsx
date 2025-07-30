@@ -81,6 +81,7 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
     bulkDefects, 
     setBulkDefects, 
     loadBulkData,
+    saveBulkData,
     images,
     toggleBulkImageSelection,
     savePdf,
@@ -1008,11 +1009,16 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
       }
       
       // Set new timeout for auto-save
-      debouncedAutoSave.current = setTimeout(() => {
+      debouncedAutoSave.current = setTimeout(async () => {
         // Only save if we're not in the middle of clearing
         const projectStore = useProjectStore.getState();
         if (!projectStore.isClearing) {
-          saveBulkData().catch(console.error);
+          try {
+            await saveBulkData();
+          } catch (error) {
+            console.error('❌ Auto-save failed:', error);
+            // Don't show error to user for auto-save failures
+          }
         }
       }, 1000); // 1 second debounce
     }
@@ -1022,6 +1028,32 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
         clearTimeout(debouncedAutoSave.current);
       }
     };
+  }, [bulkDefects, saveBulkData]);
+
+  // Enhanced data validation and logging
+  useEffect(() => {
+    if (bulkDefects.length > 0) {
+      // Log data state for debugging
+      console.log('📊 Bulk defects state:', {
+        totalDefects: bulkDefects.length,
+        defectsWithImages: bulkDefects.filter(d => d.selectedFile).length,
+        defectsWithNumbers: bulkDefects.filter(d => d.photoNumber && d.photoNumber.trim()).length,
+        defectsWithDescriptions: bulkDefects.filter(d => d.description && d.description.trim()).length
+      });
+      
+      // Validate data integrity
+      const invalidDefects = bulkDefects.filter(d => !d.id);
+      if (invalidDefects.length > 0) {
+        console.warn('⚠️ Found defects without IDs:', invalidDefects.length);
+      }
+      
+      const duplicateIds = bulkDefects.filter((d, index) => 
+        bulkDefects.findIndex(d2 => d2.id === d.id) !== index
+      );
+      if (duplicateIds.length > 0) {
+        console.warn('⚠️ Found duplicate defect IDs:', duplicateIds.length);
+      }
+    }
   }, [bulkDefects]);
 
   // Cleanup function to prevent memory leaks

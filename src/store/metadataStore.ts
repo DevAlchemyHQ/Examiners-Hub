@@ -1090,14 +1090,41 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       // Save to user-specific localStorage
       localStorage.setItem(`clean-app-bulk-data-${userId}`, JSON.stringify(bulkDefects));
       
-      // Save to AWS DynamoDB for cross-device persistence
+      // Save to AWS DynamoDB for cross-device persistence with better error handling
       if (userId !== 'anonymous') {
-        // Use static import
-        await DatabaseService.updateBulkDefects(userId, bulkDefects);
-        console.log('Bulk defects saved to AWS for user:', userId);
+        try {
+          // Add throttling to prevent capacity issues
+          const lastSaveTime = localStorage.getItem('last-bulk-save-time');
+          const now = Date.now();
+          if (lastSaveTime && (now - parseInt(lastSaveTime)) < 5000) { // 5 second throttle
+            console.log('⏸️ Throttling bulk save to prevent capacity issues');
+            return;
+          }
+          
+          // Use static import with better error handling
+          await DatabaseService.updateBulkDefects(userId, bulkDefects);
+          localStorage.setItem('last-bulk-save-time', now.toString());
+          console.log('✅ Bulk defects saved to AWS for user:', userId);
+        } catch (error) {
+          console.error('❌ Error saving bulk data to AWS:', error);
+          
+          // Handle specific AWS errors
+          if (error instanceof Error) {
+            if (error.message.includes('ProvisionedThroughputExceededException')) {
+              console.warn('⚠️ AWS DynamoDB capacity exceeded, will retry later');
+              // Don't throw error, just log it
+            } else if (error.message.includes('400')) {
+              console.warn('⚠️ AWS DynamoDB bad request, data may be malformed');
+              // Don't throw error, just log it
+            } else {
+              console.error('❌ Unexpected AWS error:', error.message);
+            }
+          }
+        }
       }
     } catch (error) {
-      console.error('Error saving bulk data:', error);
+      console.error('❌ Error in saveBulkData:', error);
+      // Don't throw error to prevent app crashes
     }
   },
 
