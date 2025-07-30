@@ -650,6 +650,15 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       }
     });
     
+    // Clear user-specific viewMode keys
+    const keys = getUserSpecificKeys();
+    try {
+      localStorage.removeItem(`${keys.formData}-viewMode`);
+      console.log('🗑️ Cleared viewMode from localStorage');
+    } catch (error) {
+      console.error('Error removing viewMode key:', error);
+    }
+    
     console.log('✅ Metadata store reset completed');
   },
 
@@ -935,6 +944,22 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         updates.bulkDefects = bulkDataResult.value;
       }
       
+      // Restore viewMode from localStorage
+      const savedViewMode = localStorage.getItem(`${userSpecificKeys.formData}-viewMode`);
+      if (savedViewMode && (savedViewMode === 'images' || savedViewMode === 'bulk')) {
+        updates.viewMode = savedViewMode as 'images' | 'bulk';
+        console.log('💾 ViewMode restored from localStorage:', savedViewMode);
+      } else {
+        // Default to bulk if user has bulk defects, otherwise images
+        if (bulkDataResult.status === 'fulfilled' && bulkDataResult.value.length > 0) {
+          updates.viewMode = 'bulk';
+          console.log('💾 Defaulting to bulk view (user has bulk defects)');
+        } else {
+          updates.viewMode = 'images';
+          console.log('💾 Defaulting to images view (no bulk defects)');
+        }
+      }
+      
       if (imagesResult.status === 'fulfilled' && imagesResult.value.length > 0) {
         updates.images = imagesResult.value;
         
@@ -1036,6 +1061,11 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
 
   setViewMode: (mode) => {
     set({ viewMode: mode });
+    
+    // Save viewMode to localStorage for persistence
+    const keys = getUserSpecificKeys();
+    localStorage.setItem(`${keys.formData}-viewMode`, mode);
+    console.log('💾 ViewMode saved to localStorage:', mode);
   },
 
   saveBulkData: async () => {
@@ -1043,17 +1073,19 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       const state = get();
       const { bulkDefects } = state;
       
-      // Save to localStorage for immediate access
-      localStorage.setItem('clean-app-bulk-data', JSON.stringify(bulkDefects));
-      
-      // Save to AWS DynamoDB for cross-device persistence
+      // Get user for user-specific keys
       const storedUser = localStorage.getItem('user');
       const user = storedUser ? JSON.parse(storedUser) : null;
+      const userId = user?.email || localStorage.getItem('userEmail') || 'anonymous';
       
-      if (user?.email) {
+      // Save to user-specific localStorage
+      localStorage.setItem(`clean-app-bulk-data-${userId}`, JSON.stringify(bulkDefects));
+      
+      // Save to AWS DynamoDB for cross-device persistence
+      if (userId !== 'anonymous') {
         // Use static import
-        await DatabaseService.updateBulkDefects(user.email, bulkDefects);
-        console.log('Bulk defects saved to AWS for user:', user.email);
+        await DatabaseService.updateBulkDefects(userId, bulkDefects);
+        console.log('Bulk defects saved to AWS for user:', userId);
       }
     } catch (error) {
       console.error('Error saving bulk data:', error);
@@ -1067,6 +1099,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       // Get user from localStorage to avoid dynamic imports
       const storedUser = localStorage.getItem('user');
       const user = storedUser ? JSON.parse(storedUser) : null;
+      const userId = user?.email || localStorage.getItem('userEmail') || 'anonymous';
       
       // Check if we're in the middle of clearing a project
       const projectStore = useProjectStore.getState();
@@ -1075,43 +1108,45 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         return;
       }
       
-      if (user?.email) {
+      // Create user-specific localStorage keys
+      const userSpecificKeys = {
+        bulkData: `clean-app-bulk-data-${userId}`
+      };
+      
+      // Try localStorage first (consistent with loadUserData)
+      const savedBulkData = localStorage.getItem(userSpecificKeys.bulkData);
+      if (savedBulkData) {
         try {
-          // Use static import
-          const { defects } = await DatabaseService.getBulkDefects(user.email);
+          const bulkDefects = JSON.parse(savedBulkData);
+          if (bulkDefects && bulkDefects.length > 0) {
+            set({ bulkDefects });
+            console.log('📱 Bulk defects loaded from localStorage');
+            return;
+          }
+        } catch (error) {
+          console.error('Error parsing localStorage bulk data:', error);
+        }
+      }
+      
+      // Try AWS if no localStorage data
+      if (userId !== 'anonymous') {
+        try {
+          const { defects } = await DatabaseService.getBulkDefects(userId);
           if (defects && defects.length > 0) {
             set({ bulkDefects: defects });
-            console.log('✅ Bulk defects loaded from AWS for user:', user.email);
+            console.log('✅ Bulk defects loaded from AWS for user:', userId);
             return;
           } else {
-            console.log('No bulk defects found in AWS for user:', user.email);
+            console.log('No bulk defects found in AWS for user:', userId);
           }
         } catch (error) {
           console.error('❌ Error loading from AWS:', error);
         }
       }
       
-      // Fallback to localStorage only if no user or AWS failed
-      const savedBulkData = localStorage.getItem('clean-app-bulk-data');
-      if (savedBulkData) {
-        try {
-          const bulkDefects = JSON.parse(savedBulkData);
-          // Only set if we have actual defects (not empty array)
-          if (bulkDefects && bulkDefects.length > 0) {
-            set({ bulkDefects });
-            console.log('📱 Bulk defects loaded from localStorage (fallback)');
-          } else {
-            console.log('No bulk defects found in localStorage (empty array)');
-            set({ bulkDefects: [] });
-          }
-        } catch (error) {
-          console.error('Error parsing localStorage bulk data:', error);
-          set({ bulkDefects: [] });
-        }
-      } else {
-        console.log('No bulk defects found in localStorage');
-        set({ bulkDefects: [] });
-      }
+      // Fallback to empty state
+      console.log('No bulk defects found, starting with empty state');
+      set({ bulkDefects: [] });
     } catch (error) {
       console.error('Error loading bulk data:', error);
       set({ bulkDefects: [] });
@@ -1489,17 +1524,15 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
     // Clear state
     set({ bulkDefects: [], deletedDefects: [] });
     
-    // Clear localStorage for local testing
-    localStorage.removeItem('clean-app-bulk-data');
-    
-    // Clear user-specific localStorage keys
+    // Get user for user-specific keys
     const storedUser = localStorage.getItem('user');
     const user = storedUser ? JSON.parse(storedUser) : null;
     const userId = user?.email || localStorage.getItem('userEmail') || 'anonymous';
     
+    // Clear user-specific localStorage keys
     const userSpecificKeys = [
       `clean-app-bulk-data-${userId}`,
-      'clean-app-bulk-data',
+      'clean-app-bulk-data', // Legacy key
       'bulk-data',
       'defectSets'
     ];

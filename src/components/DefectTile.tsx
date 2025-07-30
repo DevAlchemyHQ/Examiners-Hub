@@ -321,13 +321,20 @@ export const DefectTile: React.FC<DefectTileProps> = ({
             </div>
             {/* Action buttons */}
             <div className="flex items-center gap-1">
-              <button onClick={onDelete} className="p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors">
+              <button 
+                onClick={onDelete} 
+                className={`p-1 rounded transition-colors ${
+                  'text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20'
+                }`}
+              >
                 <X size={16} />
               </button>
               {onQuickAdd && (
                 <button
                   onClick={onQuickAdd}
-                  className="p-1 text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded transition-colors"
+                  className={`p-1 rounded transition-colors ${
+                    'text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20'
+                  }`}
                   title="Add defect below"
                 >
                   <Plus size={16} />

@@ -54,7 +54,9 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
     deletedDefects,
     setDeletedDefects,
     isSortingEnabled,
-    setIsSortingEnabled
+    setIsSortingEnabled,
+    viewMode,
+    setViewMode
   } = useMetadataStore();
   const { user } = useAuthStore();
   const { trackBulkUpload, trackBulkDownload, trackDefectSetLoad, trackUserAction, trackError } = useAnalytics();
@@ -78,24 +80,16 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
   // Get the actual show state from parent or local
   const actualShowBulkPaste = setShowBulkPaste ? false : showBulkPaste;
 
-  // Load bulk data on mount
+  // Load bulk data on component mount
   useEffect(() => {
     const loadData = async () => {
-      // Check if user has changed - don't load data for different user
-      const storedUser = localStorage.getItem('user');
-      const currentUser = storedUser ? JSON.parse(storedUser) : null;
-      const currentUserEmail = currentUser?.email;
-      const savedUserEmail = localStorage.getItem('userEmail');
-      
-      if (currentUserEmail && savedUserEmail && currentUserEmail !== savedUserEmail) {
-        console.log('🔄 User changed, skipping bulk data load');
-        return;
-      }
-      
-      setIsLoading(true);
       const start = performance.now();
+      setIsLoading(true);
+      setError(null);
+      
       try {
         await loadBulkData();
+        
         // Track defect set load only if defects were actually loaded
         const currentBulkDefects = useMetadataStore.getState().bulkDefects;
         if (currentBulkDefects.length > 0) {
@@ -110,8 +104,9 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
         console.log('Bulk data loaded in', (performance.now() - start).toFixed(0), 'ms');
       }
     };
+    
     loadData();
-  }, [loadBulkData, trackDefectSetLoad, trackError]); // Removed bulkDefects.length dependency
+  }, [loadBulkData, trackDefectSetLoad, trackError]);
 
   // Clear error after 5 seconds
   useEffect(() => {
@@ -219,6 +214,9 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
         return newDefects;
       }
     });
+    
+    // Track the addition
+    trackUserAction('add_defect', 'bulk');
   };
 
   const deleteDefect = (photoNumber: string) => {
@@ -735,6 +733,36 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
     }, 100);
   };
 
+  // Debug function to test viewMode and bulk defects persistence
+  const debugStatePersistence = () => {
+    console.log('🐛 Debug: Testing state persistence...');
+    console.log('🐛 Debug: Current viewMode:', useMetadataStore.getState().viewMode);
+    console.log('🐛 Debug: Current bulk defects count:', bulkDefects.length);
+    console.log('🐛 Debug: Bulk defects order:', bulkDefects.map(d => d.photoNumber));
+    console.log('🐛 Debug: Saved viewMode:', localStorage.getItem('clean-app-form-data-viewMode'));
+    console.log('🐛 Debug: Saved bulk data:', localStorage.getItem('clean-app-bulk-data'));
+    
+    // Test switching to bulk view
+    setViewMode('bulk');
+    console.log('🐛 Debug: Switched to bulk view');
+    
+    // Test adding a defect
+    const newDefect = {
+      id: `test-${Date.now()}`,
+      photoNumber: '999',
+      description: 'Test defect',
+      selectedFile: 'test.jpg'
+    };
+    setBulkDefects(prev => [...prev, newDefect]);
+    console.log('🐛 Debug: Added test defect');
+    
+    setTimeout(() => {
+      console.log('🐛 Debug: After changes - viewMode:', useMetadataStore.getState().viewMode);
+      console.log('🐛 Debug: After changes - bulk defects:', useMetadataStore.getState().bulkDefects.length);
+      console.log('🐛 Debug: After changes - saved viewMode:', localStorage.getItem('clean-app-form-data-viewMode'));
+    }, 100);
+  };
+
   // --- 1. Utility for selected images count ---
   const defectsWithImagesCount = bulkDefects.filter(d => d.selectedFile).length;
 
@@ -793,11 +821,9 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
         }}
       >
         {isLoading ? (
-          // Skeleton loader for defects list
-          <div className="space-y-2 animate-pulse">
-            {[...Array(6)].map((_, i) => (
-              <div key={i} className="h-10 bg-slate-200/60 dark:bg-gray-700/40 rounded-xl" />
-            ))}
+          // Simple loading state
+          <div className="flex items-center justify-center p-8">
+            <div className="text-slate-500 dark:text-slate-400">Loading...</div>
           </div>
         ) : (
           <div className="space-y-4">
