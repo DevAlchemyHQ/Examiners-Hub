@@ -277,7 +277,7 @@ export const Header: React.FC = React.memo(() => {
   
 
   const headerContent = useMemo(() => (
-    <div className="max-w-7xl mx-auto px-4">
+    <div className="w-full px-4">
       <div className="h-16 flex items-center justify-between">
         {/* Left Section - Logo and Greeting */}
         <div className="flex items-center gap-4 flex-shrink-0">
@@ -329,13 +329,13 @@ export const Header: React.FC = React.memo(() => {
 
         {/* Center Section - Navigation */}
         <nav className="hidden lg:flex items-center justify-center flex-1 px-8">
-          <div className="flex items-center space-x-8">
+          <div className="flex items-center space-x-8 w-full">
             {navigationTabs.map((tab) => (
               <button
                 key={tab.path}
                 onClick={() => handleNavigation(tab.path)}
                 className={`
-                  px-6 py-2 whitespace-nowrap rounded-lg text-sm font-medium transition-all duration-200 shrink-0 min-w-[100px] text-center
+                  px-8 py-2 whitespace-nowrap rounded-lg text-sm font-medium transition-all duration-200 text-center
                   ${activeTab === tab.path
                     ? 'bg-indigo-500 text-white shadow-md'
                     : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-800 dark:hover:text-white'
