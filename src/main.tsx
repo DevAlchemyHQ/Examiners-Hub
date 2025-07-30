@@ -5,7 +5,7 @@ import { ThemeProvider } from './components/ThemeProvider.tsx'
 import './index.css'
 
 // Version check mechanism
-const APP_VERSION = '1.0.0';
+const APP_VERSION = '1.0.1';
 const VERSION_KEY = 'app-version';
 
 // Check if app needs to be updated
