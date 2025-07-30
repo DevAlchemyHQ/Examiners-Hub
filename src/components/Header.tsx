@@ -1,9 +1,12 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Menu, Camera, User, CreditCard, Settings, LogOut, XCircle, Edit3 } from 'lucide-react';
+import { Menu, Camera, User, CreditCard, Settings, LogOut, XCircle, Edit3, MessageCircle } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { StorageService, DatabaseService, AuthService } from '../lib/services';
 import { EditProfileModal } from './profile/EditProfile';
+import { useMetadataStore } from '../store/metadataStore';
+import { useThemeStore } from '../store/themeStore';
+import { ChatBot } from './ChatBot';
 
 export const Header: React.FC = React.memo(() => {
   const navigate = useNavigate();
@@ -15,6 +18,7 @@ export const Header: React.FC = React.memo(() => {
   const [showUnsubscribeModal, setShowUnsubscribeModal] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('/dashboard'); // Static active tab state
+  const [showChatBot, setShowChatBot] = useState(false);
 
   // Use ref to prevent re-renders
   const headerRef = useRef<HTMLDivElement>(null);
@@ -365,6 +369,15 @@ export const Header: React.FC = React.memo(() => {
             </div>
           </div>
           
+          {/* Chatbot Button */}
+          <button
+            onClick={() => setShowChatBot(true)}
+            className="p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+            title="Get help from Exametry Assistant"
+          >
+            <MessageCircle size={20} />
+          </button>
+          
           {/* Profile Button */}
           <div className="relative">
             <button
@@ -378,9 +391,85 @@ export const Header: React.FC = React.memo(() => {
                   className="w-full h-full object-cover rounded-full"
                 />
               ) : (
-                profileImage
+                <User size={20} />
               )}
             </button>
+            
+            {/* Profile Menu */}
+            {showProfileMenu && (
+              <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50">
+                {/* User Info Section */}
+                <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-indigo-500 flex items-center justify-center">
+                      {profileImage ? (
+                        <img
+                          src={profileImage}
+                          alt="Profile"
+                          className="w-full h-full object-cover rounded-full"
+                        />
+                      ) : (
+                        <User size={20} className="text-white" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                        {getUserDisplayName()}
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                        {user?.email}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Menu Items */}
+                <div className="py-2">
+                  <button
+                    onClick={() => {
+                      setShowEditProfile(true);
+                      setShowProfileMenu(false);
+                    }}
+                    className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3"
+                  >
+                    <Edit3 size={16} />
+                    Edit Profile
+                  </button>
+                  
+                  <button
+                    onClick={() => {
+                      // setShowImageUpload(true); // This state was removed from the original file
+                      setShowProfileMenu(false);
+                    }}
+                    className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3"
+                  >
+                    <Upload size={16} />
+                    Upload Profile Picture
+                  </button>
+                  
+                  <button
+                    onClick={() => {
+                      setShowChatBot(true);
+                      setShowProfileMenu(false);
+                    }}
+                    className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3"
+                  >
+                    <HelpCircle size={16} />
+                    Get Help
+                  </button>
+                  
+                  <div className="border-t border-gray-200 dark:border-gray-700 my-2"></div>
+                  
+                  <button
+                    onClick={handleLogout}
+                    className="w-full px-4 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-3"
+                  >
+                    <LogOut size={16} />
+                    Sign Out
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -400,11 +489,213 @@ export const Header: React.FC = React.memo(() => {
     handleNavigation,
     activeTab,
     profileImage,
+    showProfileMenu,
+    setShowProfileMenu,
+    handleLogout,
+    setShowChatBot,
+    showChatBot,
   ]);
 
   return (
-    <header className="bg-white dark:bg-gray-800 shadow-sm" key="header" ref={headerRef}>
-      {headerContent}
+    <>
+      <header className="bg-white dark:bg-gray-900 border-b border-slate-200 dark:border-gray-700 sticky top-0 z-40">
+        <div className="w-full px-4">
+          <div className="h-16 flex items-center justify-between">
+            {/* Left Section - Logo and Greeting */}
+            <div className="flex items-center gap-4 flex-shrink-0">
+              <button
+                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                className="lg:hidden p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+              >
+                <Menu size={20} />
+              </button>
+              
+              <div 
+                onClick={() => navigate('/')}
+                className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity"
+              >
+                <img 
+                  src="/feather-logo.svg" 
+                  alt="Exametry" 
+                  className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg shadow-sm"
+                  style={{
+                    filter: 'brightness(0) invert(1)',
+                    opacity: 0.9
+                  }}
+                />
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <h1 className="text-lg sm:text-xl font-bold text-slate-800 dark:text-white">
+                    {getGreeting()}, 
+                    <button 
+                      onClick={() => setShowEditProfile(true)}
+                      className="inline-flex items-center gap-1 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors ml-1"
+                      title="Click to edit your name"
+                    >
+                      <span className="hidden sm:inline">{getUserDisplayName()}</span>
+                      <span className="sm:hidden">{getUserDisplayName().split(' ')[0]}</span>
+                      <Edit3 size={14} className="opacity-60 hover:opacity-100" />
+                    </button>! 😊
+                  </h1>
+                  
+                  {/* Show subscription end date info for cancelled but active subscriptions */}
+                  {subscriptionStatus === 'cancelled' && isSubscriptionEndDateFuture && subscriptionPlan !== 'Basic' && (
+                    <div className="hidden md:flex items-center px-2 py-1 bg-amber-100 dark:bg-amber-900/30 rounded-full">
+                      <span className="text-xs text-amber-700 dark:text-amber-400">
+                        <span className="font-medium">{subscriptionPlan}</span> until {formattedSubscriptionEndDate}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Center Section - Navigation */}
+            <nav className="hidden lg:flex items-center justify-center flex-1 px-8">
+              <div className="flex items-center space-x-8 w-full">
+                {navigationTabs.map((tab) => (
+                  <button
+                    key={tab.path}
+                    onClick={() => handleNavigation(tab.path)}
+                    className={`
+                      px-8 py-2 whitespace-nowrap rounded-lg text-sm font-medium transition-all duration-200 text-center
+                      ${activeTab === tab.path
+                        ? 'bg-indigo-500 text-white shadow-md'
+                        : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-800 dark:hover:text-white'
+                      }
+                    `}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+            </nav>
+
+            {/* Right Section - Date, Time, and Profile */}
+            <div className="flex items-center gap-4 sm:gap-6 flex-shrink-0">
+              {/* Time and Date Display */}
+              <div className="hidden sm:flex items-center gap-3 lg:gap-4 text-sm text-slate-600 dark:text-gray-300">
+                <div className="flex items-center gap-2">
+                  <span className="font-medium">{new Date().toLocaleDateString('en-GB', { weekday: 'short' })}</span>
+                  <span ref={dateRef} className="text-slate-500 dark:text-gray-400">{new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>
+                </div>
+                
+                <div className="w-px h-4 bg-slate-200 dark:bg-gray-700" />
+                
+                <div className="flex items-center gap-2">
+                  <span ref={timeRef} className="font-medium">{new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })}</span>
+                  <span className="text-xs text-slate-500 dark:text-gray-400">UK</span>
+                </div>
+              </div>
+              
+              {/* Chatbot Button */}
+              <button
+                onClick={() => setShowChatBot(true)}
+                className="p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                title="Get help from Exametry Assistant"
+              >
+                <MessageCircle size={20} />
+              </button>
+              
+              {/* Profile Button */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowProfileMenu(!showProfileMenu)}
+                  className="profile-button w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-indigo-500 text-white flex items-center justify-center text-lg hover:bg-indigo-600 transition-all duration-200 overflow-hidden shadow-md"
+                >
+                  {profileImage ? (
+                    <img
+                      src={profileImage}
+                      alt="Profile"
+                      className="w-full h-full object-cover rounded-full"
+                    />
+                  ) : (
+                    <User size={20} />
+                  )}
+                </button>
+                
+                {/* Profile Menu */}
+                {showProfileMenu && (
+                  <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50">
+                    {/* User Info Section */}
+                    <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-indigo-500 flex items-center justify-center">
+                          {profileImage ? (
+                            <img
+                              src={profileImage}
+                              alt="Profile"
+                              className="w-full h-full object-cover rounded-full"
+                            />
+                          ) : (
+                            <User size={20} className="text-white" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                            {getUserDisplayName()}
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                            {user?.email}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Menu Items */}
+                    <div className="py-2">
+                      <button
+                        onClick={() => {
+                          setShowEditProfile(true);
+                          setShowProfileMenu(false);
+                        }}
+                        className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3"
+                      >
+                        <Edit3 size={16} />
+                        Edit Profile
+                      </button>
+                      
+                      <button
+                        onClick={() => {
+                          // setShowImageUpload(true); // This state was removed from the original file
+                          setShowProfileMenu(false);
+                        }}
+                        className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3"
+                      >
+                        <Upload size={16} />
+                        Upload Profile Picture
+                      </button>
+                      
+                      <button
+                        onClick={() => {
+                          setShowChatBot(true);
+                          setShowProfileMenu(false);
+                        }}
+                        className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3"
+                      >
+                        <HelpCircle size={16} />
+                        Get Help
+                      </button>
+                      
+                      <div className="border-t border-gray-200 dark:border-gray-700 my-2"></div>
+                      
+                      <button
+                        onClick={handleLogout}
+                        className="w-full px-4 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-3"
+                      >
+                        <LogOut size={16} />
+                        Sign Out
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* ChatBot Modal */}
+      <ChatBot isOpen={showChatBot} onClose={() => setShowChatBot(false)} />
 
       {/* Mobile Navigation Menu */}
       {isMobileMenuOpen && (
@@ -580,6 +871,6 @@ export const Header: React.FC = React.memo(() => {
           </div>
         </div>
       )}
-    </header>
+    </>
   );
 });

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { AlertCircle, FileText, Upload, Plus, ArrowUpDown, Loader2, Download, Trash2, CheckCircle, X, Maximize2, Upload as UploadIcon } from 'lucide-react';
 import { useMetadataStore } from '../store/metadataStore';
 import { useAuthStore } from '../store/authStore';
@@ -31,6 +31,7 @@ import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
 import { nanoid } from 'nanoid';
 import { toast } from 'react-hot-toast';
 import { ImageZoom } from './ImageZoom';
+import { useProjectStore } from '../store/projectStore';
 
 interface ParsedEntry {
   photoNumber: string;
@@ -139,12 +140,28 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
     };
   }, []); // Empty dependency array - only run once on mount
 
-  // Clear error after 5 seconds
+  // Performance optimization: Memoize expensive calculations
+  const memoizedDuplicatePhotoNumbers = useMemo(() => getDuplicatePhotoNumbers(), [bulkDefects]);
+  const memoizedDefectsWithImagesCount = useMemo(() => 
+    bulkDefects.filter(d => d.selectedFile).length, [bulkDefects]
+  );
+
+  // Performance optimization: Debounce error clearing
+  const debouncedErrorClear = useRef<NodeJS.Timeout | null>(null);
+  
   useEffect(() => {
     if (error) {
-      const timer = setTimeout(() => setError(null), 5000);
-      return () => clearTimeout(timer);
+      if (debouncedErrorClear.current) {
+        clearTimeout(debouncedErrorClear.current);
+      }
+      debouncedErrorClear.current = setTimeout(() => setError(null), 5000);
     }
+    
+    return () => {
+      if (debouncedErrorClear.current) {
+        clearTimeout(debouncedErrorClear.current);
+      }
+    };
   }, [error]);
 
   // Show bulk paste on first load if no defects exist
@@ -204,16 +221,33 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
     const { active, over } = event;
 
     if (over && active.id !== over.id) {
+      // Temporarily disable auto-sorting during drag
+      const wasAutoSorting = isSortingEnabled;
+      setIsSortingEnabled(false);
+      
       setBulkDefects((items) => {
-        const oldIndex = items.findIndex((item) => item.photoNumber === active.id);
-        const newIndex = items.findIndex((item) => item.photoNumber === over.id);
+        const oldIndex = items.findIndex((item) => item.id === active.id);
+        const newIndex = items.findIndex((item) => item.id === over.id);
+        
+        if (oldIndex === -1 || newIndex === -1) return items;
+        
         const reorderedItems = arrayMove(items, oldIndex, newIndex);
-        return isSortingEnabled ? reorderAndRenumberDefects(reorderedItems) : reorderedItems;
+        
+        // Re-enable auto-sorting after a delay if it was enabled
+        if (wasAutoSorting) {
+          setTimeout(() => setIsSortingEnabled(true), 500);
+        }
+        
+        return reorderedItems;
       });
     }
   };
 
   const addNewDefect = (afterIndex?: number) => {
+    // Temporarily disable auto-sorting during addition
+    const wasAutoSorting = isSortingEnabled;
+    setIsSortingEnabled(false);
+    
     setBulkDefects(currentDefects => {
       const newDefect = {
         id: nanoid(),
@@ -232,31 +266,33 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
         newDefects = [...currentDefects, newDefect];
       }
 
-      // If auto-sorting is enabled, reorder and renumber all defects
-      if (isSortingEnabled) {
-        return reorderAndRenumberDefects(newDefects);
-      } else {
-        // If not auto-sorting, assign the next available number
-        const numbers = currentDefects
-          .map(d => parseInt(d.photoNumber, 10))
-          .filter(n => !isNaN(n));
-        const nextNum = numbers.length > 0 ? Math.max(...numbers) + 1 : 1;
-        newDefect.photoNumber = String(nextNum);
-        return newDefects;
+      // Re-enable auto-sorting after a delay if it was enabled
+      if (wasAutoSorting) {
+        setTimeout(() => setIsSortingEnabled(true), 100);
       }
+
+      return newDefects;
     });
     
     // Track the addition
     trackUserAction('add_defect', 'bulk');
   };
 
-  const deleteDefect = (photoNumber: string) => {
-    // Get the defect being deleted
-    const defect = bulkDefects.find(d => d.photoNumber === photoNumber);
+  const deleteDefect = (defectId: string) => {
+    // Find the defect by its unique ID (not photoNumber)
+    const defect = bulkDefects.find(d => d.id === defectId);
     
     if (defect) {
-      // Store the deleted defect for undo with original photo number
-      setDeletedDefects(prev => [...prev, { ...defect, originalPhotoNumber: defect.photoNumber }]);
+      // Store the deleted defect with complete state for undo
+      const deletedDefect = {
+        defect: { ...defect },
+        originalIndex: bulkDefects.findIndex(d => d.id === defectId),
+        deletedAt: new Date(),
+        wasAutoSorted: isSortingEnabled,
+        originalPhotoNumber: defect.photoNumber
+      };
+      
+      setDeletedDefects(prev => [...prev, deletedDefect]);
       
       // If the defect had a selected file, deselect it
       if (defect.selectedFile) {
@@ -266,8 +302,9 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
         }
       }
 
+      // Remove the defect by ID (not photoNumber)
       setBulkDefects((items) => {
-        const filteredItems = items.filter((item) => item.photoNumber !== photoNumber);
+        const filteredItems = items.filter((item) => item.id !== defectId);
         return isSortingEnabled ? reorderAndRenumberDefects(filteredItems) : filteredItems;
       });
     }
@@ -278,37 +315,95 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
       const lastDeleted = deletedDefects[deletedDefects.length - 1];
       setDeletedDefects(prev => prev.slice(0, -1));
       
+      // Temporarily disable auto-sorting during undo
+      const wasAutoSorting = isSortingEnabled;
+      setIsSortingEnabled(false);
+      
       setBulkDefects(prev => {
-        // Add the deleted defect back
-        const newDefects = [...prev, lastDeleted];
+        // Add the deleted defect back at its original position
+        const newDefects = [...prev];
+        newDefects.splice(lastDeleted.originalIndex, 0, lastDeleted.defect);
         
-        // If auto sorting is enabled, reorder and renumber properly
-        if (isSortingEnabled) {
-          // First, sort by the original photo numbers to maintain order
-          const sorted = reorderDefects(newDefects);
-          // Then renumber sequentially
-          return sorted.map((defect, index) => ({
-            ...defect,
-            photoNumber: String(index + 1)
-          }));
-        } else {
-          // If not auto-sorting, restore the original photo number
-          return newDefects.map(defect => 
-            defect.id === lastDeleted.id 
-              ? { ...defect, photoNumber: lastDeleted.photoNumber }
-              : defect
-          );
+        // Re-enable auto-sorting after a delay if it was enabled
+        if (wasAutoSorting) {
+          setTimeout(() => setIsSortingEnabled(true), 100);
         }
+        
+        return newDefects;
       });
       
       // Re-select the image if it was selected
-      if (lastDeleted.selectedFile) {
-        const image = images.find(img => (img.fileName || img.file?.name || '') === lastDeleted.selectedFile);
+      if (lastDeleted.defect.selectedFile) {
+        const image = images.find(img => (img.fileName || img.file?.name || '') === lastDeleted.defect.selectedFile);
         if (image) {
           toggleBulkImageSelection(image.id);
         }
       }
     }
+  };
+
+  // Prevent race conditions with state updates
+  const isUpdating = useRef(false);
+  
+  const safeStateUpdate = (updateFn: () => void) => {
+    if (isUpdating.current) {
+      console.log('⏸️ Skipping state update - already updating');
+      return;
+    }
+    
+    isUpdating.current = true;
+    try {
+      updateFn();
+    } finally {
+      // Reset flag after a short delay to prevent rapid successive updates
+      setTimeout(() => {
+        isUpdating.current = false;
+      }, 50);
+    }
+  };
+
+  // Enhanced delete function with race condition prevention
+  const enhancedDeleteDefect = (defectId: string) => {
+    safeStateUpdate(() => safeDeleteDefect(defectId));
+  };
+
+  // Enhanced undo function with race condition prevention
+  const enhancedUndoDelete = () => {
+    safeStateUpdate(() => safeUndoDelete());
+  };
+
+  // Enhanced error handling for defect operations
+  const safeDeleteDefect = (defectId: string) => {
+    try {
+      deleteDefect(defectId);
+    } catch (error) {
+      console.error('Error deleting defect:', error);
+      setError('Failed to delete defect. Please try again.');
+    }
+  };
+
+  const safeUndoDelete = () => {
+    try {
+      undoDelete();
+    } catch (error) {
+      console.error('Error undoing deletion:', error);
+      setError('Failed to undo deletion. Please try again.');
+    }
+  };
+
+  // Enhanced validation for defect operations
+  const validateDefectOperation = (defect: BulkDefect) => {
+    const errors: string[] = [];
+    
+    if (!defect.id) {
+      errors.push('Defect missing unique ID');
+    }
+    
+    if (!defect.photoNumber && defect.photoNumber !== '') {
+      errors.push('Defect missing photo number');
+    }
+    
+    return errors;
   };
 
   // Function to check for duplicate photo numbers
@@ -497,6 +592,10 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
   };
 
   const handleFileSelect = (photoNumber: string, fileName: string) => {
+    // Temporarily disable auto-sorting during file selection
+    const wasAutoSorting = isSortingEnabled;
+    setIsSortingEnabled(false);
+
     setBulkDefects((items) => {
       // Get the current defect and its previously selected file
       const currentDefect = items.find(item => item.photoNumber === photoNumber);
@@ -520,7 +619,13 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
       const updated = items.map((item) =>
         item.photoNumber === photoNumber ? { ...item, selectedFile: fileName } : item
       );
-      return isSortingEnabled ? reorderAndRenumberDefects(updated) : updated;
+
+      // Re-enable auto-sorting after a delay if it was enabled
+      if (wasAutoSorting) {
+        setTimeout(() => setIsSortingEnabled(true), 100);
+      }
+
+      return updated;
     });
   };
 
@@ -547,6 +652,10 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
         return;
       }
 
+      // Temporarily disable auto-sorting during photo number change
+      const wasAutoSorting = isSortingEnabled;
+      setIsSortingEnabled(false);
+
       setBulkDefects(prevDefects => {
         // Update the photo number
         const updatedDefects = prevDefects.map(defect => 
@@ -555,12 +664,12 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
             : defect
         );
 
-        // If auto-sorting is enabled, reorder and renumber all defects
-        if (isSortingEnabled) {
-          return reorderAndRenumberDefects(updatedDefects);
-        } else {
-          return updatedDefects;
+        // Re-enable auto-sorting after a delay if it was enabled
+        if (wasAutoSorting) {
+          setTimeout(() => setIsSortingEnabled(true), 100);
         }
+
+        return updatedDefects;
       });
     } catch (err) {
       console.error('Error updating photo number:', err);
@@ -679,6 +788,23 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
     });
   }, [bulkDefects, images]);
 
+  // Handle auto-sorting with debouncing to prevent conflicts
+  useEffect(() => {
+    if (isSortingEnabled && bulkDefects.length > 0) {
+      const timeoutId = setTimeout(() => {
+        setBulkDefects(prev => {
+          // Only apply auto-sorting if it's still enabled
+          if (isSortingEnabled) {
+            return reorderAndRenumberDefects(prev);
+          }
+          return prev;
+        });
+      }, 300); // Debounce auto-sorting
+
+      return () => clearTimeout(timeoutId);
+    }
+  }, [isSortingEnabled, bulkDefects.length]);
+
   // Clear bulk data for new project
   const handleNewProject = () => {
     console.log('🆕 Starting new project - clearing bulk data...');
@@ -795,7 +921,68 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
   };
 
   // --- 1. Utility for selected images count ---
-  const defectsWithImagesCount = bulkDefects.filter(d => d.selectedFile).length;
+  // const defectsWithImagesCount = bulkDefects.filter(d => d.selectedFile).length;
+
+  // Add keyboard shortcut for undo
+  useEffect(() => {
+    const handleKeyPress = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+        e.preventDefault();
+        enhancedUndoDelete();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyPress);
+    return () => document.removeEventListener('keydown', handleKeyPress);
+  }, [deletedDefects]);
+
+  // Debounced auto-save to prevent performance issues
+  const debouncedAutoSave = useRef<NodeJS.Timeout | null>(null);
+  
+  useEffect(() => {
+    if (bulkDefects.length > 0) {
+      // Clear existing timeout
+      if (debouncedAutoSave.current) {
+        clearTimeout(debouncedAutoSave.current);
+      }
+      
+      // Set new timeout for auto-save
+      debouncedAutoSave.current = setTimeout(() => {
+        // Only save if we're not in the middle of clearing
+        const projectStore = useProjectStore.getState();
+        if (!projectStore.isClearing) {
+          saveBulkData().catch(console.error);
+        }
+      }, 1000); // 1 second debounce
+    }
+    
+    return () => {
+      if (debouncedAutoSave.current) {
+        clearTimeout(debouncedAutoSave.current);
+      }
+    };
+  }, [bulkDefects]);
+
+  // Cleanup function to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      // Clear any pending timeouts
+      if (debouncedAutoSave.current) {
+        clearTimeout(debouncedAutoSave.current);
+      }
+      
+      // Clear any pending auto-sort timeouts
+      const autoSortTimeouts = document.querySelectorAll('[data-auto-sort-timeout]');
+      autoSortTimeouts.forEach(timeout => {
+        if (timeout instanceof HTMLElement) {
+          const timeoutId = timeout.dataset.autoSortTimeout;
+          if (timeoutId) {
+            clearTimeout(parseInt(timeoutId));
+          }
+        }
+      });
+    };
+  }, []);
 
   return (
     <div className="h-full flex flex-col p-4 space-y-4">
@@ -866,19 +1053,19 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
                 modifiers={[restrictToVerticalAxis]}
               >
                 <SortableContext
-                  items={bulkDefects.map(d => d.photoNumber)}
+                  items={bulkDefects.map(d => d.id)}
                   strategy={verticalListSortingStrategy}
                 >
                   <div className="space-y-2">
                     {bulkDefects.map((defect, index) => (
                       <DefectTile
-                        key={`defect-${defect.photoNumber}`}
-                        id={defect.photoNumber}
+                        key={defect.id}
+                        id={defect.id}
                         photoNumber={defect.photoNumber}
                         description={defect.description}
                         selectedFile={defect.selectedFile || ''}
                         availableFiles={images.filter(img => !img.isSketch).map((img) => (img.fileName || img.file?.name || ''))}
-                        onDelete={() => deleteDefect(defect.photoNumber)}
+                        onDelete={() => enhancedDeleteDefect(defect.id || defect.photoNumber)}
                         onDescriptionChange={(value) => updateDefectDescription(defect.photoNumber, value)}
                         onFileChange={(fileName) => handleFileSelect(defect.photoNumber, fileName)}
                         onPhotoNumberChange={(oldNumber, newNumber) => handlePhotoNumberChange(defect.id || defect.photoNumber, oldNumber, newNumber)}
@@ -887,7 +1074,7 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
                         showImages={showImages}
                         images={images}
                         setEnlargedImage={setEnlargedImage}
-                        isDuplicate={getDuplicatePhotoNumbers().has(defect.photoNumber)}
+                        isDuplicate={memoizedDuplicatePhotoNumbers.has(defect.photoNumber)}
                       />
                     ))}
                   </div>
@@ -907,11 +1094,11 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
               </button>
             )}
             {/* --- Selected Images Display --- */}
-            {defectsWithImagesCount > 0 && (
+            {memoizedDefectsWithImagesCount > 0 && (
               <div className="rounded-2xl border border-slate-200/50 dark:border-gray-700/50 bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm shadow-sm p-4 relative">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-semibold text-slate-800 dark:text-white">
-                    Selected Images ({defectsWithImagesCount})
+                    Selected Images ({memoizedDefectsWithImagesCount})
                   </h3>
                   <button
                     onClick={() => setEnlargedImage(null)}
@@ -926,20 +1113,31 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
                   onDragEnd={(event) => {
                     const { active, over } = event;
                     if (over && active.id !== over.id) {
+                      // Temporarily disable auto-sorting during drag
+                      const wasAutoSorting = isSortingEnabled;
+                      setIsSortingEnabled(false);
+                      
                       // Find the defects being reordered by ID
-                      const activeDefect = bulkDefects.find(d => (d.id || d.photoNumber) === active.id);
-                      const overDefect = bulkDefects.find(d => (d.id || d.photoNumber) === over.id);
+                      const activeId = active.id.toString().split('-')[0];
+                      const overId = over.id.toString().split('-')[0];
+                      
+                      const activeDefect = bulkDefects.find(d => d.id === activeId);
+                      const overDefect = bulkDefects.find(d => d.id === overId);
                       
                       if (activeDefect && overDefect) {
                         setBulkDefects(prev => {
-                          const oldIndex = prev.findIndex(d => (d.id || d.photoNumber) === active.id);
-                          const newIndex = prev.findIndex(d => (d.id || d.photoNumber) === over.id);
+                          const oldIndex = prev.findIndex(d => d.id === activeId);
+                          const newIndex = prev.findIndex(d => d.id === overId);
+                          
+                          if (oldIndex === -1 || newIndex === -1) return prev;
+                          
                           const reorderedItems = arrayMove(prev, oldIndex, newIndex);
                           
-                          // If auto-sorting is enabled, renumber all defects
-                          if (isSortingEnabled) {
-                            return reorderAndRenumberDefects(reorderedItems);
+                          // Re-enable auto-sorting after a delay if it was enabled
+                          if (wasAutoSorting) {
+                            setTimeout(() => setIsSortingEnabled(true), 500);
                           }
+                          
                           return reorderedItems;
                         });
                       }
@@ -948,7 +1146,7 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
                   modifiers={[restrictToVerticalAxis]}
                 >
                   <SortableContext
-                    items={bulkDefects.filter(d => d.selectedFile).map((d, index) => `${d.id || d.photoNumber}-${index}`)}
+                    items={bulkDefects.filter(d => d.selectedFile).map((d, index) => `${d.id}-${index}`)}
                     strategy={verticalListSortingStrategy}
                   >
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -958,7 +1156,7 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
                           const img = images.find(img => (img.fileName || img.file?.name || '') === defect.selectedFile);
                           if (!img) return null;
                           return (
-                            <div key={`selected-${defect.id}-${img.id}-${index}`} className="relative group bg-white/80 dark:bg-gray-800/80 rounded-lg border border-slate-200/50 dark:border-gray-700/50 p-3">
+                            <div key={`selected-${defect.id}-${img.id}`} className="relative group bg-white/80 dark:bg-gray-800/80 rounded-lg border border-slate-200/50 dark:border-gray-700/50 p-3">
                               {/* Removed blue badge - user wants only editable fields */}
                               {/* Image at top */}
                               <div 
@@ -1012,7 +1210,7 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
                                     className={`w-full p-2 text-sm border rounded-lg focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 
                                       bg-white/50 dark:bg-gray-800/50 text-slate-900 dark:text-white text-center
                                       ${!/^\d+[a-zA-Z]*$/.test(defect.photoNumber) && defect.photoNumber ? 'border-red-300 dark:border-red-600' : 
-                                        getDuplicatePhotoNumbers().has(defect.photoNumber) ? 'border-orange-400 dark:border-orange-500 bg-orange-50 dark:bg-orange-900/20' : 
+                                        memoizedDuplicatePhotoNumbers.has(defect.photoNumber) ? 'border-orange-400 dark:border-orange-500 bg-orange-50 dark:bg-orange-900/20' : 
                                         'border-slate-200/50 dark:border-gray-600/50'}`}
                                     placeholder="#"
                                   />
@@ -1069,6 +1267,21 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
 
       {/* Show validation errors for bulk mode */}
       {/* (Removed: error panel for bulk mode, now only shown below download button) */}
+      
+      {/* Undo indicator */}
+      {deletedDefects.length > 0 && (
+        <div className="fixed bottom-4 right-4 bg-indigo-500 text-white px-4 py-2 rounded-lg shadow-lg z-50">
+          <div className="flex items-center gap-2">
+            <span className="text-sm">Press Ctrl+Z to undo deletion</span>
+            <button
+              onClick={enhancedUndoDelete}
+              className="bg-white/20 hover:bg-white/30 px-2 py-1 rounded text-xs transition-colors"
+            >
+              Undo
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

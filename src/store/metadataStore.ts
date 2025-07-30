@@ -15,6 +15,15 @@ const initialFormData: FormData = {
   date: '',
 };
 
+// Add proper interfaces for deleted defects tracking
+interface DeletedDefect {
+  defect: BulkDefect;
+  originalIndex: number;
+  deletedAt: Date;
+  wasAutoSorted: boolean;
+  originalPhotoNumber: string;
+}
+
 // We need to separate the state interface from the actions
 interface MetadataStateOnly {
   images: ImageMetadata[];
@@ -24,7 +33,7 @@ interface MetadataStateOnly {
   defectSortDirection: 'asc' | 'desc' | null;
   sketchSortDirection: 'asc' | 'desc' | null;
   bulkDefects: BulkDefect[];
-  deletedDefects: BulkDefect[];
+  deletedDefects: DeletedDefect[]; // Changed from BulkDefect[] to DeletedDefect[]
   viewMode: 'images' | 'bulk';
   isLoading: boolean;
   isInitialized: boolean;
@@ -45,7 +54,7 @@ interface MetadataState extends MetadataStateOnly {
   setDefectSortDirection: (direction: 'asc' | 'desc' | null) => void;
   setSketchSortDirection: (direction: 'asc' | 'desc' | null) => void;
   setBulkDefects: (defects: BulkDefect[] | ((prev: BulkDefect[]) => BulkDefect[])) => void;
-  setDeletedDefects: (defects: BulkDefect[] | ((prev: BulkDefect[]) => BulkDefect[])) => void;
+  setDeletedDefects: (defects: DeletedDefect[] | ((prev: DeletedDefect[]) => DeletedDefect[])) => void;
   setIsSortingEnabled: (enabled: boolean) => void;
   reset: () => void;
   getSelectedCounts: () => { sketches: number; defects: number };
