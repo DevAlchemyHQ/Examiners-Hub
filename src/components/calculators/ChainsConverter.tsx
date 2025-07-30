@@ -46,17 +46,22 @@ export const ChainsConverter: React.FC = () => {
   };
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm">
+    <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
       <div className="flex items-center gap-3 mb-6">
-        <ArrowLeftRight className="text-indigo-500" size={24} />
-        <h2 className="text-2xl font-bold text-slate-800 dark:text-white">
-          Distance Converter
-        </h2>
+        <ArrowLeftRight className="text-blue-500" size={20} />
+        <div>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+            Distance Converter
+          </h2>
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            Convert between chains, meters, and yards with walking time
+          </p>
+        </div>
       </div>
 
-      <div className="space-y-6">
+      <div className="space-y-4">
         <div>
-          <label className="block text-base font-semibold text-slate-700 dark:text-gray-300 mb-2">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Chains:
           </label>
           <input
@@ -67,12 +72,12 @@ export const ChainsConverter: React.FC = () => {
               calculateFromChains(e.target.value);
             }}
             placeholder="Enter chains"
-            className="w-full p-3 text-lg bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-slate-900 dark:text-white"
+            className="w-full p-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:text-white"
           />
         </div>
 
         <div>
-          <label className="block text-base font-semibold text-slate-700 dark:text-gray-300 mb-2">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Meters:
           </label>
           <input
@@ -83,37 +88,43 @@ export const ChainsConverter: React.FC = () => {
               calculateFromMeters(e.target.value);
             }}
             placeholder="Enter meters"
-            className="w-full p-3 text-lg bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-slate-900 dark:text-white"
+            className="w-full p-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:text-white"
           />
         </div>
 
-        <div className="p-4 bg-slate-50 dark:bg-gray-700/50 rounded-lg space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Ruler className="text-indigo-500" size={20} />
-              <span className="text-lg font-semibold text-slate-700 dark:text-gray-300">Distance</span>
+        <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-md border border-gray-200 dark:border-gray-600 space-y-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Ruler className="text-blue-500" size={16} />
+            <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              Distance
+            </h3>
+          </div>
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between items-center">
+              <span className="text-gray-600 dark:text-gray-400">Chains:</span>
+              <span className="font-medium text-gray-900 dark:text-white">{chains || '0'} chains</span>
             </div>
-            <div className="space-y-2 text-right">
-              <div className="text-lg text-slate-700 dark:text-gray-300">
-                <span className="font-semibold">{chains || '0'}</span> chains
-              </div>
-              <div className="text-lg text-slate-700 dark:text-gray-300">
-                <span className="font-semibold">{meters || '0'}</span> meters
-              </div>
-              <div className="text-lg text-slate-700 dark:text-gray-300">
-                <span className="font-semibold">{yards || '0'}</span> yards
-              </div>
+            <div className="flex justify-between items-center">
+              <span className="text-gray-600 dark:text-gray-400">Meters:</span>
+              <span className="font-medium text-gray-900 dark:text-white">{meters || '0'} meters</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-gray-600 dark:text-gray-400">Yards:</span>
+              <span className="font-medium text-gray-900 dark:text-white">{yards || '0'} yards</span>
             </div>
           </div>
+        </div>
 
-          <div className="flex items-center justify-between pt-4 border-t border-slate-200 dark:border-gray-600">
-            <div className="flex items-center gap-2">
-              <User className="text-indigo-500" size={20} />
-              <span className="text-lg font-semibold text-slate-700 dark:text-gray-300">Walking Time</span>
-            </div>
-            <div className="text-lg text-slate-700 dark:text-gray-300">
-              <span className="font-semibold">{walkingTime || '0'}</span> minutes
-            </div>
+        <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-md border border-gray-200 dark:border-gray-600">
+          <div className="flex items-center gap-2 mb-3">
+            <User className="text-blue-500" size={16} />
+            <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              Walking Time
+            </h3>
+          </div>
+          <div className="text-sm">
+            <span className="text-gray-600 dark:text-gray-400">Time: </span>
+            <span className="font-medium text-gray-900 dark:text-white">{walkingTime || '0'} minutes</span>
           </div>
         </div>
       </div>

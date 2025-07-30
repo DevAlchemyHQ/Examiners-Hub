@@ -11,11 +11,11 @@ type Shape = 'rectangle' | 'circle' | 'triangle';
 const ShapeIcon = ({ shape }: { shape: Shape }) => {
   switch (shape) {
     case 'circle':
-      return <Circle className="text-indigo-500" size={24} />;
+      return <Circle className="text-blue-500" size={20} />;
     case 'triangle':
-      return <Triangle className="text-indigo-500" size={24} />;
+      return <Triangle className="text-blue-500" size={20} />;
     default:
-      return <Square className="text-indigo-500" size={24} />;
+      return <Square className="text-blue-500" size={20} />;
   }
 };
 
@@ -61,23 +61,28 @@ export const AreaCalculator: React.FC = () => {
   };
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm">
+    <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
       <div className="flex items-center gap-3 mb-6">
         <ShapeIcon shape={shape} />
-        <h2 className="text-2xl font-bold text-slate-800 dark:text-white">
-          Area Calculator
-        </h2>
+        <div>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+            Area Calculator
+          </h2>
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            Calculate area and perimeter for various shapes
+          </p>
+        </div>
       </div>
 
-      <div className="space-y-6">
+      <div className="space-y-4">
         <div>
-          <label className="block text-base font-semibold text-slate-700 dark:text-gray-300 mb-2">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Select Shape:
           </label>
           <select
             value={shape}
             onChange={(e) => setShape(e.target.value as Shape)}
-            className="w-full p-3 text-lg bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-slate-900 dark:text-white"
+            className="w-full p-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:text-white"
           >
             <option value="rectangle">Rectangle / Square</option>
             <option value="circle">Circle</option>
@@ -87,7 +92,7 @@ export const AreaCalculator: React.FC = () => {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-base font-semibold text-slate-700 dark:text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               {shape === 'circle' ? 'Diameter' : 'Length'}
             </label>
             <input
@@ -96,13 +101,13 @@ export const AreaCalculator: React.FC = () => {
               value={length}
               onChange={(e) => setLength(e.target.value)}
               placeholder={`Enter ${shape === 'circle' ? 'diameter' : 'length'}`}
-              className="w-full p-3 text-lg bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-slate-900 dark:text-white"
+              className="w-full p-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:text-white"
             />
           </div>
 
           {shape !== 'circle' && (
             <div>
-              <label className="block text-base font-semibold text-slate-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 {shape === 'triangle' ? 'Height' : 'Width'}
               </label>
               <input
@@ -111,37 +116,45 @@ export const AreaCalculator: React.FC = () => {
                 value={width}
                 onChange={(e) => setWidth(e.target.value)}
                 placeholder={`Enter ${shape === 'triangle' ? 'height' : 'width'}`}
-                className="w-full p-3 text-lg bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-slate-900 dark:text-white"
+                className="w-full p-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:text-white"
               />
             </div>
           )}
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 gap-3">
           <button
             onClick={calculateArea}
-            className="w-full py-3 text-lg bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition-colors"
+            className="w-full py-2 text-sm font-medium bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
           >
             Calculate
           </button>
           <button
             onClick={clearCalculator}
-            className="w-full py-3 text-lg bg-slate-100 dark:bg-gray-700 text-slate-600 dark:text-gray-300 rounded-lg hover:bg-slate-200 dark:hover:bg-gray-600 transition-colors"
+            className="w-full py-2 text-sm font-medium bg-gray-500 text-white rounded-md hover:bg-gray-600 transition-colors"
           >
             Clear
           </button>
         </div>
 
         {result && (
-          <div className="mt-6 p-4 bg-slate-50 dark:bg-gray-700/50 rounded-lg">
-            <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-3">Results:</h3>
-            <div className="space-y-2 text-lg">
-              <p className="text-slate-700 dark:text-gray-300">
-                Area: <span className="font-semibold">{result.area.toFixed(2)}</span> square units
-              </p>
-              <p className="text-slate-700 dark:text-gray-300">
-                Perimeter: <span className="font-semibold">{result.perimeter.toFixed(2)}</span> units
-              </p>
+          <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-md border border-gray-200 dark:border-gray-600">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
+              Results
+            </h3>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between items-center">
+                <span className="text-gray-600 dark:text-gray-400">Area:</span>
+                <span className="font-medium text-gray-900 dark:text-white">
+                  {result.area.toFixed(2)} square units
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-gray-600 dark:text-gray-400">Perimeter:</span>
+                <span className="font-medium text-gray-900 dark:text-white">
+                  {result.perimeter.toFixed(2)} units
+                </span>
+              </div>
             </div>
           </div>
         )}

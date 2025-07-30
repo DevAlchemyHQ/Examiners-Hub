@@ -1,22 +1,46 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useMetadataStore } from '../store/metadataStore';
 import { useGridWidth } from '../hooks/useGridWidth';
+import { useAnalytics } from '../hooks/useAnalytics';
 import { ImageGridItem } from './ImageGridItem';
 import { ImageUpload } from './ImageUpload';
 
 export const ImageGrid: React.FC = () => {
-  const { images, formData, setFormData } = useMetadataStore();
+  const { images, formData, setFormData, selectedImages } = useMetadataStore();
   const { gridWidth, setGridWidth } = useGridWidth();
+  const { trackGridLoad, trackImageSelection, trackUserAction } = useAnalytics();
+
+  // Track grid load and image selection
+  useEffect(() => {
+    if (images.length > 0) {
+      trackGridLoad(images.length, 'image_grid');
+    }
+  }, [images.length, trackGridLoad]);
+
+  useEffect(() => {
+    if (images.length > 0) {
+      trackImageSelection(selectedImages.size, images.length);
+    }
+  }, [selectedImages.size, images.length, trackImageSelection]);
 
   // Handlers for project details
   const handleELRChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ elr: e.target.value.toUpperCase() });
+    trackUserAction('form_input', 'elr_change');
   };
   const handleStructureNoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ structureNo: e.target.value });
+    trackUserAction('form_input', 'structure_no_change');
   };
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ date: e.target.value });
+    trackUserAction('form_input', 'date_change');
+  };
+
+  // Track grid width changes
+  const handleGridWidthChange = (newWidth: number) => {
+    setGridWidth(newWidth);
+    trackUserAction('grid_resize', 'width_change', newWidth);
   };
 
   // Separate sketches and defects
@@ -67,13 +91,13 @@ export const ImageGrid: React.FC = () => {
             <div className="flex items-center gap-1">
               <span className="text-xs text-slate-500 dark:text-gray-400">Grid: {gridWidth}</span>
               <button
-                onClick={() => setGridWidth(Math.max(3, gridWidth - 1))}
+                onClick={() => handleGridWidthChange(Math.max(3, gridWidth - 1))}
                 className="px-1.5 py-0.5 text-xs bg-slate-100 dark:bg-gray-700 rounded hover:bg-slate-200 dark:hover:bg-gray-600"
               >
                 -
               </button>
               <button
-                onClick={() => setGridWidth(Math.min(8, gridWidth + 1))}
+                onClick={() => handleGridWidthChange(Math.min(8, gridWidth + 1))}
                 className="px-1.5 py-0.5 text-xs bg-slate-100 dark:bg-gray-700 rounded hover:bg-slate-200 dark:hover:bg-gray-600"
               >
                 +
@@ -117,13 +141,13 @@ export const ImageGrid: React.FC = () => {
               Grid: {gridWidth}
             </span>
             <button
-              onClick={() => setGridWidth(Math.max(3, gridWidth - 1))}
+              onClick={() => handleGridWidthChange(Math.max(3, gridWidth - 1))}
               className="px-2 py-1 text-sm bg-slate-100 dark:bg-gray-700 rounded hover:bg-slate-200 dark:hover:bg-gray-600"
             >
               -
             </button>
             <button
-              onClick={() => setGridWidth(Math.min(8, gridWidth + 1))}
+              onClick={() => handleGridWidthChange(Math.min(8, gridWidth + 1))}
               className="px-2 py-1 text-sm bg-slate-100 dark:bg-gray-700 rounded hover:bg-slate-200 dark:hover:bg-gray-600"
             >
               +

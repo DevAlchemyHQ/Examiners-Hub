@@ -52,18 +52,20 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
     setFormData,
     formData,
     deletedDefects,
-    setDeletedDefects
+    setDeletedDefects,
+    isSortingEnabled,
+    setIsSortingEnabled
   } = useMetadataStore();
   const { user } = useAuthStore();
+  const { trackBulkUpload, trackBulkDownload, trackDefectSetLoad, trackUserAction, trackError } = useAnalytics();
   
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [bulkText, setBulkText] = useState('');
-  const [isSortingEnabled, setIsSortingEnabled] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [isDownloading, setIsDownloading] = useState(false);
   const [enlargedImage, setEnlargedImage] = useState<string | null>(null);
-  const [showImages, setShowImages] = useState(isExpanded);
+  const [showImages, setShowImages] = useState(false);
   const [showDefectImport, setShowDefectImport] = useState(false);
   const [defectImportText, setDefectImportText] = useState('');
   const [missingImages, setMissingImages] = useState<string[]>([]);
@@ -83,8 +85,13 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
       const start = performance.now();
       try {
         await loadBulkData();
+        // Track defect set load
+        if (bulkDefects.length > 0) {
+          trackDefectSetLoad(bulkDefects.length, 'saved_defects');
+        }
       } catch (err) {
         console.error('Error loading bulk data:', err);
+        trackError('load_failed', 'bulk_data');
         setError('Failed to load saved defects. Please refresh the page.');
       } finally {
         setIsLoading(false);
@@ -92,7 +99,7 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
       }
     };
     loadData();
-  }, [loadBulkData]);
+  }, [loadBulkData, bulkDefects.length, trackDefectSetLoad, trackError]);
 
   // Clear error after 5 seconds
   useEffect(() => {
@@ -170,27 +177,34 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
 
   const addNewDefect = (afterIndex?: number) => {
     setBulkDefects(currentDefects => {
-      // Find the highest numeric photo number
-      const numbers = currentDefects
-        .map(d => parseInt(d.photoNumber, 10))
-        .filter(n => !isNaN(n));
-      const nextNum = numbers.length > 0 ? Math.max(...numbers) + 1 : 1;
-      
       const newDefect = {
         id: nanoid(),
-        photoNumber: String(nextNum),
+        photoNumber: '', // Will be assigned based on sorting
         description: '',
         selectedFile: ''
       };
 
+      let newDefects;
       if (afterIndex !== undefined) {
         // Insert after the specified index
-        const newDefects = [...currentDefects];
+        newDefects = [...currentDefects];
         newDefects.splice(afterIndex + 1, 0, newDefect);
-        return newDefects;
       } else {
         // Add to the end
-        return [...currentDefects, newDefect];
+        newDefects = [...currentDefects, newDefect];
+      }
+
+      // If auto-sorting is enabled, reorder and renumber all defects
+      if (isSortingEnabled) {
+        return reorderAndRenumberDefects(newDefects);
+      } else {
+        // If not auto-sorting, assign the next available number
+        const numbers = currentDefects
+          .map(d => parseInt(d.photoNumber, 10))
+          .filter(n => !isNaN(n));
+        const nextNum = numbers.length > 0 ? Math.max(...numbers) + 1 : 1;
+        newDefect.photoNumber = String(nextNum);
+        return newDefects;
       }
     });
   };
@@ -492,13 +506,21 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
         return;
       }
 
-      setBulkDefects(prevDefects => 
-        prevDefects.map(defect => 
+      setBulkDefects(prevDefects => {
+        // Update the photo number
+        const updatedDefects = prevDefects.map(defect => 
           defect.id === defectId 
             ? { ...defect, photoNumber: newNumber }
             : defect
-        )
-      );
+        );
+
+        // If auto-sorting is enabled, reorder and renumber all defects
+        if (isSortingEnabled) {
+          return reorderAndRenumberDefects(updatedDefects);
+        } else {
+          return updatedDefects;
+        }
+      });
     } catch (err) {
       console.error('Error updating photo number:', err);
       setError('Failed to update photo number');
@@ -508,13 +530,15 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
   const toggleSorting = () => {
     setIsSortingEnabled(!isSortingEnabled);
     if (!isSortingEnabled) {
-      setBulkDefects(defects => [...reorderDefects(defects)]);
+      // When enabling auto-sort, reorder and renumber all defects
+      setBulkDefects(defects => reorderAndRenumberDefects(defects));
     }
   };
 
   const handleFileUpload = async (file: File) => {
     if (file.type !== 'application/pdf') {
       toast.error('Please upload a PDF file');
+      trackError('upload_validation', 'invalid_file_type');
       return;
     }
 
@@ -524,9 +548,11 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
       }
 
       await savePdf(user.id, file);
+      trackBulkUpload(1, file.size); // Track PDF upload
       toast.success('PDF uploaded successfully');
     } catch (error) {
       console.error('Upload error:', error);
+      trackError('upload_failed', 'pdf_upload');
       toast.error('Failed to upload PDF');
     }
   };
@@ -537,11 +563,15 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
     
     if (defectsWithImages.length === 0) {
       toast.error('Please select images for at least one defect');
+      trackError('download_validation', 'no_images_selected');
       return;
     }
 
     setIsDownloading(true);
     try {
+      // Track download start
+      trackBulkDownload(defectsWithImages.length, bulkDefects.length);
+      
       // Use the same transformation logic as DownloadButton.tsx
       const { transformBulkDefectsForLambda, validateTransformedData } = await import('../utils/downloadTransformers');
       
@@ -588,6 +618,7 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
       toast.success('Package downloaded successfully');
     } catch (error) {
       console.error('Download error:', error);
+      trackError('download_failed', 'bulk_download');
       toast.error(error instanceof Error ? error.message : 'Failed to download package');
     } finally {
       setIsDownloading(false);
@@ -709,16 +740,18 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
                 </SortableContext>
               </DndContext>
             </div>
-            {/* Separate Add Button */}
-            <button
-              onClick={() => addNewDefect()}
-              className="w-full p-4 rounded-lg border-2 border-dashed border-slate-300 dark:border-gray-600 hover:border-indigo-500 dark:hover:border-indigo-400 transition-colors group bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm hover:bg-indigo-50 dark:hover:bg-indigo-900/20"
-            >
-              <div className="flex items-center justify-center gap-3 text-slate-500 dark:text-gray-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
-                <Plus size={24} className="group-hover:scale-110 transition-transform" />
-                <span className="text-sm font-medium">{bulkDefects.length === 0 ? 'Add First Defect' : 'Add Defect'}</span>
-              </div>
-            </button>
+            {/* Add First Defect button - only show when no defects exist */}
+            {bulkDefects.length === 0 && (
+              <button
+                onClick={() => addNewDefect()}
+                className="w-full p-4 rounded-lg border-2 border-dashed border-slate-300 dark:border-gray-600 hover:border-indigo-500 dark:hover:border-indigo-400 transition-colors group bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm hover:bg-indigo-50 dark:hover:bg-indigo-900/20"
+              >
+                <div className="flex items-center justify-center gap-3 text-slate-500 dark:text-gray-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                  <Plus size={24} className="group-hover:scale-110 transition-transform" />
+                  <span className="text-sm font-medium">Add First Defect</span>
+                </div>
+              </button>
+            )}
             {/* --- Selected Images Display --- */}
             {defectsWithImagesCount > 0 && (
               <div className="rounded-2xl border border-slate-200/50 dark:border-gray-700/50 bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm shadow-sm p-4 relative">

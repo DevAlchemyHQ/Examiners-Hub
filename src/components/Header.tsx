@@ -1,8 +1,7 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Menu, Moon, Sun, Camera, User, CreditCard, Settings, LogOut, XCircle, Edit3 } from 'lucide-react';
+import { Menu, Camera, User, CreditCard, Settings, LogOut, XCircle, Edit3 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
-import { useThemeStore } from '../store/themeStore';
 import { StorageService, DatabaseService, AuthService } from '../lib/services';
 import { EditProfileModal } from './profile/EditProfile';
 
@@ -11,7 +10,6 @@ export const Header: React.FC = React.memo(() => {
   const location = useLocation();
   const { logout, user } = useAuthStore();
   const { setUser } = useAuthStore();
-  const { isDark, toggle } = useThemeStore();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [showUnsubscribeModal, setShowUnsubscribeModal] = useState(false);
@@ -90,6 +88,7 @@ export const Header: React.FC = React.memo(() => {
     { path: '/dashboard', label: 'Images' },
     { path: '/calculator', label: 'Calc' },
     { path: '/grid', label: 'Grid' },
+    { path: '/faq', label: 'FAQ' },
   ], []);
 
   const profileImage = useMemo(() => user?.user_metadata.avatar_url || '🚂', [user?.user_metadata.avatar_url]);
@@ -365,15 +364,6 @@ export const Header: React.FC = React.memo(() => {
             </div>
           </div>
           
-          {/* Theme Toggle */}
-          <button
-            onClick={toggle}
-            className="p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-            title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
-          >
-            {isDark ? <Sun size={18} /> : <Moon size={18} />}
-          </button>
-
           {/* Profile Button */}
           <div className="relative">
             <button
@@ -408,9 +398,6 @@ export const Header: React.FC = React.memo(() => {
     navigationTabs,
     handleNavigation,
     activeTab,
-    toggle,
-    isDark,
-    setShowProfileMenu,
     profileImage,
   ]);
 

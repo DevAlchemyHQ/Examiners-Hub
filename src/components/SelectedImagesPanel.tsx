@@ -13,6 +13,7 @@ import {
   Undo
 } from 'lucide-react';
 import { useMetadataStore } from '../store/metadataStore';
+import { useAnalytics } from '../hooks/useAnalytics';
 import { ImageMetadata } from '../types';
 import { DefectTile } from './DefectTile';
 import { ImageZoom } from './ImageZoom';
@@ -246,15 +247,19 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
     setFormData,
     setSelectedImages,
     deletedDefects,
-    setDeletedDefects
+    setDeletedDefects,
+    isSortingEnabled,
+    setIsSortingEnabled
   } = useMetadataStore();
+  
+  const { trackImageSelection, trackDefectSetLoad, trackUserAction, trackError } = useAnalytics();
+  
   const [enlargedImage, setEnlargedImage] = useState<string | null>(null);
   const [showLoadTray, setShowLoadTray] = useState(false);
   const [savedSets, setSavedSets] = useState<{id: string, title: string, data: any, created_at: string, updated_at?: string}[]>([]);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [showBulkPaste, setShowBulkPaste] = useState(false);
-  const [isSortingEnabled, setIsSortingEnabled] = useState(false);
 
   // Auto-save on every modification
   useEffect(() => {
@@ -266,6 +271,13 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
       return () => clearTimeout(timeoutId);
     }
   }, [formData, bulkDefects, selectedImages, images]);
+
+  // Track image selection changes
+  useEffect(() => {
+    if (selectedImages.size > 0) {
+      trackImageSelection(selectedImages.size, images.length);
+    }
+  }, [selectedImages.size, images.length, trackImageSelection]);
 
   // Helper to format project details as title
   const getDefectSetTitle = () => {
@@ -320,11 +332,13 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
 
   // Delete all images
   const handleDeleteAllImages = () => {
+    trackUserAction('delete_all_images', 'bulk_delete');
     setShowDeleteConfirm(true);
   };
 
   // Delete all bulk defects
   const handleDeleteAllBulk = () => {
+    trackUserAction('delete_all_bulk', 'bulk_delete');
     setShowBulkDeleteConfirm(true);
   };
 
@@ -345,8 +359,10 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
 
   // Sort bulk defects
   const toggleSorting = () => {
-    setIsSortingEnabled(!isSortingEnabled);
-    if (!isSortingEnabled) {
+    const newSorting = !isSortingEnabled;
+    setIsSortingEnabled(newSorting);
+    trackUserAction('toggle_sorting', 'sort_enabled', newSorting ? 1 : 0);
+    if (!newSorting) {
       // Reorder defects when sorting is enabled
       const reorderedDefects = [...bulkDefects].sort((a, b) => {
         const aNum = parseInt(a.photoNumber) || 0;
@@ -355,6 +371,17 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
       });
       setBulkDefects(reorderedDefects);
     }
+  };
+
+  // Auto-sort function that can be called when new defects are added
+  const autoSortDefects = (defects: any[]) => {
+    if (!isSortingEnabled) return defects;
+    
+    return [...defects].sort((a, b) => {
+      const aNum = parseInt(a.photoNumber) || 0;
+      const bNum = parseInt(b.photoNumber) || 0;
+      return aNum - bNum;
+    });
   };
 
   // Undo delete for bulk defects
@@ -370,6 +397,7 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
   // Save defect set to localStorage and AWS
   const handleSaveDefectSet = async () => {
     try {
+      trackUserAction('defect_set_save', 'manual_save');
       console.log('💾 Manual save defect set triggered');
       
       // Validate project details
@@ -419,6 +447,7 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
       await handleShowLoadTray();
       console.log('✅ Load tray refreshed');
     } catch (error) {
+      trackError('defect_set_save_failed', 'manual_save');
       console.error('❌ Error saving defect set:', error);
       toast.error('Failed to save defect set. Please try again.');
     }
@@ -438,6 +467,8 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
 
   // Apply a saved defect set
   const handleLoadDefectSet = (set: {title: string, data: any, created_at: string}) => {
+    trackDefectSetLoad(set.data.defects?.length || 0, 'loaded_defect_set');
+    trackUserAction('defect_set_load', 'manual_load');
     setBulkDefects(set.data.defects);
     setFormData(set.data.formData);
     
@@ -465,10 +496,12 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
   // Delete a saved defect set
   const handleDeleteDefectSet = async (id: string) => {
     try {
+      trackUserAction('defect_set_delete', 'manual_delete');
       await deleteDefectSet(id);
       // Refresh the saved sets list
       await handleShowLoadTray();
     } catch (error) {
+      trackError('defect_set_delete_failed', 'manual_delete');
       console.error('Error deleting defect set:', error);
       toast.error('Failed to delete defect set. Please try again.');
     }
@@ -779,7 +812,11 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
             <div className="flex items-center gap-1">
               <button
                 title="Sort"
-                className="p-1 text-slate-500 dark:text-gray-300 hover:bg-slate-100 dark:hover:bg-gray-700 rounded transition-colors"
+                className={`p-1 rounded transition-colors ${
+                  viewMode === 'bulk' && isSortingEnabled
+                    ? 'bg-slate-200 dark:bg-gray-600 text-slate-700 dark:text-gray-300'
+                    : 'text-slate-500 dark:text-gray-300 hover:bg-slate-100 dark:hover:bg-gray-700'
+                }`}
                 onClick={viewMode === 'bulk' ? toggleSorting : handleSortImages}
               >
                 <ArrowUpDown size={16} />
@@ -864,7 +901,11 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
             <div className="flex items-center gap-2 ml-2">
               <button
                 title="Sort"
-                className="p-2 text-slate-500 dark:text-gray-300 hover:bg-slate-100 dark:hover:bg-gray-700 rounded transition-colors"
+                className={`p-2 rounded transition-colors ${
+                  viewMode === 'bulk' && isSortingEnabled
+                    ? 'bg-slate-200 dark:bg-gray-600 text-slate-700 dark:text-gray-300'
+                    : 'text-slate-500 dark:text-gray-300 hover:bg-slate-100 dark:hover:bg-gray-700'
+                }`}
                 onClick={viewMode === 'bulk' ? toggleSorting : handleSortImages}
               >
                 <ArrowUpDown size={20} />

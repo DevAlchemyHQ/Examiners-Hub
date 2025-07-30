@@ -1,6 +1,7 @@
 import React, { useRef, useState } from "react";
 import { Upload, Loader2, AlertCircle, CheckCircle } from "lucide-react";
 import { useMetadataStore } from "../store/metadataStore";
+import { useAnalytics } from "../hooks/useAnalytics";
 import { toast } from "react-hot-toast";
 
 interface UploadProgress {
@@ -17,6 +18,7 @@ interface ImageUploadProps {
 export const ImageUpload: React.FC<ImageUploadProps> = ({ compact = false }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const addImages = useMetadataStore((state) => state.addImages);
+  const { trackImageUpload, trackError } = useAnalytics();
   const [isLoadingExam, setIsLoadingExam] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
 
@@ -62,12 +64,14 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({ compact = false }) => 
 
       if (invalid.length > 0) {
         toast.error(`Upload failed:\n${invalid.join('\n')}`);
+        trackError('upload_validation', 'invalid_files');
         e.target.value = "";
         return;
       }
 
       if (valid.length === 0) {
         toast.error('No valid files to upload');
+        trackError('upload_validation', 'no_valid_files');
         e.target.value = "";
         return;
       }
@@ -76,8 +80,11 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({ compact = false }) => 
         setIsLoadingExam(true);
         console.log('Starting upload of', valid.length, 'files');
         
-        // For large uploads, show progress
+        // Track upload start
         const totalSize = valid.reduce((sum, file) => sum + file.size, 0);
+        trackImageUpload(valid.length, totalSize);
+        
+        // For large uploads, show progress
         if (valid.length > 10 || totalSize > 500 * 1024 * 1024) {
           toast.success(`Starting lightning-fast upload of ${valid.length} files (${formatFileSize(totalSize)})`);
         }
@@ -88,6 +95,7 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({ compact = false }) => 
         toast.success(`Successfully uploaded ${valid.length} files!`);
       } catch (error) {
         console.error('Upload error:', error);
+        trackError('upload_failed', 'add_images_error');
         toast.error('Upload failed. Please try again with fewer files or smaller images.');
       } finally {
         setIsLoadingExam(false);

@@ -21,15 +21,13 @@ export const EmailVerification: React.FC<EmailVerificationProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string>('');
   const [success, setSuccess] = useState<string>('');
-  const [emailSent, setEmailSent] = useState(false);
+  const [emailSent, setEmailSent] = useState(true); // Set to true initially since Cognito sends code during signup
   const [verificationAttempts, setVerificationAttempts] = useState(0);
 
   const { setUser, setAuth } = useAuthStore();
 
-  // Send verification email on component mount
-  useEffect(() => {
-    sendVerificationEmail();
-  }, []);
+  // Don't automatically send verification email - Cognito already sends one during signup
+  // Only send when user explicitly requests it via "Resend Code" button
 
   const sendVerificationEmail = async () => {
     setIsLoading(true);
@@ -41,11 +39,16 @@ export const EmailVerification: React.FC<EmailVerificationProps> = ({
       
       if (result.success) {
         setEmailSent(true);
-        setSuccess('Verification code sent! Check your email for the 6-digit code from AWS Cognito.');
+        setSuccess('New verification code sent! Check your email for the 6-digit code from AWS Cognito.');
         // Clear success message after 3 seconds
         setTimeout(() => setSuccess(''), 3000);
       } else {
-        setError(result.message || 'Failed to send verification code. Please try again.');
+        // Handle specific error messages
+        if (result.error?.message?.includes('Email verification is not enabled')) {
+          setError('Email verification is not enabled. Please contact support to enable this feature.');
+        } else {
+          setError(result.message || 'Failed to send verification code. Please try again.');
+        }
       }
     } catch (err: any) {
       console.error('Resend verification error:', err);
@@ -140,7 +143,7 @@ export const EmailVerification: React.FC<EmailVerificationProps> = ({
         {/* Email Status */}
         {emailSent && (
           <div className="success-message">
-            Verification OTP sent successfully
+            Verification code sent to your email
           </div>
         )}
 

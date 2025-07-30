@@ -28,6 +28,7 @@ interface MetadataStateOnly {
   viewMode: 'images' | 'bulk';
   isLoading: boolean;
   isInitialized: boolean;
+  isSortingEnabled: boolean;
 }
 
 // Combine state and actions
@@ -45,6 +46,7 @@ interface MetadataState extends MetadataStateOnly {
   setSketchSortDirection: (direction: 'asc' | 'desc' | null) => void;
   setBulkDefects: (defects: BulkDefect[] | ((prev: BulkDefect[]) => BulkDefect[])) => void;
   setDeletedDefects: (defects: BulkDefect[] | ((prev: BulkDefect[]) => BulkDefect[])) => void;
+  setIsSortingEnabled: (enabled: boolean) => void;
   reset: () => void;
   getSelectedCounts: () => { sketches: number; defects: number };
   loadUserData: () => Promise<void>;
@@ -89,6 +91,7 @@ const initialState: MetadataStateOnly = {
   viewMode: 'images',
   isLoading: false,
   isInitialized: false,
+  isSortingEnabled: true,
 };
 
 export const useMetadataStore = create<MetadataState>((set, get) => ({
@@ -606,6 +609,10 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       
       return { deletedDefects: newDeletedDefects };
     });
+  },
+
+  setIsSortingEnabled: (enabled) => {
+    set({ isSortingEnabled: enabled });
   },
 
   reset: () => {

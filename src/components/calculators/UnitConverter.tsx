@@ -70,40 +70,44 @@ export const UnitConverter: React.FC = () => {
   };
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm">
+    <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
       <div className="flex items-center gap-3 mb-6">
-        <Ruler className="text-indigo-500" size={24} />
-        <h2 className="text-2xl font-bold text-slate-800 dark:text-white">
-          Unit Converter
-        </h2>
-      </div>
-
-      <div className="prose dark:prose-invert max-w-none mb-8">
-        <div className="mt-4">
-          <h3 className="text-lg font-medium text-slate-700 dark:text-gray-200">
-            Supported Units:
-          </h3>
-          <ul className="list-disc list-inside text-slate-600 dark:text-gray-300">
-            {units.map(({ unit }) => (
-              <li key={unit}>{unit}</li>
-            ))}
-          </ul>
+        <Ruler className="text-blue-500" size={20} />
+        <div>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+            Unit Converter
+          </h2>
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            Convert between different length units instantly
+          </p>
         </div>
       </div>
 
-      <div className="space-y-4">
-        {conversions.map((conversion, index) => (
-          <div key={conversion.unit} className="flex flex-col sm:flex-row sm:items-center gap-2">
-            <label className="w-40 text-sm font-medium text-slate-700 dark:text-gray-300">
-              {conversion.unit}
+      <div className="mb-6 p-4 bg-gray-50 dark:bg-gray-700 rounded-md border border-gray-200 dark:border-gray-600">
+        <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+          Supported Units:
+        </h3>
+        <div className="grid grid-cols-2 gap-2 text-xs">
+          {units.map(({ unit }) => (
+            <div key={unit} className="text-gray-600 dark:text-gray-400">
+              {unit}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        {conversions.map((unit, index) => (
+          <div key={unit.unit}>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              {unit.unit}
             </label>
             <input
               type="text"
-              inputMode="decimal"
-              value={conversion.value}
+              value={unit.value}
               onChange={(e) => handleInputChange(index, e.target.value)}
               placeholder="Enter value"
-              className="flex-1 p-3 text-lg bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-slate-900 dark:text-white"
+              className="w-full p-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:text-white"
             />
           </div>
         ))}

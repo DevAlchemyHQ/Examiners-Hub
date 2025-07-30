@@ -12,14 +12,23 @@ import {
   validateTransformedData 
 } from '../utils/downloadTransformers';
 import { getFullApiUrl } from '../utils/apiConfig';
+import { toast } from 'react-hot-toast';
 
 export const DownloadButton: React.FC = () => {
   const navigate = useNavigate();
-  const { images, selectedImages, formData, viewMode, bulkDefects } = useMetadataStore();
+  const { 
+    selectedImages, 
+    images, 
+    formData, 
+    bulkDefects,
+    viewMode
+  } = useMetadataStore();
+  const { user } = useAuthStore();
+  const { trackImageDownload, trackBulkDownload, trackError, trackUserAction } = useAnalytics();
   const { isValid, getValidationErrors } = useValidation();
   const { isBulkValid, getBulkValidationErrors, getValidationSummary } = useBulkValidation();
-  const { trackEvent } = useAnalytics();
-  const { user } = useAuthStore();
+  
+  // State variables
   const [isDownloading, setIsDownloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasActiveSubscription, setHasActiveSubscription] = useState(false);
@@ -61,7 +70,7 @@ export const DownloadButton: React.FC = () => {
         defectsWithEmpty: bulkDefects.filter(d => !d.photoNumber?.trim()).length
       });
     }
-  }, [viewMode, bulkDefects, validationKey]);
+  }, [viewMode, bulkDefects, validationKey, getBulkValidationErrors, isBulkValid]);
 
   useEffect(() => {
     if (!user?.user_metadata) return;
@@ -73,19 +82,22 @@ export const DownloadButton: React.FC = () => {
   };
 
   const handleDownload = async () => {
+    if (!user) {
+      toast.error('Please sign in to download packages');
+      trackError('download_failed', 'not_authenticated');
+      return;
+    }
+
+    if (isSubscriptionExpired) {
+      toast.error('Your subscription has expired. Please upgrade to continue.');
+      trackError('download_failed', 'subscription_expired');
+      return;
+    }
+
+    setIsDownloading(true);
     try {
-      console.log('Download button clicked');
-      console.log('Current state:', { 
-        viewMode, 
-        selectedImages: selectedImages.size, 
-        bulkDefects: bulkDefects.length,
-        formData,
-        isBulkValid: isBulkValid(),
-        isValid: isValid()
-      });
-      
-      setIsDownloading(true);
-      setError(null);
+      // Track download attempt
+      trackUserAction('download_attempt', 'download_button_click');
 
       if (viewMode === 'bulk') {
         // Handle bulk mode download - Call Lambda function
@@ -95,7 +107,14 @@ export const DownloadButton: React.FC = () => {
           throw new Error('Your subscription has expired. Please upgrade to continue.');
         }
 
-        // Transform bulk defects to unified format (preserves all existing functionality)
+        // Check if there are any defects with selected images
+        const defectsWithImages = bulkDefects.filter(defect => defect.selectedFile);
+        
+        if (defectsWithImages.length === 0) {
+          throw new Error('Please select images for at least one defect');
+        }
+
+        // Transform bulk defects to unified format (same as BulkTextInput.tsx)
         const originalBulkData = { bulkDefects, images, formData };
         const transformedData = transformBulkDefectsForLambda(bulkDefects, images, formData);
         
@@ -106,47 +125,28 @@ export const DownloadButton: React.FC = () => {
 
         console.log('🚀 Calling Lambda for bulk download with unified format...');
         console.log('Transformed data sample:', transformedData.selectedImages[0]);
-        console.log('Total defects to download:', transformedData.selectedImages.length);
         
-        // Call Lambda function for bulk mode (now using unified format)
+        // Call Lambda function for bulk mode (same as BulkTextInput.tsx)
         const apiUrl = getFullApiUrl();
         console.log('🌐 Using API endpoint:', apiUrl);
-        
-        const requestBody = JSON.stringify(transformedData);
-        console.log('📤 Request body size:', requestBody.length, 'bytes');
         
         const response = await fetch(apiUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: requestBody
+          body: JSON.stringify(transformedData)
         });
 
-        console.log('📥 Response status:', response.status);
-        console.log('📥 Response headers:', Object.fromEntries(response.headers.entries()));
-
         if (!response.ok) {
-          let errorMessage = 'Bulk download failed';
-          try {
-            const errorData = await response.json();
-            errorMessage = errorData.error || errorData.message || 'Bulk download failed';
-          } catch (parseError) {
-            console.error('Failed to parse error response:', parseError);
-            errorMessage = `HTTP ${response.status}: ${response.statusText}`;
-          }
-          throw new Error(errorMessage);
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Bulk download failed');
         }
 
         const result = await response.json();
-        console.log('📥 Full Lambda bulk response:', result);
         
         if (!result.success) {
-          throw new Error(result.error || result.message || 'Bulk download failed');
-        }
-
-        if (!result.downloadUrl) {
-          throw new Error('No download URL received from Lambda');
+          throw new Error(result.error || 'Bulk download failed');
         }
 
         console.log('✅ Lambda bulk response received, download URL:', result.downloadUrl);
@@ -154,7 +154,8 @@ export const DownloadButton: React.FC = () => {
         // Download the file using the presigned URL
         window.open(result.downloadUrl, '_blank');
 
-        trackEvent({ action: 'download_bulk_package', category: 'user_action', value: transformedData.selectedImages.length });
+        // Track bulk download success
+        trackBulkDownload(transformedData.selectedImages.length, bulkDefects.length);
         console.log('✅ Bulk download completed successfully');
 
       } else {
@@ -244,13 +245,18 @@ export const DownloadButton: React.FC = () => {
         // Download the file using the presigned URL
         window.open(result.downloadUrl, '_blank');
 
-        trackEvent({ action: 'download_package', category: 'user_action', value: selectedImagesList.length });
+        // Track image download success
+        trackImageDownload(selectedImagesList.length, 'individual_package');
         console.log('✅ Download completed successfully');
 
       }
+
+      toast.success('Package downloaded successfully');
+
     } catch (error) {
-      console.error('Error creating download package:', error);
-      setError(error instanceof Error ? error.message : 'Failed to create download package');
+      console.error('Download error:', error);
+      trackError('download_failed', error instanceof Error ? error.message : 'unknown_error');
+      toast.error(error instanceof Error ? error.message : 'Failed to download package');
     } finally {
       setIsDownloading(false);
     }

@@ -12,6 +12,7 @@ import { SubscriptionPage } from './subscription.page';
 import { CalculatorPage } from './calculator.page';
 import { GamesPage } from './games.page';
 import { GridReferenceFinderPage } from './grid.page';
+import { FAQ } from './FAQ';
 
 
 const MainApp = () => {

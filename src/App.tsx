@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { useAuthStore } from './store/authStore';
 import { LoginScreen } from './components/LoginScreen';
@@ -9,10 +9,24 @@ import { FeedbackAdmin } from './pages/FeedbackAdmin';
 import { CalculatorPage } from './pages/calculator.page';
 import { GamesPage } from './pages/games.page';
 import { GridReferenceFinderPage } from './pages/grid.page';
+import { FAQ } from './pages/FAQ';
+import { useAnalytics } from './hooks/useAnalytics';
 
 import { ProjectsPage } from './pages/projects.pages';
 import { SubscriptionPage } from './pages/subscription.page';
 import './index.css';
+
+// Page View Tracker Component
+function PageViewTracker() {
+  const location = useLocation();
+  const { trackPageView } = useAnalytics();
+
+  useEffect(() => {
+    trackPageView(location.pathname);
+  }, [location.pathname, trackPageView]);
+
+  return null;
+}
 
 // Error Boundary Component
 class ErrorBoundary extends React.Component<
@@ -91,10 +105,12 @@ function App() {
             <Route path="/calculator" element={<CalculatorPage />} />
             <Route path="/games" element={<GamesPage />} />
             <Route path="/grid" element={<GridReferenceFinderPage />} />
+            <Route path="/faq" element={<FAQ />} />
 
             <Route path="/projects" element={<ProjectsPage />} />
             <Route path="/subscription" element={<SubscriptionPage />} />
           </Routes>
+          <PageViewTracker />
         </div>
       </Router>
     </ErrorBoundary>
