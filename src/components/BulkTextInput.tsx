@@ -284,7 +284,15 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
   };
 
   const reorderAndRenumberDefects = (defects: BulkDefect[]) => {
-    return defects.map((defect, idx) => ({
+    // Only renumber if auto-sorting is enabled and there are actual defects
+    if (!isSortingEnabled || defects.length === 0) {
+      return defects;
+    }
+    
+    // Filter out any defects without valid IDs to prevent phantom defects
+    const validDefects = defects.filter(defect => defect.id && defect.id.trim());
+    
+    return validDefects.map((defect, idx) => ({
       ...defect,
       photoNumber: String(idx + 1)
     }));
@@ -355,35 +363,48 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
   };
 
   const deleteDefect = (defectId: string) => {
+    // Validate the defect ID
+    if (!defectId || typeof defectId !== 'string') {
+      console.error('❌ Invalid defect ID for deletion:', defectId);
+      return;
+    }
+    
     // Find the defect by its unique ID (not photoNumber)
     const defect = bulkDefects.find(d => d.id === defectId);
     
-    if (defect) {
-      // Store the deleted defect with complete state for undo
-      const deletedDefect = {
-        defect: { ...defect },
-        originalIndex: bulkDefects.findIndex(d => d.id === defectId),
-        deletedAt: new Date(),
-        wasAutoSorted: isSortingEnabled,
-        originalPhotoNumber: defect.photoNumber
-      };
-      
-      setDeletedDefects(prev => [...prev, deletedDefect]);
-      
-      // If the defect had a selected file, deselect it
-      if (defect.selectedFile) {
-        const selectedImage = images.find(img => (img.fileName || img.file?.name || '') === defect.selectedFile);
-        if (selectedImage) {
-          toggleBulkImageSelection(selectedImage.id);
-        }
-      }
-
-      // Remove the defect by ID (not photoNumber)
-      setBulkDefects((items) => {
-        const filteredItems = items.filter((item) => item.id !== defectId);
-        return isSortingEnabled ? reorderAndRenumberDefects(filteredItems) : filteredItems;
-      });
+    if (!defect) {
+      console.error('❌ Defect not found for deletion:', defectId);
+      console.log('🔍 Available defects:', bulkDefects.map(d => ({ id: d.id, photoNumber: d.photoNumber })));
+      return;
     }
+    
+    console.log('🗑️ Deleting defect:', { id: defect.id, photoNumber: defect.photoNumber });
+    
+    // Store the deleted defect with complete state for undo
+    const deletedDefect = {
+      defect: { ...defect },
+      originalIndex: bulkDefects.findIndex(d => d.id === defectId),
+      deletedAt: new Date(),
+      wasAutoSorted: isSortingEnabled,
+      originalPhotoNumber: defect.photoNumber
+    };
+    
+    setDeletedDefects(prev => [...prev, deletedDefect]);
+    
+    // If the defect had a selected file, deselect it
+    if (defect.selectedFile) {
+      const selectedImage = images.find(img => (img.fileName || img.file?.name || '') === defect.selectedFile);
+      if (selectedImage) {
+        toggleBulkImageSelection(selectedImage.id);
+      }
+    }
+
+    // Remove the defect by ID (not photoNumber)
+    setBulkDefects((items) => {
+      const filteredItems = items.filter((item) => item.id !== defectId);
+      console.log('✅ Defect deleted, remaining items:', filteredItems.length);
+      return isSortingEnabled ? reorderAndRenumberDefects(filteredItems) : filteredItems;
+    });
   };
 
   const undoDelete = () => {
@@ -979,6 +1000,34 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
     }, 100);
   };
 
+  // Cleanup function to remove phantom or invalid defects
+  const cleanupInvalidDefects = () => {
+    setBulkDefects(currentDefects => {
+      // Remove defects without valid IDs
+      const validDefects = currentDefects.filter(defect => 
+        defect.id && 
+        defect.id.trim() && 
+        defect.id !== 'undefined' && 
+        defect.id !== 'null'
+      );
+      
+      // Remove duplicate IDs (keep the first occurrence)
+      const uniqueDefects = validDefects.filter((defect, index) => 
+        validDefects.findIndex(d => d.id === defect.id) === index
+      );
+      
+      if (uniqueDefects.length !== currentDefects.length) {
+        console.log('🧹 Cleaned up invalid defects:', {
+          before: currentDefects.length,
+          after: uniqueDefects.length,
+          removed: currentDefects.length - uniqueDefects.length
+        });
+      }
+      
+      return uniqueDefects;
+    });
+  };
+
   // Enhanced data validation and logging
   useEffect(() => {
     if (bulkDefects.length > 0) {
@@ -994,6 +1043,8 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
       const invalidDefects = bulkDefects.filter(d => !d.id);
       if (invalidDefects.length > 0) {
         console.warn('⚠️ Found defects without IDs:', invalidDefects.length);
+        // Clean up invalid defects
+        cleanupInvalidDefects();
       }
       
       const duplicateIds = bulkDefects.filter((d, index) => 
@@ -1001,6 +1052,8 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
       );
       if (duplicateIds.length > 0) {
         console.warn('⚠️ Found duplicate defect IDs:', duplicateIds.length);
+        // Clean up duplicate defects
+        cleanupInvalidDefects();
       }
     }
   }, [bulkDefects]);
@@ -1442,6 +1495,16 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
             className="text-sm font-medium"
           >
             Test SaveBulkData
+          </button>
+        </div>
+
+        {/* Cleanup button for invalid defects */}
+        <div className="fixed bottom-4 left-48 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg z-50">
+          <button
+            onClick={cleanupInvalidDefects}
+            className="text-sm font-medium"
+          >
+            Cleanup Invalid Defects
           </button>
         </div>
       </div>
