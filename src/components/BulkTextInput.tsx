@@ -82,31 +82,62 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
 
   // Load bulk data on component mount
   useEffect(() => {
+    // Prevent multiple calls
+    let isMounted = true;
+    
     const loadData = async () => {
+      // Don't load if already loading
+      if (isLoading) {
+        console.log('⏸️ Skipping load - already loading');
+        return;
+      }
+      
       const start = performance.now();
       setIsLoading(true);
       setError(null);
       
+      // Add timeout to prevent long loading states
+      const timeoutId = setTimeout(() => {
+        if (isMounted && isLoading) {
+          console.log('⏰ Loading timeout - forcing completion');
+          setIsLoading(false);
+        }
+      }, 5000); // 5 second timeout
+      
       try {
+        console.log('🔄 Starting bulk data load...');
         await loadBulkData();
         
-        // Track defect set load only if defects were actually loaded
-        const currentBulkDefects = useMetadataStore.getState().bulkDefects;
-        if (currentBulkDefects.length > 0) {
-          trackDefectSetLoad(currentBulkDefects.length, 'saved_defects');
+        // Only track if component is still mounted
+        if (isMounted) {
+          // Track defect set load only if defects were actually loaded
+          const currentBulkDefects = useMetadataStore.getState().bulkDefects;
+          if (currentBulkDefects.length > 0) {
+            trackDefectSetLoad(currentBulkDefects.length, 'saved_defects');
+          }
         }
       } catch (err) {
         console.error('Error loading bulk data:', err);
-        trackError('load_failed', 'bulk_data');
-        setError('Failed to load saved defects. Please refresh the page.');
+        if (isMounted) {
+          trackError('load_failed', 'bulk_data');
+          setError('Failed to load saved defects. Please refresh the page.');
+        }
       } finally {
-        setIsLoading(false);
-        console.log('Bulk data loaded in', (performance.now() - start).toFixed(0), 'ms');
+        clearTimeout(timeoutId);
+        if (isMounted) {
+          setIsLoading(false);
+          console.log('Bulk data loaded in', (performance.now() - start).toFixed(0), 'ms');
+        }
       }
     };
     
     loadData();
-  }, [loadBulkData, trackDefectSetLoad, trackError]);
+    
+    // Cleanup function
+    return () => {
+      isMounted = false;
+    };
+  }, []); // Empty dependency array - only run once on mount
 
   // Clear error after 5 seconds
   useEffect(() => {
@@ -821,9 +852,9 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
         }}
       >
         {isLoading ? (
-          // Simple loading state
-          <div className="flex items-center justify-center p-8">
-            <div className="text-slate-500 dark:text-slate-400">Loading...</div>
+          // Simple loading state - only show briefly
+          <div className="flex items-center justify-center p-4">
+            <div className="text-slate-500 dark:text-slate-400 text-sm">Loading defects...</div>
           </div>
         ) : (
           <div className="space-y-4">

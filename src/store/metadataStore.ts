@@ -1128,9 +1128,10 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         }
       }
       
-      // Try AWS if no localStorage data
+      // Try AWS if no localStorage data, but with better error handling
       if (userId !== 'anonymous') {
         try {
+          console.log('🔄 Trying AWS for bulk data...');
           const { defects } = await DatabaseService.getBulkDefects(userId);
           if (defects && defects.length > 0) {
             set({ bulkDefects: defects });
@@ -1140,12 +1141,17 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             console.log('No bulk defects found in AWS for user:', userId);
           }
         } catch (error) {
-          console.error('❌ Error loading from AWS:', error);
+          console.warn('⚠️ AWS load failed, continuing with empty state:', error);
+          
+          // If it's a performance issue, log it specifically
+          if (error instanceof Error && error.message.includes('ProvisionedThroughputExceededException')) {
+            console.warn('🚨 AWS DynamoDB performance issue detected. Consider increasing table capacity.');
+          }
         }
       }
       
       // Fallback to empty state
-      console.log('No bulk defects found, starting with empty state');
+      console.log('📱 No bulk defects found, starting with empty state');
       set({ bulkDefects: [] });
     } catch (error) {
       console.error('Error loading bulk data:', error);
