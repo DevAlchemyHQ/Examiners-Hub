@@ -25,6 +25,7 @@ interface AuthState {
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
   getServiceInfo: () => { isUsingAWS: boolean; featureFlags: any };
+  clearApplicationData: () => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -56,9 +57,118 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ isLoading: true });
     try {
       await AuthService.signOut();
+      
+      // Clear authentication data
       localStorage.removeItem('isAuthenticated');
       localStorage.removeItem('user');
       localStorage.removeItem('userEmail');
+      
+      // Clear ALL application data to prevent data leakage between users
+      console.log('🗑️ Clearing all application data on logout...');
+      
+      const keysToRemove = [
+        // Authentication keys
+        'isAuthenticated',
+        'user',
+        'userEmail',
+        
+        // Application data keys
+        'clean-app-images',
+        'clean-app-form-data',
+        'clean-app-bulk-data',
+        'clean-app-selected-images',
+        'clean-app-selections',
+        'viewMode',
+        'selected-images',
+        'project-data',
+        'form-data',
+        'image-selections',
+        'bulk-data',
+        'metadata-storage',
+        'defectSets',
+        'user-pdfs',
+        'pdf-storage',
+        'pdf1Name',
+        'pdf2Name',
+        'pageStates1',
+        'pageStates2',
+        
+        // Additional form-related keys
+        'elr',
+        'structureNo', 
+        'date',
+        'project-details',
+        'project-form',
+        'form-settings',
+        'project-settings',
+        
+        // User-specific keys (will be cleared by pattern)
+        'clean-app-form-data-',
+        'clean-app-images-',
+        'clean-app-bulk-data-',
+        'clean-app-selections-',
+        'user-pdfs-',
+        'saved-pdfs-'
+      ];
+      
+      // Remove specific keys
+      keysToRemove.forEach(key => {
+        try {
+          localStorage.removeItem(key);
+          sessionStorage.removeItem(key);
+          console.log(`🗑️ Removed key: ${key}`);
+        } catch (error) {
+          console.error(`Error removing key ${key}:`, error);
+        }
+      });
+      
+      // Clear all user-specific keys by pattern
+      const allKeys = Object.keys(localStorage);
+      const userSpecificKeys = allKeys.filter(key => 
+        key.includes('clean-app-') ||
+        key.includes('user-pdfs') ||
+        key.includes('saved-pdfs') ||
+        key.includes('project-') ||
+        key.includes('form-') ||
+        key.includes('image-') ||
+        key.includes('bulk-') ||
+        key.includes('defect-') ||
+        key.includes('pdf-')
+      );
+      
+      userSpecificKeys.forEach(key => {
+        try {
+          localStorage.removeItem(key);
+          sessionStorage.removeItem(key);
+          console.log(`🗑️ Removed user-specific key: ${key}`);
+        } catch (error) {
+          console.error(`Error removing user-specific key ${key}:`, error);
+        }
+      });
+      
+      // Reset all Zustand stores
+      try {
+        // Import and reset metadata store
+        const { useMetadataStore } = await import('./metadataStore');
+        useMetadataStore.getState().reset();
+        console.log('✅ Metadata store reset on logout');
+        
+        // Import and reset PDF store if available
+        const { usePDFStore } = await import('./pdfStore');
+        usePDFStore.getState().reset();
+        console.log('✅ PDF store reset on logout');
+        
+        // Import and reset project store if available
+        const { useProjectStore } = await import('./projectStore');
+        // Don't call clearProject as it's async and we're already in logout
+        // Just reset the state
+        useProjectStore.setState({ isLoading: false, error: null, isClearing: false });
+        console.log('✅ Project store reset on logout');
+      } catch (error) {
+        console.error('Error resetting stores on logout:', error);
+      }
+      
+      console.log('✅ All application data cleared on logout');
       set({ isAuthenticated: false, user: null });
     } catch (error) {
       console.error('Logout error:', error);
@@ -84,6 +194,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         try {
           const user = JSON.parse(storedUser);
           console.log('Found stored user session:', user.email);
+          
+          // Check if this is a different user than before (to prevent data leakage)
+          const currentUserEmail = get().user?.email;
+          if (currentUserEmail && currentUserEmail !== user.email) {
+            console.log('🔄 Different user detected, clearing previous user data...');
+            // Clear all application data for the previous user
+            await get().clearApplicationData();
+          }
           
           // Load profile data to get avatar_url and other metadata
           try {
@@ -126,6 +244,97 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // Don't change auth state on error - just log it
       console.log('Auth check error, keeping current state');
     }
+  },
+
+  // Clear all application data to prevent data leakage
+  clearApplicationData: async () => {
+    console.log('🗑️ Clearing application data for user switch...');
+    
+    const keysToRemove = [
+      // Application data keys
+      'clean-app-images',
+      'clean-app-form-data',
+      'clean-app-bulk-data',
+      'clean-app-selected-images',
+      'clean-app-selections',
+      'viewMode',
+      'selected-images',
+      'project-data',
+      'form-data',
+      'image-selections',
+      'bulk-data',
+      'metadata-storage',
+      'defectSets',
+      'user-pdfs',
+      'pdf-storage',
+      'pdf1Name',
+      'pdf2Name',
+      'pageStates1',
+      'pageStates2',
+      
+      // Additional form-related keys
+      'elr',
+      'structureNo', 
+      'date',
+      'project-details',
+      'project-form',
+      'form-settings',
+      'project-settings'
+    ];
+    
+    // Remove specific keys
+    keysToRemove.forEach(key => {
+      try {
+        localStorage.removeItem(key);
+        sessionStorage.removeItem(key);
+        console.log(`🗑️ Removed key: ${key}`);
+      } catch (error) {
+        console.error(`Error removing key ${key}:`, error);
+      }
+    });
+    
+    // Clear all user-specific keys by pattern
+    const allKeys = Object.keys(localStorage);
+    const userSpecificKeys = allKeys.filter(key => 
+      key.includes('clean-app-') ||
+      key.includes('user-pdfs') ||
+      key.includes('saved-pdfs') ||
+      key.includes('project-') ||
+      key.includes('form-') ||
+      key.includes('image-') ||
+      key.includes('bulk-') ||
+      key.includes('defect-') ||
+      key.includes('pdf-')
+    );
+    
+    userSpecificKeys.forEach(key => {
+      try {
+        localStorage.removeItem(key);
+        sessionStorage.removeItem(key);
+        console.log(`🗑️ Removed user-specific key: ${key}`);
+      } catch (error) {
+        console.error(`Error removing user-specific key ${key}:`, error);
+      }
+    });
+    
+    // Reset all Zustand stores
+    try {
+      const { useMetadataStore } = await import('./metadataStore');
+      useMetadataStore.getState().reset();
+      console.log('✅ Metadata store reset for user switch');
+      
+      const { usePDFStore } = await import('./pdfStore');
+      usePDFStore.getState().reset();
+      console.log('✅ PDF store reset for user switch');
+      
+      const { useProjectStore } = await import('./projectStore');
+      useProjectStore.setState({ isLoading: false, error: null, isClearing: false });
+      console.log('✅ Project store reset for user switch');
+    } catch (error) {
+      console.error('Error resetting stores for user switch:', error);
+    }
+    
+    console.log('✅ All application data cleared for user switch');
   },
   
   getServiceInfo: () => {

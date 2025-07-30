@@ -81,13 +81,25 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
   // Load bulk data on mount
   useEffect(() => {
     const loadData = async () => {
+      // Check if user has changed - don't load data for different user
+      const storedUser = localStorage.getItem('user');
+      const currentUser = storedUser ? JSON.parse(storedUser) : null;
+      const currentUserEmail = currentUser?.email;
+      const savedUserEmail = localStorage.getItem('userEmail');
+      
+      if (currentUserEmail && savedUserEmail && currentUserEmail !== savedUserEmail) {
+        console.log('🔄 User changed, skipping bulk data load');
+        return;
+      }
+      
       setIsLoading(true);
       const start = performance.now();
       try {
         await loadBulkData();
-        // Track defect set load
-        if (bulkDefects.length > 0) {
-          trackDefectSetLoad(bulkDefects.length, 'saved_defects');
+        // Track defect set load only if defects were actually loaded
+        const currentBulkDefects = useMetadataStore.getState().bulkDefects;
+        if (currentBulkDefects.length > 0) {
+          trackDefectSetLoad(currentBulkDefects.length, 'saved_defects');
         }
       } catch (err) {
         console.error('Error loading bulk data:', err);
@@ -99,7 +111,7 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
       }
     };
     loadData();
-  }, [loadBulkData, bulkDefects.length, trackDefectSetLoad, trackError]);
+  }, [loadBulkData, trackDefectSetLoad, trackError]); // Removed bulkDefects.length dependency
 
   // Clear error after 5 seconds
   useEffect(() => {
@@ -637,6 +649,91 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
       }
     });
   }, [bulkDefects, images]);
+
+  // Clear bulk data for new project
+  const handleNewProject = () => {
+    console.log('🆕 Starting new project - clearing bulk data...');
+    
+    // Clear bulk defects
+    setBulkDefects([]);
+    setDeletedDefects([]);
+    
+    // Clear form data
+    setFormData({
+      elr: '',
+      structureNo: '',
+      date: ''
+    });
+    
+    // Clear localStorage
+    localStorage.removeItem('clean-app-bulk-data');
+    
+    // Clear user-specific localStorage keys
+    const storedUser = localStorage.getItem('user');
+    const user = storedUser ? JSON.parse(storedUser) : null;
+    const userId = user?.email || localStorage.getItem('userEmail') || 'anonymous';
+    
+    const keysToRemove = [
+      `clean-app-bulk-data-${userId}`,
+      'clean-app-bulk-data',
+      'bulk-data',
+      'defectSets',
+      'clean-app-form-data',
+      'clean-app-images',
+      'clean-app-selections'
+    ];
+    
+    keysToRemove.forEach(key => {
+      try {
+        localStorage.removeItem(key);
+        sessionStorage.removeItem(key);
+        console.log(`🗑️ Removed key: ${key}`);
+      } catch (error) {
+        console.error(`Error removing key ${key}:`, error);
+      }
+    });
+    
+    console.log('✅ New project started - all data cleared');
+    toast.success('New project started - all data cleared');
+  };
+
+  // Debug function to test new project
+  const debugNewProject = () => {
+    console.log('🐛 Debug: Current bulk defects count:', bulkDefects.length);
+    console.log('🐛 Debug: Current form data:', formData);
+    console.log('🐛 Debug: localStorage bulk data:', localStorage.getItem('clean-app-bulk-data'));
+    
+    // Test the new project function
+    handleNewProject();
+    
+    // Check after clearing
+    setTimeout(() => {
+      console.log('🐛 Debug: After clear - bulk defects count:', useMetadataStore.getState().bulkDefects.length);
+      console.log('🐛 Debug: After clear - form data:', useMetadataStore.getState().formData);
+      console.log('🐛 Debug: After clear - localStorage bulk data:', localStorage.getItem('clean-app-bulk-data'));
+    }, 100);
+  };
+
+  // Debug function to test user switching
+  const debugUserSwitch = () => {
+    console.log('🐛 Debug: Testing user switch...');
+    console.log('🐛 Debug: Current user email:', localStorage.getItem('userEmail'));
+    console.log('🐛 Debug: Current bulk defects count:', bulkDefects.length);
+    console.log('🐛 Debug: Current form data:', formData);
+    console.log('🐛 Debug: localStorage bulk data:', localStorage.getItem('clean-app-bulk-data'));
+    
+    // Simulate user switch by changing userEmail
+    const testEmail = 'test@example.com';
+    localStorage.setItem('userEmail', testEmail);
+    console.log('🐛 Debug: Switched to test user:', testEmail);
+    
+    // Check if data is cleared
+    setTimeout(() => {
+      console.log('🐛 Debug: After switch - bulk defects count:', useMetadataStore.getState().bulkDefects.length);
+      console.log('🐛 Debug: After switch - form data:', useMetadataStore.getState().formData);
+      console.log('🐛 Debug: After switch - localStorage bulk data:', localStorage.getItem('clean-app-bulk-data'));
+    }, 100);
+  };
 
   // --- 1. Utility for selected images count ---
   const defectsWithImagesCount = bulkDefects.filter(d => d.selectedFile).length;

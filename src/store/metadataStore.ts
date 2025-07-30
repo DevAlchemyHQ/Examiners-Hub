@@ -616,6 +616,12 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
   },
 
   reset: () => {
+    console.log('🔄 Resetting metadata store...');
+    
+    // Clear bulk data first
+    get().clearBulkData();
+    
+    // Reset state
     set(initialState);
     
     // Clear ALL localStorage keys related to metadata store
@@ -666,12 +672,26 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         return;
       }
       
+      // Check if user has changed - don't load data for different user
+      const storedUser = localStorage.getItem('user');
+      const currentUser = storedUser ? JSON.parse(storedUser) : null;
+      const currentUserEmail = currentUser?.email;
+      
+      // Get the user email that was used to save the data
+      const savedUserEmail = localStorage.getItem('userEmail');
+      
+      if (currentUserEmail && savedUserEmail && currentUserEmail !== savedUserEmail) {
+        console.log('🔄 User changed, clearing old data and skipping loadUserData');
+        // Clear all data for the old user
+        get().reset();
+        return;
+      }
+      
       // Set loading state
       set({ isLoading: true });
       
       // Get user from localStorage
-      const storedUser = localStorage.getItem('user');
-      const user = storedUser ? JSON.parse(storedUser) : null;
+      const user = currentUser;
       const userId = user?.email || localStorage.getItem('userEmail') || 'anonymous';
       
       // Create user-specific localStorage keys to prevent data leakage
@@ -1048,6 +1068,13 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       const storedUser = localStorage.getItem('user');
       const user = storedUser ? JSON.parse(storedUser) : null;
       
+      // Check if we're in the middle of clearing a project
+      const projectStore = useProjectStore.getState();
+      if (projectStore.isClearing) {
+        console.log('⏸️ Skipping loadBulkData during project clear');
+        return;
+      }
+      
       if (user?.email) {
         try {
           // Use static import
@@ -1067,14 +1094,27 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       // Fallback to localStorage only if no user or AWS failed
       const savedBulkData = localStorage.getItem('clean-app-bulk-data');
       if (savedBulkData) {
-        const bulkDefects = JSON.parse(savedBulkData);
-        set({ bulkDefects });
-        console.log('📱 Bulk defects loaded from localStorage (fallback)');
+        try {
+          const bulkDefects = JSON.parse(savedBulkData);
+          // Only set if we have actual defects (not empty array)
+          if (bulkDefects && bulkDefects.length > 0) {
+            set({ bulkDefects });
+            console.log('📱 Bulk defects loaded from localStorage (fallback)');
+          } else {
+            console.log('No bulk defects found in localStorage (empty array)');
+            set({ bulkDefects: [] });
+          }
+        } catch (error) {
+          console.error('Error parsing localStorage bulk data:', error);
+          set({ bulkDefects: [] });
+        }
       } else {
         console.log('No bulk defects found in localStorage');
+        set({ bulkDefects: [] });
       }
     } catch (error) {
       console.error('Error loading bulk data:', error);
+      set({ bulkDefects: [] });
     }
   },
 
@@ -1444,9 +1484,37 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
   },
 
   clearBulkData: () => {
-    set({ bulkDefects: [] });
+    console.log('🗑️ Clearing bulk data...');
+    
+    // Clear state
+    set({ bulkDefects: [], deletedDefects: [] });
+    
     // Clear localStorage for local testing
     localStorage.removeItem('clean-app-bulk-data');
+    
+    // Clear user-specific localStorage keys
+    const storedUser = localStorage.getItem('user');
+    const user = storedUser ? JSON.parse(storedUser) : null;
+    const userId = user?.email || localStorage.getItem('userEmail') || 'anonymous';
+    
+    const userSpecificKeys = [
+      `clean-app-bulk-data-${userId}`,
+      'clean-app-bulk-data',
+      'bulk-data',
+      'defectSets'
+    ];
+    
+    userSpecificKeys.forEach(key => {
+      try {
+        localStorage.removeItem(key);
+        sessionStorage.removeItem(key);
+        console.log(`🗑️ Removed bulk data key: ${key}`);
+      } catch (error) {
+        console.error(`Error removing bulk data key ${key}:`, error);
+      }
+    });
+    
+    console.log('✅ Bulk data cleared from all sources');
   },
 
   savePdf: async (userId, pdfData) => {
