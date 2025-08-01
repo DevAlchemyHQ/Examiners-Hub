@@ -186,63 +186,51 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       console.log('Checking authentication status...');
       
-      // Check localStorage for stored user session
-      const storedUser = localStorage.getItem('user');
-      const storedAuth = localStorage.getItem('isAuthenticated');
+      // Use AuthService.getCurrentUser() to fetch fresh user data from AWS
+      const { user, error } = await AuthService.getCurrentUser();
       
-      if (storedUser && storedAuth === 'true') {
+      if (user && !error) {
+        console.log('✅ Valid user session found:', user.email);
+        
+        // Check if this is a different user than before (to prevent data leakage)
+        const currentUserEmail = get().user?.email;
+        if (currentUserEmail && currentUserEmail !== user.email) {
+          console.log('🔄 Different user detected, clearing previous user data...');
+          // Clear all application data for the previous user
+          await get().clearApplicationData();
+        }
+        
+        // Load profile data to get avatar_url and other metadata
         try {
-          const user = JSON.parse(storedUser);
-          console.log('Found stored user session:', user.email);
-          
-          // Check if this is a different user than before (to prevent data leakage)
-          const currentUserEmail = get().user?.email;
-          if (currentUserEmail && currentUserEmail !== user.email) {
-            console.log('🔄 Different user detected, clearing previous user data...');
-            // Clear all application data for the previous user
-            await get().clearApplicationData();
+          const profileResult = await ProfileService.getOrCreateUserProfile(user.id, user.email);
+          if (profileResult) {
+            // Update user with profile data including avatar_url
+            const updatedUser = {
+              ...user,
+              user_metadata: {
+                ...user.user_metadata,
+                avatar_url: profileResult.avatar_url,
+                subscription_plan: (profileResult as any).subscription_plan || 'Basic',
+                subscription_status: (profileResult as any).subscription_status || 'active',
+                subscription_end_date: (profileResult as any).subscription_end_date || null
+              }
+            };
+            set({ isAuthenticated: true, user: updatedUser });
+          } else {
+            set({ isAuthenticated: true, user });
           }
-          
-          // Load profile data to get avatar_url and other metadata
-          try {
-            const profileResult = await ProfileService.getOrCreateUserProfile(user.id, user.email);
-            if (profileResult) {
-              // Update user with profile data including avatar_url
-              const updatedUser = {
-                ...user,
-                user_metadata: {
-                  ...user.user_metadata,
-                  avatar_url: profileResult.avatar_url,
-                  subscription_plan: (profileResult as any).subscription_plan || 'Basic',
-                  subscription_status: (profileResult as any).subscription_status || 'active',
-                  subscription_end_date: (profileResult as any).subscription_end_date || null
-                }
-              };
-              set({ isAuthenticated: true, user: updatedUser });
-            } else {
-              set({ isAuthenticated: true, user });
-            }
-          } catch (profileError) {
-            console.error('Error loading profile data:', profileError);
-            // Still set user even if profile loading fails
+        } catch (profileError) {
+          console.error('Error loading profile data:', profileError);
+          // Still set user even if profile loading fails
           set({ isAuthenticated: true, user });
-          }
-        } catch (parseError) {
-          console.error('Error parsing stored user:', parseError);
-          // Clear invalid data
-          localStorage.removeItem('user');
-          localStorage.removeItem('isAuthenticated');
-          localStorage.removeItem('userEmail');
-          set({ isAuthenticated: false, user: null });
         }
       } else {
-        console.log('No stored user session found');
+        console.log('❌ No valid user session found');
         set({ isAuthenticated: false, user: null });
       }
     } catch (error) {
-      console.error('Auth check failed:', error);
-      // Don't change auth state on error - just log it
-      console.log('Auth check error, keeping current state');
+      console.error('Error checking authentication:', error);
+      set({ isAuthenticated: false, user: null });
     }
   },
 

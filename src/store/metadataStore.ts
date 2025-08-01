@@ -555,14 +555,24 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
     set((state) => {
       const newBulkDefects = typeof defects === 'function' ? defects(state.bulkDefects) : defects;
       
+      console.log('🔧 setBulkDefects called with:', {
+        newDefectsCount: newBulkDefects.length,
+        sampleDefect: newBulkDefects[0] ? {
+          id: newBulkDefects[0].id,
+          photoNumber: newBulkDefects[0].photoNumber,
+          description: newBulkDefects[0].description,
+          selectedFile: newBulkDefects[0].selectedFile
+        } : null
+      });
+      
       // Auto-save to localStorage immediately (but not during clearing)
       try {
         // Check if project is being cleared
         const projectStore = useProjectStore.getState();
         if (!projectStore.isClearing) {
           const keys = getUserSpecificKeys();
-        localStorage.setItem(keys.bulkData, JSON.stringify(newBulkDefects));
-          console.log('📱 Bulk defects saved to localStorage');
+          localStorage.setItem(keys.bulkData, JSON.stringify(newBulkDefects));
+          console.log('📱 Bulk defects saved to localStorage:', newBulkDefects.length);
         } else {
           console.log('⏸️ Skipping localStorage save during project clear');
         }
@@ -584,9 +594,16 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           const user = storedUser ? JSON.parse(storedUser) : null;
           
           if (user?.email) {
+            console.log('🚀 Starting AWS auto-save for user:', user.email);
             // Use static import
-            await DatabaseService.updateBulkDefects(user.email, newBulkDefects);
-            console.log('✅ Bulk defects auto-saved to AWS for user:', user.email);
+            const result = await DatabaseService.updateBulkDefects(user.email, newBulkDefects);
+            if (result.success) {
+              console.log('✅ Bulk defects auto-saved to AWS for user:', user.email, 'Count:', newBulkDefects.length);
+            } else {
+              console.error('❌ Failed to auto-save bulk defects to AWS:', result.error);
+            }
+          } else {
+            console.log('⚠️ No user found, skipping AWS save');
           }
         } catch (error) {
           console.error('❌ Error auto-saving bulk defects:', error);
@@ -1090,107 +1107,97 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       // Save to user-specific localStorage
       localStorage.setItem(`clean-app-bulk-data-${userId}`, JSON.stringify(bulkDefects));
       
-      // Save to AWS DynamoDB for cross-device persistence with better error handling
+      // Save to AWS DynamoDB for cross-device persistence
       if (userId !== 'anonymous') {
-        try {
-          // Add throttling to prevent capacity issues
-          const lastSaveTime = localStorage.getItem('last-bulk-save-time');
-          const now = Date.now();
-          if (lastSaveTime && (now - parseInt(lastSaveTime)) < 5000) { // 5 second throttle
-            console.log('⏸️ Throttling bulk save to prevent capacity issues');
-            return;
-          }
-          
-          // Use static import with better error handling
-          await DatabaseService.updateBulkDefects(userId, bulkDefects);
-          localStorage.setItem('last-bulk-save-time', now.toString());
-          console.log('✅ Bulk defects saved to AWS for user:', userId);
-        } catch (error) {
-          console.error('❌ Error saving bulk data to AWS:', error);
-          
-          // Handle specific AWS errors
-          if (error instanceof Error) {
-            if (error.message.includes('ProvisionedThroughputExceededException')) {
-              console.warn('⚠️ AWS DynamoDB capacity exceeded, will retry later');
-              // Don't throw error, just log it
-            } else if (error.message.includes('400')) {
-              console.warn('⚠️ AWS DynamoDB bad request, data may be malformed');
-              // Don't throw error, just log it
-            } else {
-              console.error('❌ Unexpected AWS error:', error.message);
-            }
-          }
-        }
+        // Use static import
+        await DatabaseService.updateBulkDefects(userId, bulkDefects);
+        console.log('Bulk defects saved to AWS for user:', userId);
       }
     } catch (error) {
-      console.error('❌ Error in saveBulkData:', error);
-      // Don't throw error to prevent app crashes
+      console.error('Error saving bulk data:', error);
     }
   },
 
   loadBulkData: async () => {
     try {
-      console.log('Loading bulk data...');
+      console.log('🔄 Loading bulk data...');
       
       // Get user from localStorage to avoid dynamic imports
       const storedUser = localStorage.getItem('user');
       const user = storedUser ? JSON.parse(storedUser) : null;
       const userId = user?.email || localStorage.getItem('userEmail') || 'anonymous';
       
-      // Check if we're in the middle of clearing a project
-      const projectStore = useProjectStore.getState();
-      if (projectStore.isClearing) {
-        console.log('⏸️ Skipping loadBulkData during project clear');
-        return;
-      }
+      console.log('👤 Loading bulk data for user:', userId);
       
       // Create user-specific localStorage keys
       const userSpecificKeys = {
         bulkData: `clean-app-bulk-data-${userId}`
       };
       
+      console.log('🔑 Using localStorage key:', userSpecificKeys.bulkData);
+      
       // Try localStorage first (consistent with loadUserData)
       const savedBulkData = localStorage.getItem(userSpecificKeys.bulkData);
       if (savedBulkData) {
         try {
           const bulkDefects = JSON.parse(savedBulkData);
+          console.log('📱 Found localStorage bulk data:', {
+            count: bulkDefects.length,
+            sample: bulkDefects[0] ? {
+              id: bulkDefects[0].id,
+              photoNumber: bulkDefects[0].photoNumber,
+              description: bulkDefects[0].description
+            } : null
+          });
+          
           if (bulkDefects && bulkDefects.length > 0) {
             set({ bulkDefects });
-            console.log('📱 Bulk defects loaded from localStorage');
+            console.log('✅ Bulk defects loaded from localStorage:', bulkDefects.length);
             return;
           }
         } catch (error) {
-          console.error('Error parsing localStorage bulk data:', error);
+          console.error('❌ Error parsing localStorage bulk data:', error);
         }
+      } else {
+        console.log('📱 No localStorage bulk data found');
       }
       
-      // Try AWS if no localStorage data, but with better error handling
+      // Try AWS if no localStorage data
       if (userId !== 'anonymous') {
         try {
-          console.log('🔄 Trying AWS for bulk data...');
-          const { defects } = await DatabaseService.getBulkDefects(userId);
-          if (defects && defects.length > 0) {
-            set({ bulkDefects: defects });
-            console.log('✅ Bulk defects loaded from AWS for user:', userId);
-            return;
+          console.log('☁️ Loading from AWS for user:', userId);
+          const { defects, error } = await DatabaseService.getBulkDefects(userId);
+          
+          if (error) {
+            console.error('❌ AWS getBulkDefects error:', error);
           } else {
-            console.log('No bulk defects found in AWS for user:', userId);
+            console.log('📥 AWS returned defects:', {
+              count: defects.length,
+              sample: defects[0] ? {
+                id: defects[0].id,
+                photoNumber: defects[0].photoNumber,
+                description: defects[0].description
+              } : null
+            });
+            
+            if (defects && defects.length > 0) {
+              set({ bulkDefects: defects });
+              console.log('✅ Bulk defects loaded from AWS for user:', userId, 'Count:', defects.length);
+              return;
+            } else {
+              console.log('📭 No defects found in AWS');
+            }
           }
         } catch (error) {
           console.warn('⚠️ AWS load failed, continuing with empty state:', error);
-          
-          // If it's a performance issue, log it specifically
-          if (error instanceof Error && error.message.includes('ProvisionedThroughputExceededException')) {
-            console.warn('🚨 AWS DynamoDB performance issue detected. Consider increasing table capacity.');
-          }
         }
       }
       
       // Fallback to empty state
-      console.log('📱 No bulk defects found, starting with empty state');
+      console.log('📭 No bulk defects found, starting with empty state');
       set({ bulkDefects: [] });
     } catch (error) {
-      console.error('Error loading bulk data:', error);
+      console.error('❌ Error loading bulk data:', error);
       set({ bulkDefects: [] });
     }
   },

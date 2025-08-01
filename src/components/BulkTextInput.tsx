@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo, Component, ErrorInfo, ReactNode } from 'react';
-import { AlertCircle, FileText, Upload, Plus, ArrowUpDown, Loader2, Download, Trash2, CheckCircle, X, Maximize2, Upload as UploadIcon } from 'lucide-react';
+import { AlertCircle, FileText, Upload, Plus, ArrowUpDown, Loader2, Download, Trash2, CheckCircle, X, Maximize2 } from 'lucide-react';
 import { useMetadataStore } from '../store/metadataStore';
 import { useAuthStore } from '../store/authStore';
 import { useAnalytics } from '../hooks/useAnalytics';
@@ -548,7 +548,7 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
           selectedFile: defect.fileName
         }));
 
-        console.log('New defects to add:', newDefects);
+        console.log('📋 New defects to add from bulk paste:', newDefects.map(d => ({ photoNumber: d.photoNumber, description: d.description })));
 
         // Update project date if available - ensure it's properly set
         if (parseResult.projectDate) {
@@ -595,6 +595,7 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
         };
       });
 
+      console.log('📋 New defects to add from simple format:', newDefects.map(d => ({ photoNumber: d.photoNumber, description: d.description })));
       setBulkDefects(prev => [...prev, ...newDefects]);
       setBulkText('');
       setShowBulkPasteState(false);
@@ -657,6 +658,8 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
   };
 
   const updateDefectDescription = (photoNumber: string, description: string) => {
+    console.log('📝 Updating description for photo number:', photoNumber, 'description:', description);
+    
     const { isValid, invalidChars, hasForwardSlashes } = validateDescription(description);
     if (!isValid) {
       setError(hasForwardSlashes ? 'Forward slashes (/) are not allowed in descriptions' : `Invalid characters found: ${invalidChars.join(' ')}`);
@@ -664,11 +667,13 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
     }
     setError(null);
     
-    setBulkDefects((items) =>
-      items.map((item) =>
+    setBulkDefects((items) => {
+      const updated = items.map((item) =>
         item.photoNumber === photoNumber ? { ...item, description } : item
-      )
-    );
+      );
+      console.log('📝 Updated bulk defects:', updated.map(d => ({ photoNumber: d.photoNumber, description: d.description })));
+      return updated;
+    });
   };
 
   const handleFileSelect = (photoNumber: string, fileName: string) => {
@@ -1110,19 +1115,19 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
       
       // Set new timeout for auto-save
       debouncedAutoSave.current = setTimeout(async () => {
+        console.log('🔄 Auto-save triggered for bulk defects:', bulkDefects.map(d => ({ photoNumber: d.photoNumber, description: d.description })));
+        
         // Only save if we're not in the middle of clearing
         const projectStore = useProjectStore.getState();
         if (!projectStore.isClearing) {
           try {
-            // Temporarily disable auto-save to isolate the error
-            // await saveBulkData();
-            console.log('⏸️ Auto-save temporarily disabled for debugging');
+            await saveBulkData();
           } catch (error) {
             console.error('❌ Auto-save failed:', error);
             // Don't show error to user for auto-save failures
           }
         }
-      }, 1000); // 1 second debounce
+      }, 2000); // 2 second debounce
     }
     
     return () => {

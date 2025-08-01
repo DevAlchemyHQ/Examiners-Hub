@@ -385,10 +385,28 @@ export class AuthService {
           
           // Verify the session is still valid by checking with AWS
           if (session.access_token) {
-            // For now, we'll trust the stored session since Cognito doesn't have a simple token validation endpoint
-            // In production, you might want to validate the token with AWS
-            console.log('✅ Valid session found for user:', user.email);
-            return { user, error: null };
+            // Fetch fresh user attributes from AWS Cognito
+            const attributesResult = await this.getUserAttributes(user.email);
+            if (attributesResult.success) {
+              // Update user with fresh attributes from AWS
+              const updatedUser = {
+                ...user,
+                user_metadata: {
+                  ...user.user_metadata,
+                  full_name: attributesResult.attributes.name || user.user_metadata?.full_name || user.email?.split('@')[0] || 'User'
+                }
+              };
+              
+              // Update localStorage with fresh data
+              localStorage.setItem('user', JSON.stringify(updatedUser));
+              
+              console.log('✅ Valid session found for user:', user.email);
+              console.log('✅ Updated user attributes from AWS:', updatedUser.user_metadata);
+              return { user: updatedUser, error: null };
+            } else {
+              console.log('⚠️ Failed to fetch user attributes, using stored data');
+              return { user, error: null };
+            }
           }
         } catch (parseError) {
           console.error('Error parsing stored session:', parseError);
@@ -672,38 +690,96 @@ export class AuthService {
     try {
       console.log('🔐 AWS Cognito verifyResetOTP for:', email);
       
-      const confirmForgotPasswordCommand = new ConfirmForgotPasswordCommand({
+      const confirmCommand = new ConfirmForgotPasswordCommand({
         ClientId: CLIENT_ID,
         Username: email,
         ConfirmationCode: otp,
         Password: newPassword
       });
       
-      await cognitoClient.send(confirmForgotPasswordCommand);
-      console.log('✅ AWS Cognito verifyResetOTP successful');
+      await cognitoClient.send(confirmCommand);
+      console.log('✅ Password reset successful');
       
-      return { error: null };
+      return { success: true, error: null };
     } catch (error: any) {
-      console.error('AWS Cognito verifyResetOTP error:', error);
-      
-      // Provide more helpful error messages
-      let errorMessage = 'Failed to reset password. Please try again.';
-      
-      if (error.name === 'CodeMismatchException') {
-        errorMessage = 'Invalid verification code. Please check your email and try again.';
-      } else if (error.name === 'ExpiredCodeException') {
-        errorMessage = 'Verification code has expired. Please request a new code.';
-      } else if (error.name === 'InvalidPasswordException') {
-        errorMessage = 'Password does not meet requirements. Use at least 8 characters with uppercase, lowercase, numbers, and symbols.';
-      } else if (error.name === 'LimitExceededException') {
-        errorMessage = 'Too many attempts. Please wait before trying again.';
-      }
-      
-      return { error: { message: errorMessage, originalError: error } };
+      console.error('AWS Cognito password reset error:', error);
+      return { success: false, error };
     }
   }
 
+  static async updateUserAttributes(email: string, attributes: { name?: string; email?: string }) {
+    try {
+      console.log('🔐 AWS Cognito updateUserAttributes for:', email);
+      
+      const userAttributes = [];
+      
+      if (attributes.name) {
+        userAttributes.push({
+          Name: 'name',
+          Value: attributes.name
+        });
+      }
+      
+      if (attributes.email) {
+        userAttributes.push({
+          Name: 'email',
+          Value: attributes.email
+        });
+      }
+      
+      if (userAttributes.length === 0) {
+        console.log('⚠️ No attributes to update');
+        return { success: true, error: null };
+      }
+      
+      const updateCommand = new AdminUpdateUserAttributesCommand({
+        UserPoolId: USER_POOL_ID,
+        Username: email,
+        UserAttributes: userAttributes
+      });
+      
+      await cognitoClient.send(updateCommand);
+      console.log('✅ User attributes updated successfully');
+      
+      return { success: true, error: null };
+    } catch (error: any) {
+      console.error('AWS Cognito updateUserAttributes error:', error);
+      return { success: false, error };
+    }
+  }
 
+  static async getUserAttributes(email: string) {
+    try {
+      console.log('🔐 AWS Cognito getUserAttributes for:', email);
+      
+      const getUserCommand = new AdminGetUserCommand({
+        UserPoolId: USER_POOL_ID,
+        Username: email
+      });
+      
+      const result = await cognitoClient.send(getUserCommand);
+      console.log('✅ User attributes fetched successfully');
+      
+      // Extract user attributes
+      const attributes: any = {};
+      if (result.UserAttributes) {
+        result.UserAttributes.forEach(attr => {
+          if (attr.Name && attr.Value) {
+            attributes[attr.Name] = attr.Value;
+          }
+        });
+      }
+      
+      return { 
+        success: true, 
+        attributes,
+        error: null 
+      };
+    } catch (error: any) {
+      console.error('AWS Cognito getUserAttributes error:', error);
+      return { success: false, attributes: {}, error };
+    }
+  }
 }
 
 // Storage Service
@@ -947,8 +1023,29 @@ export class DatabaseService {
       
       const result = await docClient.send(command);
       console.log('✅ AWS DynamoDB getBulkDefects result:', result);
+      console.log('🔍 Raw DynamoDB items:', result.Items);
       
-      return { defects: result.Items || [], error: null };
+      // Transform DynamoDB items back to the expected format
+      const transformedDefects = (result.Items || []).map(item => ({
+        id: item.defect_id,
+        photoNumber: item.photoNumber || '',
+        description: item.description || '',
+        selectedFile: item.selectedFile || null,
+        severity: item.severity || 'medium',
+        created_at: item.created_at
+      }));
+      
+      console.log('📥 Loaded defects from AWS:', {
+        count: transformedDefects.length,
+        sample: transformedDefects[0] ? {
+          id: transformedDefects[0].id,
+          photoNumber: transformedDefects[0].photoNumber,
+          description: transformedDefects[0].description,
+          selectedFile: transformedDefects[0].selectedFile
+        } : null
+      });
+      
+      return { defects: transformedDefects, error: null };
     } catch (error) {
       console.error('AWS DynamoDB getBulkDefects error:', error);
       return { defects: [], error };
@@ -1006,7 +1103,7 @@ export class DatabaseService {
               defect_id: defect.id || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
               photoNumber: defect.photoNumber || '',
               description: defect.description || '',
-              selectedFile: defect.selectedFile || null,
+              selectedFile: defect.selectedFile || '',
               severity: defect.severity || 'medium',
               created_at: new Date().toISOString()
             }
@@ -1028,8 +1125,6 @@ export class DatabaseService {
         
         console.log(`✅ Added ${defects.length} new defects`);
       }
-      
-      console.log('✅ AWS DynamoDB updateBulkDefects successful');
       
       return { success: true, error: null };
     } catch (error) {

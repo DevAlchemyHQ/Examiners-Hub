@@ -91,10 +91,7 @@ export const LoginScreen: React.FC = () => {
             // Update auth state
             setAuth(true);
             
-            // Force a small delay to ensure state updates
-            await new Promise(resolve => setTimeout(resolve, 100));
-            
-            // Then navigate
+            // Navigate immediately
             navigate('/app');
           } else {
             // Display the specific error message from AWS
@@ -201,10 +198,7 @@ export const LoginScreen: React.FC = () => {
           // Update auth state
           setAuth(true);
           
-          // Force a small delay to ensure state updates
-          await new Promise(resolve => setTimeout(resolve, 100));
-          
-          // Then navigate
+          // Navigate immediately
           navigate('/');
         } else {
           throw new Error('Verification failed');

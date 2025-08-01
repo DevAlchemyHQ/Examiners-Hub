@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FileText, ZoomIn, ZoomOut, Upload, RotateCw, Loader2 } from 'lucide-react';
+import { FileText, ZoomIn, ZoomOut, FileUp, RotateCw, Loader2 } from 'lucide-react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import { usePDFStore } from '../../store/pdfStore';
 import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
@@ -74,7 +74,7 @@ const PDFViewerSection: React.FC<PDFViewerSectionProps> = ({
               {isLoading ? (
                 <Loader2 size={16} className="text-slate-600 dark:text-white animate-spin" />
               ) : (
-                <Upload size={16} className="text-slate-600 dark:text-white" />
+                <FileUp size={16} className="text-slate-600 dark:text-white" />
               )}
             </button>
             <button

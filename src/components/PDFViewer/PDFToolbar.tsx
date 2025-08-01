@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { Upload, Search, ZoomIn, ZoomOut, Maximize2, Minimize2 } from 'lucide-react';
+import { FileUp, Search, ZoomIn, ZoomOut, Maximize2, Minimize2 } from 'lucide-react';
 
 interface PDFToolbarProps {
   onFileUpload: (file: File) => void;
@@ -48,7 +48,7 @@ export const PDFToolbar: React.FC<PDFToolbarProps> = ({
             : 'bg-indigo-500 text-white hover:bg-indigo-600'
         }`}
       >
-        <Upload size={16} />
+        <FileUp size={16} />
         {isLoading ? 'Processing...' : 'Upload PDF'}
       </button>
 

@@ -1,12 +1,10 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Menu, Camera, User, CreditCard, Settings, LogOut, XCircle, Edit3, MessageCircle } from 'lucide-react';
+import { Menu, Camera, User, CreditCard, Settings, LogOut, XCircle, Edit3 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { StorageService, DatabaseService, AuthService } from '../lib/services';
-import { EditProfileModal } from './profile/EditProfile';
 import { useMetadataStore } from '../store/metadataStore';
 import { useThemeStore } from '../store/themeStore';
-import { ChatBot } from './ChatBot';
 
 export const Header: React.FC = React.memo(() => {
   const navigate = useNavigate();
@@ -14,11 +12,10 @@ export const Header: React.FC = React.memo(() => {
   const { logout, user } = useAuthStore();
   const { setUser } = useAuthStore();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
-  const [showEditProfile, setShowEditProfile] = useState(false);
   const [showUnsubscribeModal, setShowUnsubscribeModal] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('/dashboard'); // Static active tab state
-  const [showChatBot, setShowChatBot] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   // Use ref to prevent re-renders
   const headerRef = useRef<HTMLDivElement>(null);
@@ -100,127 +97,93 @@ export const Header: React.FC = React.memo(() => {
   const subscriptionStatus = useMemo(() => user?.user_metadata.subscription_status || 'active', [user?.user_metadata.subscription_status]);
   const subscriptionEndDate = useMemo(() => user?.user_metadata.subscription_end_date || '', [user?.user_metadata.subscription_end_date]);
 
-  // Check if subscription end date is in the future
-  const isSubscriptionEndDateFuture = useMemo(() => subscriptionEndDate 
-    ? new Date(subscriptionEndDate) > new Date() 
+  const isSubscriptionEndDateFuture = useMemo(() => subscriptionEndDate
+    ? new Date(subscriptionEndDate) > new Date()
     : false, [subscriptionEndDate]);
 
-  // Calculate time remaining until subscription ends
-  const getTimeRemaining = useCallback(() => {
-    if (!subscriptionEndDate) return null;
-    
-    const endDate = new Date(subscriptionEndDate);
-    const now = new Date();
-    
-    if (endDate <= now) return null;
-    
-    const diffMs = endDate.getTime() - now.getTime();
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-    
-    if (diffDays > 30) {
-      const diffMonths = Math.floor(diffDays / 30);
-      return `${diffMonths} month${diffMonths > 1 ? 's' : ''}`;
-    } else {
-      return `${diffDays} day${diffDays > 1 ? 's' : ''}`;
-    }
+  const formattedSubscriptionEndDate = useMemo(() => {
+    if (!subscriptionEndDate) return '';
+    return new Date(subscriptionEndDate).toLocaleDateString('en-GB', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric'
+    });
   }, [subscriptionEndDate]);
+
+  const getTimeRemaining = useCallback(() => {
+    if (!subscriptionEndDate || !isSubscriptionEndDateFuture) return null;
+    
+    const now = new Date();
+    const endDate = new Date(subscriptionEndDate);
+    const diff = endDate.getTime() - now.getTime();
+    
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    
+    if (days > 0) {
+      return `${days} day${days !== 1 ? 's' : ''}${hours > 0 ? `, ${hours} hour${hours !== 1 ? 's' : ''}` : ''}`;
+    } else if (hours > 0) {
+      return `${hours} hour${hours !== 1 ? 's' : ''}`;
+    } else {
+      return 'Less than 1 hour';
+    }
+  }, [subscriptionEndDate, isSubscriptionEndDateFuture]);
 
   const timeRemaining = useMemo(() => getTimeRemaining(), [getTimeRemaining]);
 
   const fetchSubscriptionDetails = async () => {
     if (!user?.email) return;
-  
+    
     try {
-      console.log('Fetching subscription details from AWS DynamoDB');
-      
-      // Get user profile from DynamoDB
-      const { profile, error } = await DatabaseService.getProfile(user.id);
-      
-      if (error) {
-        console.error("Error fetching subscription details:", error);
-        // Use default subscription data
-        setUser({
-          ...user,
-          user_metadata: {
-            ...user.user_metadata,
-            subscription_plan: 'Basic',
-            subscription_status: 'active',
-            subscription_end_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-          },
-        });
+      const result = await DatabaseService.getSubscriptionDetails(user.email);
+      if (result.error) {
+        console.error('Error fetching subscription details:', result.error);
         return;
       }
       
-      if (profile) {
+      if (result.data) {
         setUser({
           ...user,
           user_metadata: {
             ...user.user_metadata,
-            subscription_plan: profile.subscription_plan || 'Basic',
-            subscription_status: profile.subscription_status || 'active',
-            subscription_end_date: profile.subscription_end_date || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-          },
+            subscription_plan: result.data.plan || 'Basic',
+            subscription_status: result.data.status || 'active',
+            subscription_end_date: result.data.end_date || ''
+          }
         });
       }
-    } catch (err) {
-      console.error("Unexpected error fetching subscription details:", err);
-      // Use default subscription data on error
-      setUser({
-        ...user,
-        user_metadata: {
-          ...user.user_metadata,
-          subscription_plan: 'Basic',
-          subscription_status: 'active',
-          subscription_end_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-        },
-      });
+    } catch (error) {
+      console.error('Error fetching subscription details:', error);
     }
   };
 
-  const formattedSubscriptionEndDate = subscriptionEndDate
-  ? new Date(subscriptionEndDate).toLocaleDateString(undefined, {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    })
-  : '';
-
-  const handleNavigation = useCallback((path: string) => {
-    navigate(path);
-    setIsMobileMenuOpen(false);
-  }, [navigate]);
-
-  const handleSubsciption = useCallback(() => {
-    navigate('/subscriptions');
-    setShowProfileMenu(false);
-  }, [navigate]);
-
   const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !user) return;
+
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${user.id}.${fileExt}`;
+    const filePath = `avatars/${fileName}`;
+
     try {
-      const file = event.target.files?.[0];
-      if (!file || !user) return;
-
-      // Generate file path with user's id as folder name
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Date.now()}.${fileExt}`;
-      const filePath = `avatars/${user.id}/${fileName}`;
-
       // Upload to S3 using StorageService
       const uploadResult = await StorageService.uploadFile(file, filePath);
-      
+
       if (uploadResult.error) {
         console.error('Upload error:', uploadResult.error);
         throw uploadResult.error;
       }
 
-      // Update user profile with new avatar URL using AWS
+      // Update user profile in database
       await DatabaseService.updateProfile(user.id, { avatar_url: uploadResult.url });
+
+      // Update local state
       setUser({
         ...user,
         user_metadata: {
           ...user.user_metadata,
           avatar_url: uploadResult.url,
-        },
+        }
       });
     } catch (error) {
       console.error('Image upload error:', error);
@@ -229,272 +192,74 @@ export const Header: React.FC = React.memo(() => {
 
   const handleLogout = async () => {
     try {
-      setShowProfileMenu(false);
-      await AuthService.signOut();
+      console.log('🔄 Starting logout process...');
+      setIsLoggingOut(true);
+      
+      // Don't close the menu immediately, let the user see the loading state
+      console.log('🚪 Calling logout function...');
       await logout();
-      navigate("/login");
+      
+      console.log('✅ Logout successful, navigating to login...');
+      setShowProfileMenu(false);
+      navigate('/');
     } catch (error) {
-      console.error('Logout error:', error);
+      console.error('❌ Logout error:', error);
+      // Even if logout fails, try to navigate away
+      setShowProfileMenu(false);
+      navigate('/');
+    } finally {
+      setIsLoggingOut(false);
     }
   };
 
   const handleUnsubscribe = () => {
-    setShowProfileMenu(false);
     setShowUnsubscribeModal(true);
   };
 
   const confirmUnsubscribe = async () => {
+    if (!user?.email) return;
+    
     try {
-      if (user) {
-        // await cancelSubscription(user.id); // This line was removed as per the edit hint
-        setUser({
-          ...user,
-          user_metadata: {
-            ...user.user_metadata,
-            subscription_plan: 'Basic',
-            subscription_status: 'cancelled',
-            cancelled_date: new Date().toISOString(),
-          },
-        });
+      const result = await DatabaseService.cancelSubscription(user.email);
+      if (result.error) {
+        console.error('Error cancelling subscription:', result.error);
+        return;
       }
+      
+      // Update local state
+      setUser({
+        ...user,
+        user_metadata: {
+          ...user.user_metadata,
+          subscription_status: 'cancelled'
+        }
+      });
+      
       setShowUnsubscribeModal(false);
     } catch (error) {
-      console.error('Unsubscribe error:', error);
+      console.error('Error cancelling subscription:', error);
     }
   };
 
-  React.useEffect(() => {
+  // Close profile menu when clicking outside
+  useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as HTMLElement;
-      if (!target.closest('.profile-menu') && !target.closest('.profile-button')) {
+      const target = event.target as Element;
+      if (showProfileMenu && 
+          !target.closest('.profile-button') && 
+          !target.closest('.profile-menu')) {
         setShowProfileMenu(false);
       }
     };
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  }, [showProfileMenu]);
 
-  React.useEffect(() => {
-    fetchSubscriptionDetails();
-  }, [user?.email]);
-  
-
-  const headerContent = useMemo(() => (
-    <div className="w-full px-4">
-      <div className="h-16 flex items-center justify-between">
-        {/* Left Section - Logo and Greeting */}
-        <div className="flex items-center gap-4 flex-shrink-0">
-          <button
-            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            className="lg:hidden p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
-          >
-            <Menu size={20} />
-          </button>
-          
-          <div 
-            onClick={() => navigate('/')}
-            className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity"
-          >
-            <img 
-              src="/feather-logo.svg" 
-              alt="Exametry" 
-              className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg shadow-sm"
-              style={{
-                filter: 'brightness(0) invert(1)',
-                opacity: 0.9
-              }}
-            />
-            <div className="flex items-center gap-2 sm:gap-3">
-              <h1 className="text-lg sm:text-xl font-bold text-slate-800 dark:text-white">
-                {getGreeting()}, 
-                <button 
-                  onClick={() => setShowEditProfile(true)}
-                  className="inline-flex items-center gap-1 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors ml-1"
-                  title="Click to edit your name"
-                >
-                  <span className="hidden sm:inline">{getUserDisplayName()}</span>
-                  <span className="sm:hidden">{getUserDisplayName().split(' ')[0]}</span>
-                  <Edit3 size={14} className="opacity-60 hover:opacity-100" />
-                </button>! 😊
-              </h1>
-              
-              {/* Show subscription end date info for cancelled but active subscriptions */}
-              {subscriptionStatus === 'cancelled' && isSubscriptionEndDateFuture && subscriptionPlan !== 'Basic' && (
-                <div className="hidden md:flex items-center px-2 py-1 bg-amber-100 dark:bg-amber-900/30 rounded-full">
-                  <span className="text-xs text-amber-700 dark:text-amber-400">
-                    <span className="font-medium">{subscriptionPlan}</span> until {formattedSubscriptionEndDate}
-                  </span>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Center Section - Navigation */}
-        <nav className="hidden lg:flex items-center justify-center flex-1 px-8">
-          <div className="flex items-center space-x-8 w-full">
-            {navigationTabs.map((tab) => (
-              <button
-                key={tab.path}
-                onClick={() => handleNavigation(tab.path)}
-                className={`
-                  px-8 py-2 whitespace-nowrap rounded-lg text-sm font-medium transition-all duration-200 text-center
-                  ${activeTab === tab.path
-                    ? 'bg-indigo-500 text-white shadow-md'
-                    : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-800 dark:hover:text-white'
-                  }
-                `}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-        </nav>
-
-        {/* Right Section - Date, Time, and Profile */}
-        <div className="flex items-center gap-4 sm:gap-6 flex-shrink-0">
-          {/* Time and Date Display */}
-          <div className="hidden sm:flex items-center gap-3 lg:gap-4 text-sm text-slate-600 dark:text-gray-300">
-            <div className="flex items-center gap-2">
-              <span className="font-medium">{new Date().toLocaleDateString('en-GB', { weekday: 'short' })}</span>
-              <span ref={dateRef} className="text-slate-500 dark:text-gray-400">{new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>
-            </div>
-            
-            <div className="w-px h-4 bg-slate-200 dark:bg-gray-700" />
-            
-            <div className="flex items-center gap-2">
-              <span ref={timeRef} className="font-medium">{new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })}</span>
-              <span className="text-xs text-slate-500 dark:text-gray-400">UK</span>
-            </div>
-          </div>
-          
-          {/* Chatbot Button */}
-          <button
-            onClick={() => setShowChatBot(true)}
-            className="p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-            title="Get help from Exametry Assistant"
-          >
-            <MessageCircle size={20} />
-          </button>
-          
-          {/* Profile Button */}
-          <div className="relative">
-            <button
-              onClick={() => setShowProfileMenu(!showProfileMenu)}
-              className="profile-button w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-indigo-500 text-white flex items-center justify-center text-lg hover:bg-indigo-600 transition-all duration-200 overflow-hidden shadow-md"
-            >
-              {profileImage ? (
-                <img
-                  src={profileImage}
-                  alt="Profile"
-                  className="w-full h-full object-cover rounded-full"
-                />
-              ) : (
-                <User size={20} />
-              )}
-            </button>
-            
-            {/* Profile Menu */}
-            {showProfileMenu && (
-              <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50">
-                {/* User Info Section */}
-                <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-indigo-500 flex items-center justify-center">
-                      {profileImage ? (
-                        <img
-                          src={profileImage}
-                          alt="Profile"
-                          className="w-full h-full object-cover rounded-full"
-                        />
-                      ) : (
-                        <User size={20} className="text-white" />
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                        {getUserDisplayName()}
-                      </p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                        {user?.email}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Menu Items */}
-                <div className="py-2">
-                  <button
-                    onClick={() => {
-                      setShowEditProfile(true);
-                      setShowProfileMenu(false);
-                    }}
-                    className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3"
-                  >
-                    <Edit3 size={16} />
-                    Edit Profile
-                  </button>
-                  
-                  <button
-                    onClick={() => {
-                      // setShowImageUpload(true); // This state was removed from the original file
-                      setShowProfileMenu(false);
-                    }}
-                    className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3"
-                  >
-                    <Upload size={16} />
-                    Upload Profile Picture
-                  </button>
-                  
-                  <button
-                    onClick={() => {
-                      setShowChatBot(true);
-                      setShowProfileMenu(false);
-                    }}
-                    className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3"
-                  >
-                    <HelpCircle size={16} />
-                    Get Help
-                  </button>
-                  
-                  <div className="border-t border-gray-200 dark:border-gray-700 my-2"></div>
-                  
-                  <button
-                    onClick={handleLogout}
-                    className="w-full px-4 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-3"
-                  >
-                    <LogOut size={16} />
-                    Sign Out
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  ), [
-    // Only include static dependencies that don't change on navigation
-    isMobileMenuOpen,
-    navigate,
-    getGreeting,
-    getUserDisplayName,
-    setShowEditProfile,
-    subscriptionStatus,
-    isSubscriptionEndDateFuture,
-    subscriptionPlan,
-    formattedSubscriptionEndDate,
-    navigationTabs,
-    handleNavigation,
-    activeTab,
-    profileImage,
-    showProfileMenu,
-    setShowProfileMenu,
-    handleLogout,
-    setShowChatBot,
-    showChatBot,
-  ]);
+  const handleNavigation = useCallback((path: string) => {
+    navigate(path);
+    setActiveTab(path);
+  }, [navigate]);
 
   return (
     <>
@@ -510,31 +275,24 @@ export const Header: React.FC = React.memo(() => {
                 <Menu size={20} />
               </button>
               
-              <div 
-                onClick={() => navigate('/')}
-                className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity"
-              >
+              <div className="flex items-center gap-3">
                 <img 
                   src="/feather-logo.svg" 
                   alt="Exametry" 
-                  className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg shadow-sm"
+                  className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg shadow-sm cursor-pointer hover:opacity-80 transition-opacity"
+                  onClick={() => navigate('/')}
                   style={{
                     filter: 'brightness(0) invert(1)',
                     opacity: 0.9
                   }}
                 />
-                <div className="flex items-center gap-2 sm:gap-3">
-                  <h1 className="text-lg sm:text-xl font-bold text-slate-800 dark:text-white">
+                <div className="flex items-center gap-2 sm:gap-3 pointer-events-none">
+                  <h1 className="text-lg sm:text-xl font-bold text-slate-800 dark:text-white select-none">
                     {getGreeting()}, 
-                    <button 
-                      onClick={() => setShowEditProfile(true)}
-                      className="inline-flex items-center gap-1 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors ml-1"
-                      title="Click to edit your name"
-                    >
+                    <span className="inline-flex items-center gap-1 ml-1 select-none">
                       <span className="hidden sm:inline">{getUserDisplayName()}</span>
                       <span className="sm:hidden">{getUserDisplayName().split(' ')[0]}</span>
-                      <Edit3 size={14} className="opacity-60 hover:opacity-100" />
-                    </button>! 😊
+                    </span>! 😊
                   </h1>
                   
                   {/* Show subscription end date info for cancelled but active subscriptions */}
@@ -587,17 +345,8 @@ export const Header: React.FC = React.memo(() => {
                 </div>
               </div>
               
-              {/* Chatbot Button */}
-              <button
-                onClick={() => setShowChatBot(true)}
-                className="p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                title="Get help from Exametry Assistant"
-              >
-                <MessageCircle size={20} />
-              </button>
-              
               {/* Profile Button */}
-              <div className="relative">
+              <div className="relative flex items-center gap-2">
                 <button
                   onClick={() => setShowProfileMenu(!showProfileMenu)}
                   className="profile-button w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-indigo-500 text-white flex items-center justify-center text-lg hover:bg-indigo-600 transition-all duration-200 overflow-hidden shadow-md"
@@ -612,78 +361,127 @@ export const Header: React.FC = React.memo(() => {
                     <User size={20} />
                   )}
                 </button>
+                <span className="text-xs text-gray-600 dark:text-gray-300 font-mono font-medium">v1.0.0</span>
                 
                 {/* Profile Menu */}
                 {showProfileMenu && (
-                  <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50">
-                    {/* User Info Section */}
-                    <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-indigo-500 flex items-center justify-center">
-                          {profileImage ? (
-                            <img
-                              src={profileImage}
-                              alt="Profile"
-                              className="w-full h-full object-cover rounded-full"
-                            />
-                          ) : (
-                            <User size={20} className="text-white" />
-                          )}
+                  <div className="profile-menu absolute right-0 top-full mt-2 w-72 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 z-[9999]">
+                    {/* Header with Profile Picture */}
+                    <div className="p-6 border-b border-gray-100 dark:border-gray-700">
+                      <div className="flex items-center gap-4">
+                        <div className="relative group">
+                          <div className="w-16 h-16 rounded-full bg-indigo-500 flex items-center justify-center cursor-pointer overflow-hidden ring-2 ring-gray-200 dark:ring-gray-600">
+                            {profileImage ? (
+                              <img
+                                src={profileImage}
+                                alt="Profile"
+                                className="w-full h-full object-cover rounded-full"
+                              />
+                            ) : (
+                              <User size={28} className="text-white" />
+                            )}
+                          </div>
+                          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity rounded-full flex items-center justify-center">
+                            <Camera size={20} className="text-white" />
+                          </div>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={handleImageUpload}
+                            className="absolute inset-0 opacity-0 cursor-pointer"
+                          />
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                        <div className="flex-1">
+                          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                             {getUserDisplayName()}
-                          </p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                          </h3>
+                          <p className="text-sm text-gray-500 dark:text-gray-400">
                             {user?.email}
                           </p>
                         </div>
                       </div>
                     </div>
 
-                    {/* Menu Items */}
-                    <div className="py-2">
-                      <button
-                        onClick={() => {
-                          setShowEditProfile(true);
-                          setShowProfileMenu(false);
+                    {/* Subscription Status */}
+                    <div className="px-6 py-4 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-gray-700 dark:to-gray-600">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Plan</p>
+                          <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                            {subscriptionPlan || 'Basic'}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                            subscriptionStatus === 'active' 
+                              ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' 
+                              : 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200'
+                          }`}>
+                            {subscriptionStatus === 'active' ? 'Active' : 'Cancelled'}
+                          </span>
+                        </div>
+                      </div>
+                      {subscriptionEndDate && (
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                          Expires {formattedSubscriptionEndDate}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Name Editor */}
+                    <div className="p-6">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Display Name
+                      </label>
+                      <input
+                        type="text"
+                        value={user?.user_metadata?.full_name || ''}
+                        onChange={async (e) => {
+                          const newName = e.target.value;
+                          if (user) {
+                            setUser({
+                              ...user,
+                              user_metadata: {
+                                ...user.user_metadata,
+                                full_name: newName
+                              }
+                            });
+                            
+                            // Auto-save after a short delay
+                            setTimeout(async () => {
+                              try {
+                                if (user?.email && newName.trim()) {
+                                  const result = await AuthService.updateUserAttributes(user.email, { name: newName });
+                                  if (result.success) {
+                                    console.log('✅ Profile name auto-saved successfully');
+                                  } else {
+                                    console.error('❌ Failed to auto-save profile name:', result.error);
+                                  }
+                                }
+                              } catch (error) {
+                                console.error('❌ Error auto-saving profile name:', error);
+                              }
+                            }, 1000);
+                          }
                         }}
-                        className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3"
-                      >
-                        <Edit3 size={16} />
-                        Edit Profile
-                      </button>
-                      
-                      <button
-                        onClick={() => {
-                          // setShowImageUpload(true); // This state was removed from the original file
-                          setShowProfileMenu(false);
-                        }}
-                        className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3"
-                      >
-                        <Upload size={16} />
-                        Upload Profile Picture
-                      </button>
-                      
-                      <button
-                        onClick={() => {
-                          setShowChatBot(true);
-                          setShowProfileMenu(false);
-                        }}
-                        className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3"
-                      >
-                        <HelpCircle size={16} />
-                        Get Help
-                      </button>
-                      
-                      <div className="border-t border-gray-200 dark:border-gray-700 my-2"></div>
-                      
+                        className="w-full px-4 py-3 text-sm bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors"
+                        placeholder="Enter your display name"
+                      />
+                    </div>
+
+                    {/* Sign Out */}
+                    <div className="px-6 pb-6">
                       <button
                         onClick={handleLogout}
-                        className="w-full px-4 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-3"
+                        disabled={isLoggingOut}
+                        className="w-full px-4 py-3 text-sm font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                       >
-                        <LogOut size={16} />
-                        Sign Out
+                        {isLoggingOut ? (
+                          <div className="w-4 h-4 border-2 border-red-400 border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                          <LogOut size={16} />
+                        )}
+                        {isLoggingOut ? 'Signing Out...' : 'Sign Out'}
                       </button>
                     </div>
                   </div>
@@ -693,9 +491,6 @@ export const Header: React.FC = React.memo(() => {
           </div>
         </div>
       </header>
-
-      {/* ChatBot Modal */}
-      <ChatBot isOpen={showChatBot} onClose={() => setShowChatBot(false)} />
 
       {/* Mobile Navigation Menu */}
       {isMobileMenuOpen && (
@@ -717,112 +512,6 @@ export const Header: React.FC = React.memo(() => {
           ))}
         </div>
       )}
-
-      {/* Profile Menu */}
-      {showProfileMenu && (
-        <div className="profile-menu absolute right-0 mt-2 w-72 bg-gray-800/90 rounded-lg shadow-xl border border-gray-700 backdrop-blur-lg z-50">
-          {/* User Info Section */}
-          <div className="p-4 border-b border-gray-700">
-            <div className="flex items-center gap-3 mb-3">
-            <div className="relative">
-              {profileImage ? (
-                <img
-                  src={profileImage}
-                  alt="Profile"
-                  className="w-12 h-12 rounded-full object-cover"
-                />
-              ) : (
-                <div className="w-12 h-12 rounded-full bg-indigo-500 flex items-center justify-center text-xl">
-                  {profileImage}
-                </div>
-              )}
-              
-              {/* Hidden File Input */}
-              <input 
-                type="file" 
-                accept="image/*" 
-                className="hidden" 
-                id="profile-upload" 
-                onChange={handleImageUpload} 
-              />
-              
-              {/* Camera Button */}
-              <button 
-                className="absolute -bottom-1 -right-1 p-1 bg-gray-700 rounded-full hover:bg-gray-600 transition-colors"
-                onClick={() => document.getElementById('profile-upload')?.click()}
-              >
-                <Camera size={12} className="text-gray-300" />
-              </button>
-            </div>
-              <div>
-                <h3 className="text-white font-medium">{user?.user_metadata.full_name || 'User'}</h3>
-                <p className="text-sm text-gray-400">{user?.email || 'No email available'}</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Subscription Info */}
-          <div className="p-4 border-b border-gray-700">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm text-gray-400">Current Plan</span>
-              <span className={`text-xs px-2 py-1 rounded-full ${subscriptionPlan === 'Basic' ? 'bg-green-500' : 'bg-indigo-500'} text-white`}>
-                {subscriptionPlan}
-              </span>
-            </div>
-            {subscriptionPlan === 'Basic' ? (
-              subscriptionStatus === 'cancelled' && isSubscriptionEndDateFuture ? (
-                <div className="text-xs text-gray-500">
-                  Access until: {formattedSubscriptionEndDate}
-                </div>
-              ) : (
-                <div className="text-xs text-gray-500">Free Plan</div>
-              )
-            ) : (
-              <div className="text-xs text-gray-500">
-                {subscriptionStatus === 'active' ? (
-                  subscriptionEndDate ? `Next billing date: ${formattedSubscriptionEndDate}` : 'Active'
-                ) : (
-                  subscriptionStatus === 'cancelled' && isSubscriptionEndDateFuture ? 
-                  `Access until: ${formattedSubscriptionEndDate}` : 'Inactive'
-                )}
-              </div>
-            )}
-            {subscriptionPlan !== 'Basic' && subscriptionStatus === 'active' && (
-              <button
-                onClick={handleUnsubscribe}
-                className="w-full text-sm text-red-400 hover:bg-red-900/20 rounded-lg py-2 mt-2"
-              >
-                Unsubscribe
-              </button>
-            )}
-          </div>
-
-          {/* Menu Items */}
-          <div className="p-2">
-            <button 
-              onClick={() => setShowEditProfile(true)}
-              className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-gray-700/50 rounded-lg flex items-center gap-2">
-              <User size={16} />
-              Edit Profile
-            </button>
-            <button 
-              onClick={handleSubsciption}
-              className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-gray-700/50 rounded-lg flex items-center gap-2">
-              <CreditCard size={16} />
-              Manage Subscription
-            </button>
-            <button
-              onClick={handleLogout}
-              className="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-red-900/20 rounded-lg flex items-center gap-2"
-            >
-              <LogOut size={16} />
-              Logout
-            </button>
-          </div>
-        </div>
-      )}
-
-      {showEditProfile && <EditProfileModal isOpen={showEditProfile} onClose={() => setShowEditProfile(false)} />}
 
       {showUnsubscribeModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
@@ -873,4 +562,4 @@ export const Header: React.FC = React.memo(() => {
       )}
     </>
   );
-});
+}); 
