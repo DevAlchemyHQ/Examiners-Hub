@@ -1,4 +1,5 @@
 import { ImageMetadata, BulkDefect, FormData } from '../types';
+import { useMetadataStore } from '../store/metadataStore';
 
 /**
  * Unified data structure for Lambda communication
@@ -26,6 +27,9 @@ export function transformSelectedImagesForLambda(
   mode: 'images';
 } {
   console.log('🔄 Transforming selected images for Lambda...');
+  
+  // Get instance metadata for proper photo numbers and descriptions
+  const { instanceMetadata } = useMetadataStore.getState();
   
   const unifiedImages = selectedImages.map((image, index) => {
     // Extract S3 key using the most reliable method first
@@ -76,10 +80,21 @@ export function transformSelectedImagesForLambda(
       console.log('Constructed S3 key fallback:', s3Key);
     }
     
+    // Get instance-specific metadata if this image has an instanceId
+    let photoNumber = image.photoNumber || (index + 1).toString();
+    let description = image.description || 'LM';
+    
+    if (image.instanceId && instanceMetadata[image.instanceId]) {
+      const instanceData = instanceMetadata[image.instanceId];
+      photoNumber = instanceData.photoNumber || photoNumber;
+      description = instanceData.description || description;
+      console.log(`📝 Using instance metadata for ${image.instanceId}:`, { photoNumber, description });
+    }
+    
     return {
       id: image.id,
-      photoNumber: image.photoNumber || (index + 1).toString(),
-      description: image.description || 'LM',
+      photoNumber: photoNumber,
+      description: description,
       s3Key: s3Key,
       filename: image.file?.name || (image as any).fileName,
       publicUrl: image.publicUrl

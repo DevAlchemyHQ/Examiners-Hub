@@ -1320,8 +1320,12 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       const state = get();
       const { formData } = state;
       
-      // Save to localStorage for immediate access
-      localStorage.setItem('clean-app-form-data', JSON.stringify(formData));
+      // Get user-specific keys for consistent storage
+      const keys = getUserSpecificKeys();
+      
+      // Save to localStorage for immediate access (user-specific)
+      localStorage.setItem(keys.formData, JSON.stringify(formData));
+      console.log('💾 Form data saved to localStorage:', keys.formData);
       
       // Save to AWS DynamoDB for cross-device persistence
       const storedUser = localStorage.getItem('user');

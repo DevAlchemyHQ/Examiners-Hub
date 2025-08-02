@@ -155,7 +155,20 @@ export const DownloadButton: React.FC = () => {
       } else {
         // Handle images mode download - Call Lambda function
         console.log('Images mode download - calling Lambda');
-        const selectedImagesList = images.filter(img => selectedImages.some(item => item.id === img.id));
+        
+        // Create the actual selected images list with instance IDs
+        const selectedImagesList = selectedImages.map(item => {
+          const img = images.find(img => img.id === item.id);
+          if (!img) {
+            console.warn(`⚠️ Image not found for id: ${item.id}`);
+            return null;
+          }
+          return {
+            ...img,
+            instanceId: item.instanceId
+          };
+        }).filter(Boolean);
+        
         console.log('Selected images:', selectedImagesList.length);
 
         if (selectedImagesList.length === 0) {
