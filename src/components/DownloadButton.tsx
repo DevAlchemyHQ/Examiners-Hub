@@ -179,16 +179,21 @@ export const DownloadButton: React.FC = () => {
         const missingDescriptions = [];
         const invalidDescriptions = [];
         
-        selectedImages.forEach((selectedId, index) => {
-          const instanceId = `${selectedId}-${index}`;
+        selectedImages.forEach((item, index) => {
+          // Use the actual instanceId from the selectedImages array
+          const instanceId = item.instanceId;
           const instanceData = instanceMetadata[instanceId];
+          
+          console.log(`🔍 Validating instance ${index + 1}:`, { instanceId, instanceData });
           
           if (!instanceData?.photoNumber?.trim()) {
             missingPhotoNumbers.push(index + 1);
+            console.log(`❌ Missing photo number for instance ${index + 1}:`, instanceId);
           }
           
           if (!instanceData?.description?.trim()) {
             missingDescriptions.push(index + 1);
+            console.log(`❌ Missing description for instance ${index + 1}:`, instanceId);
           } else {
             // Check for invalid characters in descriptions
             const { isValid, invalidChars } = validateDescription(instanceData.description.trim());
@@ -197,6 +202,7 @@ export const DownloadButton: React.FC = () => {
                 instance: index + 1,
                 invalidChars: invalidChars
               });
+              console.log(`❌ Invalid description for instance ${index + 1}:`, invalidChars);
             }
           }
         });
