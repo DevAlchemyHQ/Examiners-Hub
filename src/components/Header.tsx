@@ -9,8 +9,6 @@ import { useThemeStore } from '../store/themeStore';
 // Version check system
 const CURRENT_VERSION = '1.1.0';
 
-// Version banner removed - using RefreshBanner component instead
-
 export const Header: React.FC = React.memo(() => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -268,7 +266,6 @@ export const Header: React.FC = React.memo(() => {
 
   return (
     <>
-      <VersionBanner />
       <header className="bg-white dark:bg-gray-900 border-b border-slate-200 dark:border-gray-700 sticky top-0 z-40">
         <div className="w-full px-4">
           <div className="h-16 flex items-center justify-between">

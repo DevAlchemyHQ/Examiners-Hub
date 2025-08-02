@@ -37,6 +37,7 @@ interface SessionState {
     imageGrid: number;
     selectedPanel: number;
   };
+  formData: FormData; // Add formData to session state
 }
 
 // We need to separate the state interface from the actions
@@ -140,6 +141,7 @@ const initialState: MetadataStateOnly = {
       imageGrid: 0,
       selectedPanel: 0,
     },
+    formData: initialFormData, // Include formData in session state
   },
 };
 
@@ -1896,6 +1898,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         imageGrid: 0,
         selectedPanel: 0,
       },
+      formData: state.formData, // Include formData in session state
     };
 
     try {
@@ -1921,6 +1924,12 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         // Restore view mode
         if (sessionState.lastActiveTab) {
           set({ viewMode: sessionState.lastActiveTab });
+        }
+        
+        // Restore formData if available
+        if (sessionState.formData) {
+          set({ formData: sessionState.formData });
+          console.log('✅ Form data restored from session state');
         }
         
         return sessionState;

@@ -133,25 +133,11 @@ export const DownloadButton: React.FC = () => {
         });
 
         if (!response.ok) {
-          let errorMessage = 'Bulk download failed';
-          try {
-            const errorData = await response.json();
-            errorMessage = errorData.error || errorMessage;
-          } catch (jsonError) {
-            // Handle case where response is not valid JSON
-            console.error('Response is not valid JSON:', response.status, response.statusText);
-            errorMessage = `Server error: ${response.status} ${response.statusText}`;
-          }
-          throw new Error(errorMessage);
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Bulk download failed');
         }
 
-        let result;
-        try {
-          result = await response.json();
-        } catch (jsonError) {
-          console.error('Failed to parse response as JSON:', jsonError);
-          throw new Error('Invalid response from server - please try again');
-        }
+        const result = await response.json();
         
         if (!result.success) {
           throw new Error(result.error || 'Bulk download failed');
@@ -193,8 +179,8 @@ export const DownloadButton: React.FC = () => {
         const missingDescriptions = [];
         const invalidDescriptions = [];
         
-        selectedImages.forEach((item, index) => {
-          const instanceId = item.instanceId;
+        selectedImages.forEach((selectedId, index) => {
+          const instanceId = `${selectedId}-${index}`;
           const instanceData = instanceMetadata[instanceId];
           
           if (!instanceData?.photoNumber?.trim()) {
@@ -277,14 +263,8 @@ export const DownloadButton: React.FC = () => {
           throw new Error(errorMessage);
         }
 
-        let result;
-        try {
-          result = await response.json();
-          console.log('📥 Full Lambda response:', result);
-        } catch (jsonError) {
-          console.error('Failed to parse response as JSON:', jsonError);
-          throw new Error('Invalid response from server - please try again');
-        }
+        const result = await response.json();
+        console.log('📥 Full Lambda response:', result);
         
         if (!result.success) {
           throw new Error(result.error || result.message || 'Download failed');

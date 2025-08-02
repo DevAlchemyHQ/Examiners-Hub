@@ -4,7 +4,9 @@ export const getApiEndpoint = () => {
   const isDevelopment = window.location.hostname === 'localhost' || 
                        window.location.hostname === '127.0.0.1' ||
                        window.location.port === '5173' ||
-                       window.location.port === '5174';
+                       window.location.port === '5174' ||
+                       window.location.port === '5175' ||
+                       window.location.port === '5176';
   
   if (isDevelopment) {
     // Use local Express server for development
@@ -33,7 +35,9 @@ export const isProduction = () => {
   return !(window.location.hostname === 'localhost' || 
            window.location.hostname === '127.0.0.1' ||
            window.location.port === '5173' ||
-           window.location.port === '5174');
+           window.location.port === '5174' ||
+           window.location.port === '5175' ||
+           window.location.port === '5176');
 };
 
 export const isDevelopment = () => {
