@@ -133,11 +133,25 @@ export const DownloadButton: React.FC = () => {
         });
 
         if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'Bulk download failed');
+          let errorMessage = 'Bulk download failed';
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData.error || errorMessage;
+          } catch (jsonError) {
+            // Handle case where response is not valid JSON
+            console.error('Response is not valid JSON:', response.status, response.statusText);
+            errorMessage = `Server error: ${response.status} ${response.statusText}`;
+          }
+          throw new Error(errorMessage);
         }
 
-        const result = await response.json();
+        let result;
+        try {
+          result = await response.json();
+        } catch (jsonError) {
+          console.error('Failed to parse response as JSON:', jsonError);
+          throw new Error('Invalid response from server - please try again');
+        }
         
         if (!result.success) {
           throw new Error(result.error || 'Bulk download failed');
@@ -263,8 +277,14 @@ export const DownloadButton: React.FC = () => {
           throw new Error(errorMessage);
         }
 
-        const result = await response.json();
-        console.log('📥 Full Lambda response:', result);
+        let result;
+        try {
+          result = await response.json();
+          console.log('📥 Full Lambda response:', result);
+        } catch (jsonError) {
+          console.error('Failed to parse response as JSON:', jsonError);
+          throw new Error('Invalid response from server - please try again');
+        }
         
         if (!result.success) {
           throw new Error(result.error || result.message || 'Download failed');
