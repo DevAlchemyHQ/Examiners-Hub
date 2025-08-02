@@ -179,8 +179,8 @@ export const DownloadButton: React.FC = () => {
         const missingDescriptions = [];
         const invalidDescriptions = [];
         
-        selectedImages.forEach((selectedId, index) => {
-          const instanceId = `${selectedId}-${index}`;
+        selectedImages.forEach((item, index) => {
+          const instanceId = item.instanceId;
           const instanceData = instanceMetadata[instanceId];
           
           if (!instanceData?.photoNumber?.trim()) {

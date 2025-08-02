@@ -9,57 +9,7 @@ import { useThemeStore } from '../store/themeStore';
 // Version check system
 const CURRENT_VERSION = '1.1.0';
 
-const VersionBanner: React.FC = () => {
-  const [showBanner, setShowBanner] = useState(false);
-  const [newVersion, setNewVersion] = useState<string | null>(null);
-
-  useEffect(() => {
-    // Check if there's a new version available
-    const lastKnownVersion = localStorage.getItem('last-known-version');
-    if (lastKnownVersion !== CURRENT_VERSION) {
-      setShowBanner(true);
-      setNewVersion(CURRENT_VERSION);
-      localStorage.setItem('last-known-version', CURRENT_VERSION);
-    }
-  }, []);
-
-  const handleRefresh = () => {
-    window.location.reload();
-  };
-
-  const handleDismiss = () => {
-    setShowBanner(false);
-  };
-
-  if (!showBanner) return null;
-
-  return (
-    <div className="absolute top-0 left-0 right-0 z-[9999] bg-gradient-to-r from-blue-500 to-purple-600 text-white px-4 py-3 shadow-lg">
-      <div className="flex items-center justify-between max-w-7xl mx-auto">
-        <div className="flex items-center gap-3">
-          <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-          <span className="text-sm font-medium">
-            🚀 New version available! (v{newVersion})
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handleRefresh}
-            className="px-4 py-1.5 bg-white/20 hover:bg-white/30 rounded-lg text-sm font-medium transition-colors"
-          >
-            Refresh Now
-          </button>
-          <button
-            onClick={handleDismiss}
-            className="p-1 hover:bg-white/20 rounded transition-colors"
-          >
-            <X size={16} />
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
+// Version banner removed - using RefreshBanner component instead
 
 export const Header: React.FC = React.memo(() => {
   const navigate = useNavigate();

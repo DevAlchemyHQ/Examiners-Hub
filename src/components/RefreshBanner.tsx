@@ -34,12 +34,12 @@ const RefreshBanner: React.FC<RefreshBannerProps> = ({ className = '' }) => {
   }
 
   return (
-    <div className={`fixed top-0 left-0 right-0 z-50 bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg ${className}`}>
+    <div className={`fixed top-0 left-0 right-0 z-50 bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg transform transition-transform duration-300 ${className}`}>
       <div className="max-w-7xl mx-auto px-4 py-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <Info className="h-5 w-5 text-blue-200" />
-            <div className="flex-1">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex items-start space-x-3 flex-1">
+            <Info className="h-5 w-5 text-blue-200 mt-0.5 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
               <p className="text-sm font-medium">
                 🎉 New Version 1.1.0 Available - Session Restoration & Enhanced Features!
               </p>
@@ -49,13 +49,14 @@ const RefreshBanner: React.FC<RefreshBannerProps> = ({ className = '' }) => {
               </p>
             </div>
           </div>
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2 flex-shrink-0">
             <button
               onClick={handleRefresh}
               className="flex items-center space-x-1 px-3 py-1 bg-white/20 hover:bg-white/30 text-white text-xs font-medium rounded-md transition-colors"
             >
               <RefreshCw className="h-3 w-3" />
-              <span>Refresh Now</span>
+              <span className="hidden sm:inline">Refresh Now</span>
+              <span className="sm:hidden">Refresh</span>
             </button>
             <button
               onClick={handleDismiss}

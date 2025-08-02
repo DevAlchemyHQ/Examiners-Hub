@@ -16,8 +16,8 @@ export const useValidation = () => {
     const instanceDescriptions: string[] = [];
     let hasInvalidDescriptions = false;
     
-    selectedImages.forEach((selectedId, index) => {
-      const instanceId = `${selectedId}-${index}`;
+    selectedImages.forEach((item, index) => {
+      const instanceId = item.instanceId;
       const instanceData = instanceMetadata[instanceId];
       
       if (instanceData?.photoNumber?.trim()) {
@@ -61,8 +61,8 @@ export const useValidation = () => {
       const missingDescriptions = [];
       const invalidDescriptions = [];
       
-      selectedImages.forEach((selectedId, index) => {
-        const instanceId = `${selectedId}-${index}`;
+      selectedImages.forEach((item, index) => {
+        const instanceId = item.instanceId;
         const instanceData = instanceMetadata[instanceId];
         
         if (!instanceData?.photoNumber?.trim()) {
