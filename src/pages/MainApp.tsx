@@ -13,6 +13,7 @@ import { CalculatorPage } from './calculator.page';
 import { GamesPage } from './games.page';
 import { GridReferenceFinderPage } from './grid.page';
 import { FAQ } from './FAQ';
+import RefreshBanner from '../components/RefreshBanner';
 
 
 const MainApp = () => {
@@ -93,6 +94,7 @@ const MainApp = () => {
   // Show app if authenticated
   return (
     <div className="min-h-screen bg-gray-900">
+      <RefreshBanner />
       <Header />
       <Routes>
         <Route path="/" element={<MainLayout />} />

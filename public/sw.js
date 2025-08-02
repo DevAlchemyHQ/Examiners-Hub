@@ -1,4 +1,4 @@
-const CACHE_NAME = 'exametry-v1.0.3';
+const CACHE_NAME = 'exametry-v1.1.0';
 const urlsToCache = [
   '/',
   '/index.html',

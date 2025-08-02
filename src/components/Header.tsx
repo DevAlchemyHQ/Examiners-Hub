@@ -7,7 +7,7 @@ import { useMetadataStore } from '../store/metadataStore';
 import { useThemeStore } from '../store/themeStore';
 
 // Version check system
-const CURRENT_VERSION = '1.0.1';
+const CURRENT_VERSION = '1.1.0';
 
 const VersionBanner: React.FC = () => {
   const [showBanner, setShowBanner] = useState(false);
@@ -417,7 +417,7 @@ export const Header: React.FC = React.memo(() => {
                     <User size={20} />
                   )}
                 </button>
-                <span className="text-xs text-gray-600 dark:text-gray-300 font-mono font-medium">v1.0.1</span>
+                <span className="text-xs text-gray-600 dark:text-gray-300 font-mono font-medium">v1.1.0</span>
                 
                 {/* Profile Menu */}
                 {showProfileMenu && (
