@@ -53,7 +53,7 @@ export const ImageGridItem: React.FC<ImageGridItemProps> = ({ images, gridWidth 
                 }}
               >
                 {rowImages.map((img) => {
-                  const isSelected = selectedImages.has(img.id);
+                  const isSelected = selectedImages.some(item => item.id === img.id);
                   
                   return (
                     <div 

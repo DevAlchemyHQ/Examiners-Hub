@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ChevronDown, ChevronUp, HelpCircle, Image, FileText, Download, Settings, Upload, Grid, Search, Trash2, ArrowUpDown } from 'lucide-react';
+import { ChevronDown, ChevronUp, HelpCircle, Image, FileText, Download, Settings, Upload, Grid, Search, Trash2, ArrowUpDown, RefreshCw, AlertTriangle } from 'lucide-react';
 
 interface FAQItem {
   question: string;
@@ -82,6 +82,11 @@ const faqItems: FAQItem[] = [
     question: "Can I work with sketches and defect photos separately?",
     answer: "Yes! The system automatically separates sketches from defect photos. Sketches are typically used for overview or context, while defect photos show specific issues. Both types can be included in your final package.",
     icon: <Image size={20} className="text-indigo-500" />
+  },
+  {
+    question: "I'm not seeing the latest version of the app. How can I force an update?",
+    answer: "If you're having trouble seeing updates, try these solutions in order: 1) Force hard refresh: Ctrl+Shift+R (Windows/Linux) or Cmd+Shift+R (Mac), 2) Clear browser cache completely from browser settings, 3) Try incognito/private mode, 4) Disable browser extensions temporarily, 5) Try a different browser. If the issue persists, contact support with your browser version and operating system.",
+    icon: <RefreshCw size={20} className="text-orange-500" />
   }
 ];
 
@@ -153,6 +158,38 @@ export const ImagesFAQ: React.FC = () => {
           <li>• Use the expand view for easier editing on smaller screens</li>
           <li>• Check validation errors before downloading your package</li>
         </ul>
+      </div>
+
+      <div className="mt-6 p-4 bg-orange-50 dark:bg-orange-900/20 rounded-lg border border-orange-200 dark:border-orange-700">
+        <div className="flex items-center gap-2 mb-3">
+          <AlertTriangle className="text-orange-500" size={20} />
+          <h3 className="font-semibold text-orange-900 dark:text-orange-100">
+            Update Troubleshooting
+          </h3>
+        </div>
+        <div className="text-sm text-orange-800 dark:text-orange-200 space-y-2">
+          <p><strong>Having trouble seeing the latest version?</strong></p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <p className="font-medium mb-1">Quick Fixes:</p>
+              <ul className="space-y-1 text-xs">
+                <li>• <strong>Hard Refresh:</strong> Ctrl+Shift+R (Windows/Linux) or Cmd+Shift+R (Mac)</li>
+                <li>• <strong>Clear Cache:</strong> Browser settings → Clear browsing data</li>
+                <li>• <strong>Incognito Mode:</strong> Try in private/incognito window</li>
+                <li>• <strong>Disable Extensions:</strong> Temporarily turn off browser extensions</li>
+              </ul>
+            </div>
+            <div>
+              <p className="font-medium mb-1">Advanced Solutions:</p>
+              <ul className="space-y-1 text-xs">
+                <li>• <strong>Different Browser:</strong> Test in Chrome, Firefox, Safari, or Edge</li>
+                <li>• <strong>Developer Tools:</strong> F12 → Right-click refresh → "Empty Cache and Hard Reload"</li>
+                <li>• <strong>Service Worker:</strong> F12 → Application → Service Workers → Unregister</li>
+                <li>• <strong>Network:</strong> Try different network or disable VPN</li>
+              </ul>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

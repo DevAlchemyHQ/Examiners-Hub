@@ -12,8 +12,14 @@ export default defineConfig({
         manualChunks: {
           pdfjs: ['react-pdf'],
         },
+        // Add cache busting with timestamps
+        entryFileNames: `assets/[name]-[hash].js`,
+        chunkFileNames: `assets/[name]-[hash].js`,
+        assetFileNames: `assets/[name]-[hash].[ext]`,
       },
     },
+    // Add source maps for better debugging
+    sourcemap: true,
   },
   server: {
     historyApiFallback: true,
@@ -24,6 +30,14 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
       },
+    },
+  },
+  // Add cache busting headers
+  preview: {
+    headers: {
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0',
     },
   },
 });

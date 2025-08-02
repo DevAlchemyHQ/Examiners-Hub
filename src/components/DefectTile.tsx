@@ -210,7 +210,7 @@ export const DefectTile: React.FC<DefectTileProps> = ({
           dark:border-gray-700/50 backdrop-blur-sm mb-4
           ${isDragging ? 'shadow-lg ring-2 ring-indigo-500/50 opacity-95 scale-[1.02]' : 'shadow-sm hover:shadow'}
           ${isDragOver ? 'ring-2 ring-green-500 bg-green-50 dark:bg-green-900/20' : ''}
-          ${!isDefectValid() ? 'ring-2 ring-amber-500/50 bg-amber-50/50 dark:bg-amber-900/10' : ''}
+          ${!isDefectValid() ? 'ring-2 ring-white/50 bg-white/10 dark:bg-white/5' : ''}
           transition-all duration-300 ease-out will-change-transform`}
       >
         {/* Use compact, single-line row when collapsed or expanded+list only; multi-line only for expanded+show images */}

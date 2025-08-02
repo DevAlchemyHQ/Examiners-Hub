@@ -41,8 +41,34 @@ export const ImageGridItem: React.FC<ImageGridItemProps> = ({ images, gridWidth 
           return aNum - bNum;
         });
     } else {
-      // In images mode, show the image's own number if selected
-      return selectedImages.has(img.id) && img.photoNumber ? [img.photoNumber] : [];
+      // In images mode, show all instance numbers for this image
+      if (selectedImages.some(item => item.id === img.id)) {
+        const { instanceMetadata } = useMetadataStore.getState();
+        const instanceNumbers: string[] = [];
+        
+        // Get all instances of this image from the selectedImages array
+        selectedImages.forEach((item) => {
+          if (item.id === img.id) {
+            const instanceData = instanceMetadata[item.instanceId];
+            if (instanceData?.photoNumber) {
+              instanceNumbers.push(instanceData.photoNumber);
+            }
+          }
+        });
+        
+        // Also include the image's own photo number if it has one
+        if (img.photoNumber) {
+          instanceNumbers.push(img.photoNumber);
+        }
+        
+        // Remove duplicates and sort
+        return [...new Set(instanceNumbers)].sort((a, b) => {
+          const aNum = parseInt(a) || 0;
+          const bNum = parseInt(b) || 0;
+          return aNum - bNum;
+        });
+      }
+      return [];
     }
   };
 
@@ -129,7 +155,7 @@ export const ImageGridItem: React.FC<ImageGridItemProps> = ({ images, gridWidth 
           }}
         >
           {images.map((img, index) => {
-                  const isSelected = selections.has(img.id);
+                  const isSelected = viewMode === 'bulk' ? selections.has(img.id) : selections.some(item => item.id === img.id);
                   const defectNumbers = getDefectNumbers(img);
                   
                   return (

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { useMetadataStore } from '../store/metadataStore';
-import { usePDFStore } from '../store/pdfStore';
+
 import { LoginScreen } from '../components/LoginScreen';
 import { Header } from '../components/Header';
 import { MainLayout } from './home';
@@ -18,7 +18,7 @@ import { FAQ } from './FAQ';
 const MainApp = () => {
   const { isAuthenticated, checkAuth } = useAuthStore();
   const { loadUserData } = useMetadataStore();
-  const { initializePDFs } = usePDFStore();
+
   const [isInitialized, setIsInitialized] = useState(false);
 
   useEffect(() => {
@@ -42,7 +42,6 @@ const MainApp = () => {
         try {
           console.log('Loading user data for authenticated user...');
           await loadUserData();
-          await initializePDFs();
           console.log('User data loaded successfully');
         } catch (error) {
           console.error('Error loading user data:', error);
@@ -51,7 +50,31 @@ const MainApp = () => {
       
       loadData();
     }
-  }, [isAuthenticated, loadUserData, initializePDFs]);
+  }, [isAuthenticated, loadUserData]);
+
+  // Periodic session state saving
+  useEffect(() => {
+    if (isAuthenticated) {
+      const { saveSessionState } = useMetadataStore.getState();
+      
+      // Save session state every 30 seconds
+      const interval = setInterval(() => {
+        saveSessionState();
+      }, 30000);
+      
+      // Save session state when user leaves the page
+      const handleBeforeUnload = () => {
+        saveSessionState();
+      };
+      
+      window.addEventListener('beforeunload', handleBeforeUnload);
+      
+      return () => {
+        clearInterval(interval);
+        window.removeEventListener('beforeunload', handleBeforeUnload);
+      };
+    }
+  }, [isAuthenticated]);
 
   // Show loading while initializing
   if (!isInitialized || isAuthenticated === null) {

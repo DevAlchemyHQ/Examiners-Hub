@@ -45,7 +45,7 @@ function setLocalDefectSets(sets: any[]) {
 }
 
 // Auto-save defect set on every modification
-async function autoSaveDefectSet(formData: any, bulkDefects: any[], selectedImages: Set<string>, images: any[]) {
+async function autoSaveDefectSet(formData: any, bulkDefects: any[], selectedImages: Array<{ id: string; instanceId: string }>, images: any[]) {
   try {
     // Only save if we have project details
     if (!formData?.elr?.trim() || !formData?.structureNo?.trim()) {
@@ -58,7 +58,7 @@ async function autoSaveDefectSet(formData: any, bulkDefects: any[], selectedImag
       selectedImages: Array.from(selectedImages),
       formData,
       selectedImagesMetadata: images
-        .filter(img => selectedImages.has(img.id))
+        .filter(img => selectedImages.some(item => item.id === img.id))
         .map(img => ({
           id: img.id,
           fileName: img.fileName || img.file?.name || '',
@@ -85,14 +85,26 @@ async function autoSaveDefectSet(formData: any, bulkDefects: any[], selectedImag
     
     setLocalDefectSets(sets);
     
-    // Save to AWS DynamoDB for cross-device persistence
+    // Save to AWS DynamoDB for cross-device persistence with rate limiting
     const storedUser = localStorage.getItem('user');
     const user = storedUser ? JSON.parse(storedUser) : null;
     
     if (user?.email) {
+      // Rate limiting: Only save every 15 seconds to prevent DynamoDB throughput issues
+      const lastDefectSetSaveTime = localStorage.getItem('last-defect-set-aws-save');
+      const now = Date.now();
+      const minInterval = 15000; // 15 seconds
+      
+      if (lastDefectSetSaveTime && (now - parseInt(lastDefectSetSaveTime)) < minInterval) {
+        console.log('⏸️ Rate limiting defect set auto-save to prevent DynamoDB throughput issues');
+        return;
+      }
+      
       const { DatabaseService } = await import('../lib/services');
       await DatabaseService.saveDefectSet(user.email, defectSet);
       console.log('✅ Auto-saved defect set to AWS for user:', user.email);
+      // Update the last save time only on success
+      localStorage.setItem('last-defect-set-aws-save', now.toString());
     }
   } catch (error) {
     console.error('Error auto-saving defect set:', error);
@@ -228,6 +240,23 @@ interface SelectedImagesPanelProps {
 }
 
 export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpand, isExpanded }) => {
+  // Simple deletion function - just remove the specific instance
+  const handleInstanceDeletion = (instanceIdToDelete: string) => {
+    console.log('🗑️ Deleting instance:', instanceIdToDelete);
+    
+    // Simply remove the specific instance from selectedImages
+    const newSelected = selectedImages.filter(item => item.instanceId !== instanceIdToDelete);
+    
+    console.log('🗑️ New selectedImages after deletion:', newSelected);
+    
+    // Update the selectedImages array
+    setSelectedImages(newSelected);
+    
+    // Clear the deleted instance's metadata
+    if (instanceIdToDelete) {
+      updateInstanceMetadata(instanceIdToDelete, { photoNumber: '', description: '' });
+    }
+  };
   const {
     images,
     selectedImages,
@@ -235,6 +264,7 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
     formData,
     toggleImageSelection,
     updateImageMetadata,
+    updateInstanceMetadata,
     clearSelectedImages,
     defectSortDirection,
     sketchSortDirection,
@@ -249,7 +279,8 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
     deletedDefects,
     setDeletedDefects,
     isSortingEnabled,
-    setIsSortingEnabled
+    setIsSortingEnabled,
+    instanceMetadata
   } = useMetadataStore();
   
   const { trackImageSelection, trackDefectSetLoad, trackUserAction, trackError } = useAnalytics();
@@ -274,10 +305,10 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
 
   // Track image selection changes
   useEffect(() => {
-    if (selectedImages.size > 0) {
-      trackImageSelection(selectedImages.size, images.length);
+    if (selectedImages.length > 0) {
+      trackImageSelection(selectedImages.length, images.length);
     }
-  }, [selectedImages.size, images.length, trackImageSelection]);
+  }, [selectedImages.length, images.length, trackImageSelection]);
 
   // Helper to format project details as title
   const getDefectSetTitle = () => {
@@ -288,32 +319,7 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
   };
 
   // Check for duplicate photo numbers
-  const getDuplicatePhotoNumbers = () => {
-    const photoNumbers = images
-      .filter(img => selectedImages.has(img.id))
-      .map(img => img.photoNumber)
-      .filter(num => num && num.trim() && num !== '#');
-    
-    const duplicates = new Set<string>();
-    const seen = new Set<string>();
-    
-    photoNumbers.forEach(num => {
-      if (seen.has(num)) {
-        duplicates.add(num);
-      } else {
-        seen.add(num);
-      }
-    });
-    
-    return duplicates;
-  };
 
-  // Check if a specific image has a duplicate photo number
-  const hasDuplicatePhotoNumber = (img: ImageMetadata) => {
-    if (!img.photoNumber || img.photoNumber === '#') return false;
-    const duplicates = getDuplicatePhotoNumbers();
-    return duplicates.has(img.photoNumber);
-  };
 
   // Sort images function
   const handleSortImages = () => {
@@ -389,7 +395,54 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
     if (deletedDefects.length > 0) {
       const lastDeleted = deletedDefects[deletedDefects.length - 1];
       setDeletedDefects(prev => prev.slice(0, -1));
-      setBulkDefects(prev => [...prev, lastDeleted]);
+      
+      // Temporarily disable auto-sorting during undo
+      const wasAutoSorting = isSortingEnabled;
+      setIsSortingEnabled(false);
+      
+      setBulkDefects(prev => {
+        // Add the deleted defect back with original photo number
+        const restoredDefect = {
+          ...lastDeleted.defect,
+          photoNumber: lastDeleted.originalPhotoNumber || lastDeleted.defect.photoNumber
+        };
+        const newDefects = [...prev, restoredDefect];
+        
+        // If auto-sorting was enabled, re-enable it after a delay
+        if (wasAutoSorting) {
+          setTimeout(() => {
+            setIsSortingEnabled(true);
+            // Only re-sort and renumber if the restored defect doesn't have a valid photo number
+            setBulkDefects(currentDefects => {
+              const hasInvalidPhotoNumbers = currentDefects.some(defect => 
+                !defect.photoNumber || defect.photoNumber === '' || defect.photoNumber === '#'
+              );
+              
+              if (hasInvalidPhotoNumbers) {
+                const sortedDefects = [...currentDefects].sort((a, b) => {
+                  const aNum = parseInt(a.photoNumber) || 0;
+                  const bNum = parseInt(b.photoNumber) || 0;
+                  return aNum - bNum;
+                });
+                return sortedDefects.map((defect, idx) => ({
+                  ...defect,
+                  photoNumber: String(idx + 1)
+                }));
+              }
+              
+              // Just sort without renumbering to preserve existing photo numbers
+              return [...currentDefects].sort((a, b) => {
+                const aNum = parseInt(a.photoNumber) || 0;
+                const bNum = parseInt(b.photoNumber) || 0;
+                return aNum - bNum;
+              });
+            });
+          }, 100);
+        }
+        
+        return newDefects;
+      });
+      
       toast.success('Defect restored');
     }
   };
@@ -418,7 +471,7 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
       console.log('📋 Saving defect set:', title);
       console.log('📊 Data to save:', {
         defects: bulkDefects.length,
-        selectedImages: selectedImages.size,
+        selectedImages: selectedImages.length,
         formData
       });
       
@@ -427,7 +480,7 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
         selectedImages: Array.from(selectedImages),
         formData,
         selectedImagesMetadata: images
-          .filter(img => selectedImages.has(img.id))
+          .filter(img => selectedImages.some(item => item.id === img.id))
           .map(img => ({
             id: img.id,
             fileName: img.fileName || img.file?.name || '',
@@ -474,7 +527,7 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
     
     // Restore selected images
     setTimeout(() => {
-      setSelectedImages(new Set(set.data.selectedImages));
+      setSelectedImages(set.data.selectedImages);
     }, 0);
     
     // Restore selected images metadata (photo numbers, descriptions)
@@ -511,99 +564,34 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
     if (viewMode === 'bulk') {
       return images.filter(img => bulkSelectedImages.has(img.id));
     } else {
-      // Try to match by ID first, then by filename for cross-session persistence
-      const filtered = images.filter(img => {
-        // Direct ID match
-        if (selectedImages.has(img.id)) {
-          return true;
-        }
-        
-                      // Try to match by filename for cross-session persistence
-        const fileName = img.fileName || img.file?.name || '';
-        if (fileName) {
-          // Check if any selected image ID contains this filename
-          const hasMatchingFilename = Array.from(selectedImages).some(selectedId => {
-            // Handle both old format (just ID) and new format (object with id and fileName)
-            let selectedFileName = '';
-            if (typeof selectedId === 'string') {
-              // Try multiple methods to extract filename from ID
-              // Method 1: Look for common filename patterns
-              const commonPatterns = ['PB080003', 'PB080004', 'PB080007', 'PB080003 copy', 'PB080004 copy', 'PB080007 copy'];
-              for (const pattern of commonPatterns) {
-                if (selectedId.includes(pattern)) {
-                  // Extract the full filename from the ID
-                  const filenameMatch = selectedId.match(new RegExp(`(${pattern.replace(' ', '\\s*')}.*?\\.JPG)`, 'i'));
-                  if (filenameMatch) {
-                    selectedFileName = filenameMatch[1];
-                    break;
-                  }
-                }
-              }
-              
-              // Method 2: Try to extract filename from UUID format
-              if (!selectedFileName && selectedId.includes('-')) {
-                const parts = selectedId.split('-');
-                // Look for parts that contain .JPG
-                const jpgPart = parts.find(part => part.includes('.JPG'));
-                if (jpgPart) {
-                  selectedFileName = jpgPart;
-                }
-              }
-              
-              // Method 3: Try the old split method as fallback
-              if (!selectedFileName) {
-                selectedFileName = selectedId.includes('-') ? selectedId.split('-').slice(1).join('-') : '';
-              }
-            } else {
-              // New format: object with fileName
-              selectedFileName = selectedId.fileName || '';
-            }
-            
-            // Debug logging for matching
-            if (selectedFileName && selectedFileName !== fileName) {
-              console.log('🔍 Filename matching attempt:', {
-                currentFileName: fileName,
-                selectedFileName: selectedFileName,
-                selectedId: selectedId,
-                match: selectedFileName === fileName
-              });
-            }
-            
-            // More flexible filename matching
-            const normalizeFileName = (name: string) => {
-              return name
-                .replace(/\.(jpg|jpeg|png|gif|bmp|webp)$/i, '') // Remove extension
-                .replace(/[^a-zA-Z0-9]/g, '') // Remove special characters
-                .toLowerCase();
-            };
-            
-            const normalizedCurrent = normalizeFileName(fileName);
-            const normalizedSelected = normalizeFileName(selectedFileName);
-            
-            return normalizedCurrent === normalizedSelected || selectedFileName === fileName;
+      // Create instances from the selectedImages array that now contains instance information
+      const selectedInstances: ImageMetadata[] = [];
+      
+      console.log('🔍 Current selectedImages array:', selectedImages);
+      console.log('🔍 Available instance metadata keys:', Object.keys(instanceMetadata));
+      
+      // Handle the new selectedImages structure: Array<{ id: string; instanceId: string }>
+      selectedImages.forEach((item) => {
+        const img = images.find(img => img.id === item.id);
+        if (img) {
+          selectedInstances.push({
+            ...img,
+            instanceId: item.instanceId
           });
-          return hasMatchingFilename;
+          
+          // Debug: Log the instance ID and check if metadata exists
+          if (instanceMetadata[item.instanceId]) {
+            console.log(`✅ Found metadata for instance ${item.instanceId}:`, instanceMetadata[item.instanceId]);
+          } else {
+            console.log(`⚠️ No metadata found for instance ${item.instanceId}`);
+          }
         }
-        
-        return false;
       });
       
-      console.log('🔍 SelectedImagesPanel debug:', {
-        totalImages: images.length,
-        selectedImageIds: Array.from(selectedImages),
-        filteredImages: filtered.length,
-        imageIds: images.map(img => img.id),
-        imageFilenames: images.map(img => img.fileName || img.file?.name || 'unknown'),
-        // Add detailed matching info
-        matchingDetails: filtered.map(img => ({
-          id: img.id,
-          fileName: img.fileName || img.file?.name || 'unknown',
-          matchedBy: selectedImages.has(img.id) ? 'ID' : 'filename'
-        }))
-      });
-      return filtered;
+      console.log('🔍 Final selectedInstances:', selectedInstances);
+      return selectedInstances;
     }
-  }, [images, selectedImages, bulkSelectedImages, viewMode]);
+  }, [images, selectedImages, bulkSelectedImages, viewMode, instanceMetadata]);
 
   const { sketches, defects } = React.useMemo(() => ({
     sketches: selectedImagesList.filter(img => img.isSketch).length,
@@ -617,7 +605,11 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
       const defect = bulkDefects.find(d => d.selectedFile === fileName);
       return defect?.photoNumber || '';
     }
-    // For images mode, use the image's own photoNumber
+    // For images mode, check if this is an instance with its own metadata
+    if (img.instanceId && instanceMetadata[img.instanceId]) {
+      return instanceMetadata[img.instanceId].photoNumber || '';
+    }
+    // Fallback to image's own photoNumber
     return img.photoNumber || '';
   };
 
@@ -628,7 +620,11 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
       const defect = bulkDefects.find(d => d.selectedFile === fileName);
       return defect?.description || '';
     }
-    // For images mode, use the image's own description
+    // For images mode, check if this is an instance with its own metadata
+    if (img.instanceId && instanceMetadata[img.instanceId]) {
+      return instanceMetadata[img.instanceId].description || '';
+    }
+    // Fallback to image's own description
     return img.description || '';
   };
 
@@ -636,9 +632,12 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
     if (!direction) return images;
 
     return [...images].sort((a, b) => {
-      // Get photo numbers, defaulting to 0 for empty or invalid numbers
-      const aNum = a.photoNumber ? parseInt(a.photoNumber) : 0;
-      const bNum = b.photoNumber ? parseInt(b.photoNumber) : 0;
+      // Get photo numbers from instance metadata, defaulting to 0 for empty or invalid numbers
+      const aPhotoNumber = a.instanceId ? instanceMetadata[a.instanceId]?.photoNumber : a.photoNumber;
+      const bPhotoNumber = b.instanceId ? instanceMetadata[b.instanceId]?.photoNumber : b.photoNumber;
+      
+      const aNum = aPhotoNumber ? parseInt(aPhotoNumber) : 0;
+      const bNum = bPhotoNumber ? parseInt(bPhotoNumber) : 0;
       
       // If both have no numbers, maintain original order
       if (aNum === 0 && bNum === 0) {
@@ -675,7 +674,7 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
           onChange={(e) => updateImageMetadata(img.id, { description: e.target.value })}
           maxLength={100}
           className={`w-full p-1.5 text-sm border rounded focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white dark:bg-gray-800 text-slate-900 dark:text-white resize-y min-h-[60px] ${
-            !isValid ? 'border-amber-300' : 'border-slate-200 dark:border-gray-600'
+            !isValid ? 'border-white' : 'border-slate-200 dark:border-gray-600'
           }`}
           placeholder="Description"
         />
@@ -703,19 +702,29 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
       return true;
     }
     
-    // Check for duplicate photo numbers
-    const duplicates = getDuplicatePhotoNumbers();
-    if (duplicates.size > 0) {
-      return true;
-    }
-    
-    // Check if selected images have descriptions (if in images mode)
-    if (viewMode === 'images' && selectedImagesList.length > 0) {
-      const hasIncompleteDescriptions = selectedImagesList.some(img => 
-        !img.description || img.description.trim() === ''
-      );
-      if (hasIncompleteDescriptions) {
-        return true;
+    // Check if selected images have required metadata (if in images mode)
+    if (viewMode === 'images' && selectedImages.length > 0) {
+      // Check for missing photo numbers and descriptions in instances
+      for (let i = 0; i < selectedImages.length; i++) {
+        const selectedId = selectedImages[i];
+        const instanceId = `${selectedId}-${i}`;
+        const instanceData = instanceMetadata[instanceId];
+        
+        if (!instanceData?.photoNumber?.trim()) {
+          return true; // Missing photo number
+        }
+        
+        if (!instanceData?.description?.trim()) {
+          return true; // Missing description
+        }
+        
+        // Check for invalid characters in descriptions
+        if (instanceData?.description?.trim()) {
+          const { isValid } = validateDescription(instanceData.description.trim());
+          if (!isValid) {
+            return true; // Invalid characters
+          }
+        }
       }
     }
     
@@ -763,6 +772,102 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
       return { totalDefects, validDefects };
     }
     return { totalDefects: 0, validDefects: 0 };
+  };
+
+  // Check if a specific tile is incomplete
+  const isTileIncomplete = (img: ImageMetadata) => {
+    if (!img.instanceId) return false;
+    
+    const instanceData = instanceMetadata[img.instanceId];
+    if (!instanceData) return true; // Missing instance data
+    
+    const hasPhotoNumber = instanceData.photoNumber?.trim();
+    const hasDescription = instanceData.description?.trim();
+    
+    if (!hasPhotoNumber || !hasDescription) return true;
+    
+    // Check for invalid characters in description
+    if (hasDescription) {
+      const { isValid } = validateDescription(hasDescription);
+      if (!isValid) return true;
+    }
+    
+    return false;
+  };
+
+  // Check if form fields are incomplete
+  const isFormIncomplete = () => {
+    return !formData.elr?.trim() || !formData.structureNo?.trim() || !formData.date?.trim();
+  };
+
+  // Check if all validations pass (form + tiles)
+  const isAllComplete = () => {
+    if (isFormIncomplete()) return false;
+    if (viewMode === 'images' && selectedImages.length > 0) {
+      return selectedImagesList.every(img => !isTileIncomplete(img));
+    }
+    return true;
+  };
+
+  // Get specific validation error message for images mode (for toast notifications)
+  const getValidationErrorMessage = () => {
+    const errors = [];
+    
+    // Check form fields
+    if (!formData.elr?.trim()) {
+      errors.push('Enter ELR');
+    }
+    if (!formData.structureNo?.trim()) {
+      errors.push('Enter Structure No');
+    }
+    if (!formData.date?.trim()) {
+      errors.push('Select Date');
+    }
+    
+    // Check image instances
+    if (viewMode === 'images' && selectedImages.length > 0) {
+      const missingPhotoNumbers = [];
+      const missingDescriptions = [];
+      const invalidDescriptions = [];
+      
+      selectedImages.forEach((item, index) => {
+        const instanceId = item.instanceId;
+        const instanceData = instanceMetadata[instanceId];
+        
+        if (!instanceData?.photoNumber?.trim()) {
+          missingPhotoNumbers.push(index + 1);
+        }
+        
+        if (!instanceData?.description?.trim()) {
+          missingDescriptions.push(index + 1);
+        } else {
+          // Check for invalid characters in descriptions
+          const { isValid, invalidChars } = validateDescription(instanceData.description.trim());
+          if (!isValid) {
+            invalidDescriptions.push({
+              instance: index + 1,
+              invalidChars: invalidChars
+            });
+          }
+        }
+      });
+      
+      if (missingPhotoNumbers.length > 0) {
+        errors.push(`Missing photo numbers for instances: ${missingPhotoNumbers.join(', ')}`);
+      }
+      
+      if (missingDescriptions.length > 0) {
+        errors.push(`Missing descriptions for instances: ${missingDescriptions.join(', ')}`);
+      }
+      
+      if (invalidDescriptions.length > 0) {
+        invalidDescriptions.forEach(({ instance, invalidChars }) => {
+          errors.push(`Instance ${instance}: Remove invalid characters (${invalidChars.join(', ')})`);
+        });
+      }
+    }
+    
+    return errors.length > 0 ? errors.join('; ') : 'All validations complete';
   };
 
   if (images.length === 0) {
@@ -958,20 +1063,7 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
           </div>
         </div>
       </div>
-      {/* Subtle message for validation status (no background, just colored text) */}
-      {((viewMode === 'images' && hasValidationErrors()) || (viewMode === 'bulk' && !isBulkValid())) && (
-        <div className="flex items-center gap-2 px-2 py-1">
-          <AlertTriangle size={16} className="text-amber-500" />
-          <span className="text-sm font-medium text-amber-600">
-            {viewMode === 'bulk'
-              ? 'Please complete all bulk defect entries (numbers, descriptions, and image selections)'
-              : (!formData.elr || formData.elr.trim() === '' 
-                  ? 'Please enter ELR' 
-                  : 'Please add photo numbers and descriptions for all selected images')
-            }
-          </span>
-        </div>
-      )}
+      {/* Removed amber banner - now using visual tile indicators and toast notifications */}
       {/* Removed success message for Bulk mode - silent success when valid */}
       {/* Add vertical space below header */}
       <div className="h-4" />
@@ -985,10 +1077,10 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
               WebkitOverflowScrolling: 'touch'
             }}
           >
-            <div className={`grid gap-2 p-2 ${
+            <div className={`grid gap-1 p-1 ${
               isExpanded 
-                ? 'grid-cols-3 md:grid-cols-5 lg:grid-cols-7 xl:grid-cols-8' 
-                : 'grid-cols-2 lg:grid-cols-4'
+                ? 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5' 
+                : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'
             }`}>
               {/* Sketches Section */}
               {sketchImages.length > 0 && (
@@ -1005,22 +1097,26 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
                     </div>
                   </div>
                   {sketchImages.map((img) => (
-                    <div key={img.id} className="flex flex-col bg-slate-50 dark:bg-gray-700 rounded-lg overflow-hidden">
-                      <div className="relative aspect-square">
+                    <div key={img.instanceId || img.id} className={`relative flex flex-col bg-slate-50 dark:bg-gray-700 rounded-lg overflow-hidden group ${
+                      isTileIncomplete(img) ? 'bg-amber-50/30 dark:bg-amber-900/20' : ''
+                    }`}>
+                      <div className="aspect-square w-full">
                         <img
                           src={img.preview}
                           alt={img.fileName || img.file?.name || 'Image'}
                           className="w-full h-full object-cover cursor-pointer hover:opacity-95 transition-opacity select-none"
                           onClick={() => setEnlargedImage(img.preview)}
                           draggable="false"
+                          style={{ width: '100%', height: '100%' }}
                         />
-                        <button
-                          onClick={() => toggleImageSelection(img.id)}
-                          className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors shadow-sm"
-                        >
-                          <X size={12} />
-                        </button>
                       </div>
+                      <button
+                        onClick={() => handleInstanceDeletion(img.instanceId)}
+                        className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-all duration-200 shadow-sm z-10 border border-white opacity-0 group-hover:opacity-100"
+                        style={{ transform: 'translate(0, 0)' }}
+                      >
+                        <X size={10} />
+                      </button>
                       
                       <div className="p-1.5">
                         <div className="text-xs text-slate-500 dark:text-gray-400 truncate mb-1 min-h-[1rem]">
@@ -1028,21 +1124,18 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
                         </div>
                         <input
                           type="number"
-                          value={img.photoNumber}
-                          onChange={(e) => updateImageMetadata(img.id, { photoNumber: e.target.value })}
-                          className={`w-full p-1 text-sm border rounded focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white dark:bg-gray-800 text-slate-900 dark:text-white ${
-                            hasDuplicatePhotoNumber(img) 
-                              ? 'border-orange-400 dark:border-orange-500 bg-orange-50 dark:bg-orange-900/20' 
-                              : 'border-slate-200 dark:border-gray-600'
-                          }`}
+                          value={getImageNumber(img)}
+                          onChange={(e) => {
+                            if (img.instanceId) {
+                              updateInstanceMetadata(img.instanceId, { photoNumber: e.target.value });
+                            } else {
+                              updateImageMetadata(img.id, { photoNumber: e.target.value });
+                            }
+                          }}
+                          className="w-full p-1 text-sm border rounded focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white dark:bg-gray-800 text-slate-900 dark:text-white border-slate-200 dark:border-gray-600"
                           placeholder="Sketch #"
                         />
-                        {hasDuplicatePhotoNumber(img) && (
-                          <div className="flex items-center gap-1 mt-1 text-xs text-orange-600">
-                            <AlertTriangle size={10} />
-                            <span>Duplicate photo number</span>
-                          </div>
-                        )}
+
                       </div>
                     </div>
                   ))}
@@ -1053,74 +1146,90 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
               {defectImages.length > 0 && (
                 <>
                   {defectImages.map((img) => (
-                    <div key={img.id} className="flex flex-col bg-slate-50 dark:bg-gray-700 rounded-lg overflow-hidden">
-                      <div className="relative" style={{ aspectRatio: '1/1', height: '90px', minHeight: '90px', maxHeight: '90px' }}>
+                    <div key={img.instanceId || img.id} className={`relative bg-white dark:bg-gray-800 rounded-lg border overflow-hidden shadow-sm group ${
+                      isTileIncomplete(img) ? 'bg-amber-50/30 dark:bg-amber-900/20' : 'border-gray-200 dark:border-gray-700'
+                    }`}>
+                      <div style={{ aspectRatio: '1/1', height: '120px', minHeight: '120px', maxHeight: '120px', width: '100%' }}>
                         <img
                           src={img.preview}
                           alt={img.fileName || img.file?.name || 'Image'}
                           className="w-full h-full object-cover cursor-pointer hover:opacity-95 transition-opacity select-none"
                           onClick={() => setEnlargedImage(img.preview)}
                           draggable="false"
+                          style={{ width: '100%', height: '100%' }}
                         />
-                        <button
-                          onClick={() => toggleImageSelection(img.id)}
-                          className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors shadow-sm"
-                        >
-                          <X size={12} />
-                        </button>
                       </div>
-                      <div className="p-1 space-y-0.5">
-                        <div className="text-xs text-slate-500 dark:text-gray-400 truncate min-h-[1rem]">
+                      <button
+                        onClick={() => handleInstanceDeletion(img.instanceId)}
+                        className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-all duration-200 shadow-sm z-10 border border-white opacity-0 group-hover:opacity-100"
+                        style={{ transform: 'translate(0, 0)' }}
+                      >
+                        <X size={10} />
+                      </button>
+                      <div className="p-2 space-y-2">
+                        <div className="text-xs text-gray-600 dark:text-gray-300 font-medium truncate">
                           {img.fileName || img.file?.name || 'Unknown file'}
                         </div>
-                        <input
-                          type="number"
-                          value={getImageNumber(img)}
-                          onChange={(e) => updateImageMetadata(img.id, { photoNumber: e.target.value })}
-                          className={`w-14 h-7 p-0.5 text-xs border rounded focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-slate-100 dark:bg-gray-800 text-slate-900 dark:text-white text-center ${
-                            hasDuplicatePhotoNumber(img) 
-                              ? 'border-orange-400 dark:border-orange-500 bg-orange-50 dark:bg-orange-900/20' 
-                              : 'border-slate-300 dark:border-gray-600'
-                          }`}
-                          placeholder="#"
-                          style={{ minHeight: '24px', fontSize: '12px', width: '3.5rem' }}
-                        />
-                        {hasDuplicatePhotoNumber(img) && (
-                          <div className="flex items-center gap-1 mt-1 text-xs text-orange-600">
-                            <AlertTriangle size={10} />
-                            <span>Duplicate photo number</span>
-                          </div>
-                        )}
-                        {!img.isSketch && (
-                          <div>
-                            <textarea
-                              value={getImageDescription(img)}
+                        <div className="space-y-1">
+                          <div className="flex justify-end">
+                            <input
+                              type="text"
+                              value={getImageNumber(img)}
                               onChange={(e) => {
-                                console.log('Textarea changed:', e.target.value);
-                                updateImageMetadata(img.id, { description: e.target.value });
+                                if (img.instanceId) {
+                                  updateInstanceMetadata(img.instanceId, { photoNumber: e.target.value });
+                                } else {
+                                  updateImageMetadata(img.id, { photoNumber: e.target.value });
+                                }
                               }}
-                              className={`w-full p-1 text-xs rounded focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-slate-100 dark:bg-gray-800 text-slate-900 dark:text-white resize-y min-h-[28px] border ${
-                                (() => {
-                                  const { isValid, hasForwardSlashes } = validateDescription(getImageDescription(img) || '');
-                                  return !isValid ? 'border-amber-300' : 'border-slate-200 dark:border-gray-600';
-                                })()
-                              }`}
-                              placeholder="Description"
-                              style={{ minHeight: '28px', fontSize: '12px' }}
+                              className="w-16 p-1 text-xs border rounded-l focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600 text-center"
+                              placeholder="#"
                             />
-                            {(() => {
-                              const { isValid, hasForwardSlashes } = validateDescription(getImageDescription(img) || '');
-                              return !isValid ? (
-                                <div className="flex items-center gap-1 mt-1 text-xs text-amber-600">
-                                  <AlertTriangle size={10} />
-                                  <span>
-                                    {hasForwardSlashes ? 'Forward slashes (/) are not allowed' : 'Invalid characters in description'}
-                                  </span>
-                                </div>
-                              ) : null;
-                            })()}
                           </div>
-                        )}
+
+                          {!img.isSketch && (
+                            <div className="space-y-1">
+                              <textarea
+                                value={getImageDescription(img)}
+                                onChange={(e) => {
+                                  console.log('Textarea changed:', e.target.value);
+                                  if (img.instanceId) {
+                                    updateInstanceMetadata(img.instanceId, { description: e.target.value });
+                                  } else {
+                                    updateImageMetadata(img.id, { description: e.target.value });
+                                  }
+                                  // Auto-resize the textarea
+                                  e.target.style.height = 'auto';
+                                  e.target.style.height = e.target.scrollHeight + 'px';
+                                }}
+                                className={`w-full p-1 text-xs rounded focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white resize-none border min-h-[24px] ${
+                                  (() => {
+                                    const { isValid, hasForwardSlashes } = validateDescription(getImageDescription(img) || '');
+                                    return !isValid ? 'border-white' : 'border-gray-200 dark:border-gray-600';
+                                  })()
+                                }`}
+                                placeholder="Description"
+                                style={{ height: 'auto', minHeight: '24px' }}
+                                onInput={(e) => {
+                                  const target = e.target as HTMLTextAreaElement;
+                                  target.style.height = 'auto';
+                                  target.style.height = target.scrollHeight + 'px';
+                                }}
+                              />
+                              {(() => {
+                                const { isValid, hasForwardSlashes } = validateDescription(getImageDescription(img) || '');
+                                return !isValid ? (
+                                  <div className="flex items-center gap-1 text-xs text-amber-600">
+                                    <AlertTriangle size={12} />
+                                    <span>
+                                      {hasForwardSlashes ? 'Forward slashes (/) are not allowed' : 'Invalid characters in description'}
+                                    </span>
+                                  </div>
+                                ) : null;
+                              })()}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -1149,21 +1258,50 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
         )}
       </div>
 
-      <div className="flex items-center gap-2 p-2 border-t border-slate-200 dark:border-gray-700">
-        <button
-          onClick={handleSaveDefectSet}
-          className="flex items-center gap-2 px-3 py-1.5 bg-gray-700 dark:bg-gray-600 text-white text-sm rounded border border-gray-600 dark:border-gray-500 hover:bg-gray-600 dark:hover:bg-gray-500 transition-colors"
-        >
-          <FileText size={14} />
-          Save Defect Set
-        </button>
-        <button
-          onClick={handleShowLoadTray}
-          className="flex items-center gap-2 px-3 py-1.5 bg-gray-700 dark:bg-gray-600 text-white text-sm rounded border border-gray-600 dark:border-gray-500 hover:bg-gray-600 dark:hover:bg-gray-500 transition-colors"
-        >
-          <FileText size={14} />
-          Load Defect Set
-        </button>
+      <div className="flex items-center justify-between p-2 border-t border-slate-200 dark:border-gray-700">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleSaveDefectSet}
+            className="flex items-center gap-2 px-3 py-1.5 bg-gray-700 dark:bg-gray-600 text-white text-sm rounded border border-gray-600 dark:border-gray-500 hover:bg-gray-600 dark:hover:bg-gray-500 transition-colors"
+          >
+            <FileText size={14} />
+            Save Defect Set
+          </button>
+          <button
+            onClick={handleShowLoadTray}
+            className="flex items-center gap-2 px-3 py-1.5 bg-gray-700 dark:bg-gray-600 text-white text-sm rounded border border-gray-600 dark:border-gray-500 hover:bg-gray-600 dark:hover:bg-gray-500 transition-colors"
+          >
+            <FileText size={14} />
+            Load Defect Set
+          </button>
+        </div>
+        
+        {/* Status indicator for images mode */}
+        {viewMode === 'images' && (
+          <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-gray-400">
+            {(() => {
+              if (selectedImages.length === 0) {
+                return <span>No images selected</span>;
+              }
+              
+              const formComplete = !isFormIncomplete();
+              const completeTiles = selectedImagesList.filter(img => !isTileIncomplete(img)).length;
+              const totalTiles = selectedImagesList.length;
+              const allComplete = isAllComplete();
+              
+              return (
+                <>
+                  <span>
+                    {formComplete ? 'Form ✓' : 'Form ✗'} • {completeTiles} of {totalTiles} tiles
+                  </span>
+                  {allComplete && (
+                    <CheckCircle size={14} className="text-green-500" />
+                  )}
+                </>
+              );
+            })()}
+          </div>
+        )}
       </div>
       {/* Load tray/modal */}
       {showLoadTray && (

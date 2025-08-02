@@ -417,13 +417,33 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
       setIsSortingEnabled(false);
       
       setBulkDefects(prev => {
-        // Add the deleted defect back at its original position
+        // Add the deleted defect back at its original position with original photo number
         const newDefects = [...prev];
-        newDefects.splice(lastDeleted.originalIndex, 0, lastDeleted.defect);
+        const restoredDefect = {
+          ...lastDeleted.defect,
+          photoNumber: lastDeleted.originalPhotoNumber || lastDeleted.defect.photoNumber
+        };
+        newDefects.splice(lastDeleted.originalIndex, 0, restoredDefect);
         
-        // Re-enable auto-sorting after a delay if it was enabled
+        // If auto-sorting was enabled, re-enable it after a delay
         if (wasAutoSorting) {
-          setTimeout(() => setIsSortingEnabled(true), 100);
+          setTimeout(() => {
+            setIsSortingEnabled(true);
+            // Only re-sort and renumber if the restored defect doesn't have a valid photo number
+            setBulkDefects(currentDefects => {
+              const hasInvalidPhotoNumbers = currentDefects.some(defect => 
+                !defect.photoNumber || defect.photoNumber === '' || defect.photoNumber === '#'
+              );
+              
+              if (hasInvalidPhotoNumbers) {
+                const sortedDefects = reorderDefects(currentDefects);
+                return reorderAndRenumberDefects(sortedDefects);
+              }
+              
+              // Just sort without renumbering to preserve existing photo numbers
+              return reorderDefects(currentDefects);
+            });
+          }, 100);
         }
         
         return newDefects;

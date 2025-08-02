@@ -10,6 +10,11 @@ export const ImageGrid: React.FC = () => {
   const { gridWidth, setGridWidth } = useGridWidth();
   const { trackGridLoad, trackImageSelection, trackUserAction } = useAnalytics();
 
+  // Check if form fields are incomplete
+  const isFormIncomplete = () => {
+    return !formData.elr?.trim() || !formData.structureNo?.trim() || !formData.date?.trim();
+  };
+
   // Track grid load and image selection
   useEffect(() => {
     if (images.length > 0) {
@@ -41,6 +46,10 @@ export const ImageGrid: React.FC = () => {
   const handleGridWidthChange = (newWidth: number) => {
     setGridWidth(newWidth);
     trackUserAction('grid_resize', 'width_change', newWidth);
+    
+    // Save session state
+    const { updateSessionState } = useMetadataStore();
+    updateSessionState({ gridWidth: newWidth });
   };
 
   // Separate sketches and defects
@@ -60,7 +69,9 @@ export const ImageGrid: React.FC = () => {
                 type="text"
                 value={formData.elr}
                 onChange={handleELRChange}
-                className="p-1 text-xs border border-slate-200 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-slate-900 dark:text-white w-16"
+                className={`p-1 text-xs border rounded text-slate-900 dark:text-white w-16 ${
+                  !formData.elr?.trim() ? 'bg-amber-50/30 dark:bg-amber-900/20 border-amber-300' : 'bg-white dark:bg-gray-800 border-slate-200 dark:border-gray-600'
+                }`}
                 placeholder="ELR"
                 maxLength={8}
               />
@@ -71,7 +82,9 @@ export const ImageGrid: React.FC = () => {
                 type="text"
                 value={formData.structureNo}
                 onChange={handleStructureNoChange}
-                className="p-1 text-xs border border-slate-200 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-slate-900 dark:text-white w-16"
+                className={`p-1 text-xs border rounded text-slate-900 dark:text-white w-16 ${
+                  !formData.structureNo?.trim() ? 'bg-amber-50/30 dark:bg-amber-900/20 border-amber-300' : 'bg-white dark:bg-gray-800 border-slate-200 dark:border-gray-600'
+                }`}
                 placeholder="No"
                 maxLength={8}
               />
@@ -82,7 +95,9 @@ export const ImageGrid: React.FC = () => {
                 type="date"
                 value={formData.date}
                 onChange={handleDateChange}
-                className="p-1 text-xs border border-slate-200 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-slate-900 dark:text-white w-28"
+                className={`p-1 text-xs border rounded text-slate-900 dark:text-white w-28 ${
+                  !formData.date?.trim() ? 'bg-amber-50/30 dark:bg-amber-900/20 border-amber-300' : 'bg-white dark:bg-gray-800 border-slate-200 dark:border-gray-600'
+                }`}
               />
             </div>
           </div>
@@ -114,7 +129,9 @@ export const ImageGrid: React.FC = () => {
               type="text"
               value={formData.elr}
               onChange={handleELRChange}
-              className="p-1 text-xs border border-slate-200 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-slate-900 dark:text-white max-w-[70px] mr-2"
+              className={`p-1 text-xs border rounded text-slate-900 dark:text-white max-w-[70px] mr-2 ${
+                !formData.elr?.trim() ? 'bg-amber-50/30 dark:bg-amber-900/20 border-amber-300' : 'bg-white dark:bg-gray-800 border-slate-200 dark:border-gray-600'
+              }`}
               placeholder="ELR"
               maxLength={8}
             />
@@ -123,7 +140,9 @@ export const ImageGrid: React.FC = () => {
               type="text"
               value={formData.structureNo}
               onChange={handleStructureNoChange}
-              className="p-1 text-xs border border-slate-200 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-slate-900 dark:text-white max-w-[70px] mr-2"
+              className={`p-1 text-xs border rounded text-slate-900 dark:text-white max-w-[70px] mr-2 ${
+                !formData.structureNo?.trim() ? 'bg-amber-50/30 dark:bg-amber-900/20 border-amber-300' : 'bg-white dark:bg-gray-800 border-slate-200 dark:border-gray-600'
+              }`}
               placeholder="No"
               maxLength={8}
             />
@@ -132,7 +151,9 @@ export const ImageGrid: React.FC = () => {
               type="date"
               value={formData.date}
               onChange={handleDateChange}
-              className="p-1 text-xs border border-slate-200 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-slate-900 dark:text-white max-w-[120px] mr-2"
+              className={`p-1 text-xs border rounded text-slate-900 dark:text-white max-w-[120px] mr-2 ${
+                !formData.date?.trim() ? 'bg-amber-50/30 dark:bg-amber-900/20 border-amber-300' : 'bg-white dark:bg-gray-800 border-slate-200 dark:border-gray-600'
+              }`}
             />
             <ImageUpload compact={true} />
           </div>
@@ -157,7 +178,7 @@ export const ImageGrid: React.FC = () => {
       </div>
 
 
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 overflow-y-auto">
         {images.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-slate-500 dark:text-gray-400 p-8">
             <div className="text-6xl mb-4">📷</div>

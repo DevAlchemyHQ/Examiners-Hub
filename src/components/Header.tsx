@@ -34,7 +34,7 @@ const VersionBanner: React.FC = () => {
   if (!showBanner) return null;
 
   return (
-    <div className="fixed top-0 left-0 right-0 z-[9999] bg-gradient-to-r from-blue-500 to-purple-600 text-white px-4 py-3 shadow-lg">
+    <div className="absolute top-0 left-0 right-0 z-[9999] bg-gradient-to-r from-blue-500 to-purple-600 text-white px-4 py-3 shadow-lg">
       <div className="flex items-center justify-between max-w-7xl mx-auto">
         <div className="flex items-center gap-3">
           <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>

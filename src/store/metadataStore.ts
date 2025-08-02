@@ -24,10 +24,25 @@ interface DeletedDefect {
   originalPhotoNumber: string;
 }
 
+// Session state interface for comprehensive restoration
+interface SessionState {
+  lastActiveTab: 'images' | 'bulk';
+  lastActiveTime: number;
+  imageOrder: string[]; // Array of image IDs in their current order
+  selectedImageOrder: string[]; // Array of selected image instance IDs in their current order
+  bulkDefectOrder: string[]; // Array of bulk defect IDs in their current order
+  panelExpanded: boolean;
+  gridWidth: number;
+  scrollPositions: {
+    imageGrid: number;
+    selectedPanel: number;
+  };
+}
+
 // We need to separate the state interface from the actions
 interface MetadataStateOnly {
   images: ImageMetadata[];
-  selectedImages: Set<string>;
+  selectedImages: Array<{ id: string; instanceId: string }>; // Store both base ID and instance ID
   bulkSelectedImages: Set<string>;
   formData: FormData;
   defectSortDirection: 'asc' | 'desc' | null;
@@ -38,6 +53,10 @@ interface MetadataStateOnly {
   isLoading: boolean;
   isInitialized: boolean;
   isSortingEnabled: boolean;
+  // Store instance-specific metadata for multiple selections
+  instanceMetadata: Record<string, { photoNumber?: string; description?: string }>;
+  // Session state for comprehensive restoration
+  sessionState: SessionState;
 }
 
 // Combine state and actions
@@ -45,10 +64,11 @@ interface MetadataState extends MetadataStateOnly {
   setFormData: (data: Partial<FormData>) => void;
   addImages: (files: File[], isSketch?: boolean) => Promise<void>;
   updateImageMetadata: (id: string, data: Partial<Omit<ImageMetadata, 'id' | 'file' | 'preview'>>) => Promise<void>;
+  updateInstanceMetadata: (instanceId: string, data: { photoNumber?: string; description?: string }) => void;
   removeImage: (id: string) => Promise<void>;
   toggleImageSelection: (id: string) => void;
   toggleBulkImageSelection: (id: string) => void;
-  setSelectedImages: (selectedImages: Set<string>) => void;
+  setSelectedImages: (selectedImages: Array<{ id: string; instanceId: string }>) => void;
   clearSelectedImages: () => void;
   clearBulkSelectedImages: () => void;
   setDefectSortDirection: (direction: 'asc' | 'desc' | null) => void;
@@ -72,6 +92,11 @@ interface MetadataState extends MetadataStateOnly {
   convertSelectedImagesToBase64: (selectedImageIds: string[]) => Promise<ImageMetadata[]>;
   getDownloadableFile: (image: ImageMetadata) => Promise<File | Blob>;
   createErrorPlaceholder: (image: ImageMetadata) => Blob;
+  // Session management actions
+  saveSessionState: () => void;
+  restoreSessionState: () => void;
+  updateSessionState: (updates: Partial<SessionState>) => void;
+  clearSessionState: () => void;
 }
 
 // Helper function to get user-specific localStorage keys
@@ -90,7 +115,7 @@ const getUserSpecificKeys = () => {
 
 const initialState: MetadataStateOnly = {
   images: [],
-  selectedImages: new Set(),
+  selectedImages: [],
   bulkSelectedImages: new Set(),
   formData: initialFormData,
   defectSortDirection: null,
@@ -101,6 +126,21 @@ const initialState: MetadataStateOnly = {
   isLoading: false,
   isInitialized: false,
   isSortingEnabled: true,
+  instanceMetadata: {},
+  // Initialize session state
+  sessionState: {
+    lastActiveTab: 'images',
+    lastActiveTime: Date.now(),
+    imageOrder: [],
+    selectedImageOrder: [],
+    bulkDefectOrder: [],
+    panelExpanded: true,
+    gridWidth: 300,
+    scrollPositions: {
+      imageGrid: 0,
+      selectedPanel: 0,
+    },
+  },
 };
 
 export const useMetadataStore = create<MetadataState>((set, get) => ({
@@ -314,20 +354,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
   updateImageMetadata: async (id, data) => {
     set((state) => {
       // Check for duplicate photo numbers if photoNumber is being updated
-      if (data.photoNumber !== undefined) {
-        const newPhotoNumber = parseInt(data.photoNumber) || 0;
-        if (newPhotoNumber > 0) {
-          const hasDuplicate = state.images.some(img => 
-            img.id !== id && 
-            parseInt(img.photoNumber || '0') === newPhotoNumber
-          );
-          if (hasDuplicate) {
-            console.warn('Duplicate photo number detected:', newPhotoNumber);
-            // Don't update if duplicate found - let the UI handle the error
-            return { images: state.images };
-          }
-        }
-      }
+
       
       const updatedImages = state.images.map((img) =>
         img.id === id ? { ...img, ...data } : img
@@ -384,6 +411,54 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
     });
   },
 
+  updateInstanceMetadata: (instanceId, data) => {
+    set((state) => {
+      const updatedInstanceMetadata = {
+        ...state.instanceMetadata,
+        [instanceId]: {
+          ...state.instanceMetadata[instanceId],
+          ...data
+        }
+      };
+      
+      // Save to localStorage for immediate persistence
+      try {
+        const keys = getUserSpecificKeys();
+        const localStorageKey = `${keys.selections}-instance-metadata`;
+        localStorage.setItem(localStorageKey, JSON.stringify(updatedInstanceMetadata));
+        console.log('📱 Instance metadata saved to localStorage for instance:', instanceId);
+        console.log('📱 Saved to key:', localStorageKey);
+        console.log('📱 Updated metadata:', updatedInstanceMetadata);
+        
+        // Verify the save worked
+        const savedData = localStorage.getItem(localStorageKey);
+        console.log('📱 Verification - saved data:', savedData);
+      } catch (error) {
+        console.error('❌ Error saving instance metadata to localStorage:', error);
+      }
+      
+      // Save to AWS for cross-session persistence
+      (async () => {
+        try {
+          const storedUser = localStorage.getItem('user');
+          const user = storedUser ? JSON.parse(storedUser) : null;
+          
+          if (user?.email) {
+            // Save instance metadata to AWS
+            await DatabaseService.updateProject(user.email, 'current', { 
+              instanceMetadata: updatedInstanceMetadata 
+            });
+            console.log('✅ Instance metadata saved to AWS for user:', user.email);
+          }
+        } catch (error) {
+          console.error('❌ Error saving instance metadata to AWS:', error);
+        }
+      })();
+      
+      return { instanceMetadata: updatedInstanceMetadata };
+    });
+  },
+
   removeImage: async (id) => {
     try {
       set((state) => {
@@ -405,27 +480,30 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
 
   toggleImageSelection: (id) => {
     set((state) => {
-      let newSelected = new Set(state.selectedImages);
-      if (newSelected.has(id)) {
-        newSelected.delete(id);
-      } else {
-        // Simply add the image to selection - no validation here
-            newSelected.add(id);
-      }
+      // Create a new instance with unique instanceId using timestamp
+      const timestamp = Date.now();
+      const instanceId = `${id}-${timestamp}`;
+      
+      const newSelected = [...state.selectedImages, { id, instanceId }];
+      
+      console.log('🔧 toggleImageSelection - Added instance:', { id, instanceId, timestamp });
+      console.log('🔧 toggleImageSelection - New selectedImages:', newSelected);
       
       // Auto-save selections to localStorage immediately with filenames for cross-session matching (but not during clearing)
       try {
         // Check if project is being cleared
         const projectStore = useProjectStore.getState();
         if (!projectStore.isClearing) {
-          const selectedWithFilenames = Array.from(newSelected).map(id => {
-            const image = state.images.find(img => img.id === id);
+          const selectedWithFilenames = newSelected.map(item => {
+            const image = state.images.find(img => img.id === item.id);
             return {
-              id,
+              id: item.id,
+              instanceId: item.instanceId,
               fileName: image?.fileName || image?.file?.name || 'unknown'
             };
           });
-          localStorage.setItem('clean-app-selected-images', JSON.stringify(selectedWithFilenames));
+          const keys = getUserSpecificKeys();
+          localStorage.setItem(keys.selections, JSON.stringify(selectedWithFilenames));
           console.log('📱 Selected images saved to localStorage:', selectedWithFilenames);
         } else {
           console.log('⏸️ Skipping localStorage save during project clear');
@@ -448,14 +526,15 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           const user = storedUser ? JSON.parse(storedUser) : null;
           
           if (user?.email) {
-            const selectedWithFilenames = Array.from(newSelected).map(id => {
-              const image = state.images.find(img => img.id === id);
+            // Send instance information to AWS
+            const selectedWithInstanceIds = newSelected.map(item => {
+              const image = state.images.find(img => img.id === item.id);
               return {
-                id,
-                fileName: image?.file?.name || 'unknown'
+                id: item.instanceId, // Use instanceId as the unique identifier
+                fileName: image?.fileName || image?.file?.name || 'unknown'
               };
             });
-            await DatabaseService.updateSelectedImages(user.email, selectedWithFilenames);
+            await DatabaseService.updateSelectedImages(user.email, selectedWithInstanceIds);
             console.log('✅ Selected images auto-saved to AWS for user:', user.email);
           }
         } catch (error) {
@@ -486,14 +565,16 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         // Check if project is being cleared
         const projectStore = useProjectStore.getState();
         if (!projectStore.isClearing) {
-          const selectedWithFilenames = Array.from(selectedImages).map(id => {
-            const image = state.images.find(img => img.id === id);
+          const selectedWithFilenames = selectedImages.map(item => {
+            const image = state.images.find(img => img.id === item.id);
             return {
-              id,
-              fileName: image?.file?.name || 'unknown'
+              id: item.id,
+              instanceId: item.instanceId,
+              fileName: image?.fileName || image?.file?.name || 'unknown'
             };
           });
-          localStorage.setItem('clean-app-selected-images', JSON.stringify(selectedWithFilenames));
+          const keys = getUserSpecificKeys();
+          localStorage.setItem(keys.selections, JSON.stringify(selectedWithFilenames));
           console.log('📱 Selected images saved to localStorage:', selectedWithFilenames);
         } else {
           console.log('⏸️ Skipping localStorage save during project clear');
@@ -516,14 +597,15 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           const user = storedUser ? JSON.parse(storedUser) : null;
           
           if (user?.email) {
-            const selectedWithFilenames = Array.from(selectedImages).map(id => {
-              const image = state.images.find(img => img.id === id);
+            // Send instance information to AWS
+            const selectedWithInstanceIds = selectedImages.map(item => {
+              const image = state.images.find(img => img.id === item.id);
               return {
-                id,
-                fileName: image?.file?.name || 'unknown'
+                id: item.instanceId, // Use instanceId as the unique identifier
+                fileName: image?.fileName || image?.file?.name || 'unknown'
               };
             });
-            await DatabaseService.updateSelectedImages(user.email, selectedWithFilenames);
+            await DatabaseService.updateSelectedImages(user.email, selectedWithInstanceIds);
             console.log('✅ Selected images auto-saved to AWS for user:', user.email);
           }
         } catch (error) {
@@ -533,10 +615,14 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       
       return { selectedImages };
     });
+    
+    // Update session state with new selected image order
+    const selectedImageOrder = selectedImages.map(item => item.instanceId);
+    get().updateSessionState({ selectedImageOrder });
   },
 
   clearSelectedImages: () => {
-    set({ selectedImages: new Set() });
+    set({ selectedImages: [], instanceMetadata: {} });
   },
 
   clearBulkSelectedImages: () => {
@@ -580,13 +666,23 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         console.error('❌ Error saving bulk defects to localStorage:', error);
       }
       
-      // Auto-save to AWS in background - but only if not clearing
+      // Auto-save to AWS in background with rate limiting to prevent throughput issues
       (async () => {
         try {
           // Check if project is being cleared
           const projectStore = useProjectStore.getState();
           if (projectStore.isClearing) {
             console.log('⏸️ Skipping auto-save during project clear');
+            return;
+          }
+          
+          // Rate limiting: Only save every 10 seconds to prevent DynamoDB throughput issues
+          const lastBulkSaveTime = localStorage.getItem('last-bulk-aws-save');
+          const now = Date.now();
+          const minInterval = 10000; // 10 seconds
+          
+          if (lastBulkSaveTime && (now - parseInt(lastBulkSaveTime)) < minInterval) {
+            console.log('⏸️ Rate limiting bulk auto-save to prevent DynamoDB throughput issues');
             return;
           }
           
@@ -599,6 +695,8 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             const result = await DatabaseService.updateBulkDefects(user.email, newBulkDefects);
             if (result.success) {
               console.log('✅ Bulk defects auto-saved to AWS for user:', user.email, 'Count:', newBulkDefects.length);
+              // Update the last save time only on success
+              localStorage.setItem('last-bulk-aws-save', now.toString());
             } else {
               console.error('❌ Failed to auto-save bulk defects to AWS:', result.error);
             }
@@ -612,6 +710,10 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       
       return { bulkDefects: newBulkDefects };
     });
+    
+    // Update session state with new defect order
+    const defectOrder = newBulkDefects.map(defect => defect.id || defect.photoNumber);
+    get().updateSessionState({ bulkDefectOrder: defectOrder });
   },
 
   setDeletedDefects: (defects) => {
@@ -698,7 +800,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
 
   loadUserData: async () => {
     try {
-      console.log('Loading user data...');
+      console.log('🔄 Starting loadUserData...');
       
       // Check if project is being cleared - don't load data during clearing
       const projectStore = useProjectStore.getState();
@@ -717,6 +819,8 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       
       if (currentUserEmail && savedUserEmail && currentUserEmail !== savedUserEmail) {
         console.log('🔄 User changed, clearing old data and skipping loadUserData');
+        console.log('🔄 Current user:', currentUserEmail);
+        console.log('🔄 Saved user:', savedUserEmail);
         // Clear all data for the old user
         get().reset();
         return;
@@ -890,10 +994,10 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             const images = JSON.parse(savedImages);
             console.log('📱 Images loaded from localStorage (fallback):', images.length);
             
-            // Ensure all localStorage images have consistent IDs
+            // Ensure all localStorage images have consistent IDs (matching S3 format)
             const imagesWithConsistentIds = images.map((img: any) => ({
               ...img,
-              id: img.id || `local-${(img.fileName || img.file?.name || 'unknown').replace(/[^a-zA-Z0-9]/g, '-')}`
+              id: img.id || `s3-${(img.fileName || img.file?.name || 'unknown').replace(/[^a-zA-Z0-9]/g, '-')}`
             }));
             
             // Auto-recovery: Try to restore local files from S3 for missing files
@@ -931,7 +1035,8 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           (async () => {
             try {
               // Try localStorage first (like bulk data)
-              const savedSelections = localStorage.getItem('clean-app-selected-images');
+              const keys = getUserSpecificKeys();
+              const savedSelections = localStorage.getItem(keys.selections);
               if (savedSelections) {
                 const selections = JSON.parse(savedSelections);
                 console.log('📱 Selected images loaded from localStorage:', selections);
@@ -1019,43 +1124,188 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         }
       }
       
-      if (selectionsResult.status === 'fulfilled' && selectionsResult.value.length > 0) {
-        // Convert selections to Set of IDs with improved matching
-        const selectedImageIds = new Set<string>();
-        const loadedImages = imagesResult.status === 'fulfilled' ? imagesResult.value : [];
+      // Load selected images from localStorage first, then AWS as fallback
+      const keys = getUserSpecificKeys();
+      const savedSelections = localStorage.getItem(keys.selections);
+      let selectedImageIds: Array<{ id: string; instanceId: string }> = [];
+      const loadedImages = imagesResult.status === 'fulfilled' ? imagesResult.value : [];
+      
+      if (savedSelections) {
+        try {
+          const parsedSelections = JSON.parse(savedSelections);
+          console.log('📱 Loading selected images from localStorage:', parsedSelections);
+          
+          parsedSelections.forEach((selectedItem: any) => {
+            // Handle both old format (string) and new format (object with id and instanceId)
+            const selectedId = typeof selectedItem === 'string' ? selectedItem : (selectedItem.id || selectedItem.imageId);
+            // Use the original instanceId from the saved data, don't regenerate it
+            const selectedInstanceId = selectedItem.instanceId || selectedId;
+            const selectedFileName = selectedItem.fileName || selectedItem.file?.name || 'unknown';
+            
+            if (selectedId) {
+              // First try to match by ID
+              const imageById = loadedImages.find((img: any) => img.id === selectedId);
+              if (imageById) {
+                selectedImageIds.push({ id: selectedId, instanceId: selectedInstanceId });
+                console.log('✅ Matched selected image by ID:', selectedId, 'with instanceId:', selectedInstanceId);
+              } else {
+                // Fallback: try to match by filename (case-insensitive)
+                const imageByFileName = loadedImages.find((img: any) => {
+                  const imgFileName = img.fileName || img.file?.name || '';
+                  const selectedFileNameLower = selectedFileName.toLowerCase();
+                  const imgFileNameLower = imgFileName.toLowerCase();
+                  return imgFileNameLower === selectedFileNameLower;
+                });
+                
+                if (imageByFileName) {
+                  selectedImageIds.push({ id: imageByFileName.id, instanceId: selectedInstanceId });
+                  console.log('✅ Matched selected image by filename:', selectedFileName, '→', imageByFileName.id, 'with instanceId:', selectedInstanceId);
+                } else {
+                  // Additional fallback: try to match by S3 key or public URL
+                  const imageByS3Key = loadedImages.find((img: any) => {
+                    if (img.s3Key && selectedFileName) {
+                      // Extract filename from S3 key (format: timestamp-filename)
+                      const s3FileName = img.s3Key.split('-').slice(1).join('-');
+                      return s3FileName.toLowerCase() === selectedFileName.toLowerCase();
+                    }
+                    return false;
+                  });
+                  
+                  if (imageByS3Key) {
+                    selectedImageIds.push({ id: imageByS3Key.id, instanceId: selectedInstanceId });
+                    console.log('✅ Matched selected image by S3 key:', selectedFileName, '→', imageByS3Key.id, 'with instanceId:', selectedInstanceId);
+                  } else {
+                    console.warn('⚠️ Could not match selected image:', selectedFileName);
+                  }
+                }
+              }
+            }
+          });
+          
+          console.log('📱 Selected images loaded from localStorage:', selectedImageIds);
+        } catch (error) {
+          console.error('❌ Error parsing saved selections from localStorage:', error);
+        }
+      }
+      
+      // If no selections found in localStorage, try AWS as fallback
+      if (selectedImageIds.length === 0 && selectionsResult.status === 'fulfilled' && selectionsResult.value.length > 0) {
+        console.log('📱 No selections found in localStorage, trying AWS...');
         
         selectionsResult.value.forEach((selectedItem: any) => {
-          // Handle both localStorage format (id) and DynamoDB format (imageId)
+          // Handle both old format (string) and new format (object with id and instanceId)
           const selectedId = typeof selectedItem === 'string' ? selectedItem : (selectedItem.id || selectedItem.imageId);
+          // Use the original instanceId from the saved data, don't regenerate it
+          const selectedInstanceId = selectedItem.instanceId || selectedId;
           const selectedFileName = selectedItem.fileName || selectedItem.file?.name || 'unknown';
           
           if (selectedId) {
             // First try to match by ID
             const imageById = loadedImages.find((img: any) => img.id === selectedId);
             if (imageById) {
-              selectedImageIds.add(selectedId);
-              console.log('✅ Matched selected image by ID:', selectedId);
+              selectedImageIds.push({ id: selectedId, instanceId: selectedInstanceId });
+              console.log('✅ Matched selected image by ID:', selectedId, 'with instanceId:', selectedInstanceId);
             } else {
-              // Fallback: try to match by filename
-              const imageByFileName = loadedImages.find((img: any) => 
-                (img.fileName || img.file?.name || '') === selectedFileName
-              );
+              // Fallback: try to match by filename (case-insensitive)
+              const imageByFileName = loadedImages.find((img: any) => {
+                const imgFileName = img.fileName || img.file?.name || '';
+                const selectedFileNameLower = selectedFileName.toLowerCase();
+                const imgFileNameLower = imgFileName.toLowerCase();
+                return imgFileNameLower === selectedFileNameLower;
+              });
+              
               if (imageByFileName) {
-                selectedImageIds.add(imageByFileName.id);
-                console.log('✅ Matched selected image by filename:', selectedFileName, '→', imageByFileName.id);
+                selectedImageIds.push({ id: imageByFileName.id, instanceId: selectedInstanceId });
+                console.log('✅ Matched selected image by filename:', selectedFileName, '→', imageByFileName.id, 'with instanceId:', selectedInstanceId);
               } else {
-                console.warn('⚠️ Could not match selected image:', selectedFileName);
+                // Additional fallback: try to match by S3 key or public URL
+                const imageByS3Key = loadedImages.find((img: any) => {
+                  if (img.s3Key && selectedFileName) {
+                    // Extract filename from S3 key (format: timestamp-filename)
+                    const s3FileName = img.s3Key.split('-').slice(1).join('-');
+                    return s3FileName.toLowerCase() === selectedFileName.toLowerCase();
+                  }
+                  return false;
+                });
+                
+                if (imageByS3Key) {
+                  selectedImageIds.push({ id: imageByS3Key.id, instanceId: selectedInstanceId });
+                  console.log('✅ Matched selected image by S3 key:', selectedFileName, '→', imageByS3Key.id, 'with instanceId:', selectedInstanceId);
+                } else {
+                  console.warn('⚠️ Could not match selected image:', selectedFileName);
+                }
               }
             }
           }
         });
         
-        updates.selectedImages = selectedImageIds;
-        console.log('📱 Selected images loaded and restored:', Array.from(selectedImageIds));
+        console.log('📱 Selected images loaded from AWS:', selectedImageIds);
+      }
+      
+      updates.selectedImages = selectedImageIds;
+      console.log('📱 Final selected images restored:', selectedImageIds);
+      
+            // Load instance metadata from localStorage first, then AWS
+      try {
+        const keys = getUserSpecificKeys();
+        console.log('🔍 Looking for instance metadata with key:', `${keys.selections}-instance-metadata`);
+        const savedInstanceMetadata = localStorage.getItem(`${keys.selections}-instance-metadata`);
+        console.log('🔍 Raw saved instance metadata:', savedInstanceMetadata);
+        
+        if (savedInstanceMetadata) {
+          const parsedInstanceMetadata = JSON.parse(savedInstanceMetadata);
+          updates.instanceMetadata = parsedInstanceMetadata;
+          console.log('📱 Instance metadata loaded from localStorage:', Object.keys(parsedInstanceMetadata).length, 'instances');
+          console.log('📱 Instance metadata keys:', Object.keys(parsedInstanceMetadata));
+          console.log('📱 Full instance metadata:', parsedInstanceMetadata);
+        } else {
+          console.log('⚠️ No instance metadata found in localStorage, trying AWS...');
+          
+          // Try to load from AWS if not in localStorage
+          if (userId !== 'anonymous') {
+            try {
+              const { project } = await DatabaseService.getProject(userId, 'current');
+              if (project?.instanceMetadata) {
+                updates.instanceMetadata = project.instanceMetadata;
+                console.log('✅ Instance metadata loaded from AWS:', Object.keys(project.instanceMetadata).length, 'instances');
+                console.log('✅ Instance metadata keys:', Object.keys(project.instanceMetadata));
+                
+                // Also save to localStorage for future use
+                localStorage.setItem(`${keys.selections}-instance-metadata`, JSON.stringify(project.instanceMetadata));
+                console.log('📱 Instance metadata saved to localStorage from AWS');
+              } else {
+                console.log('⚠️ No instance metadata found in AWS either');
+              }
+            } catch (error) {
+              console.error('❌ Error loading instance metadata from AWS:', error);
+            }
+          }
+          
+          // Let's also check what localStorage keys exist for this user
+          const allKeys = Object.keys(localStorage);
+          const userKeys = allKeys.filter(key => key.includes(keys.selections));
+          console.log('🔍 All localStorage keys for this user:', userKeys);
+          console.log('🔍 All localStorage keys:', allKeys);
+          console.log('🔍 Looking for key pattern:', keys.selections);
+        }
+      } catch (error) {
+        console.error('❌ Error loading instance metadata:', error);
       }
       
       // Single state update to prevent flickering
       set(updates);
+      
+      // Restore session state after basic data is loaded
+      const restoredSession = get().restoreSessionState();
+      if (restoredSession) {
+        console.log('🔄 Session state restored successfully');
+        
+        // Apply session-specific restorations
+        if (restoredSession.lastActiveTab && restoredSession.lastActiveTab !== updates.viewMode) {
+          set({ viewMode: restoredSession.lastActiveTab });
+          console.log('🔄 Restored active tab:', restoredSession.lastActiveTab);
+        }
+      }
       
     } catch (error) {
       console.error('Error loading user data:', error);
@@ -1092,6 +1342,9 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
     const keys = getUserSpecificKeys();
     localStorage.setItem(`${keys.formData}-viewMode`, mode);
     console.log('💾 ViewMode saved to localStorage:', mode);
+    
+    // Update session state
+    get().updateSessionState({ lastActiveTab: mode });
   },
 
   saveBulkData: async () => {
@@ -1107,11 +1360,17 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       // Save to user-specific localStorage
       localStorage.setItem(`clean-app-bulk-data-${userId}`, JSON.stringify(bulkDefects));
       
-      // Save to AWS DynamoDB for cross-device persistence
+      // Save to AWS DynamoDB for cross-device persistence (manual save bypasses rate limiting)
       if (userId !== 'anonymous') {
         // Use static import
-        await DatabaseService.updateBulkDefects(userId, bulkDefects);
-        console.log('Bulk defects saved to AWS for user:', userId);
+        const result = await DatabaseService.updateBulkDefects(userId, bulkDefects);
+        if (result.success) {
+          console.log('✅ Manual save: Bulk defects saved to AWS for user:', userId);
+          // Update the last save time to prevent immediate auto-saves
+          localStorage.setItem('last-bulk-aws-save', Date.now().toString());
+        } else {
+          console.error('❌ Manual save failed:', result.error);
+        }
       }
     } catch (error) {
       console.error('Error saving bulk data:', error);
@@ -1617,6 +1876,84 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
     } catch (error) {
       console.error('Error loading saved PDFs:', error);
       return [];
+    }
+  },
+
+  // Session management functions
+  saveSessionState: () => {
+    const state = get();
+    const keys = getUserSpecificKeys();
+    
+    const sessionState = {
+      lastActiveTab: state.viewMode,
+      lastActiveTime: Date.now(),
+      imageOrder: state.images.map(img => img.id),
+      selectedImageOrder: state.selectedImages.map(item => item.instanceId),
+      bulkDefectOrder: state.bulkDefects.map(defect => defect.id || defect.photoNumber),
+      panelExpanded: false, // Will be updated by layout components
+      gridWidth: 4, // Default, will be updated by grid components
+      scrollPositions: {
+        imageGrid: 0,
+        selectedPanel: 0,
+      },
+    };
+
+    try {
+      localStorage.setItem(`${keys.formData}-session-state`, JSON.stringify(sessionState));
+      console.log('💾 Session state saved:', sessionState);
+    } catch (error) {
+      console.error('Error saving session state:', error);
+    }
+  },
+
+  restoreSessionState: () => {
+    const keys = getUserSpecificKeys();
+    
+    try {
+      const savedSession = localStorage.getItem(`${keys.formData}-session-state`);
+      if (savedSession) {
+        const sessionState = JSON.parse(savedSession);
+        console.log('🔄 Restoring session state:', sessionState);
+        
+        // Update the session state
+        set({ sessionState });
+        
+        // Restore view mode
+        if (sessionState.lastActiveTab) {
+          set({ viewMode: sessionState.lastActiveTab });
+        }
+        
+        return sessionState;
+      }
+    } catch (error) {
+      console.error('Error restoring session state:', error);
+    }
+    
+    return null;
+  },
+
+  updateSessionState: (updates: Partial<SessionState>) => {
+    const state = get();
+    const newSessionState = { ...state.sessionState, ...updates };
+    set({ sessionState: newSessionState });
+    
+    // Auto-save session state when updated
+    const keys = getUserSpecificKeys();
+    try {
+      localStorage.setItem(`${keys.formData}-session-state`, JSON.stringify(newSessionState));
+      console.log('💾 Session state updated and saved:', updates);
+    } catch (error) {
+      console.error('Error updating session state:', error);
+    }
+  },
+
+  clearSessionState: () => {
+    const keys = getUserSpecificKeys();
+    try {
+      localStorage.removeItem(`${keys.formData}-session-state`);
+      console.log('🗑️ Session state cleared');
+    } catch (error) {
+      console.error('Error clearing session state:', error);
     }
   },
 }));

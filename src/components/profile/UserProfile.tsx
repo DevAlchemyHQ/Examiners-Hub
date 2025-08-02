@@ -163,15 +163,15 @@ export const UserProfile: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <div className="max-w-4xl mx-auto p-6">
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden">
+    <div className="min-h-screen bg-gray-100 dark:bg-gray-900">
+      <div className="max-w-md mx-auto p-6">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden">
           {/* Header */}
-          <div className="bg-gradient-to-r from-indigo-500 to-purple-600 p-8 text-white">
+          <div className="bg-gray-800 dark:bg-gray-700 p-6 text-white">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-6">
+              <div className="flex items-center gap-4">
                 <div className="relative">
-                  <div className="w-24 h-24 bg-white/20 rounded-full flex items-center justify-center text-4xl backdrop-blur-sm">
+                  <div className="w-16 h-16 bg-gray-600 rounded-full flex items-center justify-center text-2xl">
                     {profile.avatar_url ? (
                       <img
                         src={profile.avatar_url}
@@ -184,8 +184,8 @@ export const UserProfile: React.FC = () => {
                   </div>
                   
                   {/* Upload Button */}
-                  <label className="absolute -bottom-2 -right-2 bg-white text-gray-700 p-2 rounded-full shadow-lg cursor-pointer hover:bg-gray-50 transition-colors">
-                    <Camera size={16} />
+                  <label className="absolute -bottom-1 -right-1 bg-white text-gray-700 p-1 rounded-full shadow-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                    <Camera size={12} />
                     <input
                       type="file"
                       accept="image/*"
@@ -197,27 +197,27 @@ export const UserProfile: React.FC = () => {
                   
                   {isUploading && (
                     <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center">
-                      <Loader2 size={20} className="animate-spin text-white" />
+                      <Loader2 size={16} className="animate-spin text-white" />
                     </div>
                   )}
                 </div>
                 
                 <div>
-                  <h1 className="text-3xl font-bold">
+                  <h1 className="text-xl font-bold">
                     {isEditing ? (
                       <div className="flex items-center gap-2">
                         <input
                           type="text"
                           value={editName}
                           onChange={(e) => setEditName(e.target.value)}
-                          className="bg-white/20 text-white placeholder-white/70 rounded px-3 py-1 text-2xl font-bold"
+                          className="bg-white/20 text-white placeholder-white/70 rounded px-2 py-1 text-lg font-bold"
                           placeholder="Enter your name"
                         />
                         <button
                           onClick={handleSaveName}
                           className="p-1 bg-white/20 rounded hover:bg-white/30 transition-colors"
                         >
-                          <Save size={16} />
+                          <Save size={12} />
                         </button>
                         <button
                           onClick={() => {
@@ -226,7 +226,7 @@ export const UserProfile: React.FC = () => {
                           }}
                           className="p-1 bg-white/20 rounded hover:bg-white/30 transition-colors"
                         >
-                          <X size={16} />
+                          <X size={12} />
                         </button>
                       </div>
                     ) : (
@@ -236,137 +236,129 @@ export const UserProfile: React.FC = () => {
                           onClick={() => setIsEditing(true)}
                           className="p-1 bg-white/20 rounded hover:bg-white/30 transition-colors"
                         >
-                          <Edit3 size={16} />
+                          <Edit3 size={12} />
                         </button>
                       </div>
                     )}
                   </h1>
-                  <p className="text-indigo-100 mt-1">
-                    Manage your account settings
+                  <p className="text-gray-300 mt-1 text-sm">
+                    {profile.email}
                   </p>
                 </div>
               </div>
               
               <button
                 onClick={handleLogout}
-                className="flex items-center gap-2 px-4 py-2 bg-white/20 rounded-lg hover:bg-white/30 transition-colors"
+                className="flex items-center gap-2 px-3 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
               >
-                <LogOut size={16} />
-                Logout
+                <LogOut size={14} />
+                <span className="hidden sm:inline">Sign Out</span>
               </button>
             </div>
           </div>
 
           {/* Content */}
-          <div className="p-8 space-y-6">
+          <div className="p-6 space-y-4">
             {/* Messages */}
             {error && (
-              <div className="flex items-center gap-2 text-red-600 bg-red-50 dark:bg-red-900/20 p-4 rounded-lg">
-                <AlertCircle size={18} />
+              <div className="flex items-center gap-2 text-red-600 bg-red-50 dark:bg-red-900/20 p-3 rounded border border-red-200 dark:border-red-800">
+                <AlertCircle size={16} />
                 <p className="text-sm">{error}</p>
               </div>
             )}
 
             {message && (
-              <div className="flex items-center gap-2 text-green-600 bg-green-50 dark:bg-green-900/20 p-4 rounded-lg">
-                <Check size={18} />
+              <div className="flex items-center gap-2 text-green-600 bg-green-50 dark:bg-green-900/20 p-3 rounded border border-green-200 dark:border-green-800">
+                <Check size={16} />
                 <p className="text-sm">{message}</p>
               </div>
             )}
 
             {/* Profile Information */}
-            <div className="grid gap-6 md:grid-cols-2">
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
                   Account Information
                 </h3>
                 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    <div className="flex items-center gap-2">
-                      <Mail size={16} className="text-indigo-500" />
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                       Email Address
+                    </label>
+                    <div className="p-3 border border-gray-200 dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-700">
+                      <span className="text-gray-700 dark:text-gray-300">
+                        {profile.email}
+                      </span>
                     </div>
-                  </label>
-                  <div className="p-3 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-700">
-                    <span className="text-gray-700 dark:text-gray-300">
-                      {profile.email}
-                    </span>
                   </div>
-                </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    <div className="flex items-center gap-2">
-                      <Package size={16} className="text-indigo-500" />
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                       Downloads Remaining
+                    </label>
+                    <div className="p-3 border border-gray-200 dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-700">
+                      <span className="text-gray-700 dark:text-gray-300">
+                        {profile.downloads_remaining === null
+                          ? 'Unlimited'
+                          : profile.downloads_remaining}
+                      </span>
                     </div>
-                  </label>
-                  <div className="p-3 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-700">
-                    <span className="text-gray-700 dark:text-gray-300">
-                      {profile.downloads_remaining === null
-                        ? 'Unlimited'
-                        : profile.downloads_remaining}
-                    </span>
                   </div>
                 </div>
               </div>
 
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
                   Subscription Details
                 </h3>
                 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    <div className="flex items-center gap-2">
-                      <Crown size={16} className="text-indigo-500" />
-                      Subscription Status
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Status
+                    </label>
+                    <div className="p-3 border border-gray-200 dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-700">
+                      <span
+                        className={`inline-flex items-center px-2 py-1 rounded text-sm font-medium ${
+                          profile.subscription_status === 'premium'
+                            ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-300'
+                            : 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300'
+                        }`}
+                      >
+                        {profile.subscription_status.charAt(0).toUpperCase() +
+                          profile.subscription_status.slice(1)}
+                      </span>
                     </div>
-                  </label>
-                  <div className="p-3 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-700">
-                    <span
-                      className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-                        profile.subscription_status === 'premium'
-                          ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/50 dark:text-indigo-300'
-                          : 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300'
-                      }`}
-                    >
-                      {profile.subscription_status.charAt(0).toUpperCase() +
-                        profile.subscription_status.slice(1)}
-                    </span>
                   </div>
-                </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    <div className="flex items-center gap-2">
-                      <User size={16} className="text-indigo-500" />
-                      Avatar Emoji
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Avatar
+                    </label>
+                    <div className="p-3 border border-gray-200 dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-700">
+                      <button
+                        className="text-2xl hover:scale-110 transition-transform"
+                        onClick={() => {
+                          const currentIndex = EMOJIS.indexOf(selectedEmoji);
+                          const nextEmoji = EMOJIS[(currentIndex + 1) % EMOJIS.length];
+                          setSelectedEmoji(nextEmoji);
+                          handleUpdateProfile({ avatar_emoji: nextEmoji });
+                        }}
+                      >
+                        {selectedEmoji}
+                      </button>
                     </div>
-                  </label>
-                  <div className="p-3 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-700">
-                    <button
-                      className="text-2xl hover:scale-110 transition-transform"
-                      onClick={() => {
-                        const currentIndex = EMOJIS.indexOf(selectedEmoji);
-                        const nextEmoji = EMOJIS[(currentIndex + 1) % EMOJIS.length];
-                        setSelectedEmoji(nextEmoji);
-                        handleUpdateProfile({ avatar_emoji: nextEmoji });
-                      }}
-                    >
-                      {selectedEmoji}
-                    </button>
                   </div>
                 </div>
               </div>
             </div>
 
             {/* Action Buttons */}
-            <div className="flex gap-4 pt-6 border-t border-gray-200 dark:border-gray-700">
+            <div className="flex flex-col gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
               <button
                 onClick={() => navigate('/subscriptions')}
-                className="flex items-center gap-2 px-6 py-3 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition-colors"
+                className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
               >
                 <Crown size={16} />
                 Manage Subscription
@@ -374,7 +366,7 @@ export const UserProfile: React.FC = () => {
               
               <button
                 onClick={() => navigate('/')}
-                className="flex items-center gap-2 px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
+                className="flex items-center justify-center gap-2 px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors"
               >
                 <User size={16} />
                 Back to Dashboard

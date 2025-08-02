@@ -12,6 +12,7 @@ import {
   validateTransformedData 
 } from '../utils/downloadTransformers';
 import { getFullApiUrl } from '../utils/apiConfig';
+import { validateDescription } from '../utils/fileValidation';
 import { toast } from 'react-hot-toast';
 
 export const DownloadButton: React.FC = () => {
@@ -154,25 +155,65 @@ export const DownloadButton: React.FC = () => {
       } else {
         // Handle images mode download - Call Lambda function
         console.log('Images mode download - calling Lambda');
-        const selectedImagesList = images.filter(img => selectedImages.has(img.id));
+        const selectedImagesList = images.filter(img => selectedImages.some(item => item.id === img.id));
         console.log('Selected images:', selectedImagesList.length);
 
         if (selectedImagesList.length === 0) {
           throw new Error('No images selected');
         }
 
-        // Validate that all selected images have required metadata (preserves existing validation)
-        const imagesWithoutPhotoNumbers = selectedImagesList.filter(img => !img.photoNumber?.trim());
-        if (imagesWithoutPhotoNumbers.length > 0) {
-          throw new Error(`Please add photo numbers for ${imagesWithoutPhotoNumbers.length} image${imagesWithoutPhotoNumbers.length !== 1 ? 's' : ''}`);
+        // Validate form fields first
+        if (!formData.elr?.trim()) {
+          throw new Error('Enter ELR');
+        }
+        if (!formData.structureNo?.trim()) {
+          throw new Error('Enter Structure No');
+        }
+        if (!formData.date?.trim()) {
+          throw new Error('Select Date');
         }
 
-        const imagesWithoutDescriptions = selectedImagesList.filter(img => {
-          if (img.isSketch) return false;
-          return !img.description?.trim();
+        // Validate that all selected instances have required metadata
+        const { instanceMetadata } = useMetadataStore.getState();
+        const missingPhotoNumbers = [];
+        const missingDescriptions = [];
+        const invalidDescriptions = [];
+        
+        selectedImages.forEach((selectedId, index) => {
+          const instanceId = `${selectedId}-${index}`;
+          const instanceData = instanceMetadata[instanceId];
+          
+          if (!instanceData?.photoNumber?.trim()) {
+            missingPhotoNumbers.push(index + 1);
+          }
+          
+          if (!instanceData?.description?.trim()) {
+            missingDescriptions.push(index + 1);
+          } else {
+            // Check for invalid characters in descriptions
+            const { isValid, invalidChars } = validateDescription(instanceData.description.trim());
+            if (!isValid) {
+              invalidDescriptions.push({
+                instance: index + 1,
+                invalidChars: invalidChars
+              });
+            }
+          }
         });
-        if (imagesWithoutDescriptions.length > 0) {
-          throw new Error(`Please add descriptions for ${imagesWithoutDescriptions.length} image${imagesWithoutDescriptions.length !== 1 ? 's' : ''}`);
+        
+        if (missingPhotoNumbers.length > 0) {
+          throw new Error(`Please add photo numbers for ${missingPhotoNumbers.length} image${missingPhotoNumbers.length !== 1 ? 's' : ''}`);
+        }
+        
+        if (missingDescriptions.length > 0) {
+          throw new Error(`Please add descriptions for ${missingDescriptions.length} image${missingDescriptions.length !== 1 ? 's' : ''}`);
+        }
+        
+        if (invalidDescriptions.length > 0) {
+          const errorMessages = invalidDescriptions.map(({ instance, invalidChars }) => 
+            `Instance ${instance}: Remove invalid characters (${invalidChars.join(', ')}) from description`
+          );
+          throw new Error(errorMessages.join('; '));
         }
 
         if (isSubscriptionExpired) {
@@ -249,7 +290,20 @@ export const DownloadButton: React.FC = () => {
     } catch (error) {
       console.error('Download error:', error);
       trackError('download_failed', error instanceof Error ? error.message : 'unknown_error');
-      toast.error(error instanceof Error ? error.message : 'Failed to download package');
+      
+      // Show specific validation error message in toast
+      if (error instanceof Error && (
+        error.message.includes('Please add photo numbers') || 
+        error.message.includes('Please add descriptions') || 
+        error.message.includes('Remove invalid characters') ||
+        error.message.includes('Enter ELR') ||
+        error.message.includes('Enter Structure No') ||
+        error.message.includes('Select Date')
+      )) {
+        toast.error(error.message);
+      } else {
+        toast.error(error instanceof Error ? error.message : 'Failed to download package');
+      }
     } finally {
       setIsDownloading(false);
     }
@@ -271,15 +325,9 @@ export const DownloadButton: React.FC = () => {
         <button
           // key={validationKey} // This line is removed
           onClick={handleDownload}
-          disabled={
-            isDownloading ||
-            (viewMode === 'bulk' && !isBulkValid()) ||
-            (viewMode === 'images' && !isValid())
-          }
+          disabled={isDownloading}
           className={`flex items-center gap-2 px-3 py-1.5 rounded ${
-            isDownloading ||
-            (viewMode === 'bulk' && !isBulkValid()) ||
-            (viewMode === 'images' && !isValid())
+            isDownloading
               ? 'bg-gray-400 text-gray-500 cursor-not-allowed'
               : 'bg-gray-700 dark:bg-gray-600 text-white border border-gray-600 dark:border-gray-500 hover:bg-gray-600 dark:hover:bg-gray-500'
           } transition-colors`}
@@ -289,7 +337,7 @@ export const DownloadButton: React.FC = () => {
               viewMode,
               isBulkValid: isBulkValid(),
               isValid: isValid(),
-              selectedImages: selectedImages.size,
+              selectedImages: selectedImages.length,
               formData,
               // validationKey, // This line is removed
               bulkDefectsWithHash: bulkDefects.filter(d => d.photoNumber === '#').length,

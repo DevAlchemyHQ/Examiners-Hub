@@ -2,29 +2,35 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Base dark mode styles */
-.dark {
-  color-scheme: dark;
+/* Prevent body and html scrolling */
+html, body {
+  height: 100%;
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
+  position: relative;
 }
 
-.dark html {
-  background-color: #111827; /* gray-900 */
-  color: #f9fafb; /* gray-50 */
+#root {
+  height: 100vh;
+  overflow: hidden;
+  position: relative;
 }
 
-.dark body {
-  background-color: #111827; /* gray-900 */
-  color: #f9fafb; /* gray-50 */
+/* Ensure no page-level scrolling */
+body {
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* Custom scrollbar styles */
 .scrollbar-thin {
   scrollbar-width: thin;
-  scrollbar-color: rgb(203 213 225) transparent;
+  scrollbar-color: rgb(156 163 175) transparent;
 }
 
 .scrollbar-thin::-webkit-scrollbar {
-  width: 6px;
+  width: 8px;
 }
 
 .scrollbar-thin::-webkit-scrollbar-track {
@@ -32,34 +38,50 @@
 }
 
 .scrollbar-thin::-webkit-scrollbar-thumb {
-  background-color: rgb(203 213 225);
-  border-radius: 3px;
+  background-color: rgb(156 163 175);
+  border-radius: 4px;
 }
 
 .scrollbar-thin::-webkit-scrollbar-thumb:hover {
-  background-color: rgb(148 163 184);
-}
-
-/* Dark mode scrollbar */
-.dark .scrollbar-thin {
-  scrollbar-color: rgb(75 85 99) transparent;
-}
-
-.dark .scrollbar-thin::-webkit-scrollbar-thumb {
-  background-color: rgb(75 85 99);
-}
-
-.dark .scrollbar-thin::-webkit-scrollbar-thumb:hover {
   background-color: rgb(107 114 128);
 }
 
-/* Ensure proper scrolling behavior */
-.overflow-y-auto {
-  overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch;
+.scrollbar-thumb-gray-300::-webkit-scrollbar-thumb {
+  background-color: rgb(209 213 219);
 }
 
-/* Prevent page scroll when scrolling within components */
-.overflow-hidden {
-  overscroll-behavior: none;
+.dark .scrollbar-thumb-gray-600::-webkit-scrollbar-thumb {
+  background-color: rgb(75 85 99);
+}
+
+/* Enhanced scrollbar for main content areas */
+.content-scrollbar::-webkit-scrollbar {
+  width: 10px;
+}
+
+.content-scrollbar::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 5px;
+}
+
+.content-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(156, 163, 175, 0.8);
+  border-radius: 5px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+.content-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(107, 114, 128, 0.9);
+}
+
+/* Ensure all app containers respect height constraints */
+.app-container {
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* Prevent any global scrolling */
+* {
+  box-sizing: border-box;
 }
