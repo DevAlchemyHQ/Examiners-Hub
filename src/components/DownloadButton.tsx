@@ -131,27 +131,39 @@ export const DownloadButton: React.FC = () => {
           console.log('🔍 Looking for image with id:', item.id);
           console.log('🔍 Available images:', images.map(img => ({ id: img.id, fileName: img.fileName })));
           
-          const img = images.find(img => img.id === item.id);
+          // Try multiple strategies to find the image
+          let img = images.find(img => img.id === item.id);
+          
           if (!img) {
             console.warn(`⚠️ Image not found for id: ${item.id}`);
-            // Try to find by instanceId as fallback
-            const fallbackImg = images.find(img => img.id === item.instanceId);
-            if (fallbackImg) {
-              console.log('✅ Found image by instanceId fallback:', item.instanceId);
-              const img = fallbackImg;
-              
-              // Get instance-specific metadata
-              const { instanceMetadata } = useMetadataStore.getState();
-              const instanceData = instanceMetadata[item.instanceId];
-              
-              return {
-                ...img,
-                instanceId: item.instanceId,
-                // Override with instance-specific metadata if available
-                photoNumber: instanceData?.photoNumber || img.photoNumber,
-                description: instanceData?.description || img.description
-              };
+            
+            // Strategy 1: Try to find by instanceId
+            img = images.find(img => img.id === item.instanceId);
+            if (img) {
+              console.log('✅ Found image by instanceId:', item.instanceId);
             }
+          }
+          
+          if (!img) {
+            // Strategy 2: Try to find by filename (extract from item.id)
+            const filenameFromId = item.id.split('-').slice(-1)[0]; // Get last part after last dash
+            img = images.find(img => img.fileName && img.fileName.includes(filenameFromId));
+            if (img) {
+              console.log('✅ Found image by filename match:', filenameFromId);
+            }
+          }
+          
+          if (!img) {
+            // Strategy 3: Try to find by partial filename match
+            const partialName = item.id.replace(/^local-\d+-/, '').replace(/\.(jpg|jpeg|png|gif)$/i, '');
+            img = images.find(img => img.fileName && img.fileName.toLowerCase().includes(partialName.toLowerCase()));
+            if (img) {
+              console.log('✅ Found image by partial filename match:', partialName);
+            }
+          }
+          
+          if (!img) {
+            console.error(`❌ Could not find image for id: ${item.id} - skipping`);
             return null;
           }
           
@@ -233,12 +245,35 @@ export const DownloadButton: React.FC = () => {
 
         // Transform selected images to unified format
         const originalData = { selectedImages: selectedImagesList, formData };
+        
+        // Validate that we have images to transform
+        if (!selectedImagesList || selectedImagesList.length === 0) {
+          throw new Error('No valid images found for download');
+        }
+        
+        console.log('📦 Original data for transformation:', {
+          selectedImagesCount: selectedImagesList.length,
+          formData: formData,
+          selectedImages: selectedImagesList.map(img => ({ id: img.id, fileName: img.fileName }))
+        });
+        
         const transformedData = transformSelectedImagesForLambda(selectedImagesList, formData);
         
         // Validate that transformation preserves core functionality
         if (!validateTransformedData(originalData, transformedData, 'images')) {
           throw new Error('Data transformation validation failed');
         }
+        
+        // Additional validation for transformed data
+        if (!transformedData.selectedImages || transformedData.selectedImages.length === 0) {
+          throw new Error('Transformation resulted in no images');
+        }
+        
+        console.log('✅ Transformation successful:', {
+          originalCount: selectedImagesList.length,
+          transformedCount: transformedData.selectedImages.length,
+          mode: transformedData.mode
+        });
 
         console.log('🚀 Calling Lambda for images download with unified format...');
         console.log('📦 Transformed data being sent:', JSON.stringify(transformedData, null, 2));
