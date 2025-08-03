@@ -17,7 +17,9 @@ export const FAQ: React.FC = () => {
             </p>
           </div>
           
-          <ImagesFAQ />
+          <div className="max-h-[70vh] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 dark:scrollbar-thumb-gray-600 dark:scrollbar-track-gray-800">
+            <ImagesFAQ />
+          </div>
           
           <div className="mt-8 text-center">
             <p className="text-sm text-gray-500 dark:text-gray-400">

@@ -18,6 +18,16 @@ router.post('/download', async (req, res) => {
 
     console.log('🔍 API: Received download request');
     console.log('Mode:', mode);
+    console.log('Selected images:', selectedImages);
+    
+    // Validate required data
+    if (!selectedImages || !Array.isArray(selectedImages) || selectedImages.length === 0) {
+      return res.status(400).json({
+        error: 'No selected images provided',
+        success: false
+      });
+    }
+    
     console.log('Image count:', selectedImages.length);
     console.log('Sample image data:', JSON.stringify(selectedImages[0], null, 2));
     console.log('Form data:', formData);

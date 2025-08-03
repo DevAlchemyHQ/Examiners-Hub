@@ -509,7 +509,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           
           if (user?.email) {
             // Send complete instance information to AWS
-            const selectedWithInstanceIds = selectedImages.map(item => {
+            const selectedWithInstanceIds = newSelected.map(item => {
               const image = state.images.find(img => img.id === item.id);
               return {
                 id: item.id, // Keep the original image ID
@@ -597,12 +597,13 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         }
       })();
       
+      // Update session state with new selected image order
+      const selectedImageOrder = selectedImages.map(item => item.instanceId);
+      get().updateSessionState({ selectedImageOrder });
+      
       return { selectedImages };
     });
-    
-    // Update session state with new selected image order
-    const selectedImageOrder = selectedImages.map(item => item.instanceId);
-    get().updateSessionState({ selectedImageOrder });
+  },
   },
 
   clearSelectedImages: () => {

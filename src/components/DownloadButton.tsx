@@ -128,9 +128,30 @@ export const DownloadButton: React.FC = () => {
         
         // Create the actual selected images list with instance IDs
         const selectedImagesList = selectedImages.map(item => {
+          console.log('🔍 Looking for image with id:', item.id);
+          console.log('🔍 Available images:', images.map(img => ({ id: img.id, fileName: img.fileName })));
+          
           const img = images.find(img => img.id === item.id);
           if (!img) {
             console.warn(`⚠️ Image not found for id: ${item.id}`);
+            // Try to find by instanceId as fallback
+            const fallbackImg = images.find(img => img.id === item.instanceId);
+            if (fallbackImg) {
+              console.log('✅ Found image by instanceId fallback:', item.instanceId);
+              const img = fallbackImg;
+              
+              // Get instance-specific metadata
+              const { instanceMetadata } = useMetadataStore.getState();
+              const instanceData = instanceMetadata[item.instanceId];
+              
+              return {
+                ...img,
+                instanceId: item.instanceId,
+                // Override with instance-specific metadata if available
+                photoNumber: instanceData?.photoNumber || img.photoNumber,
+                description: instanceData?.description || img.description
+              };
+            }
             return null;
           }
           
@@ -220,25 +241,34 @@ export const DownloadButton: React.FC = () => {
         }
 
         console.log('🚀 Calling Lambda for images download with unified format...');
+        console.log('📦 Transformed data being sent:', JSON.stringify(transformedData, null, 2));
         
         // Call Lambda function for images mode
         const apiUrl = getFullApiUrl();
         console.log('🌐 Using API endpoint:', apiUrl);
+        console.log('🕒 Cache bust timestamp:', Date.now());
         
         const response = await fetch(apiUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache'
           },
           body: JSON.stringify(transformedData)
         });
 
+        console.log('📡 Response status:', response.status);
+        console.log('📡 Response headers:', Object.fromEntries(response.headers.entries()));
+
         if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'Download failed');
+          const errorData = await response.json().catch(() => ({ error: 'Failed to parse error response' }));
+          console.error('❌ Server error response:', errorData);
+          throw new Error(errorData.error || `HTTP ${response.status}: Download failed`);
         }
 
         const result = await response.json();
+        console.log('📦 Lambda response:', result);
         
         if (!result.success) {
           throw new Error(result.error || 'Download failed');

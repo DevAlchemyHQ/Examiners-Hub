@@ -68,6 +68,9 @@ class ErrorBoundary extends React.Component<
   }
 }
 
+// Cache busting version
+const APP_VERSION = '1.1.1-' + Date.now();
+
 function App() {
   const { user, isAuthenticated, checkAuth } = useAuthStore();
 
@@ -111,6 +114,8 @@ function App() {
             <Route path="/subscription" element={<SubscriptionPage />} />
           </Routes>
           <PageViewTracker />
+          {/* Cache busting comment */}
+          {/* Version: {APP_VERSION} */}
         </div>
       </Router>
     </ErrorBoundary>

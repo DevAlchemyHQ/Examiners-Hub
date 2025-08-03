@@ -33,14 +33,16 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({ compact = false }) => 
   const validateFiles = (files: FileList): { valid: File[]; invalid: string[] } => {
     const valid: File[] = [];
     const invalid: string[] = [];
-    const maxSize = 250 * 1024 * 1024; // 250MB per file
-    const maxTotalSize = 800 * 1024 * 1024; // 800MB total
+    const maxSize = 1 * 1024 * 1024; // 1MB per file
+    const maxTotalSize = 500 * 1024 * 1024; // 500MB total
 
     let totalSize = 0;
+    let oversizedFiles = 0;
     
     Array.from(files).forEach(file => {
       if (file.size > maxSize) {
         invalid.push(`${file.name} (${formatFileSize(file.size)} - too large)`);
+        oversizedFiles++;
       } else {
         totalSize += file.size;
         valid.push(file);
@@ -48,7 +50,9 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({ compact = false }) => 
     });
 
     if (totalSize > maxTotalSize) {
-      invalid.push(`Total size ${formatFileSize(totalSize)} exceeds 800MB limit`);
+      // Clear the valid array since total size exceeds limit
+      valid.length = 0;
+      invalid.push(`Total upload size ${formatFileSize(totalSize)} exceeds 500MB limit (${files.length} files selected)`);
       return { valid: [], invalid };
     }
 
@@ -64,7 +68,7 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({ compact = false }) => 
 
       if (invalid.length > 0) {
         const resizeMessage = invalid.some(msg => msg.includes('too large') || msg.includes('exceeds')) 
-          ? '\n\n💡 Tip: Try resizing your photos to reduce file size for faster uploads!'
+          ? '\n\n💡 Tip: Try resizing your photos or uploading fewer files to stay within the 500MB total limit!'
           : '';
         toast.error(`Upload failed:\n${invalid.join('\n')}${resizeMessage}`);
         trackError('upload_validation', 'invalid_files');
@@ -88,7 +92,7 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({ compact = false }) => 
         trackImageUpload(valid.length, totalSize);
         
         // For large uploads, show progress
-        if (valid.length > 10 || totalSize > 100 * 1024 * 1024) { // Reduced to 100MB for progress
+        if (valid.length > 10 || totalSize > 50 * 1024 * 1024) { // Reduced to 50MB for progress
           toast.success(`Starting lightning-fast upload of ${valid.length} files (${formatFileSize(totalSize)})`);
         }
 
@@ -184,7 +188,7 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({ compact = false }) => 
         
         {/* File size limits info */}
         <div className="text-xs text-slate-500 dark:text-slate-400 text-center">
-          Max 250MB per file, 800MB total • Lightning-fast parallel uploads
+          Max 1MB per file, 500MB total • Lightning-fast parallel uploads
         </div>
       </div>
     </div>
