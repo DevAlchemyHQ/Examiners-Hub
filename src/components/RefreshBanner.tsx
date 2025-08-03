@@ -10,11 +10,20 @@ const RefreshBanner: React.FC<RefreshBannerProps> = ({ className = '' }) => {
   const [isDismissed, setIsDismissed] = useState(false);
 
   useEffect(() => {
-    // Check if user has dismissed this version banner
-    const dismissedVersion = localStorage.getItem('dismissed-version-banner');
+    // Clear ALL previous banner states and show only the latest version
     const currentVersion = '1.1.1';
+    const lastSeenVersion = localStorage.getItem('last-seen-version');
     
-    if (dismissedVersion !== currentVersion) {
+    // If this is a new version OR if no version has been seen, show the banner
+    if (lastSeenVersion !== currentVersion) {
+      // Clear any previous banner dismissal states
+      localStorage.removeItem('dismissed-version-banner');
+      localStorage.removeItem('dismissed-version-banner-1.1.0');
+      localStorage.removeItem('dismissed-version-banner-1.0.1');
+      localStorage.removeItem('dismissed-version-banner-1.0.0');
+      
+      // Set this as the last seen version
+      localStorage.setItem('last-seen-version', currentVersion);
       setIsVisible(true);
     }
   }, []);
@@ -26,6 +35,12 @@ const RefreshBanner: React.FC<RefreshBannerProps> = ({ className = '' }) => {
   };
 
   const handleRefresh = () => {
+    // Clear all banner states before refresh to ensure clean state
+    localStorage.removeItem('dismissed-version-banner');
+    localStorage.removeItem('dismissed-version-banner-1.1.0');
+    localStorage.removeItem('dismissed-version-banner-1.0.1');
+    localStorage.removeItem('dismissed-version-banner-1.0.0');
+    localStorage.setItem('last-seen-version', '1.1.1');
     window.location.reload();
   };
 
