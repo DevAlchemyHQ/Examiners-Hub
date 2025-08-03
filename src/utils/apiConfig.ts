@@ -13,12 +13,11 @@ export const getApiEndpoint = () => {
   console.log('  - Port:', window.location.port);
   console.log('  - Is Development:', isDevelopment);
   console.log('  - Current time:', new Date().toISOString());
-  console.log('  - User Agent:', navigator.userAgent);
   
   if (isDevelopment) {
-    // Use local Express server for development (port 3001)
-    const localUrl = 'http://localhost:3001/api/download';
-    console.log('  - Using local URL:', localUrl);
+    // Use relative URL for development (works with proxy)
+    const localUrl = '/api/download';
+    console.log('  - Using relative URL for development:', localUrl);
     return localUrl;
   } else {
     // Use HTTP API Gateway for production (Amplify)
@@ -32,18 +31,12 @@ export const getApiEndpoint = () => {
 export const getFullApiUrl = () => {
   const endpoint = getApiEndpoint();
   
-  // Add cache-busting timestamp for development
-  if (endpoint.includes('localhost')) {
-    const timestamp = Date.now();
-    const version = 'v1.1.1'; // Force cache bust
-    const random = Math.random().toString(36).substring(7);
-    console.log('  - Adding cache-bust timestamp:', timestamp);
-    console.log('  - Adding version:', version);
-    console.log('  - Adding random:', random);
-    return `${endpoint}?t=${timestamp}&v=${version}&r=${random}`;
+  // If it's a relative URL, it will be handled by the proxy in development
+  if (endpoint.startsWith('/')) {
+    return endpoint;
   }
   
-  // Return the full URL (either localhost:3001 or production)
+  // If it's an absolute URL, return as is
   return endpoint;
 };
 
