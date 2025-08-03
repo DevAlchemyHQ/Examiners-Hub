@@ -945,8 +945,6 @@ export class DatabaseService {
 
   static async getProject(userId: string, projectId: string) {
     try {
-      console.log('🗄️ AWS DynamoDB getProject:', projectId);
-      
       const command = new GetCommand({
         TableName: 'mvp-labeler-projects',
         Key: { 
@@ -956,19 +954,16 @@ export class DatabaseService {
       });
       
       const result = await docClient.send(command);
-      console.log('✅ AWS DynamoDB getProject result:', result);
       
       return { project: result.Item || null, error: null };
     } catch (error) {
-      console.error('AWS DynamoDB getProject error:', error);
+      console.error('Error getting project:', error);
       return { project: null, error };
     }
   }
 
   static async updateProject(userId: string, projectId: string, projectData: any) {
     try {
-      console.log('🗄️ AWS DynamoDB updateProject:', projectId);
-      
       // Separate large data from small data to avoid DynamoDB size limits
       const { images, ...smallData } = projectData;
       
@@ -984,28 +979,9 @@ export class DatabaseService {
       });
       
       await docClient.send(command);
-      console.log('✅ AWS DynamoDB updateProject successful (small data only)');
-      
-      // If there are images, save them to S3 instead
-      if (images && images.length > 0) {
-        try {
-          console.log('📁 Saving images to S3...');
-          for (const image of images) {
-            if (image.file) {
-              const filePath = `users/${userId}/projects/${projectId}/images/${image.id}.jpg`;
-              await StorageService.uploadFile(image.file, filePath);
-            }
-          }
-          console.log('✅ Images saved to S3');
-        } catch (s3Error) {
-          console.error('❌ Error saving images to S3:', s3Error);
-        }
-      }
-      
-      return { success: true, error: null };
     } catch (error) {
-      console.error('AWS DynamoDB updateProject error:', error);
-      return { success: false, error };
+      console.error('Error updating project:', error);
+      throw error;
     }
   }
 
@@ -1135,8 +1111,6 @@ export class DatabaseService {
 
   static async getSelectedImages(userId: string) {
     try {
-      console.log('🗄️ AWS DynamoDB getSelectedImages:', userId);
-      
       const command = new QueryCommand({
         TableName: 'mvp-labeler-selected-images',
         KeyConditionExpression: 'user_id = :userId',
@@ -1146,31 +1120,34 @@ export class DatabaseService {
       });
       
       const result = await docClient.send(command);
-      console.log('✅ AWS DynamoDB getSelectedImages result:', result);
       
-      return { selectedImages: result.Items || [], error: null };
+      // Transform the data to match the expected format
+      const selectedImages = (result.Items || []).map(item => ({
+        id: item.imageId,
+        instanceId: item.instanceId || item.selection_id,
+        fileName: item.fileName || 'unknown'
+      }));
+      
+      return selectedImages;
     } catch (error) {
-      console.error('AWS DynamoDB getSelectedImages error:', error);
-      return { selectedImages: [], error };
+      console.error('Error getting selected images:', error);
+      return [];
     }
   }
 
   static async updateSelectedImages(userId: string, selectedImages: any[]) {
     try {
-      console.log('🗄️ AWS DynamoDB updateSelectedImages:', userId);
-      
-      // First, get existing selections to delete them
-      const queryCommand = new QueryCommand({
+      // Clear existing selections first
+      const scanCommand = new ScanCommand({
         TableName: 'mvp-labeler-selected-images',
-        KeyConditionExpression: 'user_id = :userId',
+        FilterExpression: 'user_id = :userId',
         ExpressionAttributeValues: {
           ':userId': userId
         }
       });
       
-      const existingSelections = await docClient.send(queryCommand);
+      const existingSelections = await docClient.send(scanCommand);
       
-      // Delete existing selections using batch operations
       if (existingSelections.Items && existingSelections.Items.length > 0) {
         const deleteRequests = existingSelections.Items.map(item => ({
           DeleteRequest: {
@@ -1181,20 +1158,16 @@ export class DatabaseService {
           }
         }));
         
-        // DynamoDB batch operations are limited to 25 items
-        const batchSize = 25;
-        for (let i = 0; i < deleteRequests.length; i += batchSize) {
-          const batch = deleteRequests.slice(i, i + batchSize);
+        // Delete in batches of 25 (DynamoDB limit)
+        for (let i = 0; i < deleteRequests.length; i += 25) {
+          const batch = deleteRequests.slice(i, i + 25);
           const batchDeleteCommand = new BatchWriteCommand({
             RequestItems: {
               'mvp-labeler-selected-images': batch
             }
           });
-          
           await docClient.send(batchDeleteCommand);
         }
-        
-        console.log(`🗑️ Deleted ${existingSelections.Items.length} existing selections`);
       }
       
       // Add new selections using batch operations
@@ -1203,36 +1176,69 @@ export class DatabaseService {
           PutRequest: {
             Item: {
               user_id: userId,
-              selection_id: selection.id || `${Date.now()}-${index}`,
+              selection_id: selection.instanceId || selection.id || `${Date.now()}-${index}`,
               imageId: selection.id,
+              instanceId: selection.instanceId || selection.id,
               fileName: selection.fileName || 'unknown',
               created_at: new Date().toISOString()
             }
           }
         }));
         
-        // DynamoDB batch operations are limited to 25 items
-        const batchSize = 25;
-        for (let i = 0; i < putRequests.length; i += batchSize) {
-          const batch = putRequests.slice(i, i + batchSize);
-          const batchPutCommand = new BatchWriteCommand({
+        // Add in batches of 25 (DynamoDB limit)
+        for (let i = 0; i < putRequests.length; i += 25) {
+          const batch = putRequests.slice(i, i + 25);
+          const batchWriteCommand = new BatchWriteCommand({
             RequestItems: {
               'mvp-labeler-selected-images': batch
             }
           });
-          
-          await docClient.send(batchPutCommand);
+          await docClient.send(batchWriteCommand);
         }
-        
-        console.log(`✅ Added ${selectedImages.length} new selections`);
       }
-      
-      console.log('✅ AWS DynamoDB updateSelectedImages successful');
-      
-      return { success: true, error: null };
     } catch (error) {
-      console.error('AWS DynamoDB updateSelectedImages error:', error);
-      return { success: false, error };
+      console.error('Error updating selected images:', error);
+      throw error;
+    }
+  }
+
+  static async saveInstanceMetadata(userId: string, instanceMetadata: any) {
+    try {
+      const command = new UpdateCommand({
+        TableName: 'mvp-labeler-projects',
+        Key: {
+          user_id: userId,
+          project_id: 'current'
+        },
+        UpdateExpression: 'SET instanceMetadata = :instanceMetadata, updated_at = :updatedAt',
+        ExpressionAttributeValues: {
+          ':instanceMetadata': instanceMetadata,
+          ':updatedAt': new Date().toISOString()
+        }
+      });
+      
+      await docClient.send(command);
+    } catch (error) {
+      console.error('Error saving instance metadata:', error);
+      throw error;
+    }
+  }
+
+  static async getInstanceMetadata(userId: string) {
+    try {
+      const command = new GetCommand({
+        TableName: 'mvp-labeler-projects',
+        Key: {
+          user_id: userId,
+          project_id: 'current'
+        }
+      });
+      
+      const result = await docClient.send(command);
+      return result.Item?.instanceMetadata || null;
+    } catch (error) {
+      console.error('Error getting instance metadata:', error);
+      return null;
     }
   }
 

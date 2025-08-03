@@ -53,6 +53,11 @@ async function autoSaveDefectSet(formData: any, bulkDefects: any[], selectedImag
     }
 
     const title = `${formData.elr}_${formData.structureNo}_${formData.date || new Date().toISOString().slice(0,10)}`;
+    
+    // Get instance metadata from the store
+    const { useMetadataStore } = await import('../store/metadataStore');
+    const instanceMetadata = useMetadataStore.getState().instanceMetadata;
+    
     const data = {
       defects: bulkDefects,
       selectedImages: Array.from(selectedImages),
@@ -65,7 +70,9 @@ async function autoSaveDefectSet(formData: any, bulkDefects: any[], selectedImag
           photoNumber: img.photoNumber,
           description: img.description,
           isSketch: img.isSketch
-        }))
+        })),
+      // Add instance metadata for proper restoration
+      instanceMetadata: instanceMetadata
     };
 
     // Save to localStorage immediately
@@ -96,13 +103,11 @@ async function autoSaveDefectSet(formData: any, bulkDefects: any[], selectedImag
       const minInterval = 15000; // 15 seconds
       
       if (lastDefectSetSaveTime && (now - parseInt(lastDefectSetSaveTime)) < minInterval) {
-        console.log('⏸️ Rate limiting defect set auto-save to prevent DynamoDB throughput issues');
         return;
       }
       
       const { DatabaseService } = await import('../lib/services');
       await DatabaseService.saveDefectSet(user.email, defectSet);
-      console.log('✅ Auto-saved defect set to AWS for user:', user.email);
       // Update the last save time only on success
       localStorage.setItem('last-defect-set-aws-save', now.toString());
     }
@@ -543,6 +548,22 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
       });
     }
     
+    // Restore instance metadata for proper photo numbers and descriptions
+    if (set.data.instanceMetadata) {
+      (async () => {
+        const { useMetadataStore } = await import('../store/metadataStore');
+        const { updateInstanceMetadata } = useMetadataStore.getState();
+        
+        // Restore each instance's metadata
+        Object.entries(set.data.instanceMetadata).forEach(([instanceId, metadata]: [string, any]) => {
+          updateInstanceMetadata(instanceId, {
+            photoNumber: metadata.photoNumber,
+            description: metadata.description
+          });
+        });
+      })();
+    }
+    
     setShowLoadTray(false);
   };
 
@@ -567,9 +588,6 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
       // Create instances from the selectedImages array that now contains instance information
       const selectedInstances: ImageMetadata[] = [];
       
-      console.log('🔍 Current selectedImages array:', selectedImages);
-      console.log('🔍 Available instance metadata keys:', Object.keys(instanceMetadata));
-      
       // Handle the new selectedImages structure: Array<{ id: string; instanceId: string }>
       selectedImages.forEach((item) => {
         const img = images.find(img => img.id === item.id);
@@ -580,15 +598,14 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
           });
           
           // Debug: Log the instance ID and check if metadata exists
-          if (instanceMetadata[item.instanceId]) {
-            console.log(`✅ Found metadata for instance ${item.instanceId}:`, instanceMetadata[item.instanceId]);
-          } else {
-            console.log(`⚠️ No metadata found for instance ${item.instanceId}`);
-          }
+          // if (instanceMetadata[item.instanceId]) {
+          //   console.log(`✅ Found metadata for instance ${item.instanceId}:`, instanceMetadata[item.instanceId]);
+          // } else {
+          //   console.log(`⚠️ No metadata found for instance ${item.instanceId}`);
+          // }
         }
       });
       
-      console.log('🔍 Final selectedInstances:', selectedInstances);
       return selectedInstances;
     }
   }, [images, selectedImages, bulkSelectedImages, viewMode, instanceMetadata]);
@@ -607,9 +624,11 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
     }
     // For images mode, check if this is an instance with its own metadata
     if (img.instanceId && instanceMetadata[img.instanceId]) {
+      console.log('📝 getImageNumber - Found instance metadata for:', img.instanceId, 'photoNumber:', instanceMetadata[img.instanceId].photoNumber);
       return instanceMetadata[img.instanceId].photoNumber || '';
     }
     // Fallback to image's own photoNumber
+    console.log('📝 getImageNumber - No instance metadata for:', img.instanceId, 'falling back to:', img.photoNumber);
     return img.photoNumber || '';
   };
 
@@ -622,9 +641,11 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
     }
     // For images mode, check if this is an instance with its own metadata
     if (img.instanceId && instanceMetadata[img.instanceId]) {
+      console.log('📝 getImageDescription - Found instance metadata for:', img.instanceId, 'description:', instanceMetadata[img.instanceId].description);
       return instanceMetadata[img.instanceId].description || '';
     }
     // Fallback to image's own description
+    console.log('📝 getImageDescription - No instance metadata for:', img.instanceId, 'falling back to:', img.description);
     return img.description || '';
   };
 
@@ -1176,7 +1197,10 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
                               type="text"
                               value={getImageNumber(img)}
                               onChange={(e) => {
+                                console.log('📝 Photo number changed:', e.target.value);
+                                console.log('📝 Image instanceId:', img.instanceId);
                                 if (img.instanceId) {
+                                  console.log('📝 Updating instance metadata for:', img.instanceId, 'with photoNumber:', e.target.value);
                                   updateInstanceMetadata(img.instanceId, { photoNumber: e.target.value });
                                 } else {
                                   updateImageMetadata(img.id, { photoNumber: e.target.value });
@@ -1192,8 +1216,10 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
                               <textarea
                                 value={getImageDescription(img)}
                                 onChange={(e) => {
-                                  console.log('Textarea changed:', e.target.value);
+                                  console.log('📝 Description changed:', e.target.value);
+                                  console.log('📝 Image instanceId:', img.instanceId);
                                   if (img.instanceId) {
+                                    console.log('📝 Updating instance metadata for:', img.instanceId, 'with description:', e.target.value);
                                     updateInstanceMetadata(img.instanceId, { description: e.target.value });
                                   } else {
                                     updateImageMetadata(img.id, { description: e.target.value });

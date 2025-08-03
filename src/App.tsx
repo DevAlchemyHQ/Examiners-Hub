@@ -97,7 +97,7 @@ function App() {
           <Routes>
             <Route path="/" element={<LoginScreen />} />
             <Route path="/login" element={<LoginScreen />} />
-            <Route path="/app" element={<MainApp />} />
+            <Route path="/app/*" element={<MainApp />} />
             <Route path="/dashboard" element={<MainApp />} />
             <Route path="/subscriptions" element={<MainApp />} />
             <Route path="/bcmi" element={<MainApp />} />

@@ -37,35 +37,6 @@ export const DownloadButton: React.FC = () => {
   
   // Remove the problematic validationKey state and useEffect that causes infinite loop
 
-  // Debug validation state
-  useEffect(() => {
-    if (viewMode === 'bulk') {
-      const errors = getBulkValidationErrors();
-      const isValid = isBulkValid();
-      console.log('🔍 DownloadButton validation debug:', {
-        bulkDefects: bulkDefects.length,
-        isBulkValid: isValid,
-        validationErrors: errors,
-        bulkDefectsWithNumbers: bulkDefects.map(d => ({ 
-          id: d.id, 
-          photoNumber: d.photoNumber, 
-          hasNumber: !!d.photoNumber?.trim(),
-          isEmpty: !d.photoNumber?.trim(),
-          isHash: d.photoNumber === '#'
-        }))
-      });
-      
-      // Check specifically for missing numbers
-      const defectsWithoutNumbers = bulkDefects.filter(d => !d.photoNumber?.trim() || d.photoNumber === '#');
-      console.log('🔍 Missing numbers check:', {
-        totalDefects: bulkDefects.length,
-        defectsWithoutNumbers: defectsWithoutNumbers.length,
-        defectsWithHash: bulkDefects.filter(d => d.photoNumber === '#').length,
-        defectsWithEmpty: bulkDefects.filter(d => !d.photoNumber?.trim()).length
-      });
-    }
-  }, [viewMode, bulkDefects, getBulkValidationErrors, isBulkValid]);
-
   useEffect(() => {
     if (!user?.user_metadata) return;
     // Only keep subscription logic for images mode if needed
@@ -118,7 +89,6 @@ export const DownloadButton: React.FC = () => {
         }
 
         console.log('🚀 Calling Lambda for bulk download with unified format...');
-        console.log('Transformed data sample:', transformedData.selectedImages[0]);
         
         // Call Lambda function for bulk mode (same as BulkTextInput.tsx)
         const apiUrl = getFullApiUrl();
@@ -163,14 +133,22 @@ export const DownloadButton: React.FC = () => {
             console.warn(`⚠️ Image not found for id: ${item.id}`);
             return null;
           }
+          
+          // Get instance-specific metadata
+          const { instanceMetadata } = useMetadataStore.getState();
+          const instanceData = instanceMetadata[item.instanceId];
+          
           return {
             ...img,
-            instanceId: item.instanceId
+            instanceId: item.instanceId,
+            // Override with instance-specific metadata if available
+            photoNumber: instanceData?.photoNumber || img.photoNumber,
+            description: instanceData?.description || img.description
           };
         }).filter(Boolean);
         
         console.log('Selected images:', selectedImagesList.length);
-
+        
         if (selectedImagesList.length === 0) {
           throw new Error('No images selected');
         }
@@ -197,25 +175,18 @@ export const DownloadButton: React.FC = () => {
           const instanceId = item.instanceId;
           const instanceData = instanceMetadata[instanceId];
           
-          console.log(`🔍 Validating instance ${index + 1}:`, { instanceId, instanceData });
-          
+          // Check photo number
           if (!instanceData?.photoNumber?.trim()) {
             missingPhotoNumbers.push(index + 1);
-            console.log(`❌ Missing photo number for instance ${index + 1}:`, instanceId);
           }
           
+          // Check description
           if (!instanceData?.description?.trim()) {
             missingDescriptions.push(index + 1);
-            console.log(`❌ Missing description for instance ${index + 1}:`, instanceId);
           } else {
-            // Check for invalid characters in descriptions
-            const { isValid, invalidChars } = validateDescription(instanceData.description.trim());
+            const { isValid } = validateDescription(instanceData.description);
             if (!isValid) {
-              invalidDescriptions.push({
-                instance: index + 1,
-                invalidChars: invalidChars
-              });
-              console.log(`❌ Invalid description for instance ${index + 1}:`, invalidChars);
+              invalidDescriptions.push(index + 1);
             }
           }
         });
@@ -239,58 +210,38 @@ export const DownloadButton: React.FC = () => {
           throw new Error('Your subscription has expired. Please upgrade to continue.');
         }
 
-        // Transform selected images to unified format (preserves all existing functionality)
-        const originalImagesData = { selectedImages: selectedImagesList, formData };
+        // Transform selected images to unified format
+        const originalData = { selectedImages: selectedImagesList, formData };
         const transformedData = transformSelectedImagesForLambda(selectedImagesList, formData);
         
         // Validate that transformation preserves core functionality
-        if (!validateTransformedData(originalImagesData, transformedData, 'images')) {
+        if (!validateTransformedData(originalData, transformedData, 'images')) {
           throw new Error('Data transformation validation failed');
         }
 
-        console.log('🚀 Calling Lambda download generator with unified format...');
-        console.log('Transformed data sample:', transformedData.selectedImages[0]);
-        console.log('Total images to download:', transformedData.selectedImages.length);
+        console.log('🚀 Calling Lambda for images download with unified format...');
         
-        // Call Lambda function for images mode (now using unified format)
+        // Call Lambda function for images mode
         const apiUrl = getFullApiUrl();
         console.log('🌐 Using API endpoint:', apiUrl);
-        
-        const requestBody = JSON.stringify(transformedData);
-        console.log('📤 Request body size:', requestBody.length, 'bytes');
         
         const response = await fetch(apiUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: requestBody
+          body: JSON.stringify(transformedData)
         });
 
-        console.log('📥 Response status:', response.status);
-        console.log('📥 Response headers:', Object.fromEntries(response.headers.entries()));
-
         if (!response.ok) {
-          let errorMessage = 'Download failed';
-          try {
-            const errorData = await response.json();
-            errorMessage = errorData.error || errorData.message || 'Download failed';
-          } catch (parseError) {
-            console.error('Failed to parse error response:', parseError);
-            errorMessage = `HTTP ${response.status}: ${response.statusText}`;
-          }
-          throw new Error(errorMessage);
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Download failed');
         }
 
         const result = await response.json();
-        console.log('📥 Full Lambda response:', result);
         
         if (!result.success) {
-          throw new Error(result.error || result.message || 'Download failed');
-        }
-
-        if (!result.downloadUrl) {
-          throw new Error('No download URL received from Lambda');
+          throw new Error(result.error || 'Download failed');
         }
 
         console.log('✅ Lambda response received, download URL:', result.downloadUrl);

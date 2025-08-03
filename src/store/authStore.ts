@@ -56,6 +56,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   logout: async () => {
     set({ isLoading: true });
     try {
+      // Save all user data to AWS before logout
+      try {
+        const { useMetadataStore } = await import('./metadataStore');
+        await useMetadataStore.getState().saveUserData();
+        console.log('✅ User data saved to AWS before logout');
+      } catch (error) {
+        console.error('❌ Error saving user data before logout:', error);
+      }
+      
       await AuthService.signOut();
       
       // Clear authentication data

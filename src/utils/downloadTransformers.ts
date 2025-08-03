@@ -26,8 +26,6 @@ export function transformSelectedImagesForLambda(
   formData: FormData;
   mode: 'images';
 } {
-  console.log('🔄 Transforming selected images for Lambda...');
-  
   // Get instance metadata for proper photo numbers and descriptions
   const { instanceMetadata } = useMetadataStore.getState();
   
@@ -43,11 +41,9 @@ export function transformSelectedImagesForLambda(
         const url = new URL(image.publicUrl);
         // The pathname should be the S3 key directly
         s3Key = decodeURIComponent(url.pathname.substring(1)); // Remove leading slash and decode URL
-        console.log('Extracted S3 key from publicUrl:', s3Key);
         
         // Validate the extracted S3 key format
         if (!s3Key.includes('users/') || !s3Key.includes('/images/')) {
-          console.warn('Extracted S3 key format looks incorrect:', s3Key);
           // Try alternative extraction method
           const pathParts = url.pathname.split('/');
           if (pathParts.length >= 4) {
@@ -55,29 +51,24 @@ export function transformSelectedImagesForLambda(
             const emailIndex = pathParts.findIndex(part => part.includes('@'));
             if (emailIndex !== -1 && emailIndex + 2 < pathParts.length) {
               s3Key = `${pathParts[emailIndex]}/${pathParts[emailIndex + 1]}/${pathParts[emailIndex + 2]}/${pathParts.slice(emailIndex + 3).join('/')}`;
-              console.log('Reconstructed S3 key:', s3Key);
             }
           }
         }
       } catch (error) {
-        console.error('Error parsing publicUrl:', error);
         // Fallback to stored s3Key
         if ((image as any)?.s3Key && (image as any).s3Key.trim() !== '') {
           const userId = image.userId || 'anonymous';
           s3Key = `users/${userId}/images/${(image as any).s3Key}`;
-          console.log('Using stored s3Key after URL parse error:', s3Key);
         }
       }
     } else if ((image as any)?.s3Key && (image as any).s3Key.trim() !== '') {
       // Fallback to stored s3Key
       const userId = image.userId || 'anonymous';
       s3Key = `users/${userId}/images/${(image as any).s3Key}`;
-      console.log('Using stored s3Key:', s3Key);
     } else {
       // Final fallback to constructed S3 key
       const userId = image.userId || 'anonymous';
       s3Key = `users/${userId}/images/${image.s3Key || image.file?.name || 'unknown'}`;
-      console.log('Constructed S3 key fallback:', s3Key);
     }
     
     // Get instance-specific metadata if this image has an instanceId
@@ -88,7 +79,6 @@ export function transformSelectedImagesForLambda(
       const instanceData = instanceMetadata[image.instanceId];
       photoNumber = instanceData.photoNumber || photoNumber;
       description = instanceData.description || description;
-      console.log(`📝 Using instance metadata for ${image.instanceId}:`, { photoNumber, description });
     }
     
     return {
@@ -100,9 +90,6 @@ export function transformSelectedImagesForLambda(
       publicUrl: image.publicUrl
     };
   });
-  
-  console.log('✅ Selected images transformed:', unifiedImages.length);
-  console.log('Sample transformed image:', unifiedImages[0]);
   
   return {
     selectedImages: unifiedImages,
