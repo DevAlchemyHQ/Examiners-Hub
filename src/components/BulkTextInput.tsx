@@ -790,10 +790,38 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
     }
   };
 
+  const formatFileSize = (bytes: number): string => {
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    if (bytes === 0) return '0 Bytes';
+    const i = Math.floor(Math.log(bytes) / Math.log(1024));
+    return parseFloat((bytes / Math.pow(1024, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  const validateFile = (file: File): { valid: boolean; error?: string } => {
+    const maxSize = 250 * 1024 * 1024; // 250MB per file
+    
+    if (file.size > maxSize) {
+      return { 
+        valid: false, 
+        error: `${file.name} (${formatFileSize(file.size)} - too large). Max size is 250MB.` 
+      };
+    }
+    
+    return { valid: true };
+  };
+
   const handleFileUpload = async (file: File) => {
     if (file.type !== 'application/pdf') {
       toast.error('Please upload a PDF file');
       trackError('upload_validation', 'invalid_file_type');
+      return;
+    }
+
+    // Validate file size
+    const validation = validateFile(file);
+    if (!validation.valid) {
+      toast.error(validation.error || 'File validation failed');
+      trackError('upload_validation', 'file_too_large');
       return;
     }
 
