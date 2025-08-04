@@ -557,7 +557,14 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
     // Restore selected images with proper timing
     if (set.data.selectedImages && set.data.selectedImages.length > 0) {
       console.log('🖼️ Restoring selected images:', set.data.selectedImages.length);
+      console.log('🖼️ Selected images data:', set.data.selectedImages);
       setSelectedImages(set.data.selectedImages);
+      
+      // Force view mode to images if we have selected images
+      if (set.data.selectedImages.length > 0) {
+        console.log('🔄 Switching to images view mode');
+        setViewMode('images');
+      }
     } else {
       console.log('⚠️ No selected images to restore');
       setSelectedImages([]);
@@ -607,8 +614,17 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
   };
   
   const selectedImagesList = React.useMemo(() => {
+    console.log('🔄 selectedImagesList recalculating:', {
+      viewMode,
+      selectedImagesCount: selectedImages.length,
+      bulkSelectedImagesCount: bulkSelectedImages.length,
+      imagesCount: images.length
+    });
+    
     if (viewMode === 'bulk') {
-      return images.filter(img => bulkSelectedImages.includes(img.id));
+      const bulkImages = images.filter(img => bulkSelectedImages.includes(img.id));
+      console.log('📊 Bulk mode - returning', bulkImages.length, 'images');
+      return bulkImages;
     } else {
       // Create instances from the selectedImages array that now contains instance information
       const selectedInstances: ImageMetadata[] = [];
@@ -621,16 +637,12 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
             ...img,
             instanceId: item.instanceId
           });
-          
-          // Debug: Log the instance ID and check if metadata exists
-          // if (instanceMetadata[item.instanceId]) {
-          //   console.log(`✅ Found metadata for instance ${item.instanceId}:`, instanceMetadata[item.instanceId]);
-          // } else {
-          //   console.log(`⚠️ No metadata found for instance ${item.instanceId}`);
-          // }
+        } else {
+          console.warn('⚠️ Image not found for selected item:', item);
         }
       });
       
+      console.log('📊 Images mode - returning', selectedInstances.length, 'images');
       return selectedInstances;
     }
   }, [images, selectedImages, bulkSelectedImages, viewMode, instanceMetadata]);
@@ -1388,7 +1400,7 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
                     <div className="flex flex-col flex-1">
                       <span className="font-mono text-sm font-medium">{set.title}</span>
                       <span className="text-xs text-slate-500 dark:text-gray-400 mt-1">
-                        {set.data?.defects?.length || 0} defects • {set.data?.selectedImages?.length || 0} images
+                        {set.data?.defects?.length || 0} bulk defects • {set.data?.selectedImages?.length || 0} selected images
                       </span>
                       <span className="text-xs text-slate-400 dark:text-gray-500 mt-1">
                         {new Date(set.updated_at || set.created_at).toLocaleString()}
