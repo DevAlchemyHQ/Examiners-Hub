@@ -462,38 +462,6 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
 
   toggleImageSelection: (id) => {
     set((state) => {
-      // Check if this image is already selected (universal deduplication)
-      const existingSelection = state.selectedImages.find(item => item.id === id);
-      
-      if (existingSelection) {
-        // If already selected, remove it (toggle off)
-        const newSelected = state.selectedImages.filter(item => item.id !== id);
-        console.log('🔧 toggleImageSelection - Removed existing selection:', { id });
-        console.log('🔧 toggleImageSelection - New selectedImages:', newSelected);
-        
-        // Auto-save selections to localStorage immediately
-        try {
-          const projectStore = useProjectStore.getState();
-          if (!projectStore.isClearing) {
-            const selectedWithFilenames = newSelected.map(item => {
-              const image = state.images.find(img => img.id === item.id);
-              return {
-                id: item.id,
-                instanceId: item.instanceId,
-                fileName: image?.fileName || image?.file?.name || 'unknown'
-              };
-            });
-            const keys = getUserSpecificKeys();
-            localStorage.setItem(keys.selections, JSON.stringify(selectedWithFilenames));
-            console.log('📱 Selected images saved to localStorage:', selectedWithFilenames);
-          }
-        } catch (error) {
-          console.error('❌ Error saving selected images to localStorage:', error);
-        }
-        
-        return { selectedImages: newSelected };
-      }
-      
       // Create a new instance with unique instanceId using timestamp
       const timestamp = Date.now();
       const instanceId = `${id}-${timestamp}`;

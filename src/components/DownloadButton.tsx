@@ -146,14 +146,6 @@ export const DownloadButton: React.FC = () => {
         // Track bulk download success
         trackBulkDownload(transformedData.selectedImages.length, bulkDefects.length);
         console.log('✅ Bulk download completed successfully');
-        
-        // Universal: Save user data to AWS after successful download
-        try {
-          await useMetadataStore.getState().saveUserData();
-          console.log('✅ User data saved to AWS after bulk download');
-        } catch (saveError) {
-          console.warn('⚠️ Failed to save user data after bulk download:', saveError);
-        }
 
       } else {
         // Handle images mode download - Call Lambda function
@@ -411,14 +403,6 @@ export const DownloadButton: React.FC = () => {
         // Track image download success
         trackImageDownload(selectedImagesList.length, 'individual_package');
         console.log('✅ Download completed successfully');
-        
-        // Universal: Save user data to AWS after successful download
-        try {
-          await useMetadataStore.getState().saveUserData();
-          console.log('✅ User data saved to AWS after download');
-        } catch (saveError) {
-          console.warn('⚠️ Failed to save user data after download:', saveError);
-        }
 
       }
 
