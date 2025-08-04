@@ -477,68 +477,69 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         
         console.log('🔧 toggleImageSelection - Added image:', { id, instanceId });
         console.log('🔧 toggleImageSelection - Total selected:', newSelected.length);
-      
-      // Auto-save selections to localStorage immediately with filenames for cross-session matching (but not during clearing)
-      try {
-        // Check if project is being cleared
-        const projectStore = useProjectStore.getState();
-        if (!projectStore.isClearing) {
-          const selectedWithFilenames = newSelected.map(item => {
-            const image = state.images.find(img => img.id === item.id);
-            return {
-              id: item.id,
-              instanceId: item.instanceId,
-              fileName: image?.fileName || image?.file?.name || 'unknown'
-            };
-          });
-          const keys = getUserSpecificKeys();
-          localStorage.setItem(keys.selections, JSON.stringify(selectedWithFilenames));
-          console.log('📱 Selected images saved to localStorage:', selectedWithFilenames);
-        } else {
-          console.log('⏸️ Skipping localStorage save during project clear');
-        }
-      } catch (error) {
-        console.error('❌ Error saving selected images to localStorage:', error);
-      }
-      
-      // Auto-save to AWS in background (only small data) - but only if not clearing
-      (async () => {
+        
+        // Auto-save selections to localStorage immediately with filenames for cross-session matching (but not during clearing)
         try {
           // Check if project is being cleared
           const projectStore = useProjectStore.getState();
-          if (projectStore.isClearing) {
-            console.log('⏸️ Skipping auto-save during project clear');
-            return;
-          }
-          
-          const storedUser = localStorage.getItem('user');
-          const user = storedUser ? JSON.parse(storedUser) : null;
-          
-          if (user?.email) {
-            console.log('💾 Auto-saving selected images to AWS for user:', user.email);
-            
-            // Send complete instance information to AWS
-            const selectedWithInstanceIds = newSelected.map(item => {
+          if (!projectStore.isClearing) {
+            const selectedWithFilenames = newSelected.map(item => {
               const image = state.images.find(img => img.id === item.id);
               return {
-                id: item.id, // Keep the original image ID
-                instanceId: item.instanceId, // Keep the instance ID
+                id: item.id,
+                instanceId: item.instanceId,
                 fileName: image?.fileName || image?.file?.name || 'unknown'
               };
             });
-            
-            console.log('📦 Data being sent to AWS:', selectedWithInstanceIds);
-            await DatabaseService.updateSelectedImages(user.email, selectedWithInstanceIds);
-            console.log('✅ Selected images auto-saved to AWS for user:', user.email);
+            const keys = getUserSpecificKeys();
+            localStorage.setItem(keys.selections, JSON.stringify(selectedWithFilenames));
+            console.log('📱 Selected images saved to localStorage:', selectedWithFilenames);
           } else {
-            console.warn('⚠️ No user email found for AWS auto-save');
+            console.log('⏸️ Skipping localStorage save during project clear');
           }
         } catch (error) {
-          console.error('❌ Error auto-saving selected images to AWS:', error);
+          console.error('❌ Error saving selected images to localStorage:', error);
         }
-      })();
-      
-      return { selectedImages: newSelected };
+        
+        // Auto-save to AWS in background (only small data) - but only if not clearing
+        (async () => {
+          try {
+            // Check if project is being cleared
+            const projectStore = useProjectStore.getState();
+            if (projectStore.isClearing) {
+              console.log('⏸️ Skipping auto-save during project clear');
+              return;
+            }
+            
+            const storedUser = localStorage.getItem('user');
+            const user = storedUser ? JSON.parse(storedUser) : null;
+            
+            if (user?.email) {
+              console.log('💾 Auto-saving selected images to AWS for user:', user.email);
+              
+              // Send complete instance information to AWS
+              const selectedWithInstanceIds = newSelected.map(item => {
+                const image = state.images.find(img => img.id === item.id);
+                return {
+                  id: item.id, // Keep the original image ID
+                  instanceId: item.instanceId, // Keep the instance ID
+                  fileName: image?.fileName || image?.file?.name || 'unknown'
+                };
+              });
+              
+              console.log('📦 Data being sent to AWS:', selectedWithInstanceIds);
+              await DatabaseService.updateSelectedImages(user.email, selectedWithInstanceIds);
+              console.log('✅ Selected images auto-saved to AWS for user:', user.email);
+            } else {
+              console.warn('⚠️ No user email found for AWS auto-save');
+            }
+          } catch (error) {
+            console.error('❌ Error auto-saving selected images to AWS:', error);
+          }
+        })();
+        
+        return { selectedImages: newSelected };
+      }
     });
   },
 
