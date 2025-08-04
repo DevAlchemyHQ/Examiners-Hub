@@ -515,6 +515,8 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           const user = storedUser ? JSON.parse(storedUser) : null;
           
           if (user?.email) {
+            console.log('💾 Auto-saving selected images to AWS for user:', user.email);
+            
             // Send complete instance information to AWS
             const selectedWithInstanceIds = newSelected.map(item => {
               const image = state.images.find(img => img.id === item.id);
@@ -524,11 +526,15 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
                 fileName: image?.fileName || image?.file?.name || 'unknown'
               };
             });
+            
+            console.log('📦 Data being sent to AWS:', selectedWithInstanceIds);
             await DatabaseService.updateSelectedImages(user.email, selectedWithInstanceIds);
             console.log('✅ Selected images auto-saved to AWS for user:', user.email);
+          } else {
+            console.warn('⚠️ No user email found for AWS auto-save');
           }
         } catch (error) {
-          console.error('❌ Error auto-saving selected images:', error);
+          console.error('❌ Error auto-saving selected images to AWS:', error);
         }
       })();
       
@@ -1036,8 +1042,16 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
 
   saveUserData: async () => {
     try {
+      console.log('🔄 saveUserData called - starting save process...');
+      
       const state = get();
       const { formData, instanceMetadata, selectedImages } = state;
+      
+      console.log('📊 Current state to save:', {
+        formData,
+        instanceMetadata,
+        selectedImagesCount: selectedImages.length
+      });
       
       // Get user-specific keys for consistent storage
       const keys = getUserSpecificKeys();
@@ -1047,6 +1061,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         localStorage.setItem(keys.formData, JSON.stringify(formData));
         localStorage.setItem(`${keys.selections}-instance-metadata`, JSON.stringify(instanceMetadata));
         localStorage.setItem(keys.selections, JSON.stringify(selectedImages));
+        console.log('✅ localStorage save completed');
       } catch (error) {
         console.warn('⚠️ localStorage save error:', error);
       }
