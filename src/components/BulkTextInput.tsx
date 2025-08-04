@@ -940,8 +940,7 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
       // Download the file using the presigned URL
       window.open(result.downloadUrl, '_blank');
 
-      const isChrome = navigator.userAgent.includes('Chrome');
-      if (isChrome) {
+      if (navigator.userAgent.includes('Chrome')) {
         toast.success('Package downloaded successfully! 💡 Chrome users: If you experience issues, try Edge or Firefox.');
       } else {
         toast.success('Package downloaded successfully');
@@ -949,10 +948,9 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
     } catch (error) {
       console.error('Download error:', error);
       trackError('download_failed', 'bulk_download');
-      const isChrome = navigator.userAgent.includes('Chrome');
       let errorMsg = error instanceof Error ? error.message : 'Failed to download package';
       
-      if (isChrome && errorMsg.includes('Network request failed')) {
+      if (navigator.userAgent.includes('Chrome') && errorMsg.includes('Network request failed')) {
         errorMsg = 'Chrome detected an issue. Please try Edge or Firefox, or contact support if the problem persists.';
       }
       

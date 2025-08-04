@@ -605,13 +605,14 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       return { selectedImages };
     });
   },
-  },
 
   clearSelectedImages: () => {
     set({ selectedImages: [], instanceMetadata: {} });
   },
 
-  clearBulkSelectedImages: () => set({ bulkSelectedImages: [] }),
+  clearBulkSelectedImages() {
+    set({ bulkSelectedImages: [] });
+  },
 
   setDefectSortDirection: (direction) => {
     set({ defectSortDirection: direction });

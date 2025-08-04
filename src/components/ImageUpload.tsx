@@ -54,9 +54,6 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({ compact = false }) => 
     });
 
     if (totalSize > maxTotalSize) {
-<<<<<<< HEAD
-      // Clear the valid array since total size exceeds limit
-      valid.length = 0;
       invalid.push(`Total size ${formatFileSize(totalSize)} exceeds 500MB limit`);
       return { valid: [], invalid };
     }
