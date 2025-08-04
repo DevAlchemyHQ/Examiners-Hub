@@ -155,7 +155,7 @@ export const ImageGridItem: React.FC<ImageGridItemProps> = ({ images, gridWidth 
           }}
         >
           {images.map((img, index) => {
-                  const isSelected = viewMode === 'bulk' ? selections.has(img.id) : selections.some(item => item.id === img.id);
+                  const isSelected = viewMode === 'bulk' ? selections.includes(img.id) : selections.some(item => item.id === img.id);
                   const defectNumbers = getDefectNumbers(img);
                   
                   return (

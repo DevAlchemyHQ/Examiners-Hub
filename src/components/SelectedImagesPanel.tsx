@@ -583,7 +583,7 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
   
   const selectedImagesList = React.useMemo(() => {
     if (viewMode === 'bulk') {
-      return images.filter(img => bulkSelectedImages.has(img.id));
+      return images.filter(img => bulkSelectedImages.includes(img.id));
     } else {
       // Create instances from the selectedImages array that now contains instance information
       const selectedInstances: ImageMetadata[] = [];
