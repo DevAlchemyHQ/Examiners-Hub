@@ -391,7 +391,7 @@ export const Header: React.FC = React.memo(() => {
                     <User size={20} />
                   )}
                 </button>
-                <span className="text-xs text-gray-600 dark:text-gray-300 font-mono font-medium">v1.1.0</span>
+                <span className="text-xs text-gray-600 dark:text-gray-300 font-mono font-medium">v1.1.1</span>
                 
                 {/* Profile Menu */}
                 {showProfileMenu && (
