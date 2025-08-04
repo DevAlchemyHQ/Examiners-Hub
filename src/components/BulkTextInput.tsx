@@ -869,22 +869,64 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
 
       console.log('🚀 Calling Lambda for bulk download with unified format...');
       console.log('Transformed data sample:', transformedData.selectedImages[0]);
+      console.log('Full transformed data:', JSON.stringify(transformedData, null, 2));
+      console.log('🌐 Browser:', navigator.userAgent);
+      console.log('🌐 Chrome version:', navigator.userAgent.includes('Chrome') ? 'Chrome detected' : 'Not Chrome');
       
       // Call Lambda function for bulk mode (same as DownloadButton.tsx)
       const apiUrl = getFullApiUrl();
       console.log('🌐 Using API endpoint:', apiUrl);
       
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(transformedData)
-      });
+      // Chrome-specific workaround: try different request configurations
+      const isChrome = navigator.userAgent.includes('Chrome');
+      let response;
+      let errorMessage = 'Bulk download failed';
+      
+      try {
+        // First attempt with standard configuration
+        response = await fetch(apiUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'Cache-Control': 'no-cache',
+          },
+          mode: 'cors',
+          credentials: 'omit',
+          body: JSON.stringify(transformedData)
+        });
+      } catch (fetchError) {
+        console.error('First fetch attempt failed:', fetchError);
+        
+        if (isChrome) {
+          // Chrome fallback: try without CORS mode
+          console.log('🔄 Chrome detected, trying fallback request configuration...');
+          try {
+            response = await fetch(apiUrl, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(transformedData)
+            });
+          } catch (fallbackError) {
+            console.error('Chrome fallback also failed:', fallbackError);
+            throw new Error('Network request failed in Chrome. Please try again or use a different browser.');
+          }
+        } else {
+          throw fetchError;
+        }
+      }
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Bulk download failed');
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch (parseError) {
+          console.error('Failed to parse error response:', parseError);
+          errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+        }
+        throw new Error(errorMessage);
       }
 
       const result = await response.json();
@@ -898,11 +940,23 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
       // Download the file using the presigned URL
       window.open(result.downloadUrl, '_blank');
 
-      toast.success('Package downloaded successfully');
+      const isChrome = navigator.userAgent.includes('Chrome');
+      if (isChrome) {
+        toast.success('Package downloaded successfully! 💡 Chrome users: If you experience issues, try Edge or Firefox.');
+      } else {
+        toast.success('Package downloaded successfully');
+      }
     } catch (error) {
       console.error('Download error:', error);
       trackError('download_failed', 'bulk_download');
-      toast.error(error instanceof Error ? error.message : 'Failed to download package');
+      const isChrome = navigator.userAgent.includes('Chrome');
+      let errorMsg = error instanceof Error ? error.message : 'Failed to download package';
+      
+      if (isChrome && errorMsg.includes('Network request failed')) {
+        errorMsg = 'Chrome detected an issue. Please try Edge or Firefox, or contact support if the problem persists.';
+      }
+      
+      toast.error(errorMsg);
     } finally {
       setIsDownloading(false);
     }
