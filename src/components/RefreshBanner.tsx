@@ -12,28 +12,33 @@ const RefreshBanner: React.FC<RefreshBannerProps> = ({ className = '' }) => {
   useEffect(() => {
     console.log('🔄 RefreshBanner: Component mounted');
     
-    // Force show banner for version 1.1.1 update
+    // Check if user has already seen this version
     const currentVersion = '1.1.1';
+    const lastSeenVersion = localStorage.getItem('last-seen-version');
+    const isDismissed = localStorage.getItem('dismissed-version-banner');
     
-    // Clear any previous banner dismissal states
-    localStorage.removeItem('dismissed-version-banner');
-    localStorage.removeItem('dismissed-version-banner-1.1.0');
-    localStorage.removeItem('dismissed-version-banner-1.0.1');
-    localStorage.removeItem('dismissed-version-banner-1.0.0');
-    localStorage.removeItem('last-seen-version');
+    console.log('🔄 RefreshBanner: Current version:', currentVersion);
+    console.log('🔄 RefreshBanner: Last seen version:', lastSeenVersion);
+    console.log('🔄 RefreshBanner: Is dismissed:', isDismissed);
     
-    // Always show banner for this version
-    console.log('🔄 RefreshBanner: Setting visible to true');
-    setIsVisible(true);
+    // Show banner if user hasn't seen this version or hasn't dismissed it
+    if (lastSeenVersion !== currentVersion || !isDismissed) {
+      console.log('🔄 RefreshBanner: Setting visible to true');
+      setIsVisible(true);
+    } else {
+      console.log('🔄 RefreshBanner: Banner already seen and dismissed');
+      setIsVisible(false);
+    }
   }, []);
 
   const handleRefresh = () => {
-    // Force refresh and clear all banner states
-    localStorage.removeItem('dismissed-version-banner');
-    localStorage.removeItem('dismissed-version-banner-1.1.0');
-    localStorage.removeItem('dismissed-version-banner-1.0.1');
-    localStorage.removeItem('dismissed-version-banner-1.0.0');
+    console.log('🔄 RefreshBanner: Update button clicked');
+    
+    // Mark banner as dismissed and set version as seen
+    localStorage.setItem('dismissed-version-banner', 'true');
     localStorage.setItem('last-seen-version', '1.1.1');
+    
+    console.log('🔄 RefreshBanner: Banner dismissed, refreshing page');
     // Force a hard refresh to ensure all new features load
     window.location.href = window.location.href;
   };
