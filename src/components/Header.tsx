@@ -7,7 +7,7 @@ import { useMetadataStore } from '../store/metadataStore';
 import { useThemeStore } from '../store/themeStore';
 
 // Version check system
-const CURRENT_VERSION = '1.1.0';
+const CURRENT_VERSION = '1.1.1';
 
 export const Header: React.FC = React.memo(() => {
   const navigate = useNavigate();

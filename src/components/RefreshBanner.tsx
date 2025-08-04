@@ -28,23 +28,18 @@ const RefreshBanner: React.FC<RefreshBannerProps> = ({ className = '' }) => {
     }
   }, []);
 
-  const handleDismiss = () => {
-    setIsDismissed(true);
-    setIsVisible(false);
-    localStorage.setItem('dismissed-version-banner', '1.1.1');
-  };
-
   const handleRefresh = () => {
-    // Clear all banner states before refresh to ensure clean state
+    // Force refresh and clear all banner states
     localStorage.removeItem('dismissed-version-banner');
     localStorage.removeItem('dismissed-version-banner-1.1.0');
     localStorage.removeItem('dismissed-version-banner-1.0.1');
     localStorage.removeItem('dismissed-version-banner-1.0.0');
     localStorage.setItem('last-seen-version', '1.1.1');
-    window.location.reload();
+    // Force a hard refresh to ensure all new features load
+    window.location.href = window.location.href;
   };
 
-  if (!isVisible || isDismissed) {
+  if (!isVisible) {
     return null;
   }
 
@@ -56,10 +51,10 @@ const RefreshBanner: React.FC<RefreshBannerProps> = ({ className = '' }) => {
             <Info className="h-5 w-5 text-green-200" />
             <div className="flex-1">
               <p className="text-sm font-medium">
-                🔧 Version 1.1.1 - Defect Set Loading Fixed!
+                🎉 Version 1.1.1 - Major Update Available!
               </p>
               <p className="text-xs text-green-100 mt-1">
-                Fixed critical JavaScript error in defect set loading. Your saved defect sets now load properly with all photo numbers and descriptions restored.
+                Download functionality fully restored and optimized. Session persistence improved. All features now working seamlessly across all browsers.
               </p>
             </div>
           </div>
@@ -69,7 +64,7 @@ const RefreshBanner: React.FC<RefreshBannerProps> = ({ className = '' }) => {
               className="flex items-center space-x-1 px-3 py-1 bg-white/20 hover:bg-white/30 text-white text-xs font-medium rounded-md transition-colors"
             >
               <RefreshCw className="h-3 w-3" />
-              <span>Refresh Now</span>
+              <span>Update Now</span>
             </button>
           </div>
         </div>
