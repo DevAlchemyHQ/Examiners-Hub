@@ -24,10 +24,25 @@ exports.handler = async (event) => {
       };
     }
 
-    // Parse the incoming data
-    const { selectedImages, formData, mode = 'images' } = event;
+    // Parse the incoming data from API Gateway
+    let requestData;
+    try {
+      // API Gateway sends data in event.body as a JSON string
+      requestData = event.body ? JSON.parse(event.body) : event;
+      console.log('Parsed request data:', JSON.stringify(requestData, null, 2));
+    } catch (parseError) {
+      console.error('Error parsing request body:', parseError);
+      console.log('Raw event body:', event.body);
+      throw new Error('Invalid request format');
+    }
+
+    const { selectedImages, formData, mode = 'images' } = requestData;
 
     if (!selectedImages || !Array.isArray(selectedImages)) {
+      console.error('Validation failed:');
+      console.error('- selectedImages:', selectedImages);
+      console.error('- selectedImages type:', typeof selectedImages);
+      console.error('- selectedImages isArray:', Array.isArray(selectedImages));
       throw new Error('No selected images provided');
     }
 
