@@ -98,11 +98,7 @@ export const DownloadButton: React.FC = () => {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            'Cache-Control': 'no-cache',
           },
-          mode: 'cors',
-          credentials: 'omit',
           body: JSON.stringify(transformedData)
         });
 
@@ -305,40 +301,17 @@ export const DownloadButton: React.FC = () => {
         let errorMessage = 'Download failed';
         
         try {
-          // First attempt with standard configuration
+          // Use simple request that doesn't trigger CORS preflight
           response = await fetch(apiUrl, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'Accept': 'application/json',
-              'Cache-Control': 'no-cache',
-              'Pragma': 'no-cache'
             },
-            mode: 'cors',
-            credentials: 'omit',
             body: JSON.stringify(transformedData)
           });
         } catch (fetchError) {
-          console.error('First fetch attempt failed:', fetchError);
-          
-          if (isChrome) {
-            // Chrome fallback: try without CORS mode
-            console.log('🔄 Chrome detected, trying fallback request configuration...');
-            try {
-              response = await fetch(apiUrl, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(transformedData)
-              });
-            } catch (fallbackError) {
-              console.error('Chrome fallback also failed:', fallbackError);
-              throw new Error('Network request failed in Chrome. Please try again or use a different browser.');
-            }
-          } else {
-            throw fetchError;
-          }
+          console.error('Fetch attempt failed:', fetchError);
+          throw new Error('Network request failed. Please try again or use a different browser.');
         }
 
         console.log('📡 Response status:', response.status);
