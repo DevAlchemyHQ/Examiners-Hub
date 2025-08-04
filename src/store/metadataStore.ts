@@ -462,21 +462,12 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
 
   toggleImageSelection: (id) => {
     set((state) => {
-      // Check if this image is already selected
-      const existingIndex = state.selectedImages.findIndex(item => item.id === id);
+      // Always add a new selection with unique instanceId for multiple selections
+      const instanceId = `${id}-${Date.now()}`;
+      const newSelected = [...state.selectedImages, { id, instanceId }];
       
-      if (existingIndex !== -1) {
-        // Remove if already selected (toggle off)
-        const newSelected = state.selectedImages.filter(item => item.id !== id);
-        console.log('🔧 toggleImageSelection - Removed image:', id);
-        return { selectedImages: newSelected };
-      } else {
-        // Add new selection with simple instanceId
-        const instanceId = `${id}-${Date.now()}`;
-        const newSelected = [...state.selectedImages, { id, instanceId }];
-        
-        console.log('🔧 toggleImageSelection - Added image:', { id, instanceId });
-        console.log('🔧 toggleImageSelection - Total selected:', newSelected.length);
+      console.log('🔧 toggleImageSelection - Added image:', { id, instanceId });
+      console.log('🔧 toggleImageSelection - Total selected:', newSelected.length);
         
         // Auto-save selections to localStorage immediately with filenames for cross-session matching (but not during clearing)
         try {
