@@ -44,7 +44,7 @@ interface SessionState {
 interface MetadataStateOnly {
   images: ImageMetadata[];
   selectedImages: Array<{ id: string; instanceId: string }>; // Store both base ID and instance ID
-  bulkSelectedImages: Set<string>;
+  bulkSelectedImages: string[];
   formData: FormData;
   defectSortDirection: 'asc' | 'desc' | null;
   sketchSortDirection: 'asc' | 'desc' | null;
@@ -117,7 +117,7 @@ const getUserSpecificKeys = () => {
 const initialState: MetadataStateOnly = {
   images: [],
   selectedImages: [],
-  bulkSelectedImages: new Set(),
+      bulkSelectedImages: [],
   formData: initialFormData,
   defectSortDirection: null,
   sketchSortDirection: null,
@@ -446,7 +446,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       set((state) => {
         const updatedImages = state.images.filter((img) => img.id !== id);
         const updatedSelected = new Set([...state.selectedImages].filter(imgId => imgId !== id));
-        const updatedBulkSelected = new Set([...state.bulkSelectedImages].filter(imgId => imgId !== id));
+        const updatedBulkSelected = state.bulkSelectedImages.filter(imgId => imgId !== id);
         
         return { 
           images: updatedImages,
@@ -531,11 +531,12 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
 
   toggleBulkImageSelection: (id) => {
     set((state) => {
-      let newSelected = new Set(state.bulkSelectedImages);
-      if (newSelected.has(id)) {
-        newSelected.delete(id);
+      let newSelected = [...state.bulkSelectedImages];
+      const index = newSelected.indexOf(id);
+      if (index > -1) {
+        newSelected.splice(index, 1);
       } else {
-        newSelected.add(id);
+        newSelected.push(id);
       }
       return { bulkSelectedImages: newSelected };
     });
@@ -610,9 +611,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
     set({ selectedImages: [], instanceMetadata: {} });
   },
 
-  clearBulkSelectedImages: () => {
-    set({ bulkSelectedImages: new Set() });
-  },
+  clearBulkSelectedImages: () => set({ bulkSelectedImages: [] }),
 
   setDefectSortDirection: (direction) => {
     set({ defectSortDirection: direction });
