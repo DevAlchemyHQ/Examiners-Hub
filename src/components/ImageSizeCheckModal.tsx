@@ -31,9 +31,9 @@ export const ImageSizeCheckModal: React.FC<ImageSizeCheckModalProps> = ({ onConf
           <div className="text-sm text-slate-500 dark:text-gray-400 mb-4">
             <p className="font-medium mb-2">Recommended specifications:</p>
             <ul className="list-disc list-inside">
-              <li>Max file size: 250MB per image</li>
-              <li>Max total upload: 800MB</li>
-              <li>For best performance: resize to 1.2MB or smaller</li>
+              <li>Max file size: 1MB per image</li>
+              <li>Max total upload: 500MB</li>
+              <li>For best performance: resize to 1MB or smaller</li>
             </ul>
           </div>
         </div>
