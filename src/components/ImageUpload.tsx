@@ -44,15 +44,20 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({ compact = false }) => 
         invalid.push(`${file.name} (${formatFileSize(file.size)} - too large)`);
         oversizedFiles++;
       } else {
+        // Warn if file is close to limit (over 500KB)
+        if (file.size > 500 * 1024) {
+          toast.warning(`${file.name} is ${formatFileSize(file.size)} - consider resizing for faster uploads`);
+        }
         totalSize += file.size;
         valid.push(file);
       }
     });
 
     if (totalSize > maxTotalSize) {
+<<<<<<< HEAD
       // Clear the valid array since total size exceeds limit
       valid.length = 0;
-      invalid.push(`Total upload size ${formatFileSize(totalSize)} exceeds 500MB limit (${files.length} files selected)`);
+      invalid.push(`Total size ${formatFileSize(totalSize)} exceeds 500MB limit`);
       return { valid: [], invalid };
     }
 
@@ -67,8 +72,9 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({ compact = false }) => 
       const { valid, invalid } = validateFiles(e.target.files);
 
       if (invalid.length > 0) {
-        const resizeMessage = invalid.some(msg => msg.includes('too large') || msg.includes('exceeds')) 
-          ? '\n\n💡 Tip: Try resizing your photos or uploading fewer files to stay within the 500MB total limit!'
+        const hasLargeFiles = invalid.some(msg => msg.includes('too large') || msg.includes('exceeds'));
+        const resizeMessage = hasLargeFiles 
+          ? '\n\n📏 Please resize your images to under 1MB each for faster uploads. You can use online tools like TinyPNG or your phone\'s camera settings.'
           : '';
         toast.error(`Upload failed:\n${invalid.join('\n')}${resizeMessage}`);
         trackError('upload_validation', 'invalid_files');
@@ -99,7 +105,14 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({ compact = false }) => 
         console.log('Calling addImages...');
         await addImages(valid, false);
         console.log('Upload completed successfully');
-        toast.success(`Successfully uploaded ${valid.length} files!`);
+        
+        // Show helpful message for large uploads
+        const avgSize = totalSize / valid.length;
+        if (avgSize > 500 * 1024) { // If average file size is over 500KB
+          toast.success(`Successfully uploaded ${valid.length} files! 💡 Tip: Resizing images to under 500KB will make future uploads even faster.`);
+        } else {
+          toast.success(`Successfully uploaded ${valid.length} files!`);
+        }
       } catch (error) {
         console.error('Upload error:', error);
         trackError('upload_failed', 'add_images_error');

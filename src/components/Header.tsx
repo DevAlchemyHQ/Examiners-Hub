@@ -160,9 +160,36 @@ export const Header: React.FC = React.memo(() => {
     }
   };
 
+  const formatFileSize = (bytes: number): string => {
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    if (bytes === 0) return '0 Bytes';
+    const i = Math.floor(Math.log(bytes) / Math.log(1024));
+    return parseFloat((bytes / Math.pow(1024, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  const validateImageFile = (file: File): { valid: boolean; error?: string } => {
+    const maxSize = 10 * 1024 * 1024; // 10MB for profile images
+    
+    if (file.size > maxSize) {
+      return { 
+        valid: false, 
+        error: `${file.name} (${formatFileSize(file.size)} - too large). Max size is 10MB for profile images.` 
+      };
+    }
+    
+    return { valid: true };
+  };
+
   const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file || !user) return;
+
+    // Validate file size
+    const validation = validateImageFile(file);
+    if (!validation.valid) {
+      alert(validation.error || 'File validation failed');
+      return;
+    }
 
     const fileExt = file.name.split('.').pop();
     const fileName = `${user.id}.${fileExt}`;

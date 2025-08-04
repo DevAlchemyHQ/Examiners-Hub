@@ -68,9 +68,36 @@ const PDFViewerSection: React.FC<PDFViewerSectionProps> = ({ title, file, scale,
         return () => observer.disconnect();
     }, [numPages]);
 
+    const formatFileSize = (bytes: number): string => {
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        if (bytes === 0) return '0 Bytes';
+        const i = Math.floor(Math.log(bytes) / Math.log(1024));
+        return parseFloat((bytes / Math.pow(1024, i)).toFixed(2)) + ' ' + sizes[i];
+    };
+
+    const validateFile = (file: File): { valid: boolean; error?: string } => {
+        const maxSize = 250 * 1024 * 1024; // 250MB per file
+        
+        if (file.size > maxSize) {
+            return { 
+                valid: false, 
+                error: `${file.name} (${formatFileSize(file.size)} - too large). Max size is 250MB.` 
+            };
+        }
+        
+        return { valid: true };
+    };
+
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const selectedFile = e.target.files?.[0];
         if (selectedFile && selectedFile.type === 'application/pdf') {
+            // Validate file size
+            const validation = validateFile(selectedFile);
+            if (!validation.valid) {
+                setError(validation.error || 'File validation failed');
+                return;
+            }
+
             setIsLoading(true);
             setError(null);
             try {
