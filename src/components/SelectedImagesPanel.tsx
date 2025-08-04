@@ -480,6 +480,10 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
         formData
       });
       
+      // Get instance metadata from the store
+      const { useMetadataStore } = await import('../store/metadataStore');
+      const instanceMetadata = useMetadataStore.getState().instanceMetadata;
+      
       const data = {
         defects: bulkDefects,
         selectedImages: Array.from(selectedImages),
@@ -492,14 +496,23 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
             photoNumber: img.photoNumber,
             description: img.description,
             isSketch: img.isSketch
-          }))
+          })),
+        // Add instance metadata for proper restoration
+        instanceMetadata: instanceMetadata
       };
       
       // Use the auto-save function
       await autoSaveDefectSet(formData, bulkDefects, selectedImages, images);
       console.log('✅ Auto-save completed');
       
-      toast.success(`Defect set '${title}' saved successfully!`);
+      // Show success message with details
+      const imageCount = selectedImages.length;
+      const defectCount = bulkDefects.length;
+      let message = `Saved '${title}'`;
+      if (imageCount > 0 || defectCount > 0) {
+        message += ` (${imageCount} images, ${defectCount} bulk defects)`;
+      }
+      toast.success(message);
       
       // Refresh the saved sets list
       await handleShowLoadTray();
@@ -527,29 +540,32 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
   const handleLoadDefectSet = (set: {title: string, data: any, created_at: string}) => {
     trackDefectSetLoad(set.data.defects?.length || 0, 'loaded_defect_set');
     trackUserAction('defect_set_load', 'manual_load');
-    setBulkDefects(set.data.defects);
+    
+    console.log('🔄 Loading defect set:', set.title);
+    console.log('📊 Data to restore:', {
+      defects: set.data.defects?.length || 0,
+      selectedImages: set.data.selectedImages?.length || 0,
+      hasInstanceMetadata: !!set.data.instanceMetadata
+    });
+    
+    // Restore form data
     setFormData(set.data.formData);
     
-    // Restore selected images
-    setTimeout(() => {
-      setSelectedImages(set.data.selectedImages);
-    }, 0);
+    // Restore bulk defects
+    setBulkDefects(set.data.defects || []);
     
-    // Restore selected images metadata (photo numbers, descriptions)
-    if (set.data.selectedImagesMetadata) {
-      set.data.selectedImagesMetadata.forEach((imgMeta: any) => {
-        const image = images.find(img => img.id === imgMeta.id);
-        if (image) {
-          updateImageMetadata(imgMeta.id, {
-            photoNumber: imgMeta.photoNumber,
-            description: imgMeta.description
-          });
-        }
-      });
+    // Restore selected images with proper timing
+    if (set.data.selectedImages && set.data.selectedImages.length > 0) {
+      console.log('🖼️ Restoring selected images:', set.data.selectedImages.length);
+      setSelectedImages(set.data.selectedImages);
+    } else {
+      console.log('⚠️ No selected images to restore');
+      setSelectedImages([]);
     }
     
     // Restore instance metadata for proper photo numbers and descriptions
     if (set.data.instanceMetadata) {
+      console.log('📝 Restoring instance metadata for', Object.keys(set.data.instanceMetadata).length, 'instances');
       (async () => {
         const { useMetadataStore } = await import('../store/metadataStore');
         const { updateInstanceMetadata } = useMetadataStore.getState();
@@ -563,6 +579,15 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
         });
       })();
     }
+    
+    // Show success message with details
+    const imageCount = set.data.selectedImages?.length || 0;
+    const defectCount = set.data.defects?.length || 0;
+    let message = `Loaded '${set.title}'`;
+    if (imageCount > 0 || defectCount > 0) {
+      message += ` (${imageCount} images, ${defectCount} bulk defects)`;
+    }
+    toast.success(message);
     
     setShowLoadTray(false);
   };
