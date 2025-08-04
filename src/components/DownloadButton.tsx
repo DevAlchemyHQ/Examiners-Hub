@@ -294,21 +294,59 @@ export const DownloadButton: React.FC = () => {
         console.log('🌐 Using API endpoint:', apiUrl);
         console.log('🕒 Cache bust timestamp:', Date.now());
         
-        const response = await fetch(apiUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Cache-Control': 'no-cache',
-            'Pragma': 'no-cache'
-          },
-          body: JSON.stringify(transformedData)
-        });
+        // Chrome-specific workaround: try different request configurations
+        const isChrome = navigator.userAgent.includes('Chrome');
+        let response;
+        let errorMessage = 'Download failed';
+        
+        try {
+          // First attempt with standard configuration
+          response = await fetch(apiUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+              'Cache-Control': 'no-cache',
+              'Pragma': 'no-cache'
+            },
+            mode: 'cors',
+            credentials: 'omit',
+            body: JSON.stringify(transformedData)
+          });
+        } catch (fetchError) {
+          console.error('First fetch attempt failed:', fetchError);
+          
+          if (isChrome) {
+            // Chrome fallback: try without CORS mode
+            console.log('🔄 Chrome detected, trying fallback request configuration...');
+            try {
+              response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(transformedData)
+              });
+            } catch (fallbackError) {
+              console.error('Chrome fallback also failed:', fallbackError);
+              throw new Error('Network request failed in Chrome. Please try again or use a different browser.');
+            }
+          } else {
+            throw fetchError;
+          }
+        }
 
         console.log('📡 Response status:', response.status);
         console.log('📡 Response headers:', Object.fromEntries(response.headers.entries()));
 
         if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ error: 'Failed to parse error response' }));
+          let errorData;
+          try {
+            errorData = await response.json();
+          } catch (parseError) {
+            console.error('Failed to parse error response:', parseError);
+            errorData = { error: `HTTP ${response.status}: ${response.statusText}` };
+          }
           console.error('❌ Server error response:', errorData);
           throw new Error(errorData.error || `HTTP ${response.status}: Download failed`);
         }
@@ -348,7 +386,14 @@ export const DownloadButton: React.FC = () => {
       )) {
         toast.error(error.message);
       } else {
-        toast.error(error instanceof Error ? error.message : 'Failed to download package');
+        let errorMsg = error instanceof Error ? error.message : 'Failed to download package';
+        
+        // Check for CORS-related errors
+        if (errorMsg.includes('Failed to fetch') || errorMsg.includes('Network request failed')) {
+          errorMsg = 'Connection issue detected. Please try again or contact support if the problem persists.';
+        }
+        
+        toast.error(errorMsg);
       }
     } finally {
       setIsDownloading(false);
