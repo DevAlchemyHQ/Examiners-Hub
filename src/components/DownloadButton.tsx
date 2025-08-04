@@ -288,6 +288,11 @@ export const DownloadButton: React.FC = () => {
 
         console.log('🚀 Calling Lambda for images download with unified format...');
         console.log('📦 Transformed data being sent:', JSON.stringify(transformedData, null, 2));
+        console.log('🔍 Data structure check:');
+        console.log('  - selectedImages length:', transformedData.selectedImages?.length);
+        console.log('  - selectedImages type:', typeof transformedData.selectedImages);
+        console.log('  - mode:', transformedData.mode);
+        console.log('  - formData:', transformedData.formData);
         
         // Call Lambda function for images mode
         const apiUrl = getFullApiUrl();
