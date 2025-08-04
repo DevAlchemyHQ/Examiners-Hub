@@ -817,6 +817,9 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
               const formData = JSON.parse(savedFormData);
               return formData;
             }
+          } catch (error) {
+            console.warn('⚠️ Chrome localStorage read error for formData:', error);
+          }
             
             if (userId !== 'anonymous') {
               const { project } = await DatabaseService.getProject(userId, 'current');
@@ -839,6 +842,9 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
               const bulkDefects = JSON.parse(savedBulkData);
               return bulkDefects;
             }
+          } catch (error) {
+            console.warn('⚠️ Chrome localStorage read error for bulkData:', error);
+          }
             
             if (userId !== 'anonymous') {
               const { defects } = await DatabaseService.getBulkDefects(userId);
@@ -1030,14 +1036,26 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       const keys = getUserSpecificKeys();
       
       // Save form data to localStorage for immediate access (user-specific)
-      localStorage.setItem(keys.formData, JSON.stringify(formData));
+      try {
+        localStorage.setItem(keys.formData, JSON.stringify(formData));
+      } catch (error) {
+        console.warn('⚠️ Chrome localStorage error for formData:', error);
+      }
       
       // Save instance metadata to localStorage
-      const localStorageKey = `${keys.selections}-instance-metadata`;
-      localStorage.setItem(localStorageKey, JSON.stringify(instanceMetadata));
+      try {
+        const localStorageKey = `${keys.selections}-instance-metadata`;
+        localStorage.setItem(localStorageKey, JSON.stringify(instanceMetadata));
+      } catch (error) {
+        console.warn('⚠️ Chrome localStorage error for instance metadata:', error);
+      }
       
       // Save selected images to localStorage
-      localStorage.setItem(keys.selections, JSON.stringify(selectedImages));
+      try {
+        localStorage.setItem(keys.selections, JSON.stringify(selectedImages));
+      } catch (error) {
+        console.warn('⚠️ Chrome localStorage error for selections:', error);
+      }
       
       // Save to AWS for cross-device persistence
       const storedUser = localStorage.getItem('user');

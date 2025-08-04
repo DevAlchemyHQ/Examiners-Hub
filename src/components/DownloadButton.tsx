@@ -94,12 +94,30 @@ export const DownloadButton: React.FC = () => {
         const apiUrl = getFullApiUrl();
         console.log('🌐 Using API endpoint:', apiUrl);
         
-        const response = await fetch(apiUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(transformedData)
+        const response = await new Promise((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open('POST', apiUrl, true);
+          xhr.setRequestHeader('Content-Type', 'application/json');
+          
+          xhr.onload = function() {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              resolve({
+                ok: true,
+                status: xhr.status,
+                statusText: xhr.statusText,
+                headers: new Headers(),
+                json: () => Promise.resolve(JSON.parse(xhr.responseText))
+              });
+            } else {
+              reject(new Error(`HTTP ${xhr.status}: ${xhr.statusText}`));
+            }
+          };
+          
+          xhr.onerror = function() {
+            reject(new Error('Network request failed'));
+          };
+          
+          xhr.send(JSON.stringify(transformedData));
         });
 
         if (!response.ok) {
@@ -301,7 +319,7 @@ export const DownloadButton: React.FC = () => {
         let errorMessage = 'Download failed';
         
         try {
-          // Use simple request that doesn't trigger CORS preflight
+          // Use simple fetch request that works in both Chrome and Edge
           response = await fetch(apiUrl, {
             method: 'POST',
             headers: {
