@@ -462,14 +462,21 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
 
   toggleImageSelection: (id) => {
     set((state) => {
-      // Create a new instance with unique instanceId using timestamp
-      const timestamp = Date.now();
-      const instanceId = `${id}-${timestamp}`;
+      // Check if this image is already selected
+      const existingIndex = state.selectedImages.findIndex(item => item.id === id);
       
-      const newSelected = [...state.selectedImages, { id, instanceId }];
-      
-      console.log('🔧 toggleImageSelection - Added new instance:', { id, instanceId, timestamp });
-      console.log('🔧 toggleImageSelection - New selectedImages:', newSelected);
+      if (existingIndex !== -1) {
+        // Remove if already selected (toggle off)
+        const newSelected = state.selectedImages.filter(item => item.id !== id);
+        console.log('🔧 toggleImageSelection - Removed image:', id);
+        return { selectedImages: newSelected };
+      } else {
+        // Add new selection with simple instanceId
+        const instanceId = `${id}-${Date.now()}`;
+        const newSelected = [...state.selectedImages, { id, instanceId }];
+        
+        console.log('🔧 toggleImageSelection - Added image:', { id, instanceId });
+        console.log('🔧 toggleImageSelection - Total selected:', newSelected.length);
       
       // Auto-save selections to localStorage immediately with filenames for cross-session matching (but not during clearing)
       try {
@@ -1035,34 +1042,14 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       // Get user-specific keys for consistent storage
       const keys = getUserSpecificKeys();
       
-      // Universal storage solution with fallbacks
-      const safeSetItem = (key: string, value: any) => {
-        try {
-          localStorage.setItem(key, JSON.stringify(value));
-          return true;
-        } catch (error) {
-          console.warn(`⚠️ localStorage error for ${key}:`, error);
-          
-          // Fallback: Try sessionStorage
-          try {
-            sessionStorage.setItem(key, JSON.stringify(value));
-            console.log(`✅ Saved to sessionStorage as fallback: ${key}`);
-            return true;
-          } catch (sessionError) {
-            console.error(`❌ Both localStorage and sessionStorage failed for ${key}:`, sessionError);
-            return false;
-          }
-        }
-      };
-      
-      // Save form data with universal fallback
-      safeSetItem(keys.formData, formData);
-      
-      // Save instance metadata with universal fallback
-      safeSetItem(`${keys.selections}-instance-metadata`, instanceMetadata);
-      
-      // Save selected images with universal fallback
-      safeSetItem(keys.selections, selectedImages);
+      // Simple localStorage save with error handling
+      try {
+        localStorage.setItem(keys.formData, JSON.stringify(formData));
+        localStorage.setItem(`${keys.selections}-instance-metadata`, JSON.stringify(instanceMetadata));
+        localStorage.setItem(keys.selections, JSON.stringify(selectedImages));
+      } catch (error) {
+        console.warn('⚠️ localStorage save error:', error);
+      }
       
       // Save to AWS for cross-device persistence
       const storedUser = localStorage.getItem('user');

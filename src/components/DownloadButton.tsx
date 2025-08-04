@@ -151,44 +151,16 @@ export const DownloadButton: React.FC = () => {
         // Handle images mode download - Call Lambda function
         console.log('Images mode download - calling Lambda');
         
-        // Create the actual selected images list with instance IDs
+        // Create the actual selected images list with exact matching
         const selectedImagesList = selectedImages.map(item => {
           console.log('🔍 Looking for image with id:', item.id);
           console.log('🔍 Available images:', images.map(img => ({ id: img.id, fileName: img.fileName })));
           
-          // Try multiple strategies to find the image
-          let img = images.find(img => img.id === item.id);
+          // Use exact ID matching only
+          const img = images.find(img => img.id === item.id);
           
           if (!img) {
-            console.warn(`⚠️ Image not found for id: ${item.id}`);
-            
-            // Strategy 1: Try to find by instanceId
-            img = images.find(img => img.id === item.instanceId);
-            if (img) {
-              console.log('✅ Found image by instanceId:', item.instanceId);
-            }
-          }
-          
-          if (!img) {
-            // Strategy 2: Try to find by filename (extract from item.id)
-            const filenameFromId = item.id.split('-').slice(-1)[0]; // Get last part after last dash
-            img = images.find(img => img.fileName && img.fileName.includes(filenameFromId));
-            if (img) {
-              console.log('✅ Found image by filename match:', filenameFromId);
-            }
-          }
-          
-          if (!img) {
-            // Strategy 3: Try to find by partial filename match
-            const partialName = item.id.replace(/^local-\d+-/, '').replace(/\.(jpg|jpeg|png|gif)$/i, '');
-            img = images.find(img => img.fileName && img.fileName.toLowerCase().includes(partialName.toLowerCase()));
-            if (img) {
-              console.log('✅ Found image by partial filename match:', partialName);
-            }
-          }
-          
-          if (!img) {
-            console.error(`❌ Could not find image for id: ${item.id} - skipping`);
+            console.error(`❌ Image not found for id: ${item.id} - skipping`);
             return null;
           }
           
@@ -313,65 +285,14 @@ export const DownloadButton: React.FC = () => {
         console.log('🌐 Using API endpoint:', apiUrl);
         console.log('🕒 Cache bust timestamp:', Date.now());
         
-        // Universal browser-compatible request configuration
-        let response;
-        
-        // Universal approach: Use XMLHttpRequest as fallback for better browser compatibility
-        const makeRequest = async (): Promise<Response> => {
-          try {
-            // Primary: Standard fetch with minimal headers
-            return await fetch(apiUrl, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify(transformedData)
-            });
-          } catch (fetchError) {
-            console.warn('Fetch failed, trying XMLHttpRequest fallback:', fetchError);
-            
-            // Fallback: XMLHttpRequest for better browser compatibility
-            return new Promise((resolve, reject) => {
-              const xhr = new XMLHttpRequest();
-              xhr.open('POST', apiUrl, true);
-              xhr.setRequestHeader('Content-Type', 'application/json');
-              
-              xhr.onload = () => {
-                if (xhr.status >= 200 && xhr.status < 300) {
-                  // Create a Response-like object
-                  const response = new Response(xhr.responseText, {
-                    status: xhr.status,
-                    statusText: xhr.statusText,
-                    headers: new Headers({
-                      'content-type': xhr.getResponseHeader('content-type') || 'application/json'
-                    })
-                  });
-                  resolve(response);
-                } else {
-                  reject(new Error(`HTTP ${xhr.status}: ${xhr.statusText}`));
-                }
-              };
-              
-              xhr.onerror = () => {
-                reject(new Error('Network request failed'));
-              };
-              
-              xhr.ontimeout = () => {
-                reject(new Error('Request timeout'));
-              };
-              
-              xhr.timeout = 30000; // 30 second timeout
-              xhr.send(JSON.stringify(transformedData));
-            });
-          }
-        };
-        
-        try {
-          response = await makeRequest();
-        } catch (requestError) {
-          console.error('All request methods failed:', requestError);
-          throw new Error('Network request failed. Please check your connection and try again.');
-        }
+        // Simple, universal fetch request
+        const response = await fetch(apiUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(transformedData)
+        });
 
         console.log('📡 Response status:', response.status);
         console.log('📡 Response headers:', Object.fromEntries(response.headers.entries()));
