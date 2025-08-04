@@ -821,17 +821,17 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             console.warn('⚠️ Chrome localStorage read error for formData:', error);
           }
             
-            if (userId !== 'anonymous') {
+          if (userId !== 'anonymous') {
+            try {
               const { project } = await DatabaseService.getProject(userId, 'current');
               if (project?.formData) {
                 return project.formData;
               }
+            } catch (awsError) {
+              console.error('Error loading form data from AWS:', awsError);
             }
-            return null;
-          } catch (error) {
-            console.error('Error loading form data:', error);
-            return null;
           }
+          return null;
         })(),
         
         // Load bulk data from localStorage first, then AWS
@@ -846,17 +846,17 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             console.warn('⚠️ Chrome localStorage read error for bulkData:', error);
           }
             
-            if (userId !== 'anonymous') {
+          if (userId !== 'anonymous') {
+            try {
               const { defects } = await DatabaseService.getBulkDefects(userId);
               if (defects && defects.length > 0) {
                 return defects;
               }
+            } catch (awsError) {
+              console.error('Error loading bulk data from AWS:', awsError);
             }
-            return [];
-          } catch (error) {
-            console.error('Error loading bulk data:', error);
-            return [];
           }
+          return [];
         })(),
         
         // Load images from S3 first, then localStorage as fallback
