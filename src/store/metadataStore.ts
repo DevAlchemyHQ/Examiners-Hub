@@ -530,9 +530,8 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         })();
         
         return { selectedImages: newSelected };
-      }
-    });
-  },
+      });
+    },
 
   toggleBulkImageSelection: (id) => {
     set((state) => {
