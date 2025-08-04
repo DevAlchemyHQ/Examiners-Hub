@@ -581,7 +581,7 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
         // Select corresponding images
         newDefects.forEach(defect => {
           const image = images.find(img => (img.fileName || img.file?.name || '') === defect.selectedFile);
-          if (image && !bulkSelectedImages.has(image.id)) {
+          if (image && !bulkSelectedImages.includes(image.id)) {
             toggleBulkImageSelection(image.id);
           }
         });
@@ -966,7 +966,7 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
     bulkDefects.forEach(defect => {
       if (defect.selectedFile) {
         const image = images.find(img => (img.fileName || img.file?.name || '') === defect.selectedFile);
-        if (image && !bulkSelectedImages.has(image.id)) {
+        if (image && !bulkSelectedImages.includes(image.id)) {
           toggleBulkImageSelection(image.id);
         }
       }
