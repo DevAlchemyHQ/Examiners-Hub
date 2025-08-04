@@ -611,7 +611,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
   },
 
   clearBulkSelectedImages: () => {
-    set({ bulkSelectedImages: new Set<string>() });
+    set({ bulkSelectedImages: new Set() });
   },
 
   setDefectSortDirection: (direction) => {
