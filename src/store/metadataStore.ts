@@ -462,13 +462,45 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
 
   toggleImageSelection: (id) => {
     set((state) => {
+      // Check if this image is already selected (universal deduplication)
+      const existingSelection = state.selectedImages.find(item => item.id === id);
+      
+      if (existingSelection) {
+        // If already selected, remove it (toggle off)
+        const newSelected = state.selectedImages.filter(item => item.id !== id);
+        console.log('🔧 toggleImageSelection - Removed existing selection:', { id });
+        console.log('🔧 toggleImageSelection - New selectedImages:', newSelected);
+        
+        // Auto-save selections to localStorage immediately
+        try {
+          const projectStore = useProjectStore.getState();
+          if (!projectStore.isClearing) {
+            const selectedWithFilenames = newSelected.map(item => {
+              const image = state.images.find(img => img.id === item.id);
+              return {
+                id: item.id,
+                instanceId: item.instanceId,
+                fileName: image?.fileName || image?.file?.name || 'unknown'
+              };
+            });
+            const keys = getUserSpecificKeys();
+            localStorage.setItem(keys.selections, JSON.stringify(selectedWithFilenames));
+            console.log('📱 Selected images saved to localStorage:', selectedWithFilenames);
+          }
+        } catch (error) {
+          console.error('❌ Error saving selected images to localStorage:', error);
+        }
+        
+        return { selectedImages: newSelected };
+      }
+      
       // Create a new instance with unique instanceId using timestamp
       const timestamp = Date.now();
       const instanceId = `${id}-${timestamp}`;
       
       const newSelected = [...state.selectedImages, { id, instanceId }];
       
-      console.log('🔧 toggleImageSelection - Added instance:', { id, instanceId, timestamp });
+      console.log('🔧 toggleImageSelection - Added new instance:', { id, instanceId, timestamp });
       console.log('🔧 toggleImageSelection - New selectedImages:', newSelected);
       
       // Auto-save selections to localStorage immediately with filenames for cross-session matching (but not during clearing)
@@ -1035,27 +1067,34 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       // Get user-specific keys for consistent storage
       const keys = getUserSpecificKeys();
       
-      // Save form data to localStorage for immediate access (user-specific)
-      try {
-        localStorage.setItem(keys.formData, JSON.stringify(formData));
-      } catch (error) {
-        console.warn('⚠️ Chrome localStorage error for formData:', error);
-      }
+      // Universal storage solution with fallbacks
+      const safeSetItem = (key: string, value: any) => {
+        try {
+          localStorage.setItem(key, JSON.stringify(value));
+          return true;
+        } catch (error) {
+          console.warn(`⚠️ localStorage error for ${key}:`, error);
+          
+          // Fallback: Try sessionStorage
+          try {
+            sessionStorage.setItem(key, JSON.stringify(value));
+            console.log(`✅ Saved to sessionStorage as fallback: ${key}`);
+            return true;
+          } catch (sessionError) {
+            console.error(`❌ Both localStorage and sessionStorage failed for ${key}:`, sessionError);
+            return false;
+          }
+        }
+      };
       
-      // Save instance metadata to localStorage
-      try {
-        const localStorageKey = `${keys.selections}-instance-metadata`;
-        localStorage.setItem(localStorageKey, JSON.stringify(instanceMetadata));
-      } catch (error) {
-        console.warn('⚠️ Chrome localStorage error for instance metadata:', error);
-      }
+      // Save form data with universal fallback
+      safeSetItem(keys.formData, formData);
       
-      // Save selected images to localStorage
-      try {
-        localStorage.setItem(keys.selections, JSON.stringify(selectedImages));
-      } catch (error) {
-        console.warn('⚠️ Chrome localStorage error for selections:', error);
-      }
+      // Save instance metadata with universal fallback
+      safeSetItem(`${keys.selections}-instance-metadata`, instanceMetadata);
+      
+      // Save selected images with universal fallback
+      safeSetItem(keys.selections, selectedImages);
       
       // Save to AWS for cross-device persistence
       const storedUser = localStorage.getItem('user');

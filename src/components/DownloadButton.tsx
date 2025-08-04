@@ -146,6 +146,14 @@ export const DownloadButton: React.FC = () => {
         // Track bulk download success
         trackBulkDownload(transformedData.selectedImages.length, bulkDefects.length);
         console.log('✅ Bulk download completed successfully');
+        
+        // Universal: Save user data to AWS after successful download
+        try {
+          await useMetadataStore.getState().saveUserData();
+          console.log('✅ User data saved to AWS after bulk download');
+        } catch (saveError) {
+          console.warn('⚠️ Failed to save user data after bulk download:', saveError);
+        }
 
       } else {
         // Handle images mode download - Call Lambda function
@@ -313,23 +321,64 @@ export const DownloadButton: React.FC = () => {
         console.log('🌐 Using API endpoint:', apiUrl);
         console.log('🕒 Cache bust timestamp:', Date.now());
         
-        // Chrome-specific workaround: try different request configurations
-        const isChrome = navigator.userAgent.includes('Chrome');
+        // Universal browser-compatible request configuration
         let response;
-        let errorMessage = 'Download failed';
+        
+        // Universal approach: Use XMLHttpRequest as fallback for better browser compatibility
+        const makeRequest = async (): Promise<Response> => {
+          try {
+            // Primary: Standard fetch with minimal headers
+            return await fetch(apiUrl, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(transformedData)
+            });
+          } catch (fetchError) {
+            console.warn('Fetch failed, trying XMLHttpRequest fallback:', fetchError);
+            
+            // Fallback: XMLHttpRequest for better browser compatibility
+            return new Promise((resolve, reject) => {
+              const xhr = new XMLHttpRequest();
+              xhr.open('POST', apiUrl, true);
+              xhr.setRequestHeader('Content-Type', 'application/json');
+              
+              xhr.onload = () => {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                  // Create a Response-like object
+                  const response = new Response(xhr.responseText, {
+                    status: xhr.status,
+                    statusText: xhr.statusText,
+                    headers: new Headers({
+                      'content-type': xhr.getResponseHeader('content-type') || 'application/json'
+                    })
+                  });
+                  resolve(response);
+                } else {
+                  reject(new Error(`HTTP ${xhr.status}: ${xhr.statusText}`));
+                }
+              };
+              
+              xhr.onerror = () => {
+                reject(new Error('Network request failed'));
+              };
+              
+              xhr.ontimeout = () => {
+                reject(new Error('Request timeout'));
+              };
+              
+              xhr.timeout = 30000; // 30 second timeout
+              xhr.send(JSON.stringify(transformedData));
+            });
+          }
+        };
         
         try {
-          // Use simple fetch request that works in both Chrome and Edge
-          response = await fetch(apiUrl, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(transformedData)
-          });
-        } catch (fetchError) {
-          console.error('Fetch attempt failed:', fetchError);
-          throw new Error('Network request failed. Please try again or use a different browser.');
+          response = await makeRequest();
+        } catch (requestError) {
+          console.error('All request methods failed:', requestError);
+          throw new Error('Network request failed. Please check your connection and try again.');
         }
 
         console.log('📡 Response status:', response.status);
@@ -362,6 +411,14 @@ export const DownloadButton: React.FC = () => {
         // Track image download success
         trackImageDownload(selectedImagesList.length, 'individual_package');
         console.log('✅ Download completed successfully');
+        
+        // Universal: Save user data to AWS after successful download
+        try {
+          await useMetadataStore.getState().saveUserData();
+          console.log('✅ User data saved to AWS after download');
+        } catch (saveError) {
+          console.warn('⚠️ Failed to save user data after download:', saveError);
+        }
 
       }
 
