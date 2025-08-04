@@ -1062,14 +1062,36 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       const user = storedUser ? JSON.parse(storedUser) : null;
       
       if (user?.email) {
-        // Save form data to AWS
-        await DatabaseService.updateProject(user.email, 'current', { formData });
+        console.log('💾 Saving to AWS for user:', user.email);
         
-        // Save instance metadata to AWS
-        await DatabaseService.saveInstanceMetadata(user.email, instanceMetadata);
+        try {
+          // Save form data to AWS
+          console.log('💾 Saving form data to AWS...');
+          await DatabaseService.updateProject(user.email, 'current', { formData });
+          console.log('✅ Form data saved to AWS');
+        } catch (error) {
+          console.error('❌ Error saving form data to AWS:', error);
+        }
         
-        // Save selected images to AWS
-        await DatabaseService.updateSelectedImages(user.email, selectedImages);
+        try {
+          // Save instance metadata to AWS
+          console.log('💾 Saving instance metadata to AWS...');
+          await DatabaseService.saveInstanceMetadata(user.email, instanceMetadata);
+          console.log('✅ Instance metadata saved to AWS');
+        } catch (error) {
+          console.error('❌ Error saving instance metadata to AWS:', error);
+        }
+        
+        try {
+          // Save selected images to AWS
+          console.log('💾 Saving selected images to AWS...');
+          await DatabaseService.updateSelectedImages(user.email, selectedImages);
+          console.log('✅ Selected images saved to AWS');
+        } catch (error) {
+          console.error('❌ Error saving selected images to AWS:', error);
+        }
+      } else {
+        console.warn('⚠️ No user email found, skipping AWS save');
       }
     } catch (error) {
       console.error('Error saving user data:', error);
