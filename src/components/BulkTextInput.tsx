@@ -181,8 +181,8 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
   // Function to check for duplicate photo numbers - MOVED BEFORE useMemo hooks
   const getDuplicatePhotoNumbers = () => {
     const photoNumbers = bulkDefects.map(d => d.photoNumber);
-    const duplicates = new Set<string>();
-    const seen = new Set<string>();
+    const duplicates = new Set();
+    const seen = new Set();
     
     photoNumbers.forEach(num => {
       if (seen.has(num)) {
@@ -201,7 +201,7 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
       return getDuplicatePhotoNumbers();
     } catch (error) {
       console.error('Error in memoizedDuplicatePhotoNumbers:', error);
-      return new Set<string>();
+      return new Set();
     }
   }, [bulkDefects]);
   
