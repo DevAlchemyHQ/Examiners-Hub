@@ -8,7 +8,7 @@ echo "🚀 Starting Lambda deployment..."
 # Set variables
 FUNCTION_NAME="download-generator"
 REGION="eu-west-2"
-ZIP_FILE="lambda-package/simple-lambda/lambda-fixed-filenames.zip"
+ZIP_FILE="lambda-package/simple-lambda/lambda.zip"
 HANDLER="index.handler"
 RUNTIME="nodejs18.x"
 TIMEOUT=30
