@@ -10,22 +10,21 @@ const RefreshBanner: React.FC<RefreshBannerProps> = ({ className = '' }) => {
   const [isDismissed, setIsDismissed] = useState(false);
 
   useEffect(() => {
-    // Clear ALL previous banner states and show only the latest version
-    const currentVersion = '1.1.1';
-    const lastSeenVersion = localStorage.getItem('last-seen-version');
+    console.log('🔄 RefreshBanner: Component mounted');
     
-    // If this is a new version OR if no version has been seen, show the banner
-    if (lastSeenVersion !== currentVersion) {
-      // Clear any previous banner dismissal states
-      localStorage.removeItem('dismissed-version-banner');
-      localStorage.removeItem('dismissed-version-banner-1.1.0');
-      localStorage.removeItem('dismissed-version-banner-1.0.1');
-      localStorage.removeItem('dismissed-version-banner-1.0.0');
-      
-      // Set this as the last seen version
-      localStorage.setItem('last-seen-version', currentVersion);
-      setIsVisible(true);
-    }
+    // Force show banner for version 1.1.1 update
+    const currentVersion = '1.1.1';
+    
+    // Clear any previous banner dismissal states
+    localStorage.removeItem('dismissed-version-banner');
+    localStorage.removeItem('dismissed-version-banner-1.1.0');
+    localStorage.removeItem('dismissed-version-banner-1.0.1');
+    localStorage.removeItem('dismissed-version-banner-1.0.0');
+    localStorage.removeItem('last-seen-version');
+    
+    // Always show banner for this version
+    console.log('🔄 RefreshBanner: Setting visible to true');
+    setIsVisible(true);
   }, []);
 
   const handleRefresh = () => {
@@ -39,9 +38,14 @@ const RefreshBanner: React.FC<RefreshBannerProps> = ({ className = '' }) => {
     window.location.href = window.location.href;
   };
 
+  console.log('🔄 RefreshBanner: isVisible =', isVisible);
+  
   if (!isVisible) {
+    console.log('🔄 RefreshBanner: Returning null - not visible');
     return null;
   }
+  
+  console.log('🔄 RefreshBanner: Rendering banner');
 
   return (
     <div className={`fixed top-0 left-0 right-0 z-50 bg-gradient-to-r from-green-600 to-blue-600 text-white shadow-lg ${className}`}>
