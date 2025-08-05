@@ -75,10 +75,20 @@ export function transformSelectedImagesForLambda(
     let photoNumber = image.photoNumber || (index + 1).toString();
     let description = image.description || 'LM';
     
+    console.log(`🔍 Processing image ${index + 1}:`, {
+      id: image.id,
+      instanceId: image.instanceId,
+      hasInstanceMetadata: image.instanceId ? !!instanceMetadata[image.instanceId] : false,
+      availableMetadataKeys: Object.keys(instanceMetadata)
+    });
+    
     if (image.instanceId && instanceMetadata[image.instanceId]) {
       const instanceData = instanceMetadata[image.instanceId];
       photoNumber = instanceData.photoNumber || photoNumber;
       description = instanceData.description || description;
+      console.log(`✅ Using instance metadata for ${image.instanceId}:`, { photoNumber, description });
+    } else if (image.instanceId) {
+      console.log(`⚠️ No instance metadata found for ${image.instanceId}, using fallback:`, { photoNumber, description });
     }
     
     return {

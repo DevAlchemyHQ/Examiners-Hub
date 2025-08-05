@@ -168,20 +168,12 @@ ${selectedImages.map(image => `- Photo ${image.photoNumber || '1'} ^ ${image.des
           console.log(`Processing image: ${image.filename || image.id}`);
 
           // Get image from S3 using AWS SDK v3
-          console.log(`🔍 Attempting to download from S3:`, {
-            bucket: process.env.S3_BUCKET_NAME,
-            key: image.s3Key,
-            imageId: image.id,
-            filename: image.filename
-          });
-          
           const getObjectCommand = new GetObjectCommand({
             Bucket: process.env.S3_BUCKET_NAME,
             Key: image.s3Key
           });
 
           const response = await s3Client.send(getObjectCommand);
-          console.log(`✅ S3 download successful for ${image.filename}, size: ${response.ContentLength} bytes`);
           
           // Convert stream to buffer
           const chunks = [];
@@ -189,7 +181,6 @@ ${selectedImages.map(image => `- Photo ${image.photoNumber || '1'} ^ ${image.des
             chunks.push(chunk);
           }
           const buffer = Buffer.concat(chunks);
-          console.log(`📦 Buffer created, size: ${buffer.length} bytes`);
 
           // Add to ZIP with custom naming
           const imageFileName = `Photo ${image.photoNumber || '1'} ^ ${image.description || 'LM'} ^ ${formattedDate}.jpg`;
