@@ -152,6 +152,7 @@ export const DownloadButton: React.FC = () => {
         console.log('Images mode download - calling Lambda');
         
         // Create the actual selected images list with exact matching
+        console.log('🚨 DEBUGGING: Download function called!');
         console.log('🔍 Debugging selectedImages:', selectedImages);
         console.log('🔍 Debugging available images:', images.map(img => ({ id: img.id, fileName: img.fileName })));
         
