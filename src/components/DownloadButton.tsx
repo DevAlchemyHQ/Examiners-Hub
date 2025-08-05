@@ -160,12 +160,25 @@ export const DownloadButton: React.FC = () => {
           console.log('🔍 Looking for image with id:', item.id);
           console.log('🔍 Available images:', images.map(img => ({ id: img.id, fileName: img.fileName })));
           
-          // Use exact ID matching only
-          const img = images.find(img => img.id === item.id);
+          // Try exact ID matching first
+          let img = images.find(img => img.id === item.id);
+          
+          if (!img) {
+            console.log(`⚠️ Exact ID match failed for ${item.id}, trying filename matching...`);
+            
+            // Try matching by filename as fallback
+            img = images.find(img => {
+              const imgFileName = img.fileName || img.file?.name || '';
+              const itemFileName = item.id.replace(/^local-\d+-/, '').replace(/-\d+$/, '');
+              console.log(`🔍 Comparing: imgFileName="${imgFileName}" vs itemFileName="${itemFileName}"`);
+              return imgFileName === itemFileName;
+            });
+          }
           
           if (!img) {
             console.error(`❌ Image not found for id: ${item.id} - skipping`);
             console.error(`❌ Available image IDs:`, images.map(img => img.id));
+            console.error(`❌ Available image filenames:`, images.map(img => img.fileName || img.file?.name));
             return null;
           }
           
@@ -328,7 +341,7 @@ export const DownloadButton: React.FC = () => {
         // Download the file using the presigned URL with proper download handling
         const link = document.createElement('a');
         link.href = result.downloadUrl;
-        link.download = result.zipKey ? result.zipKey.split('/').pop() : 'download.zip';
+        link.download = result.filename || result.zipKey?.split('/').pop() || 'download.zip';
         link.target = '_blank';
         document.body.appendChild(link);
         link.click();
