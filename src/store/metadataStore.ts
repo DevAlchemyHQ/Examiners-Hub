@@ -1019,7 +1019,10 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       }
       
       if (selectionsResult.status === 'fulfilled' && selectionsResult.value) {
+        console.log('📥 Loaded selectedImages from storage:', selectionsResult.value);
         updates.selectedImages = selectionsResult.value;
+      } else {
+        console.log('⚠️ No selectedImages found in storage or failed to load');
       }
       
       // Add instance metadata to state updates
@@ -1754,9 +1757,12 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           console.log('🔄 Restoring selected images order from session state:', sessionState.selectedImageOrder);
           
           const currentSelectedImages = currentState.selectedImages;
+          console.log('🔄 Current selectedImages before restoration:', currentSelectedImages);
+          
           if (currentSelectedImages && currentSelectedImages.length > 0) {
             // Create a map for quick lookup
             const selectedImageMap = new Map(currentSelectedImages.map(item => [item.instanceId, item]));
+            console.log('🔄 SelectedImageMap keys:', Array.from(selectedImageMap.keys()));
             
             // Reorder selected images according to saved order
             const reorderedSelectedImages = sessionState.selectedImageOrder
@@ -1771,7 +1777,11 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             const finalSelectedImages = [...reorderedSelectedImages, ...remainingSelectedImages];
             set({ selectedImages: finalSelectedImages });
             console.log('✅ Selected images order restored:', finalSelectedImages.length);
+          } else {
+            console.log('⚠️ No current selectedImages to restore order for');
           }
+        } else {
+          console.log('⚠️ No selectedImageOrder in session state');
         }
         
         // Restore image order if available
