@@ -529,6 +529,10 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           }
         })();
         
+        // Update session state with new selected image order
+        const selectedImageOrder = newSelected.map(item => item.instanceId);
+        get().updateSessionState({ selectedImageOrder });
+        
         return { selectedImages: newSelected };
       });
     },
@@ -1736,6 +1740,31 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         const currentState = get();
         if (sessionState.formData && (!currentState.formData || Object.keys(currentState.formData).length === 0)) {
           set({ formData: sessionState.formData });
+        }
+        
+        // Restore selected images order if available
+        if (sessionState.selectedImageOrder && sessionState.selectedImageOrder.length > 0) {
+          console.log('🔄 Restoring selected images order from session state:', sessionState.selectedImageOrder);
+          
+          const currentSelectedImages = currentState.selectedImages;
+          if (currentSelectedImages && currentSelectedImages.length > 0) {
+            // Create a map for quick lookup
+            const selectedImageMap = new Map(currentSelectedImages.map(item => [item.instanceId, item]));
+            
+            // Reorder selected images according to saved order
+            const reorderedSelectedImages = sessionState.selectedImageOrder
+              .map(instanceId => selectedImageMap.get(instanceId))
+              .filter(Boolean) as Array<{ id: string; instanceId: string }>;
+            
+            // Add any selected images not in the saved order at the end
+            const remainingSelectedImages = currentSelectedImages.filter(item => 
+              !sessionState.selectedImageOrder.includes(item.instanceId)
+            );
+            
+            const finalSelectedImages = [...reorderedSelectedImages, ...remainingSelectedImages];
+            set({ selectedImages: finalSelectedImages });
+            console.log('✅ Selected images order restored:', finalSelectedImages.length);
+          }
         }
         
         return sessionState;
