@@ -237,8 +237,9 @@ ${selectedImages.map(image => `- Photo ${image.photoNumber || '1'} ^ ${image.des
       body: JSON.stringify({
         success: true,
         downloadUrl: presignedUrl,
-        filename: zipFileName,
-        message: `Successfully created ZIP with ${selectedImages.length} ${mode === 'bulk' ? 'defects' : 'images'}`
+        zipKey: `downloads/${zipFileName}`,
+        message: `Download package created successfully`,
+        imageCount: selectedImages.length
       })
     };
 
