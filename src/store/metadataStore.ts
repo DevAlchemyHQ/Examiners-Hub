@@ -224,12 +224,14 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           const aFileName = a.fileName || a.file?.name || '';
           const bFileName = b.fileName || b.file?.name || '';
           
-          // Extract photo number from filenames like P1080001, P1080005, etc.
+          // Extract photo number from filenames like P5110001, P3080002, etc.
           const extractPhotoNumber = (filename: string) => {
-            // Look for pattern like P1080001, P1080005, etc.
-            const match = filename.match(/P\d{3}00(\d+)/);
+            // Look for pattern like P5110001, P3080002, etc.
+            const match = filename.match(/P(\d{3})(\d{4})/);
             if (match) {
-              return parseInt(match[1]);
+              const prefix = parseInt(match[1]); // P511 -> 511, P308 -> 308
+              const sequence = parseInt(match[2]); // 0001, 0002, etc.
+              return prefix * 10000 + sequence; // Combine for proper sorting
             }
             return null;
           };
