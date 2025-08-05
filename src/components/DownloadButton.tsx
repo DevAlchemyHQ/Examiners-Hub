@@ -152,6 +152,9 @@ export const DownloadButton: React.FC = () => {
         console.log('Images mode download - calling Lambda');
         
         // Create the actual selected images list with exact matching
+        console.log('🔍 Debugging selectedImages:', selectedImages);
+        console.log('🔍 Debugging available images:', images.map(img => ({ id: img.id, fileName: img.fileName })));
+        
         const selectedImagesList = selectedImages.map(item => {
           console.log('🔍 Looking for image with id:', item.id);
           console.log('🔍 Available images:', images.map(img => ({ id: img.id, fileName: img.fileName })));
@@ -161,8 +164,11 @@ export const DownloadButton: React.FC = () => {
           
           if (!img) {
             console.error(`❌ Image not found for id: ${item.id} - skipping`);
+            console.error(`❌ Available image IDs:`, images.map(img => img.id));
             return null;
           }
+          
+          console.log(`✅ Found image for id: ${item.id}`);
           
           // Get instance-specific metadata
           const { instanceMetadata } = useMetadataStore.getState();
