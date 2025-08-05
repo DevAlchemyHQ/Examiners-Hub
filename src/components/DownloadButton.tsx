@@ -152,47 +152,12 @@ export const DownloadButton: React.FC = () => {
         console.log('Images mode download - calling Lambda');
         
         // Create the actual selected images list with exact matching
-        console.log('🚨 DEBUGGING: Download function called!');
-        console.log('🔍 Debugging selectedImages:', selectedImages);
-        console.log('🔍 Debugging available images:', images.map(img => ({ id: img.id, fileName: img.fileName })));
-        
         const selectedImagesList = selectedImages.map(item => {
           console.log('🔍 Looking for image with id:', item.id);
           console.log('🔍 Available images:', images.map(img => ({ id: img.id, fileName: img.fileName })));
           
-          // Try exact ID matching first
-          let img = images.find(img => img.id === item.id);
-          
-          if (!img) {
-            console.log(`⚠️ Exact ID match failed for ${item.id}, trying filename matching...`);
-            
-            // Try matching by filename as fallback
-            img = images.find(img => {
-              const imgFileName = img.fileName || img.file?.name || '';
-              // Extract filename from item.id, handling different formats
-              let itemFileName = item.id;
-              
-              // Remove local- prefix and timestamp if present
-              if (itemFileName.startsWith('local-')) {
-                itemFileName = itemFileName.replace(/^local-\d+-/, '');
-              }
-              if (itemFileName.startsWith('s3-')) {
-                itemFileName = itemFileName.replace(/^s3-/, '');
-              }
-              
-              // Remove any trailing timestamp
-              itemFileName = itemFileName.replace(/-\d+$/, '');
-              
-              // Normalize filenames for comparison (replace hyphens with spaces and vice versa)
-              const normalizedImgFileName = imgFileName.replace(/[-_]/g, ' ').trim();
-              const normalizedItemFileName = itemFileName.replace(/[-_]/g, ' ').trim();
-              
-              console.log(`🔍 Comparing: imgFileName="${imgFileName}" vs itemFileName="${itemFileName}"`);
-              console.log(`🔍 Normalized: "${normalizedImgFileName}" vs "${normalizedItemFileName}"`);
-              
-              return normalizedImgFileName === normalizedItemFileName;
-            });
-          }
+          // Use exact ID matching only (like stable branch)
+          const img = images.find(img => img.id === item.id);
           
           if (!img) {
             console.error(`❌ Image not found for id: ${item.id} - skipping`);

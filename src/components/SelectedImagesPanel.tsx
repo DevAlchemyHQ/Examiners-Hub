@@ -631,31 +631,8 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
       
       // Handle the new selectedImages structure: Array<{ id: string; instanceId: string }>
       selectedImages.forEach((item) => {
-        // Try exact ID match first
-        let img = images.find(img => img.id === item.id);
-        
-        if (!img) {
-          // If exact match fails, try to find by filename
-          const fileName = item.fileName || item.id.split('-').pop() || '';
-          img = images.find(img => {
-            const imgFileName = img.fileName || (img.file ? img.file.name : '');
-            return imgFileName === fileName;
-          });
-        }
-        
-        if (!img) {
-          // If still not found, try to find by partial ID match
-          img = images.find(img => {
-            const itemIdParts = item.id.split('-');
-            const imgIdParts = img.id.split('-');
-            
-            // Try to match the last part of the ID (usually the filename)
-            const itemLastPart = itemIdParts[itemIdParts.length - 1];
-            const imgLastPart = imgIdParts[imgIdParts.length - 1];
-            
-            return itemLastPart === imgLastPart;
-          });
-        }
+        // Use exact ID matching only (like stable branch)
+        const img = images.find(img => img.id === item.id);
         
         if (img) {
           selectedInstances.push({
