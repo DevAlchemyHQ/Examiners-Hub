@@ -1173,8 +1173,31 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           });
           
           if (bulkDefects && bulkDefects.length > 0) {
-            set({ bulkDefects });
-            console.log('✅ Bulk defects loaded from localStorage:', bulkDefects.length);
+            // Restore order from session state if available
+            const sessionState = get().sessionState;
+            if (sessionState.bulkDefectOrder && sessionState.bulkDefectOrder.length > 0) {
+              console.log('🔄 Restoring bulk defect order from session state:', sessionState.bulkDefectOrder);
+              
+              // Create a map for quick lookup
+              const defectMap = new Map(bulkDefects.map(defect => [defect.id || defect.photoNumber, defect]));
+              
+              // Reorder defects according to saved order
+              const reorderedDefects = sessionState.bulkDefectOrder
+                .map(id => defectMap.get(id))
+                .filter(Boolean) as BulkDefect[];
+              
+              // Add any defects not in the saved order at the end
+              const remainingDefects = bulkDefects.filter(defect => 
+                !sessionState.bulkDefectOrder.includes(defect.id || defect.photoNumber)
+              );
+              
+              const finalDefects = [...reorderedDefects, ...remainingDefects];
+              set({ bulkDefects: finalDefects });
+              console.log('✅ Bulk defects loaded and reordered from localStorage:', finalDefects.length);
+            } else {
+              set({ bulkDefects });
+              console.log('✅ Bulk defects loaded from localStorage (no order restoration):', bulkDefects.length);
+            }
             return;
           }
         } catch (error) {
@@ -1203,8 +1226,31 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             });
             
             if (defects && defects.length > 0) {
-              set({ bulkDefects: defects });
-              console.log('✅ Bulk defects loaded from AWS for user:', userId, 'Count:', defects.length);
+              // Restore order from session state if available
+              const sessionState = get().sessionState;
+              if (sessionState.bulkDefectOrder && sessionState.bulkDefectOrder.length > 0) {
+                console.log('🔄 Restoring bulk defect order from session state (AWS):', sessionState.bulkDefectOrder);
+                
+                // Create a map for quick lookup
+                const defectMap = new Map(defects.map(defect => [defect.id || defect.photoNumber, defect]));
+                
+                // Reorder defects according to saved order
+                const reorderedDefects = sessionState.bulkDefectOrder
+                  .map(id => defectMap.get(id))
+                  .filter(Boolean) as BulkDefect[];
+                
+                // Add any defects not in the saved order at the end
+                const remainingDefects = defects.filter(defect => 
+                  !sessionState.bulkDefectOrder.includes(defect.id || defect.photoNumber)
+                );
+                
+                const finalDefects = [...reorderedDefects, ...remainingDefects];
+                set({ bulkDefects: finalDefects });
+                console.log('✅ Bulk defects loaded and reordered from AWS:', finalDefects.length);
+              } else {
+                set({ bulkDefects: defects });
+                console.log('✅ Bulk defects loaded from AWS (no order restoration):', defects.length);
+              }
               return;
             } else {
               console.log('📭 No defects found in AWS');
