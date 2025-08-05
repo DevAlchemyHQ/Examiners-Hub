@@ -274,6 +274,11 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         }
         
         console.log('✅ All images added to state immediately');
+        
+        // Update session state with new image order
+        const imageOrder = combined.map(img => img.id);
+        get().updateSessionState({ imageOrder });
+        
         return { images: combined };
       });
       
@@ -1764,6 +1769,31 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             const finalSelectedImages = [...reorderedSelectedImages, ...remainingSelectedImages];
             set({ selectedImages: finalSelectedImages });
             console.log('✅ Selected images order restored:', finalSelectedImages.length);
+          }
+        }
+        
+        // Restore image order if available
+        if (sessionState.imageOrder && sessionState.imageOrder.length > 0) {
+          console.log('🔄 Restoring image order from session state:', sessionState.imageOrder);
+          
+          const currentImages = currentState.images;
+          if (currentImages && currentImages.length > 0) {
+            // Create a map for quick lookup
+            const imageMap = new Map(currentImages.map(img => [img.id, img]));
+            
+            // Reorder images according to saved order
+            const reorderedImages = sessionState.imageOrder
+              .map(id => imageMap.get(id))
+              .filter(Boolean) as ImageMetadata[];
+            
+            // Add any images not in the saved order at the end
+            const remainingImages = currentImages.filter(img => 
+              !sessionState.imageOrder.includes(img.id)
+            );
+            
+            const finalImages = [...reorderedImages, ...remainingImages];
+            set({ images: finalImages });
+            console.log('✅ Image order restored:', finalImages.length);
           }
         }
         
