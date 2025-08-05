@@ -169,9 +169,28 @@ export const DownloadButton: React.FC = () => {
             // Try matching by filename as fallback
             img = images.find(img => {
               const imgFileName = img.fileName || img.file?.name || '';
-              const itemFileName = item.id.replace(/^local-\d+-/, '').replace(/-\d+$/, '');
+              // Extract filename from item.id, handling different formats
+              let itemFileName = item.id;
+              
+              // Remove local- prefix and timestamp if present
+              if (itemFileName.startsWith('local-')) {
+                itemFileName = itemFileName.replace(/^local-\d+-/, '');
+              }
+              if (itemFileName.startsWith('s3-')) {
+                itemFileName = itemFileName.replace(/^s3-/, '');
+              }
+              
+              // Remove any trailing timestamp
+              itemFileName = itemFileName.replace(/-\d+$/, '');
+              
+              // Normalize filenames for comparison (replace hyphens with spaces and vice versa)
+              const normalizedImgFileName = imgFileName.replace(/[-_]/g, ' ').trim();
+              const normalizedItemFileName = itemFileName.replace(/[-_]/g, ' ').trim();
+              
               console.log(`🔍 Comparing: imgFileName="${imgFileName}" vs itemFileName="${itemFileName}"`);
-              return imgFileName === itemFileName;
+              console.log(`🔍 Normalized: "${normalizedImgFileName}" vs "${normalizedItemFileName}"`);
+              
+              return normalizedImgFileName === normalizedItemFileName;
             });
           }
           
