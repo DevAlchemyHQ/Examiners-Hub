@@ -68,7 +68,24 @@ export function transformSelectedImagesForLambda(
     } else {
       // Final fallback to constructed S3 key
       const userId = image.userId || 'anonymous';
-      s3Key = `users/${userId}/images/${image.s3Key || image.file?.name || 'unknown'}`;
+      
+      // For local images, we need to find the actual S3 key
+      // The issue is that the timestamp in the image ID doesn't match the actual S3 file timestamp
+      if (image.id && image.id.startsWith('local-')) {
+        // Instead of using the timestamp from the image ID, use the actual filename
+        // The S3 file will have a timestamp, but we need to find the correct one
+        const filename = image.file?.name || (image as any).fileName || 'unknown';
+        
+        // For now, let's try to find the actual S3 key by listing files
+        // But since we can't do that from the frontend, let's use a different approach
+        // We'll construct the key using the filename and let the Lambda handle the timestamp matching
+        s3Key = `users/${userId}/images/${filename}`;
+        console.log('🔍 Using filename-based S3 key for local image:', s3Key);
+        console.log('⚠️ Note: This may not match the actual S3 file. Lambda will need to find the correct file.');
+      } else {
+        s3Key = `users/${userId}/images/${image.s3Key || image.file?.name || 'unknown'}`;
+        console.log('Fallback S3 key:', s3Key);
+      }
     }
     
     // Get instance-specific metadata if this image has an instanceId

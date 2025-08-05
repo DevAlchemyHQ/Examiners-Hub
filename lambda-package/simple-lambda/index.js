@@ -1,4 +1,4 @@
-const { S3Client, GetObjectCommand, PutObjectCommand } = require('@aws-sdk/client-s3');
+const { S3Client, GetObjectCommand, PutObjectCommand, ListObjectsV2Command } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const JSZip = require('jszip');
 
@@ -166,14 +166,64 @@ ${selectedImages.map(image => `- Photo ${image.photoNumber || '1'} ^ ${image.des
       for (const image of selectedImages) {
         try {
           console.log(`Processing image: ${image.filename || image.id}`);
+          console.log(`S3 Key: ${image.s3Key}`);
+          console.log(`Bucket: ${process.env.S3_BUCKET_NAME}`);
 
-          // Get image from S3 using AWS SDK v3
-          const getObjectCommand = new GetObjectCommand({
-            Bucket: process.env.S3_BUCKET_NAME,
-            Key: image.s3Key
-          });
-
-          const response = await s3Client.send(getObjectCommand);
+          // Try to get the image from S3
+          let imageBuffer;
+          let actualS3Key = image.s3Key;
+          
+          try {
+            // First, try the exact S3 key provided
+            const getObjectCommand = new GetObjectCommand({
+              Bucket: process.env.S3_BUCKET_NAME,
+              Key: image.s3Key
+            });
+            
+            const response = await s3Client.send(getObjectCommand);
+            imageBuffer = await response.Body.transformToByteArray();
+            console.log(`✅ Found image with exact S3 key: ${image.s3Key}`);
+          } catch (error) {
+            console.log(`❌ Image not found with exact S3 key: ${image.s3Key}`);
+            console.log(`Error: ${error.message}`);
+            
+            // If the exact key doesn't work, try to find the file by listing objects
+            // and matching the filename (ignoring timestamp)
+            try {
+              const listCommand = new ListObjectsV2Command({
+                Bucket: process.env.S3_BUCKET_NAME,
+                Prefix: `users/${image.s3Key.split('/')[1]}/images/` // Get the user's images folder
+              });
+              
+              const listResponse = await s3Client.send(listCommand);
+              const filename = image.filename || image.s3Key.split('/').pop();
+              
+              // Find a file that ends with the same filename
+              const matchingFile = listResponse.Contents?.find(obj => 
+                obj.Key && obj.Key.endsWith(filename)
+              );
+              
+              if (matchingFile) {
+                console.log(`✅ Found matching file: ${matchingFile.Key}`);
+                actualS3Key = matchingFile.Key;
+                
+                // Get the image using the found key
+                const getObjectCommand = new GetObjectCommand({
+                  Bucket: process.env.S3_BUCKET_NAME,
+                  Key: matchingFile.Key
+                });
+                
+                const response = await s3Client.send(getObjectCommand);
+                imageBuffer = await response.Body.transformToByteArray();
+              } else {
+                console.log(`❌ No matching file found for filename: ${filename}`);
+                throw new Error(`No matching file found for ${filename}`);
+              }
+                         } catch (listError) {
+               console.log(`❌ Error listing objects: ${listError.message}`);
+               throw error; // Re-throw the original error
+             }
+           }
           
           // Convert stream to buffer
           const chunks = [];
@@ -189,6 +239,12 @@ ${selectedImages.map(image => `- Photo ${image.photoNumber || '1'} ^ ${image.des
 
         } catch (error) {
           console.error(`Error processing image ${image.filename}:`, error);
+          console.error(`Error details:`, {
+            s3Key: image.s3Key,
+            bucket: process.env.S3_BUCKET_NAME,
+            errorMessage: error.message,
+            errorCode: error.Code || error.code
+          });
           // Continue with other images
         }
       }
