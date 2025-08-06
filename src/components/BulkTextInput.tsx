@@ -937,14 +937,8 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
 
       console.log('✅ Lambda bulk response received:', result);
       
-      // Download the file using the presigned URL with proper download handling
-      const link = document.createElement('a');
-      link.href = result.downloadUrl;
-      link.download = result.zipKey ? result.zipKey.split('/').pop() : 'bulk_download.zip';
-      link.target = '_blank';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      // Download the file using the presigned URL (same method as stable version)
+      window.open(result.downloadUrl, '_blank');
 
       if (navigator.userAgent.includes('Chrome')) {
         toast.success('Package downloaded successfully! 💡 Chrome users: If you experience issues, try Edge or Firefox.');

@@ -322,14 +322,8 @@ export const DownloadButton: React.FC = () => {
 
         console.log('✅ Lambda response received, download URL:', result.downloadUrl);
         
-        // Download the file using the presigned URL with proper download handling
-        const link = document.createElement('a');
-        link.href = result.downloadUrl;
-        link.download = result.filename || result.zipKey?.split('/').pop() || 'download.zip';
-        link.target = '_blank';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        // Download the file using the presigned URL (same method as bulk download)
+        window.open(result.downloadUrl, '_blank');
 
         // Track image download success
         trackImageDownload(selectedImagesList.length, 'individual_package');
