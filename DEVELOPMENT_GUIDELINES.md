@@ -1,5 +1,7 @@
 # 🚀 Development Guidelines
 
+## Version: 1.1.1 (Stable)
+
 ## 🛡️ Protected Core Logic
 
 ### **NEVER MODIFY THESE FILES:**
@@ -41,6 +43,7 @@
    - Don't modify core logic, extend it
 
 4. **Testing:**
+
    - Test on feature branch
    - Ensure core features still work
    - Deploy to staging first
@@ -85,4 +88,4 @@ Before merging any feature:
 - Core image handling
 - Defect management
 - Download system
-- AWS operations
+- AWS operations 
