@@ -1263,6 +1263,9 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       // Restore session state after data is loaded
       await get().restoreSessionState();
       
+      // Load bulk data with session state restoration
+      await get().loadBulkData();
+      
       // Mark as initialized
       set({ isLoading: false, isInitialized: true });
       
@@ -1405,6 +1408,10 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       
       console.log('🔑 Using localStorage key:', userSpecificKeys.bulkData);
       
+      // Get current state to check if bulk defects are already loaded
+      const currentState = get();
+      const sessionState = currentState.sessionState;
+      
       // Try localStorage first (consistent with loadUserData)
       const savedBulkData = localStorage.getItem(userSpecificKeys.bulkData);
       if (savedBulkData) {
@@ -1421,7 +1428,6 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           
           if (bulkDefects && bulkDefects.length > 0) {
             // Restore order from session state if available
-            const sessionState = get().sessionState;
             if (sessionState.bulkDefectOrder && sessionState.bulkDefectOrder.length > 0) {
               console.log('🔄 Restoring bulk defect order from session state:', sessionState.bulkDefectOrder);
               
@@ -1505,6 +1511,36 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           }
         } catch (error) {
           console.warn('⚠️ AWS load failed, continuing with empty state:', error);
+        }
+      }
+      
+      // Check if bulk defects are already loaded but need reordering
+      if (currentState.bulkDefects && currentState.bulkDefects.length > 0) {
+        console.log('🔄 Bulk defects already loaded, checking for reordering...');
+        
+        if (sessionState.bulkDefectOrder && sessionState.bulkDefectOrder.length > 0) {
+          console.log('🔄 Reordering existing bulk defects from session state:', sessionState.bulkDefectOrder);
+          
+          // Create a map for quick lookup
+          const defectMap = new Map(currentState.bulkDefects.map(defect => [defect.id || defect.photoNumber, defect]));
+          
+          // Reorder defects according to saved order
+          const reorderedDefects = sessionState.bulkDefectOrder
+            .map(id => defectMap.get(id))
+            .filter(Boolean) as BulkDefect[];
+          
+          // Add any defects not in the saved order at the end
+          const remainingDefects = currentState.bulkDefects.filter(defect => 
+            !sessionState.bulkDefectOrder.includes(defect.id || defect.photoNumber)
+          );
+          
+          const finalDefects = [...reorderedDefects, ...remainingDefects];
+          set({ bulkDefects: finalDefects });
+          console.log('✅ Existing bulk defects reordered from session state:', finalDefects.length);
+          return;
+        } else {
+          console.log('✅ Bulk defects already loaded, no reordering needed');
+          return;
         }
       }
       
@@ -2097,11 +2133,19 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           console.log('⚠️ No lastActiveTab found in session state');
         }
         
-        // Only restore formData from session state if current formData is empty
+        // Restore formData from session state if current formData is empty
         // This prevents overwriting AWS-loaded data with localStorage data
         const currentState = get();
         if (sessionState.formData && (!currentState.formData || Object.keys(currentState.formData).length === 0)) {
           set({ formData: sessionState.formData });
+          console.log('✅ Form data restored from session state');
+        }
+        
+        // Restore bulk defects order if available and no bulk defects are currently loaded
+        if (sessionState.bulkDefectOrder && sessionState.bulkDefectOrder.length > 0 && 
+            (!currentState.bulkDefects || currentState.bulkDefects.length === 0)) {
+          console.log('🔄 Attempting to restore bulk defects from session state...');
+          // This will be handled by loadBulkData which checks session state
         }
         
         // Restore selected images order if available
