@@ -1138,7 +1138,7 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
       {/* Add vertical space below header */}
       <div className="h-4" />
       
-      <div className="flex-1 overflow-hidden min-h-0">
+              <div className="flex-1 min-h-0">
         {viewMode === 'images' && (
           <div 
             className="h-full overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600"

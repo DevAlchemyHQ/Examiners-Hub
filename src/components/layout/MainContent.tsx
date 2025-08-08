@@ -77,22 +77,25 @@ export const MainContent: React.FC<{ isLoading?: boolean }> = ({ isLoading }) =>
     <div className="lg:col-span-12 grid grid-cols-1 lg:grid-cols-12 gap-4 h-[calc(100vh-120px)]">
       {/* Image Grid - Hide when expanded */}
       {!isExpanded && (
-        <div ref={imageGridRef} className="h-full lg:col-span-6">
-          <ImageGrid />
+        <div className="h-full lg:col-span-6">
+          <div ref={imageGridRef} className="h-full overflow-y-auto overflow-x-hidden scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent hover:scrollbar-thumb-slate-400 dark:hover:scrollbar-thumb-gray-500">
+            <ImageGrid />
+          </div>
         </div>
       )}
 
       {/* Selected Images Panel - Expand to full width when expanded */}
       <div 
-        ref={selectedPanelRef}
         className={`h-full transition-all duration-300 ${
           isExpanded ? 'lg:col-span-12' : 'lg:col-span-6'
         }`}
       >
-        <SelectedImagesPanel 
-          onExpand={() => setIsExpanded(!isExpanded)} 
-          isExpanded={isExpanded} 
-        />
+        <div ref={selectedPanelRef} className="h-full overflow-y-auto overflow-x-hidden scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent hover:scrollbar-thumb-slate-400 dark:hover:scrollbar-thumb-gray-500">
+          <SelectedImagesPanel 
+            onExpand={() => setIsExpanded(!isExpanded)} 
+            isExpanded={isExpanded} 
+          />
+        </div>
       </div>
     </div>
   );
