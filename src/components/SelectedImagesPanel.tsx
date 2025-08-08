@@ -1150,7 +1150,7 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
             }}
           >
             <div 
-              className="grid gap-1 p-1"
+              className="grid gap-1 p-2"
               style={{
                 gridTemplateColumns: `repeat(${gridWidth}, 1fr)`,
                 alignContent: 'start',
