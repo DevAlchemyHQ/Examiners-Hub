@@ -1405,7 +1405,7 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
           </div>
         )}
 
-        <div className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent hover:scrollbar-thumb-slate-400 dark:hover:scrollbar-thumb-gray-500"
+        <div className="flex-1 overflow-y-auto overflow-x-hidden scrollbar scrollbar-thumb-slate-400 dark:scrollbar-thumb-gray-500 scrollbar-track-slate-200 dark:scrollbar-track-gray-700 hover:scrollbar-thumb-slate-500 dark:hover:scrollbar-thumb-gray-400"
           style={{ 
             overscrollBehavior: 'contain',
             WebkitOverflowScrolling: 'touch',

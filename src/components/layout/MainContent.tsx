@@ -78,7 +78,7 @@ export const MainContent: React.FC<{ isLoading?: boolean }> = ({ isLoading }) =>
       {/* Image Grid - Hide when expanded */}
       {!isExpanded && (
         <div className="h-full lg:col-span-6">
-          <div ref={imageGridRef} className="h-full overflow-y-auto overflow-x-hidden scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent hover:scrollbar-thumb-slate-400 dark:hover:scrollbar-thumb-gray-500"
+          <div ref={imageGridRef} className="h-full overflow-y-auto overflow-x-hidden scrollbar scrollbar-thumb-slate-400 dark:scrollbar-thumb-gray-500 scrollbar-track-slate-200 dark:scrollbar-track-gray-700 hover:scrollbar-thumb-slate-500 dark:hover:scrollbar-thumb-gray-400"
             style={{
               scrollBehavior: 'smooth',
               overscrollBehavior: 'contain',
@@ -96,7 +96,7 @@ export const MainContent: React.FC<{ isLoading?: boolean }> = ({ isLoading }) =>
           isExpanded ? 'lg:col-span-12' : 'lg:col-span-6'
         }`}
       >
-        <div ref={selectedPanelRef} className="h-full overflow-y-auto overflow-x-hidden scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent hover:scrollbar-thumb-slate-400 dark:hover:scrollbar-thumb-gray-500"
+        <div ref={selectedPanelRef} className="h-full overflow-y-auto overflow-x-hidden scrollbar scrollbar-thumb-slate-400 dark:scrollbar-thumb-gray-500 scrollbar-track-slate-200 dark:scrollbar-track-gray-700 hover:scrollbar-thumb-slate-500 dark:hover:scrollbar-thumb-gray-400"
           style={{
             scrollBehavior: 'smooth',
             overscrollBehavior: 'contain',
