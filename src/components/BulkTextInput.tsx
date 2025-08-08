@@ -1405,13 +1405,10 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
           </div>
         )}
 
-        <div className="flex-1 overflow-y-auto"
+        <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600"
           style={{ 
             overscrollBehavior: 'contain',
-            WebkitOverflowScrolling: 'touch',
-            scrollBehavior: 'smooth',
-            overflowY: 'auto',
-            overflowX: 'hidden'
+            WebkitOverflowScrolling: 'touch'
           }}
         >
           {isLoading ? (
@@ -1483,56 +1480,57 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
                       <X size={16} />
                     </button>
                   </div>
-                  <DndContext
-                    sensors={sensors}
-                    collisionDetection={closestCenter}
-                    onDragEnd={(event) => {
-                      const { active, over } = event;
-                      if (over && active.id !== over.id) {
-                        // Temporarily disable auto-sorting during drag
-                        const wasAutoSorting = isSortingEnabled;
-                        setIsSortingEnabled(false);
-                        
-                        // Find the defects being reordered by ID
-                        const activeId = active.id.toString().split('-')[0];
-                        const overId = over.id.toString().split('-')[0];
-                        
-                        const activeDefect = bulkDefects.find(d => d.id === activeId);
-                        const overDefect = bulkDefects.find(d => d.id === overId);
-                        
-                        if (activeDefect && overDefect) {
-                          setBulkDefects(prev => {
-                            const oldIndex = prev.findIndex(d => d.id === activeId);
-                            const newIndex = prev.findIndex(d => d.id === overId);
-                            
-                            if (oldIndex === -1 || newIndex === -1) return prev;
-                            
-                            const reorderedItems = arrayMove(prev, oldIndex, newIndex);
-                            
-                            // Re-enable auto-sorting after a delay if it was enabled
-                            if (wasAutoSorting) {
-                              setTimeout(() => setIsSortingEnabled(true), 500);
-                            }
-                            
-                            return reorderedItems;
-                          });
+                  <div>
+                    <DndContext
+                      sensors={sensors}
+                      collisionDetection={closestCenter}
+                      onDragEnd={(event) => {
+                        const { active, over } = event;
+                        if (over && active.id !== over.id) {
+                          // Temporarily disable auto-sorting during drag
+                          const wasAutoSorting = isSortingEnabled;
+                          setIsSortingEnabled(false);
+                          
+                          // Find the defects being reordered by ID
+                          const activeId = active.id.toString().split('-')[0];
+                          const overId = over.id.toString().split('-')[0];
+                          
+                          const activeDefect = bulkDefects.find(d => d.id === activeId);
+                          const overDefect = bulkDefects.find(d => d.id === overId);
+                          
+                          if (activeDefect && overDefect) {
+                            setBulkDefects(prev => {
+                              const oldIndex = prev.findIndex(d => d.id === activeId);
+                              const newIndex = prev.findIndex(d => d.id === overId);
+                              
+                              if (oldIndex === -1 || newIndex === -1) return prev;
+                              
+                              const reorderedItems = arrayMove(prev, oldIndex, newIndex);
+                              
+                              // Re-enable auto-sorting after a delay if it was enabled
+                              if (wasAutoSorting) {
+                                setTimeout(() => setIsSortingEnabled(true), 500);
+                              }
+                              
+                              return reorderedItems;
+                            });
+                          }
                         }
-                      }
-                    }}
-                    modifiers={[restrictToVerticalAxis]}
-                  >
-                    <SortableContext
-                      items={bulkDefects.filter(d => d.selectedFile).map((d, index) => `${d.id}-${index}`)}
-                      strategy={verticalListSortingStrategy}
+                      }}
+                      modifiers={[restrictToVerticalAxis]}
                     >
-                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                      <SortableContext
+                        items={bulkDefects.filter(d => d.selectedFile).map((d, index) => `${d.id}-${index}`)}
+                        strategy={verticalListSortingStrategy}
+                      >
+                                                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4" style={{ gridAutoRows: 'minmax(300px, auto)' }}>
                         {bulkDefects
                           .filter(defect => defect.selectedFile)
                           .map((defect, index) => {
                             const img = images.find(img => (img.fileName || img.file?.name || '') === defect.selectedFile);
                             if (!img) return null;
                             return (
-                              <div key={`selected-${defect.id}-${img.id}`} className="relative group bg-white/80 dark:bg-gray-800/80 rounded-lg border border-slate-200/50 dark:border-gray-700/50 p-3">
+                              <div key={`selected-${defect.id}-${img.id}`} className="relative group bg-white/80 dark:bg-gray-800/80 rounded-lg border border-slate-200/50 dark:border-gray-700/50 p-3" style={{ minHeight: '300px' }}>
                                 {/* Removed blue badge - user wants only editable fields */}
                                 {/* Image at top */}
                                 <div 
@@ -1614,6 +1612,7 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
                       </div>
                     </SortableContext>
                   </DndContext>
+                  </div>
 
                   {/* ImageZoom positioned within the selected images section */}
                   {enlargedImage && (

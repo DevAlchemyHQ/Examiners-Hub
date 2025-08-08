@@ -159,7 +159,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           </div>
         </div>
 
-        <div className="flex-1 h-[calc(100vh-120px)] overflow-hidden">
+        <div className="flex-1 h-[calc(100vh-120px)]">
           {/* Remove opacity transition to prevent flickering */}
           <div className="h-full">
             {activeTab === 'images' ? (

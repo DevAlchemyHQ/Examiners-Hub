@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { useMetadataStore } from '../store/metadataStore';
 import { useAnalytics } from '../hooks/useAnalytics';
+import { useGridWidth } from '../hooks/useGridWidth';
 import { ImageMetadata } from '../types';
 import { DefectTile } from './DefectTile';
 import { ImageZoom } from './ImageZoom';
@@ -289,6 +290,7 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
   } = useMetadataStore();
   
   const { trackImageSelection, trackDefectSetLoad, trackUserAction, trackError } = useAnalytics();
+  const { gridWidth } = useGridWidth();
   
   const [enlargedImage, setEnlargedImage] = useState<string | null>(null);
   const [showLoadTray, setShowLoadTray] = useState(false);
@@ -1147,11 +1149,17 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
               WebkitOverflowScrolling: 'touch'
             }}
           >
-            <div className={`grid gap-1 p-1 ${
-              isExpanded 
-                ? 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5' 
-                : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'
-            }`}>
+            <div 
+              className="grid gap-1 p-1"
+              style={{
+                gridTemplateColumns: `repeat(${gridWidth}, 1fr)`,
+                alignContent: 'start',
+                gridAutoRows: 'auto',
+                columnGap: '4px',
+                rowGap: '4px',
+                minHeight: 'min-content'
+              }}
+            >
               {/* Sketches Section */}
               {sketchImages.length > 0 && (
                 <>

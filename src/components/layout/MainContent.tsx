@@ -74,19 +74,11 @@ export const MainContent: React.FC<{ isLoading?: boolean }> = ({ isLoading }) =>
   }, [updateSessionState]);
 
   return (
-    <div className="lg:col-span-12 grid grid-cols-1 lg:grid-cols-12 gap-4 h-[calc(100vh-120px)]">
+    <div className="lg:col-span-10 grid grid-cols-1 lg:grid-cols-12 gap-4 h-[calc(100vh-120px)]">
       {/* Image Grid - Hide when expanded */}
       {!isExpanded && (
         <div className="h-full lg:col-span-6">
-          <div ref={imageGridRef} className="h-full overflow-y-auto"
-            style={{
-              scrollBehavior: 'smooth',
-              overscrollBehavior: 'contain',
-              WebkitOverflowScrolling: 'touch',
-              overflowY: 'auto',
-              overflowX: 'hidden'
-            }}
-          >
+          <div ref={imageGridRef} className="h-full">
             <ImageGrid />
           </div>
         </div>
@@ -98,15 +90,7 @@ export const MainContent: React.FC<{ isLoading?: boolean }> = ({ isLoading }) =>
           isExpanded ? 'lg:col-span-12' : 'lg:col-span-6'
         }`}
       >
-        <div ref={selectedPanelRef} className="h-full overflow-y-auto"
-          style={{
-            scrollBehavior: 'smooth',
-            overscrollBehavior: 'contain',
-            WebkitOverflowScrolling: 'touch',
-            overflowY: 'auto',
-            overflowX: 'hidden'
-          }}
-        >
+        <div ref={selectedPanelRef} className="h-full overflow-y-auto overflow-x-hidden scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent hover:scrollbar-thumb-slate-400 dark:hover:scrollbar-thumb-gray-500" style={{ maxHeight: 'calc(100vh - 200px)' }}>
           <SelectedImagesPanel 
             onExpand={() => setIsExpanded(!isExpanded)} 
             isExpanded={isExpanded} 

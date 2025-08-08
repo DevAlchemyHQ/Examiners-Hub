@@ -7,18 +7,17 @@ const testScrolling = () => {
   // Test 1: Check if scroll containers exist
   console.log('\n📋 1. Checking for scroll containers...');
   
-  const imageGridContainer = document.querySelector('[ref="imageGridRef"]') || 
-                            document.querySelector('.lg\\:col-span-6 .overflow-y-auto');
-  
-  const selectedPanelContainer = document.querySelector('[ref="selectedPanelRef"]') || 
-                                document.querySelector('.lg\\:col-span-6 .overflow-y-auto');
+  const imageGridContainer = document.querySelector('.lg\\:col-span-6 .overflow-y-auto');
+  const selectedPanelContainer = document.querySelector('.lg\\:col-span-6 .overflow-y-auto');
+  const bulkContainer = document.querySelector('.flex-1.overflow-y-auto');
   
   console.log('📦 Image Grid Container:', {
     found: !!imageGridContainer,
     element: imageGridContainer,
     scrollHeight: imageGridContainer?.scrollHeight,
     clientHeight: imageGridContainer?.clientHeight,
-    hasScroll: imageGridContainer?.scrollHeight > imageGridContainer?.clientHeight
+    hasScroll: imageGridContainer?.scrollHeight > imageGridContainer?.clientHeight,
+    overflowY: imageGridContainer ? window.getComputedStyle(imageGridContainer).overflowY : null
   });
   
   console.log('📦 Selected Panel Container:', {
@@ -26,7 +25,17 @@ const testScrolling = () => {
     element: selectedPanelContainer,
     scrollHeight: selectedPanelContainer?.scrollHeight,
     clientHeight: selectedPanelContainer?.clientHeight,
-    hasScroll: selectedPanelContainer?.scrollHeight > selectedPanelContainer?.clientHeight
+    hasScroll: selectedPanelContainer?.scrollHeight > selectedPanelContainer?.clientHeight,
+    overflowY: selectedPanelContainer ? window.getComputedStyle(selectedPanelContainer).overflowY : null
+  });
+  
+  console.log('📦 Bulk Container:', {
+    found: !!bulkContainer,
+    element: bulkContainer,
+    scrollHeight: bulkContainer?.scrollHeight,
+    clientHeight: bulkContainer?.clientHeight,
+    hasScroll: bulkContainer?.scrollHeight > bulkContainer?.clientHeight,
+    overflowY: bulkContainer ? window.getComputedStyle(bulkContainer).overflowY : null
   });
   
   // Test 2: Check scrollbar styles
@@ -41,98 +50,78 @@ const testScrolling = () => {
       element: container,
       overflowY: styles.overflowY,
       scrollbarWidth: styles.scrollbarWidth,
-      hasScrollbarClasses: container.className.includes('scrollbar-thin')
+      hasScrollbarClasses: container.className.includes('scrollbar-thin'),
+      height: styles.height,
+      maxHeight: styles.maxHeight
     });
   });
   
-  // Test 3: Test scroll functionality
-  console.log('\n📋 3. Testing scroll functionality...');
+  // Test 3: Check height constraints
+  console.log('\n📋 3. Checking height constraints...');
   
-  if (imageGridContainer) {
+  const heightContainers = document.querySelectorAll('[class*="h-"]');
+  console.log('📦 Height containers found:', heightContainers.length);
+  
+  heightContainers.forEach((container, index) => {
+    const styles = window.getComputedStyle(container);
+    console.log(`📦 Height container ${index + 1}:`, {
+      element: container,
+      height: styles.height,
+      maxHeight: styles.maxHeight,
+      minHeight: styles.minHeight,
+      overflow: styles.overflow
+    });
+  });
+  
+  // Test 4: Check if content is overflowing
+  console.log('\n📋 4. Checking content overflow...');
+  
+  const gridItems = document.querySelectorAll('.grid > div');
+  console.log('📦 Grid items found:', gridItems.length);
+  
+  if (gridItems.length > 0) {
+    const firstGrid = gridItems[0].closest('.grid');
+    if (firstGrid) {
+      const gridStyles = window.getComputedStyle(firstGrid);
+      console.log('📦 Grid container:', {
+        element: firstGrid,
+        height: gridStyles.height,
+        minHeight: gridStyles.minHeight,
+        gridTemplateRows: gridStyles.gridTemplateRows,
+        gridAutoRows: gridStyles.gridAutoRows
+      });
+    }
+  }
+  
+  // Test 5: Force scroll test
+  console.log('\n📋 5. Testing scroll behavior...');
+  
+  if (imageGridContainer && imageGridContainer.scrollHeight > imageGridContainer.clientHeight) {
+    console.log('✅ Image grid has scrollable content');
+    // Test scrolling
     const originalScrollTop = imageGridContainer.scrollTop;
     imageGridContainer.scrollTop = 100;
-    const newScrollTop = imageGridContainer.scrollTop;
-    
-    console.log('📦 Image Grid Scroll Test:', {
-      originalScrollTop,
-      newScrollTop,
-      scrollable: newScrollTop !== originalScrollTop,
-      scrollHeight: imageGridContainer.scrollHeight,
-      clientHeight: imageGridContainer.clientHeight
-    });
-    
-    // Reset scroll position
-    imageGridContainer.scrollTop = originalScrollTop;
-  }
-  
-  if (selectedPanelContainer) {
-    const originalScrollTop = selectedPanelContainer.scrollTop;
-    selectedPanelContainer.scrollTop = 100;
-    const newScrollTop = selectedPanelContainer.scrollTop;
-    
-    console.log('📦 Selected Panel Scroll Test:', {
-      originalScrollTop,
-      newScrollTop,
-      scrollable: newScrollTop !== originalScrollTop,
-      scrollHeight: selectedPanelContainer.scrollHeight,
-      clientHeight: selectedPanelContainer.clientHeight
-    });
-    
-    // Reset scroll position
-    selectedPanelContainer.scrollTop = originalScrollTop;
-  }
-  
-  // Test 4: Check for content that should be scrollable
-  console.log('\n📋 4. Checking content for scrollability...');
-  
-  const images = document.querySelectorAll('img');
-  const defectTiles = document.querySelectorAll('[data-testid="defect-tile"]');
-  const imageGridItems = document.querySelectorAll('.aspect-square');
-  
-  console.log('📦 Content Analysis:', {
-    imagesCount: images.length,
-    defectTilesCount: defectTiles.length,
-    imageGridItemsCount: imageGridItems.length,
-    shouldHaveScroll: images.length > 20 || defectTiles.length > 10
-  });
-  
-  // Test 5: Recommendations
-  console.log('\n📋 5. Recommendations:');
-  
-  if (!imageGridContainer && !selectedPanelContainer) {
-    console.log('❌ No scroll containers found - scrolling may not be working');
+    setTimeout(() => {
+      console.log('📦 Scroll test result:', {
+        originalScrollTop,
+        newScrollTop: imageGridContainer.scrollTop,
+        scrollChanged: imageGridContainer.scrollTop !== originalScrollTop
+      });
+      imageGridContainer.scrollTop = originalScrollTop;
+    }, 100);
   } else {
-    console.log('✅ Scroll containers found');
-    
-    if (imageGridContainer?.scrollHeight > imageGridContainer?.clientHeight) {
-      console.log('✅ Image grid has scrollable content');
-    } else {
-      console.log('⚠️ Image grid may not have enough content to scroll');
-    }
-    
-    if (selectedPanelContainer?.scrollHeight > selectedPanelContainer?.clientHeight) {
-      console.log('✅ Selected panel has scrollable content');
-    } else {
-      console.log('⚠️ Selected panel may not have enough content to scroll');
-    }
+    console.log('❌ Image grid has no scrollable content');
   }
   
-  // Test 6: Manual scroll test
-  console.log('\n📋 6. Manual scroll test instructions:');
-  console.log('1. Try scrolling with mouse wheel in image grid');
-  console.log('2. Try scrolling with mouse wheel in selected images panel');
-  console.log('3. Try scrolling with mouse wheel in bulk defects panel');
-  console.log('4. Check if scrollbars are visible and styled');
-  console.log('5. Test on both desktop and mobile devices');
-  
-  return {
-    imageGridContainer: !!imageGridContainer,
-    selectedPanelContainer: !!selectedPanelContainer,
-    hasScrollableContent: (imageGridContainer?.scrollHeight > imageGridContainer?.clientHeight) || 
-                         (selectedPanelContainer?.scrollHeight > selectedPanelContainer?.clientHeight)
-  };
+  console.log('\n🎯 Scroll Test Complete!');
 };
 
-// Run the test
-const results = testScrolling();
-console.log('\n📋 Test Results:', results);
+// Run the test when the page loads
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', testScrolling);
+} else {
+  testScrolling();
+}
+
+// Also run after a delay to catch dynamic content
+setTimeout(testScrolling, 2000);

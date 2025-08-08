@@ -188,7 +188,7 @@ export const ImageGrid: React.FC = () => {
         </div>
       </div>
 
-      <div className="flex-1">
+      <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent hover:scrollbar-thumb-slate-400 dark:hover:scrollbar-thumb-gray-500" style={{ maxHeight: 'calc(100vh - 200px)' }}>
         {images.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-slate-500 dark:text-gray-400 p-8">
             <div className="text-6xl mb-4">📷</div>
