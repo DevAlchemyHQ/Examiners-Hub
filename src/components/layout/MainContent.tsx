@@ -78,7 +78,7 @@ export const MainContent: React.FC<{ isLoading?: boolean }> = ({ isLoading }) =>
       {/* Image Grid - Hide when expanded */}
       {!isExpanded && (
         <div className="h-full lg:col-span-6">
-          <div ref={imageGridRef} className="h-full scrollable-container"
+          <div ref={imageGridRef} className="h-full overflow-y-auto"
             style={{
               scrollBehavior: 'smooth',
               overscrollBehavior: 'contain',
@@ -96,7 +96,7 @@ export const MainContent: React.FC<{ isLoading?: boolean }> = ({ isLoading }) =>
           isExpanded ? 'lg:col-span-12' : 'lg:col-span-6'
         }`}
       >
-        <div ref={selectedPanelRef} className="h-full scrollable-container"
+        <div ref={selectedPanelRef} className="h-full overflow-y-auto"
           style={{
             scrollBehavior: 'smooth',
             overscrollBehavior: 'contain',

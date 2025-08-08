@@ -2,52 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Simple, reliable scrollbar styles */
-.scrollable-container {
-  overflow-y: auto;
-  overflow-x: hidden;
-}
 
-.scrollable-container::-webkit-scrollbar {
-  width: 8px;
-}
-
-.scrollable-container::-webkit-scrollbar-track {
-  background: #f1f5f9;
-  border-radius: 4px;
-}
-
-.scrollable-container::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 4px;
-}
-
-.scrollable-container::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
-}
-
-/* Dark mode scrollbars */
-.dark .scrollable-container::-webkit-scrollbar-track {
-  background: #374151;
-}
-
-.dark .scrollable-container::-webkit-scrollbar-thumb {
-  background: #6b7280;
-}
-
-.dark .scrollable-container::-webkit-scrollbar-thumb:hover {
-  background: #9ca3af;
-}
-
-/* Firefox scrollbars */
-.scrollable-container {
-  scrollbar-width: thin;
-  scrollbar-color: #cbd5e1 #f1f5f9;
-}
-
-.dark .scrollable-container {
-  scrollbar-color: #6b7280 #374151;
-}
 
 /* Prevent body and html scrolling */
 html, body {

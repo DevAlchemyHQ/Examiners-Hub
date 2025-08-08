@@ -1405,7 +1405,7 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
           </div>
         )}
 
-        <div className="flex-1 scrollable-container"
+        <div className="flex-1 overflow-y-auto"
           style={{ 
             overscrollBehavior: 'contain',
             WebkitOverflowScrolling: 'touch',
