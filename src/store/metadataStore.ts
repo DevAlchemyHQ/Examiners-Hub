@@ -340,8 +340,17 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           const user = storedUser ? JSON.parse(storedUser) : null;
           
           if (user?.email) {
+            console.log('💾 Saving form data to AWS:', newFormData);
             // Use static import - save immediately for cross-browser persistence
-            await DatabaseService.updateProject(user.email, 'current', { formData: newFormData });
+            await DatabaseService.updateProject(user.email, 'current', { 
+              formData: newFormData,
+              sessionState: {
+                ...get().sessionState,
+                formData: newFormData,
+                lastActiveTime: Date.now()
+              }
+            });
+            console.log('✅ Form data saved to AWS successfully');
           }
         } catch (error) {
           console.error('Error saving form data to AWS:', error);
@@ -1036,6 +1045,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             const savedFormData = localStorage.getItem(userSpecificKeys.formData);
             if (savedFormData) {
               const formData = JSON.parse(savedFormData);
+              console.log('📋 Form data loaded from localStorage:', formData);
               return formData;
             }
           } catch (error) {
@@ -1044,14 +1054,19 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             
           if (userId !== 'anonymous') {
             try {
+              console.log('🌐 Loading form data from AWS for user:', userId);
               const { project } = await DatabaseService.getProject(userId, 'current');
               if (project?.formData) {
+                console.log('✅ Form data loaded from AWS:', project.formData);
                 return project.formData;
+              } else {
+                console.log('⚠️ No form data found in AWS project');
               }
             } catch (awsError) {
               console.error('Error loading form data from AWS:', awsError);
             }
           }
+          console.log('⚠️ No form data available from any source');
           return null;
         })(),
         
@@ -1226,6 +1241,9 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       
       if (formDataResult.status === 'fulfilled' && formDataResult.value) {
         updates.formData = formDataResult.value;
+        console.log('✅ Form data loaded from storage:', formDataResult.value);
+      } else {
+        console.log('⚠️ Form data not loaded:', formDataResult.status, formDataResult.reason);
       }
       
       if (bulkDataResult.status === 'fulfilled' && bulkDataResult.value) {
@@ -2133,12 +2151,21 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           console.log('⚠️ No lastActiveTab found in session state');
         }
         
-        // Restore formData from session state if current formData is empty
+        // Restore formData from session state if current formData is empty or has no meaningful data
         // This prevents overwriting AWS-loaded data with localStorage data
         const currentState = get();
-        if (sessionState.formData && (!currentState.formData || Object.keys(currentState.formData).length === 0)) {
+        const hasCurrentFormData = currentState.formData && 
+          currentState.formData.elr && 
+          currentState.formData.structureNo && 
+          currentState.formData.date;
+        
+        if (sessionState.formData && !hasCurrentFormData) {
           set({ formData: sessionState.formData });
-          console.log('✅ Form data restored from session state');
+          console.log('✅ Form data restored from session state:', sessionState.formData);
+        } else if (sessionState.formData && hasCurrentFormData) {
+          console.log('⚠️ Form data already exists, not overwriting with session state');
+        } else {
+          console.log('⚠️ No form data available in session state');
         }
         
         // Restore bulk defects order if available and no bulk defects are currently loaded
