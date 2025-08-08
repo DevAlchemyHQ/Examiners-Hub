@@ -1409,7 +1409,9 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
           style={{ 
             overscrollBehavior: 'contain',
             WebkitOverflowScrolling: 'touch',
-            scrollBehavior: 'smooth'
+            scrollBehavior: 'smooth',
+            overflowY: 'auto',
+            overflowX: 'hidden'
           }}
         >
           {isLoading ? (

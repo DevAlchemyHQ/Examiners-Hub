@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scrollbar Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-container { 
+            height: 300px; 
+            overflow-y: auto; 
+            border: 2px solid red; 
+            padding: 10px;
+            margin: 20px 0;
+        }
+        .content { height: 1000px; background: linear-gradient(to bottom, #f0f0f0, #e0e0e0); }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; }
+        .result { margin: 10px 0; padding: 10px; background: #f0f0f0; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Simple Scrollbar Test</h1>
+    
+    <div class="test-section">
+        <h2>📱 Test 1: Basic Overflow Scrollbar</h2>
+        <div class="test-container">
+            <div class="content">
+                <h3>Scrollable Content</h3>
+                <p>This container has overflow-y: auto and should show a scrollbar.</p>
+                <p>Height: 1000px, Container: 300px</p>
+                <p>Scroll down to see the scrollbar in action...</p>
+                <div style="height: 800px; background: linear-gradient(to bottom, #ff6b6b, #4ecdc4); display: flex; align-items: center; justify-content: center; color: white; font-size: 24px;">
+                    🎯 SCROLLBAR SHOULD BE VISIBLE HERE
+                </div>
+            </div>
+        </div>
+        <button onclick="testScrollbar()">Test Scrollbar</button>
+        <div id="result1" class="result">Click "Test Scrollbar" to check...</div>
+    </div>
+    
+    <div class="test-section">
+        <h2>🔍 Test 2: App Container Check</h2>
+        <button onclick="checkAppContainers()">Check App Containers</button>
+        <div id="result2" class="result">Click "Check App Containers" to check...</div>
+    </div>
+    
+    <div class="test-section">
+        <h2>🎯 Test 3: Live App Test</h2>
+        <button onclick="openApp()">Open App in New Tab</button>
+        <p>Open the app and upload some images to test scrollbars with real content.</p>
+    </div>
+
+    <script>
+        function testScrollbar() {
+            const container = document.querySelector('.test-container');
+            const computedStyle = window.getComputedStyle(container);
+            const hasOverflowY = computedStyle.overflowY === 'auto' || computedStyle.overflowY === 'scroll';
+            const scrollHeight = container.scrollHeight;
+            const clientHeight = container.clientHeight;
+            const hasScrollableContent = scrollHeight > clientHeight;
+            
+            const result = {
+                hasScrollbar: hasOverflowY,
+                hasScrollableContent,
+                scrollHeight,
+                clientHeight,
+                overflowY: computedStyle.overflowY
+            };
+            
+            const resultDiv = document.getElementById('result1');
+            resultDiv.className = result.hasScrollbar ? 'result success' : 'result error';
+            resultDiv.innerHTML = `
+                <h3>${result.hasScrollbar ? '✅ SCROLLBAR WORKING!' : '❌ NO SCROLLBAR'}</h3>
+                <p><strong>overflow-y:</strong> ${result.overflowY}</p>
+                <p><strong>Has scrollable content:</strong> ${result.hasScrollableContent}</p>
+                <p><strong>Scroll height:</strong> ${result.scrollHeight}px</p>
+                <p><strong>Client height:</strong> ${result.clientHeight}px</p>
+                <pre>${JSON.stringify(result, null, 2)}</pre>
+            `;
+        }
+        
+        function checkAppContainers() {
+            const resultDiv = document.getElementById('result2');
+            resultDiv.className = 'result';
+            resultDiv.innerHTML = `
+                <h3>🔍 App Container Analysis</h3>
+                <p><strong>App URL:</strong> <a href="http://localhost:5175" target="_blank">http://localhost:5175</a></p>
+                <p><strong>Expected containers:</strong></p>
+                <ul>
+                    <li>Image Grid: <code>overflow-y-auto</code></li>
+                    <li>Selected Panel: <code>overflow-y-auto</code></li>
+                    <li>Bulk Defects: <code>overflow-y-auto</code></li>
+                </ul>
+                <p><strong>To test:</strong></p>
+                <ol>
+                    <li>Open the app in a new tab</li>
+                    <li>Upload 10+ images</li>
+                    <li>Add 10+ bulk defects</li>
+                    <li>Check for scrollbars in each section</li>
+                </ol>
+            `;
+        }
+        
+        function openApp() {
+            window.open('http://localhost:5175', '_blank');
+        }
+        
+        // Auto-test on load
+        window.onload = function() {
+            setTimeout(testScrollbar, 1000);
+        };
+    </script>
+</body>
+</html>

@@ -82,7 +82,9 @@ export const MainContent: React.FC<{ isLoading?: boolean }> = ({ isLoading }) =>
             style={{
               scrollBehavior: 'smooth',
               overscrollBehavior: 'contain',
-              WebkitOverflowScrolling: 'touch'
+              WebkitOverflowScrolling: 'touch',
+              overflowY: 'auto',
+              overflowX: 'hidden'
             }}
           >
             <ImageGrid />
@@ -100,7 +102,9 @@ export const MainContent: React.FC<{ isLoading?: boolean }> = ({ isLoading }) =>
           style={{
             scrollBehavior: 'smooth',
             overscrollBehavior: 'contain',
-            WebkitOverflowScrolling: 'touch'
+            WebkitOverflowScrolling: 'touch',
+            overflowY: 'auto',
+            overflowX: 'hidden'
           }}
         >
           <SelectedImagesPanel 
