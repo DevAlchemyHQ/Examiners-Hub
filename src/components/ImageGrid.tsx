@@ -188,7 +188,7 @@ export const ImageGrid: React.FC = () => {
         </div>
       </div>
 
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent hover:scrollbar-thumb-slate-400 dark:hover:scrollbar-thumb-gray-500">
         {images.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-slate-500 dark:text-gray-400 p-8">
             <div className="text-6xl mb-4">📷</div>
@@ -198,7 +198,9 @@ export const ImageGrid: React.FC = () => {
             </p>
           </div>
         ) : (
-          <ImageGridItem images={images} gridWidth={gridWidth} />
+          <div className="p-2">
+            <ImageGridItem images={images} gridWidth={gridWidth} />
+          </div>
         )}
       </div>
     </div>
