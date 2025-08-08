@@ -1335,26 +1335,9 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
         )}
       </div>
 
-      <div className="flex items-center justify-between p-2 border-t border-slate-200 dark:border-gray-700">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handleSaveDefectSet}
-            className="flex items-center gap-2 px-3 py-1.5 bg-gray-700 dark:bg-gray-600 text-white text-sm rounded border border-gray-600 dark:border-gray-500 hover:bg-gray-600 dark:hover:bg-gray-500 transition-colors"
-          >
-            <FileText size={14} />
-            Save Defect Set
-          </button>
-          <button
-            onClick={handleShowLoadTray}
-            className="flex items-center gap-2 px-3 py-1.5 bg-gray-700 dark:bg-gray-600 text-white text-sm rounded border border-gray-600 dark:border-gray-500 hover:bg-gray-600 dark:hover:bg-gray-500 transition-colors"
-          >
-            <FileText size={14} />
-            Load Defect Set
-          </button>
-        </div>
-        
-        {/* Status indicator for images mode */}
-        {viewMode === 'images' && (
+      {/* Status indicator for images mode */}
+      {viewMode === 'images' && (
+        <div className="flex items-center justify-end p-2 border-t border-slate-200 dark:border-gray-700">
           <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-gray-400">
             {(() => {
               if (selectedImages.length === 0) {
@@ -1378,8 +1361,8 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
               );
             })()}
           </div>
-        )}
-      </div>
+        </div>
+      )}
       {/* Load tray/modal */}
       {showLoadTray && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-end justify-center">

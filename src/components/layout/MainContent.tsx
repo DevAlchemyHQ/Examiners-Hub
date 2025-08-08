@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { FileText } from 'lucide-react';
 import { ImageGrid } from '../ImageGrid';
 import { SelectedImagesPanel } from '../SelectedImagesPanel';
 import { useMetadataStore } from '../../store/metadataStore';
@@ -86,15 +87,41 @@ export const MainContent: React.FC<{ isLoading?: boolean }> = ({ isLoading }) =>
 
       {/* Selected Images Panel - Expand to full width when expanded */}
       <div 
-        className={`h-full transition-all duration-300 ${
+        className={`h-full transition-all duration-300 flex flex-col ${
           isExpanded ? 'lg:col-span-12' : 'lg:col-span-6'
         }`}
       >
-        <div ref={selectedPanelRef} className="h-full overflow-y-auto overflow-x-hidden scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent hover:scrollbar-thumb-slate-400 dark:hover:scrollbar-thumb-gray-500">
+        <div ref={selectedPanelRef} className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent hover:scrollbar-thumb-slate-400 dark:hover:scrollbar-thumb-gray-500">
           <SelectedImagesPanel 
             onExpand={() => setIsExpanded(!isExpanded)} 
             isExpanded={isExpanded} 
           />
+        </div>
+        
+        {/* Save/Load Defect Set buttons at the bottom */}
+        <div className="flex justify-end mt-2 p-2 border-t border-slate-200 dark:border-gray-700">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                // Trigger save defect set - this will be handled by the SelectedImagesPanel component
+                console.log('Save Defect Set clicked');
+              }}
+              className="flex items-center gap-2 px-3 py-1.5 bg-gray-700 dark:bg-gray-600 text-white text-sm rounded border border-gray-600 dark:border-gray-500 hover:bg-gray-600 dark:hover:bg-gray-500 transition-colors"
+            >
+              <FileText size={14} />
+              Save Defect Set
+            </button>
+            <button
+              onClick={() => {
+                // Trigger load defect set - this will be handled by the SelectedImagesPanel component
+                console.log('Load Defect Set clicked');
+              }}
+              className="flex items-center gap-2 px-3 py-1.5 bg-gray-700 dark:bg-gray-600 text-white text-sm rounded border border-gray-600 dark:border-gray-500 hover:bg-gray-600 dark:hover:bg-gray-500 transition-colors"
+            >
+              <FileText size={14} />
+              Load Defect Set
+            </button>
+          </div>
         </div>
       </div>
     </div>
