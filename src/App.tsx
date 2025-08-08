@@ -68,8 +68,8 @@ class ErrorBoundary extends React.Component<
   }
 }
 
-// Cache busting version
-const APP_VERSION = '1.1.1-' + Date.now();
+// Cache busting version - updated for deployment
+const APP_VERSION = '1.1.2-' + Date.now();
 
 function App() {
   const { user, isAuthenticated, checkAuth } = useAuthStore();
