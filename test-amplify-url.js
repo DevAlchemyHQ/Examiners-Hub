@@ -16,9 +16,11 @@ const testAmplifyURLs = async () => {
   testURLs.forEach(url => console.log(`  - ${url}`));
   
   // Test the main app URL
-  const mainAppURL = `${baseURL}/app`;
+  const mainAppURL = `${baseURL}/`;
   console.log(`\n🎯 Main App URL: ${mainAppURL}`);
   console.log('📝 This should be the correct URL to access your application');
+  console.log('📝 If authenticated, it will show the main app directly');
+  console.log('📝 If not authenticated, it will show the login screen');
   
   // Check if we can detect the current page
   if (window.location.href.includes('amplifyapp.com')) {
@@ -70,10 +72,12 @@ const testAmplifyURLs = async () => {
   
   // Provide recommendations
   console.log('\n📋 Recommendations:');
-  console.log('1. Try accessing: https://main.d32is7ul5okd2c.amplifyapp.com/app');
-  console.log('2. Clear browser cache and try again');
-  console.log('3. Wait 5-10 minutes for Amplify to complete deployment');
-  console.log('4. Check Amplify console for build status');
+  console.log('1. Try accessing: https://main.d32is7ul5okd2c.amplifyapp.com/ (root URL)');
+  console.log('2. If not authenticated, it will show login screen');
+  console.log('3. If authenticated, it will show the main app directly');
+  console.log('4. Clear browser cache and try again');
+  console.log('5. Wait 5-10 minutes for Amplify to complete deployment');
+  console.log('6. Check Amplify console for build status');
   
   return {
     baseURL,

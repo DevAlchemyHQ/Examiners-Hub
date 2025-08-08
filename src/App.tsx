@@ -98,7 +98,7 @@ function App() {
         <div className="App">
           <Toaster position="top-right" />
           <Routes>
-            <Route path="/" element={<LoginScreen />} />
+            <Route path="/" element={isAuthenticated ? <MainApp /> : <LoginScreen />} />
             <Route path="/login" element={<LoginScreen />} />
             <Route path="/app/*" element={<MainApp />} />
             <Route path="/dashboard" element={<MainApp />} />
