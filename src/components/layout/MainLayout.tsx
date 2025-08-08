@@ -24,18 +24,19 @@ interface MainLayoutProps {
 export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const location = useLocation();
   const [activeTab, setActiveTab] = useState<TabType>('images');
-  const { images, selectedImages, loadUserData, isLoading, isInitialized } = useMetadataStore();
+  const { images, selectedImages, loadUserData, isLoading, isInitialized, restoreSessionState } = useMetadataStore();
   // const { file1, file2 } = usePDFStore();
   const { clearProject, isLoading: isClearingProject, isClearing } = useProjectStore();
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [clearResult, setClearResult] = useState<'success' | 'error' | null>(null);
   const [clearError, setClearError] = useState<string | null>(null);
 
-  // Load user data only on initial mount
+  // Load user data and restore session state on initial mount
   useEffect(() => {
     if (!isInitialized) {
       const initialLoad = async () => {
         try {
+          // Load user data (which includes session state restoration)
           await loadUserData();
         } catch (error) {
           console.error('Error loading user data:', error);

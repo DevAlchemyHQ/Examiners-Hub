@@ -219,22 +219,15 @@ ${selectedImages.map(image => `- Photo ${image.photoNumber || '1'} ^ ${image.des
                 console.log(`❌ No matching file found for filename: ${filename}`);
                 throw new Error(`No matching file found for ${filename}`);
               }
-                         } catch (listError) {
-               console.log(`❌ Error listing objects: ${listError.message}`);
-               throw error; // Re-throw the original error
-             }
-           }
-          
-          // Convert stream to buffer
-          const chunks = [];
-          for await (const chunk of response.Body) {
-            chunks.push(chunk);
+            } catch (listError) {
+              console.log(`❌ Error listing objects: ${listError.message}`);
+              throw error; // Re-throw the original error
+            }
           }
-          const buffer = Buffer.concat(chunks);
 
           // Add to ZIP with custom naming
           const imageFileName = `Photo ${image.photoNumber || '1'} ^ ${image.description || 'LM'} ^ ${formattedDate}.jpg`;
-          zip.file(imageFileName, buffer);
+          zip.file(imageFileName, imageBuffer);
           console.log(`Added ${imageFileName} to ZIP`);
 
         } catch (error) {

@@ -77,8 +77,8 @@ const MainApp = () => {
     }
   }, [isAuthenticated]);
 
-  // Show loading while initializing
-  if (!isInitialized || isAuthenticated === null) {
+  // Show loading only if we haven't initialized yet (first time check)
+  if (!isInitialized) {
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center">
         <div className="text-white text-lg">Loading...</div>

@@ -1,12 +1,24 @@
-import { useImageLayoutStore, MIN_GRID_WIDTH, MAX_GRID_WIDTH } from '../store/layoutStore';
+import { useState, useEffect } from 'react';
+import { useMetadataStore } from '../store/metadataStore';
 
 export const useGridWidth = () => {
-  const gridWidth = useImageLayoutStore((state) => state.gridWidth);
-  const setGridWidth = useImageLayoutStore((state) => state.setGridWidth);
-  return {
-    gridWidth,
-    setGridWidth,
-    MIN_WIDTH: MIN_GRID_WIDTH,
-    MAX_WIDTH: MAX_GRID_WIDTH,
-  };
+  const { sessionState, updateSessionState } = useMetadataStore();
+  const [gridWidth, setGridWidth] = useState(() => {
+    // Initialize from session state if available, otherwise default to 4
+    return sessionState?.gridWidth || 4;
+  });
+
+  // Restore grid width from session state on mount
+  useEffect(() => {
+    if (sessionState?.gridWidth && sessionState.gridWidth !== gridWidth) {
+      setGridWidth(sessionState.gridWidth);
+    }
+  }, [sessionState?.gridWidth]);
+
+  // Save grid width to session state when it changes
+  useEffect(() => {
+    updateSessionState({ gridWidth });
+  }, [gridWidth, updateSessionState]);
+
+  return { gridWidth, setGridWidth };
 };

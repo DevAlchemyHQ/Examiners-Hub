@@ -140,20 +140,29 @@ export const ImageGridItem: React.FC<ImageGridItemProps> = ({ images, gridWidth 
   return (
     <>
       <div 
-        className="h-full overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 relative p-2 flex flex-col"
+        className="h-full relative w-full overflow-hidden"
         style={{ 
           overscrollBehavior: 'contain',
-          WebkitOverflowScrolling: 'touch'
+          padding: '2px'
         }}
       >
         <div
-          className="grid gap-2"
+          className="grid h-full overflow-hidden"
           style={{
-            gridTemplateColumns: `repeat(${gridWidth}, 1fr)`,
-            minHeight: '100%',
-            alignContent: 'start'
+            gridTemplateColumns: `repeat(auto-fit, minmax(max(120px, calc(100% / ${gridWidth} - 8px)), 1fr))`,
+            alignContent: 'start',
+            gridAutoRows: 'auto',
+            columnGap: '8px',
+            rowGap: '4px'
           }}
         >
+          {/* Show message when no images */}
+          {images.length === 0 && (
+            <div className="col-span-full text-center text-gray-500 py-8">
+              No images loaded
+            </div>
+          )}
+          
           {images.map((img, index) => {
                   const isSelected = viewMode === 'bulk' ? selections.includes(img.id) : selections.some(item => item.id === img.id);
                   const defectNumbers = getDefectNumbers(img);
@@ -177,6 +186,8 @@ export const ImageGridItem: React.FC<ImageGridItemProps> = ({ images, gridWidth 
                           className="w-full h-full object-cover select-none"
                           loading="lazy"
                           draggable="false"
+                          onLoad={() => console.log('✅ Image loaded:', img.fileName)}
+                          onError={(e) => console.error('❌ Image failed to load:', img.fileName, e)}
                         />
                         
 

@@ -6,7 +6,7 @@ import { ImageGridItem } from './ImageGridItem';
 import { ImageUpload } from './ImageUpload';
 
 export const ImageGrid: React.FC = () => {
-  const { images, formData, setFormData, selectedImages } = useMetadataStore();
+  const { images, formData, setFormData, selectedImages, updateSessionState } = useMetadataStore();
   const { gridWidth, setGridWidth } = useGridWidth();
   const { trackGridLoad, trackImageSelection, trackUserAction } = useAnalytics();
 
@@ -24,9 +24,9 @@ export const ImageGrid: React.FC = () => {
 
   useEffect(() => {
     if (images.length > 0) {
-      trackImageSelection(selectedImages.size, images.length);
+      trackImageSelection(selectedImages?.length || 0, images.length);
     }
-  }, [selectedImages.size, images.length, trackImageSelection]);
+  }, [selectedImages?.length, images.length, trackImageSelection]);
 
   // Handlers for project details
   const handleELRChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -48,7 +48,6 @@ export const ImageGrid: React.FC = () => {
     trackUserAction('grid_resize', 'width_change', newWidth);
     
     // Save session state
-    const { updateSessionState } = useMetadataStore();
     updateSessionState({ gridWidth: newWidth });
   };
 
@@ -60,60 +59,64 @@ export const ImageGrid: React.FC = () => {
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-slate-200 dark:border-gray-700 h-full flex flex-col">
       {/* Responsive header: Project details form and controls */}
       <div className="p-2 border-b border-slate-200 dark:border-gray-700">
-        {/* Mobile: Stack vertically */}
+        {/* Mobile: Stack vertically with better responsive design */}
         <div className="md:hidden space-y-2">
-          <div className="flex items-center gap-2 flex-wrap">
-            <div className="flex items-center gap-1">
-              <label className="text-xs font-medium text-slate-600 dark:text-gray-400">ELR</label>
+          {/* Form fields row - ensure they stay on one line */}
+          <div className="flex items-center gap-1 min-w-0">
+            <div className="flex items-center gap-1 flex-shrink-0">
+              <label className="text-xs font-medium text-slate-600 dark:text-gray-400 whitespace-nowrap">ELR</label>
               <input
                 type="text"
                 value={formData.elr}
                 onChange={handleELRChange}
-                className={`p-1 text-xs border rounded text-slate-900 dark:text-white w-16 ${
+                className={`p-1 text-xs border rounded text-slate-900 dark:text-white w-12 flex-shrink-0 ${
                   !formData.elr?.trim() ? 'bg-amber-50/30 dark:bg-amber-900/20 border-amber-300' : 'bg-white dark:bg-gray-800 border-slate-200 dark:border-gray-600'
                 }`}
                 placeholder="ELR"
                 maxLength={8}
               />
             </div>
-            <div className="flex items-center gap-1">
-              <label className="text-xs font-medium text-slate-600 dark:text-gray-400">No</label>
+            <div className="flex items-center gap-1 flex-shrink-0">
+              <label className="text-xs font-medium text-slate-600 dark:text-gray-400 whitespace-nowrap">No</label>
               <input
                 type="text"
                 value={formData.structureNo}
                 onChange={handleStructureNoChange}
-                className={`p-1 text-xs border rounded text-slate-900 dark:text-white w-16 ${
+                className={`p-1 text-xs border rounded text-slate-900 dark:text-white w-12 flex-shrink-0 ${
                   !formData.structureNo?.trim() ? 'bg-amber-50/30 dark:bg-amber-900/20 border-amber-300' : 'bg-white dark:bg-gray-800 border-slate-200 dark:border-gray-600'
                 }`}
                 placeholder="No"
                 maxLength={8}
               />
             </div>
-            <div className="flex items-center gap-1">
-              <label className="text-xs font-medium text-slate-600 dark:text-gray-400">Date</label>
+            <div className="flex items-center gap-1 flex-shrink-0">
+              <label className="text-xs font-medium text-slate-600 dark:text-gray-400 whitespace-nowrap">Date</label>
               <input
                 type="date"
                 value={formData.date}
                 onChange={handleDateChange}
-                className={`p-1 text-xs border rounded text-slate-900 dark:text-white w-28 ${
+                className={`p-1 text-xs border rounded text-slate-900 dark:text-white w-24 flex-shrink-0 ${
                   !formData.date?.trim() ? 'bg-amber-50/30 dark:bg-amber-900/20 border-amber-300' : 'bg-white dark:bg-gray-800 border-slate-200 dark:border-gray-600'
                 }`}
               />
             </div>
           </div>
-          <div className="flex items-center justify-between">
-            <ImageUpload compact={true} />
-            <div className="flex items-center gap-1">
-              <span className="text-xs text-slate-500 dark:text-gray-400">Grid: {gridWidth}</span>
+          {/* Controls row - keep upload and grid controls together */}
+          <div className="flex items-center justify-between gap-2 min-w-0">
+            <div className="flex-shrink-0">
+              <ImageUpload compact={true} />
+            </div>
+            <div className="flex items-center gap-1 flex-shrink-0">
+              <span className="text-xs text-slate-500 dark:text-gray-400 whitespace-nowrap">Grid: {gridWidth}</span>
               <button
                 onClick={() => handleGridWidthChange(Math.max(3, gridWidth - 1))}
-                className="px-1.5 py-0.5 text-xs bg-slate-100 dark:bg-gray-700 rounded hover:bg-slate-200 dark:hover:bg-gray-600"
+                className="px-1.5 py-0.5 text-xs bg-slate-100 dark:bg-gray-700 rounded hover:bg-slate-200 dark:hover:bg-gray-600 flex-shrink-0"
               >
                 -
               </button>
               <button
                 onClick={() => handleGridWidthChange(Math.min(8, gridWidth + 1))}
-                className="px-1.5 py-0.5 text-xs bg-slate-100 dark:bg-gray-700 rounded hover:bg-slate-200 dark:hover:bg-gray-600"
+                className="px-1.5 py-0.5 text-xs bg-slate-100 dark:bg-gray-700 rounded hover:bg-slate-200 dark:hover:bg-gray-600 flex-shrink-0"
               >
                 +
               </button>
@@ -121,55 +124,63 @@ export const ImageGrid: React.FC = () => {
           </div>
         </div>
         
-        {/* Desktop: Horizontal layout */}
-        <div className="hidden md:flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <label className="text-xs font-medium text-slate-600 dark:text-gray-400 mr-1 whitespace-nowrap">ELR</label>
-            <input
-              type="text"
-              value={formData.elr}
-              onChange={handleELRChange}
-              className={`p-1 text-xs border rounded text-slate-900 dark:text-white max-w-[70px] mr-2 ${
-                !formData.elr?.trim() ? 'bg-amber-50/30 dark:bg-amber-900/20 border-amber-300' : 'bg-white dark:bg-gray-800 border-slate-200 dark:border-gray-600'
-              }`}
-              placeholder="ELR"
-              maxLength={8}
-            />
-            <label className="text-xs font-medium text-slate-600 dark:text-gray-400 mr-1 whitespace-nowrap">Structure No</label>
-            <input
-              type="text"
-              value={formData.structureNo}
-              onChange={handleStructureNoChange}
-              className={`p-1 text-xs border rounded text-slate-900 dark:text-white max-w-[70px] mr-2 ${
-                !formData.structureNo?.trim() ? 'bg-amber-50/30 dark:bg-amber-900/20 border-amber-300' : 'bg-white dark:bg-gray-800 border-slate-200 dark:border-gray-600'
-              }`}
-              placeholder="No"
-              maxLength={8}
-            />
-            <label className="text-xs font-medium text-slate-600 dark:text-gray-400 mr-1 whitespace-nowrap">Date</label>
-            <input
-              type="date"
-              value={formData.date}
-              onChange={handleDateChange}
-              className={`p-1 text-xs border rounded text-slate-900 dark:text-white max-w-[120px] mr-2 ${
-                !formData.date?.trim() ? 'bg-amber-50/30 dark:bg-amber-900/20 border-amber-300' : 'bg-white dark:bg-gray-800 border-slate-200 dark:border-gray-600'
-              }`}
-            />
-            <ImageUpload compact={true} />
+        {/* Desktop: Horizontal layout with overflow protection */}
+        <div className="hidden md:flex items-center justify-between gap-2 min-w-0">
+          <div className="flex items-center gap-2 min-w-0 flex-wrap">
+            <div className="flex items-center gap-1 flex-shrink-0">
+              <label className="text-xs font-medium text-slate-600 dark:text-gray-400 whitespace-nowrap">ELR</label>
+              <input
+                type="text"
+                value={formData.elr}
+                onChange={handleELRChange}
+                className={`p-1 text-xs border rounded text-slate-900 dark:text-white w-16 flex-shrink-0 ${
+                  !formData.elr?.trim() ? 'bg-amber-50/30 dark:bg-amber-900/20 border-amber-300' : 'bg-white dark:bg-gray-800 border-slate-200 dark:border-gray-600'
+                }`}
+                placeholder="ELR"
+                maxLength={8}
+              />
+            </div>
+            <div className="flex items-center gap-1 flex-shrink-0">
+              <label className="text-xs font-medium text-slate-600 dark:text-gray-400 whitespace-nowrap">No</label>
+              <input
+                type="text"
+                value={formData.structureNo}
+                onChange={handleStructureNoChange}
+                className={`p-1 text-xs border rounded text-slate-900 dark:text-white w-16 flex-shrink-0 ${
+                  !formData.structureNo?.trim() ? 'bg-amber-50/30 dark:bg-amber-900/20 border-amber-300' : 'bg-white dark:bg-gray-800 border-slate-200 dark:border-gray-600'
+                }`}
+                placeholder="No"
+                maxLength={8}
+              />
+            </div>
+            <div className="flex items-center gap-1 flex-shrink-0">
+              <label className="text-xs font-medium text-slate-600 dark:text-gray-400 whitespace-nowrap">Date</label>
+              <input
+                type="date"
+                value={formData.date}
+                onChange={handleDateChange}
+                className={`p-1 text-xs border rounded text-slate-900 dark:text-white w-28 flex-shrink-0 ${
+                  !formData.date?.trim() ? 'bg-amber-50/30 dark:bg-amber-900/20 border-amber-300' : 'bg-white dark:bg-gray-800 border-slate-200 dark:border-gray-600'
+                }`}
+              />
+            </div>
+            <div className="flex-shrink-0">
+              <ImageUpload compact={true} />
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-slate-500 dark:text-gray-400">
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <span className="text-xs text-slate-500 dark:text-gray-400 whitespace-nowrap">
               Grid: {gridWidth}
             </span>
             <button
               onClick={() => handleGridWidthChange(Math.max(3, gridWidth - 1))}
-              className="px-2 py-1 text-sm bg-slate-100 dark:bg-gray-700 rounded hover:bg-slate-200 dark:hover:bg-gray-600"
+              className="px-2 py-1 text-xs bg-slate-100 dark:bg-gray-700 rounded hover:bg-slate-200 dark:hover:bg-gray-600 flex-shrink-0"
             >
               -
             </button>
             <button
               onClick={() => handleGridWidthChange(Math.min(8, gridWidth + 1))}
-              className="px-2 py-1 text-sm bg-slate-100 dark:bg-gray-700 rounded hover:bg-slate-200 dark:hover:bg-gray-600"
+              className="px-2 py-1 text-xs bg-slate-100 dark:bg-gray-700 rounded hover:bg-slate-200 dark:hover:bg-gray-600 flex-shrink-0"
             >
               +
             </button>
@@ -177,8 +188,7 @@ export const ImageGrid: React.FC = () => {
         </div>
       </div>
 
-
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-hidden">
         {images.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-slate-500 dark:text-gray-400 p-8">
             <div className="text-6xl mb-4">📷</div>
@@ -186,10 +196,10 @@ export const ImageGrid: React.FC = () => {
             <p className="text-sm text-center">
               Upload some images to get started with your project
             </p>
-            </div>
-          ) : (
+          </div>
+        ) : (
           <ImageGridItem images={images} gridWidth={gridWidth} />
-              )}
+        )}
       </div>
     </div>
   );

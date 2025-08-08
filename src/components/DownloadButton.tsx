@@ -59,6 +59,8 @@ export const DownloadButton: React.FC = () => {
       return;
     }
 
+    // Clear any previous error first to prevent UI flickering
+    setError(null);
     setIsDownloading(true);
     try {
       // Track download attempt
@@ -99,6 +101,9 @@ export const DownloadButton: React.FC = () => {
           xhr.open('POST', apiUrl, true);
           xhr.setRequestHeader('Content-Type', 'application/json');
           
+          // Set longer timeout for download generation (Lambda can take time)
+          xhr.timeout = 90000; // 90 seconds - increased for large ZIP files
+          
           xhr.onload = function() {
             if (xhr.status >= 200 && xhr.status < 300) {
               resolve({
@@ -115,6 +120,10 @@ export const DownloadButton: React.FC = () => {
           
           xhr.onerror = function() {
             reject(new Error('Network request failed'));
+          };
+          
+          xhr.ontimeout = function() {
+            reject(new Error('Request timeout - download generation took too long. Please try again or contact support if this persists.'));
           };
           
           xhr.send(JSON.stringify(transformedData));
@@ -140,8 +149,14 @@ export const DownloadButton: React.FC = () => {
 
         console.log('✅ Lambda bulk response received, download URL:', result.downloadUrl);
         
-        // Download the file using the presigned URL
-        window.open(result.downloadUrl, '_blank');
+        // Download the file using a hidden link to prevent page flickering
+        const downloadLink = document.createElement('a');
+        downloadLink.href = result.downloadUrl;
+        downloadLink.download = `${formData.elr}_${formData.structureNo}_bulk_defects.zip`;
+        downloadLink.style.display = 'none';
+        document.body.appendChild(downloadLink);
+        downloadLink.click();
+        document.body.removeChild(downloadLink);
 
         // Track bulk download success
         trackBulkDownload(transformedData.selectedImages.length, bulkDefects.length);
@@ -289,17 +304,42 @@ export const DownloadButton: React.FC = () => {
         console.log('🌐 Using API endpoint:', apiUrl);
         console.log('🕒 Cache bust timestamp:', Date.now());
         
-        // Simple, universal fetch request
-        const response = await fetch(apiUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(transformedData)
+        // Consistent XMLHttpRequest approach with timeout
+        const response = await new Promise((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open('POST', apiUrl, true);
+          xhr.setRequestHeader('Content-Type', 'application/json');
+          
+          // Set longer timeout for download generation (Lambda can take time)
+          xhr.timeout = 90000; // 90 seconds - increased for large ZIP files
+          
+          xhr.onload = function() {
+            console.log('📡 Response status:', xhr.status);
+            console.log('📡 Response headers:', xhr.getAllResponseHeaders());
+            
+            if (xhr.status >= 200 && xhr.status < 300) {
+              resolve({
+                ok: true,
+                status: xhr.status,
+                statusText: xhr.statusText,
+                headers: new Headers(),
+                json: () => Promise.resolve(JSON.parse(xhr.responseText))
+              });
+            } else {
+              reject(new Error(`HTTP ${xhr.status}: ${xhr.statusText}`));
+            }
+          };
+          
+          xhr.onerror = function() {
+            reject(new Error('Network request failed'));
+          };
+          
+          xhr.ontimeout = function() {
+            reject(new Error('Request timeout - download generation took too long. Please try again or contact support if this persists.'));
+          };
+          
+          xhr.send(JSON.stringify(transformedData));
         });
-
-        console.log('📡 Response status:', response.status);
-        console.log('📡 Response headers:', Object.fromEntries(response.headers.entries()));
 
         if (!response.ok) {
           let errorData;
@@ -322,8 +362,14 @@ export const DownloadButton: React.FC = () => {
 
         console.log('✅ Lambda response received, download URL:', result.downloadUrl);
         
-        // Download the file using the presigned URL (same method as bulk download)
-        window.open(result.downloadUrl, '_blank');
+        // Download the file using a hidden link to prevent page flickering
+        const downloadLink = document.createElement('a');
+        downloadLink.href = result.downloadUrl;
+        downloadLink.download = `${formData.elr}_${formData.structureNo}_images.zip`;
+        downloadLink.style.display = 'none';
+        document.body.appendChild(downloadLink);
+        downloadLink.click();
+        document.body.removeChild(downloadLink);
 
         // Track image download success
         trackImageDownload(selectedImagesList.length, 'individual_package');
@@ -398,9 +444,9 @@ export const DownloadButton: React.FC = () => {
             });
           }}
         >
-          {/* Only show Loader2 spinner if not in bulk mode */}
-          {isDownloading && viewMode !== 'bulk' ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
-          {isDownloading && viewMode !== 'bulk'
+          {/* Consistent loading state for both modes */}
+          {isDownloading ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+          {isDownloading
             ? 'Preparing download...'
             : viewMode === 'bulk'
             ? 'Download Bulk Package'

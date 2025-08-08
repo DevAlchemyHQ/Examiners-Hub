@@ -20,9 +20,9 @@ export const getApiEndpoint = () => {
     console.log('  - Using relative URL for development:', localUrl);
     return localUrl;
   } else {
-    // Use HTTP API Gateway for production (Amplify)
-    const prodUrl = 'https://z2p4tzd5u3.execute-api.us-east-1.amazonaws.com/download';
-    console.log('  - Using production URL:', prodUrl);
+    // Use HTTP API Gateway for production (Amplify) - EU West 2 for better performance
+    const prodUrl = 'https://ht1uumxmwh.execute-api.eu-west-2.amazonaws.com/download';
+    console.log('  - Using production URL (EU West 2):', prodUrl);
     return prodUrl;
   }
 };

@@ -10,47 +10,31 @@ const RefreshBanner: React.FC<RefreshBannerProps> = ({ className = '' }) => {
   const [isDismissed, setIsDismissed] = useState(false);
 
   useEffect(() => {
-    console.log('🔄 RefreshBanner: Component mounted');
-    
     // Check if user has already seen this version
     const currentVersion = '1.1.1';
     const lastSeenVersion = localStorage.getItem('last-seen-version');
     const isDismissed = localStorage.getItem('dismissed-version-banner');
     
-    console.log('🔄 RefreshBanner: Current version:', currentVersion);
-    console.log('🔄 RefreshBanner: Last seen version:', lastSeenVersion);
-    console.log('🔄 RefreshBanner: Is dismissed:', isDismissed);
-    
     // Show banner if user hasn't seen this version or hasn't dismissed it
     if (lastSeenVersion !== currentVersion || !isDismissed) {
-      console.log('🔄 RefreshBanner: Setting visible to true');
       setIsVisible(true);
     } else {
-      console.log('🔄 RefreshBanner: Banner already seen and dismissed');
       setIsVisible(false);
     }
   }, []);
 
   const handleRefresh = () => {
-    console.log('🔄 RefreshBanner: Update button clicked');
-    
     // Mark banner as dismissed and set version as seen
     localStorage.setItem('dismissed-version-banner', 'true');
     localStorage.setItem('last-seen-version', '1.1.1');
     
-    console.log('🔄 RefreshBanner: Banner dismissed, refreshing page');
     // Force a hard refresh to ensure all new features load
     window.location.href = window.location.href;
   };
-
-  console.log('🔄 RefreshBanner: isVisible =', isVisible);
   
   if (!isVisible) {
-    console.log('🔄 RefreshBanner: Returning null - not visible');
     return null;
   }
-  
-  console.log('🔄 RefreshBanner: Rendering banner');
 
   return (
     <div className={`fixed top-0 left-0 right-0 z-50 bg-gradient-to-r from-green-600 to-blue-600 text-white shadow-lg ${className}`}>

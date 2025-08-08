@@ -119,6 +119,40 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
   // Get the actual show state from parent or local
   const actualShowBulkPaste = setShowBulkPaste ? false : showBulkPaste;
 
+  // Session state management for UI persistence
+  useEffect(() => {
+    const { sessionState, updateSessionState } = useMetadataStore.getState();
+    
+    // Restore UI state from session
+    if (sessionState.uiState) {
+      if (sessionState.uiState.showBulkPaste !== undefined) {
+        setShowBulkPasteLocal(sessionState.uiState.showBulkPaste);
+      }
+      if (sessionState.uiState.showImages !== undefined) {
+        setShowImages(sessionState.uiState.showImages);
+      }
+      if (sessionState.uiState.showDefectImport !== undefined) {
+        setShowDefectImport(sessionState.uiState.showDefectImport);
+      }
+      if (sessionState.uiState.enlargedImage !== undefined) {
+        setEnlargedImage(sessionState.uiState.enlargedImage);
+      }
+    }
+  }, []);
+
+  // Save UI state to session when it changes
+  useEffect(() => {
+    const { updateSessionState } = useMetadataStore.getState();
+    updateSessionState({
+      uiState: {
+        showBulkPaste: showBulkPasteState,
+        showImages,
+        showDefectImport,
+        enlargedImage,
+      }
+    });
+  }, [showBulkPasteState, showImages, showDefectImport, enlargedImage]);
+
   // Load bulk data on component mount
   useEffect(() => {
     // Prevent multiple calls
@@ -215,7 +249,7 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
   }, [bulkDefects]);
 
   // Performance optimization: Debounce error clearing
-  const debouncedErrorClear = useRef<number | null>(null);
+  const debouncedErrorClear = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   useEffect(() => {
     if (error) {
@@ -316,6 +350,13 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
         }
         
         const reorderedItems = arrayMove(items, oldIndex, newIndex);
+        
+        // Update session state to preserve bulk defect order
+        setTimeout(() => {
+          updateSessionState({ 
+            bulkDefectOrder: reorderedItems.map(defect => defect.id || defect.photoNumber)
+          });
+        }, 100);
         
         // Re-enable auto-sorting after a delay if it was enabled
         if (wasAutoSorting) {
@@ -1204,7 +1245,7 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
   }, [deletedDefects]);
 
   // Debounced auto-save to prevent performance issues
-  const debouncedAutoSave = useRef<number | null>(null);
+  const debouncedAutoSave = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   useEffect(() => {
     if (bulkDefects.length > 0) {
@@ -1284,6 +1325,37 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
     };
   }, []);
 
+  // Auto-save bulk data with throttling
+  useEffect(() => {
+    if (bulkDefects.length > 0) {
+      const saveTimeout: NodeJS.Timeout = setTimeout(() => {
+        saveBulkData();
+      }, 5000);
+
+      return () => clearTimeout(saveTimeout);
+    }
+  }, [bulkDefects, saveBulkData]);
+
+  // Auto-save session state when bulk defects change
+  useEffect(() => {
+    if (bulkDefects.length > 0) {
+      const { updateSessionState } = useMetadataStore.getState();
+      updateSessionState({
+        bulkDefectOrder: bulkDefects.map(defect => defect.id || defect.photoNumber).filter(Boolean)
+      });
+    }
+  }, [bulkDefects]);
+
+  // Auto-save session state when bulk selected images change
+  useEffect(() => {
+    if (bulkSelectedImages.length > 0) {
+      const { updateSessionState } = useMetadataStore.getState();
+      updateSessionState({
+        bulkSelectedImages: bulkSelectedImages
+      });
+    }
+  }, [bulkSelectedImages]);
+
   return (
     <ErrorBoundary>
       <div className="h-full flex flex-col p-4 space-y-4">
@@ -1354,14 +1426,14 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
                   modifiers={[restrictToVerticalAxis]}
                 >
                   <SortableContext
-                    items={bulkDefects.map(d => d.id)}
+                    items={bulkDefects.map(d => d.id).filter(Boolean) as string[]}
                     strategy={verticalListSortingStrategy}
                   >
                     <div className="space-y-2">
                       {bulkDefects.map((defect, index) => (
                         <DefectTile
                           key={defect.id}
-                          id={defect.id}
+                          id={defect.id || `defect-${index}`}
                           photoNumber={defect.photoNumber}
                           description={defect.description}
                           selectedFile={defect.selectedFile || ''}

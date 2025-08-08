@@ -147,21 +147,49 @@ export function transformBulkDefectsForLambda(
     throw new Error('No defects with images selected');
   }
   
+  console.log(' Available images:', images.length);
+  
   const unifiedImages = defectsWithImages.map(defect => {
-    // Find corresponding image using the same logic as BulkTextInput
-    const correspondingImage = images.find(img => {
+    // Find corresponding image using exact match first
+    let correspondingImage = images.find(img => {
       const imgFileName = img.fileName || img.file?.name || '';
       return imgFileName === defect.selectedFile;
     });
+    
+    // If exact match fails, try fuzzy matching
+    if (!correspondingImage) {
+      console.warn(`Exact match failed for ${defect.selectedFile}, trying fuzzy matching...`);
+      
+      correspondingImage = images.find(img => {
+        const imgFileName = img.fileName || img.file?.name || '';
+        // Try matching without extension or with different casing
+        const baseDefectName = defect.selectedFile?.replace(/\.[^/.]+$/, '').toLowerCase();
+        const baseImageName = imgFileName.replace(/\.[^/.]+$/, '').toLowerCase();
+        return baseDefectName && baseImageName && baseImageName.includes(baseDefectName);
+      });
+    }
+    
+    // If still no match, try matching by partial filename
+    if (!correspondingImage) {
+      console.warn(`Fuzzy match failed for ${defect.selectedFile}, trying partial matching...`);
+      
+      correspondingImage = images.find(img => {
+        const imgFileName = img.fileName || img.file?.name || '';
+        return imgFileName.toLowerCase().includes(defect.selectedFile?.toLowerCase() || '');
+      });
+    }
     
     if (!correspondingImage) {
       console.error('Available images:', images.map(img => ({
         id: img.id,
         fileName: img.fileName,
-        file_name: img.file?.name,
-        selectedFile: defect.selectedFile
+        file_name: img.file?.name
       })));
-      throw new Error(`Image not found for defect ${defect.photoNumber}: ${defect.selectedFile}`);
+      console.error(`Looking for: ${defect.selectedFile}`);
+      
+      // Instead of throwing an error, skip this defect and continue
+      console.warn(`Skipping defect ${defect.photoNumber}: ${defect.selectedFile} - image not found`);
+      return null;
     }
     
     // Extract S3 key using the same logic as the original DownloadButton
@@ -241,7 +269,11 @@ export function transformBulkDefectsForLambda(
       filename: defect.selectedFile,
       publicUrl: correspondingImage.publicUrl
     };
-  });
+  }).filter(Boolean); // Remove null values from skipped defects
+  
+  if (unifiedImages.length === 0) {
+    throw new Error('No valid defects found with matching images');
+  }
   
   console.log('✅ Bulk defects transformed:', unifiedImages.length);
   console.log('Sample transformed defect:', unifiedImages[0]);

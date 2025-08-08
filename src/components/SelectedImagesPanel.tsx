@@ -614,16 +614,8 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
   };
   
   const selectedImagesList = React.useMemo(() => {
-    console.log('🔄 selectedImagesList recalculating:', {
-      viewMode,
-      selectedImagesCount: selectedImages.length,
-      bulkSelectedImagesCount: bulkSelectedImages.length,
-      imagesCount: images.length
-    });
-    
     if (viewMode === 'bulk') {
       const bulkImages = images.filter(img => bulkSelectedImages.includes(img.id));
-      console.log('📊 Bulk mode - returning', bulkImages.length, 'images');
       return bulkImages;
     } else {
       // Create instances from the selectedImages array that now contains instance information
@@ -639,22 +631,14 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
             ...img,
             instanceId: item.instanceId
           });
-          console.log('✅ Found image for selected item:', item.id, '->', img.id);
-        } else {
-          console.warn('⚠️ Image not found for selected item:', item);
-          console.warn('Available images:', images.map(img => ({ id: img.id, fileName: img.fileName })));
         }
       });
       
-      console.log('📊 Images mode - returning', selectedInstances.length, 'images');
       return selectedInstances;
     }
-  }, [images, selectedImages, bulkSelectedImages, viewMode, instanceMetadata]);
+  }, [images, selectedImages, bulkSelectedImages, viewMode]);
 
-  const { sketches, defects } = React.useMemo(() => ({
-    sketches: selectedImagesList.filter(img => img.isSketch).length,
-    defects: selectedImagesList.filter(img => !img.isSketch).length
-  }), [selectedImagesList]);
+
 
   const getImageNumber = (img: ImageMetadata) => {
     if (viewMode === 'bulk') {
@@ -665,11 +649,9 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
     }
     // For images mode, check if this is an instance with its own metadata
     if (img.instanceId && instanceMetadata[img.instanceId]) {
-      console.log('📝 getImageNumber - Found instance metadata for:', img.instanceId, 'photoNumber:', instanceMetadata[img.instanceId].photoNumber);
       return instanceMetadata[img.instanceId].photoNumber || '';
     }
     // Fallback to image's own photoNumber
-    console.log('📝 getImageNumber - No instance metadata for:', img.instanceId, 'falling back to:', img.photoNumber);
     return img.photoNumber || '';
   };
 
@@ -682,11 +664,9 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
     }
     // For images mode, check if this is an instance with its own metadata
     if (img.instanceId && instanceMetadata[img.instanceId]) {
-      console.log('📝 getImageDescription - Found instance metadata for:', img.instanceId, 'description:', instanceMetadata[img.instanceId].description);
       return instanceMetadata[img.instanceId].description || '';
     }
     // Fallback to image's own description
-    console.log('📝 getImageDescription - No instance metadata for:', img.instanceId, 'falling back to:', img.description);
     return img.description || '';
   };
 
@@ -947,7 +927,14 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
         <div className="md:hidden space-y-2">
           <div className="flex items-center gap-2">
             <button
-              onClick={() => setViewMode('images')}
+              onClick={async () => {
+                console.log('🔵 IMAGES TAB CLICKED (Mobile) - switching from', viewMode, 'to images');
+                setViewMode('images');
+                // Force save session state immediately for critical tab switches
+                console.log('💾 Force saving session state after images tab click (Mobile)');
+                const { forceSessionStateSave } = useMetadataStore.getState();
+                await forceSessionStateSave('images');
+              }}
               className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors ${
                 viewMode === 'images'
                   ? 'bg-white dark:bg-gray-600 text-indigo-600 dark:text-indigo-400 shadow-sm'
@@ -957,7 +944,14 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
               <Images size={14} /> Images
             </button>
             <button
-              onClick={() => setViewMode('bulk')}
+              onClick={async () => {
+                console.log('🔵 BULK TAB CLICKED (Mobile) - switching from', viewMode, 'to bulk');
+                setViewMode('bulk');
+                // Force save session state immediately for critical tab switches
+                console.log('💾 Force saving session state after bulk tab click (Mobile)');
+                const { forceSessionStateSave } = useMetadataStore.getState();
+                await forceSessionStateSave('bulk');
+              }}
               className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors ${
                 viewMode === 'bulk'
                   ? 'bg-white dark:bg-gray-600 text-indigo-600 dark:text-indigo-400 shadow-sm'
@@ -1038,7 +1032,14 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
         <div className="hidden md:flex items-center justify-between">
           <div className="flex items-center gap-2 flex-1">
             <button
-              onClick={() => setViewMode('images')}
+              onClick={async () => {
+                console.log('🔵 IMAGES TAB CLICKED (Desktop) - switching from', viewMode, 'to images');
+                setViewMode('images');
+                // Force save session state immediately for critical tab switches
+                console.log('💾 Force saving session state after images tab click (Desktop)');
+                const { forceSessionStateSave } = useMetadataStore.getState();
+                await forceSessionStateSave('images');
+              }}
               className={`flex items-center gap-1 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
                 viewMode === 'images'
                   ? 'bg-white dark:bg-gray-600 text-indigo-600 dark:text-indigo-400 shadow-sm'
@@ -1048,7 +1049,14 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
               <Images size={18} /> Images
             </button>
             <button
-              onClick={() => setViewMode('bulk')}
+              onClick={async () => {
+                console.log('🔵 BULK TAB CLICKED (Desktop) - switching from', viewMode, 'to bulk');
+                setViewMode('bulk');
+                // Force save session state immediately for critical tab switches
+                console.log('💾 Force saving session state after bulk tab click (Desktop)');
+                const { forceSessionStateSave } = useMetadataStore.getState();
+                await forceSessionStateSave('bulk');
+              }}
               className={`flex items-center gap-1 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
                 viewMode === 'bulk'
                   ? 'bg-white dark:bg-gray-600 text-indigo-600 dark:text-indigo-400 shadow-sm'
@@ -1238,10 +1246,7 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
                               type="text"
                               value={getImageNumber(img)}
                               onChange={(e) => {
-                                console.log('📝 Photo number changed:', e.target.value);
-                                console.log('📝 Image instanceId:', img.instanceId);
                                 if (img.instanceId) {
-                                  console.log('📝 Updating instance metadata for:', img.instanceId, 'with photoNumber:', e.target.value);
                                   updateInstanceMetadata(img.instanceId, { photoNumber: e.target.value });
                                 } else {
                                   updateImageMetadata(img.id, { photoNumber: e.target.value });
@@ -1257,10 +1262,7 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
                               <textarea
                                 value={getImageDescription(img)}
                                 onChange={(e) => {
-                                  console.log('📝 Description changed:', e.target.value);
-                                  console.log('📝 Image instanceId:', img.instanceId);
                                   if (img.instanceId) {
-                                    console.log('📝 Updating instance metadata for:', img.instanceId, 'with description:', e.target.value);
                                     updateInstanceMetadata(img.instanceId, { description: e.target.value });
                                   } else {
                                     updateImageMetadata(img.id, { description: e.target.value });
