@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useMetadataStore } from '../store/metadataStore';
 import { Maximize2 } from 'lucide-react';
 import { ImageZoom } from './ImageZoom';
@@ -22,10 +22,26 @@ export const ImageGridItem: React.FC<ImageGridItemProps> = ({ images, gridWidth 
   const [enlargedImageIndex, setEnlargedImageIndex] = useState<number | null>(null);
   const [clickPosition, setClickPosition] = useState<{ x: number; y: number } | null>(null);
   const [draggedImage, setDraggedImage] = useState<ImageMetadata | null>(null);
+  const imageRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
   
   // Use the correct selection set based on viewMode
   const selections = viewMode === 'bulk' ? bulkSelectedImages : selectedImages;
   const toggleSelection = viewMode === 'bulk' ? toggleBulkImageSelection : toggleImageSelection;
+
+  // Scroll to selected images when they change
+  useEffect(() => {
+    if (selections.length > 0) {
+      const firstSelectedId = viewMode === 'bulk' ? selections[0] : selections[0]?.id;
+      if (firstSelectedId && imageRefs.current[firstSelectedId]) {
+        setTimeout(() => {
+          imageRefs.current[firstSelectedId]?.scrollIntoView({
+            behavior: 'smooth',
+            block: 'center'
+          });
+        }, 100);
+      }
+    }
+  }, [selections, viewMode]);
 
   const getDefectNumbers = (img: ImageMetadata) => {
     if (img.isSketch) return [];
@@ -98,11 +114,9 @@ export const ImageGridItem: React.FC<ImageGridItemProps> = ({ images, gridWidth 
     if (viewMode === 'bulk') {
       e.dataTransfer.setData('application/json', JSON.stringify({
         type: 'image',
-        imageId: img.id,
-        fileName: img.fileName || img.file?.name || '',
-        imageData: img
+        id: img.id,
+        fileName: img.fileName || img.file?.name || ''
       }));
-      e.dataTransfer.effectAllowed = 'copy';
       setDraggedImage(img);
     }
   };
@@ -112,11 +126,7 @@ export const ImageGridItem: React.FC<ImageGridItemProps> = ({ images, gridWidth 
   };
 
   const handleImageEnlarge = (imageIndex: number, clickEvent: React.MouseEvent) => {
-    const rect = document.body.getBoundingClientRect();
-    setClickPosition({
-      x: clickEvent.clientX - rect.left,
-      y: clickEvent.clientY - rect.top
-    });
+    setClickPosition({ x: clickEvent.clientX, y: clickEvent.clientY });
     setEnlargedImageIndex(imageIndex);
   };
 
@@ -140,14 +150,14 @@ export const ImageGridItem: React.FC<ImageGridItemProps> = ({ images, gridWidth 
   return (
     <>
       <div 
-        className="h-full relative w-full overflow-hidden"
+        className="h-full relative w-full"
         style={{ 
           overscrollBehavior: 'contain',
           padding: '2px'
         }}
       >
         <div
-          className="grid h-full overflow-hidden"
+          className="grid min-h-full"
           style={{
             gridTemplateColumns: `repeat(auto-fit, minmax(max(120px, calc(100% / ${gridWidth} - 8px)), 1fr))`,
             alignContent: 'start',
@@ -170,6 +180,7 @@ export const ImageGridItem: React.FC<ImageGridItemProps> = ({ images, gridWidth 
                   return (
                     <div 
                       key={img.id} 
+                      ref={(el) => { imageRefs.current[img.id] = el; }}
                       className="relative aspect-square cursor-pointer group touch-manipulation"
                       onClick={() => toggleSelection(img.id)}
                       draggable={viewMode === 'bulk'}
@@ -233,23 +244,20 @@ export const ImageGridItem: React.FC<ImageGridItemProps> = ({ images, gridWidth 
                     </div>
                   );
                 })}
-      </div>
+        </div>
 
         {/* ImageZoom positioned within the images section */}
         {enlargedImageIndex !== null && (
           <ImageZoom
-            src={images[enlargedImageIndex].preview}
-            alt={images[enlargedImageIndex].fileName || images[enlargedImageIndex].file?.name || 'Image'}
-            title={images[enlargedImageIndex].fileName || images[enlargedImageIndex].file?.name || 'Image'}
+            images={images}
+            currentIndex={enlargedImageIndex}
             onClose={handleCloseEnlarged}
             onPrevious={handlePreviousImage}
             onNext={handleNextImage}
-            hasPrevious={enlargedImageIndex > 0}
-            hasNext={enlargedImageIndex < images.length - 1}
-            position={clickPosition}
+            clickPosition={clickPosition}
           />
         )}
-        </div>
+      </div>
     </>
   );
 };
