@@ -55,6 +55,7 @@ exports.handler = async (event) => {
       // Handle bulk mode - process bulk defects
       console.log('Processing bulk defects mode');
       console.log('Bulk defects data structure:', JSON.stringify(selectedImages, null, 2));
+      console.log('Form data:', JSON.stringify(formData, null, 2));
       
       // Format date as DD-MM-YY (shared for metadata and filenames)
       const formatDate = (dateString) => {
@@ -100,25 +101,87 @@ exports.handler = async (event) => {
             continue;
           }
 
-          // Get image from S3
-          const getObjectCommand = new GetObjectCommand({
-            Bucket: process.env.S3_BUCKET_NAME || 'mvp-labeler-storage',
-            Key: s3Key
-          });
-
-          const response = await s3Client.send(getObjectCommand);
+          // Try to get the image from S3 with fallback logic
+          let imageBuffer = null;
+          let actualS3Key = s3Key;
           
-          // Convert stream to buffer
-          const chunks = [];
-          for await (const chunk of response.Body) {
-            chunks.push(chunk);
+          try {
+            // First, try the exact S3 key provided
+            console.log(`🔍 Trying exact S3 key: ${s3Key}`);
+            const getObjectCommand = new GetObjectCommand({
+              Bucket: process.env.S3_BUCKET_NAME || 'mvp-labeler-storage',
+              Key: s3Key
+            });
+            
+            const response = await s3Client.send(getObjectCommand);
+            
+            // Convert stream to buffer
+            const chunks = [];
+            for await (const chunk of response.Body) {
+              chunks.push(chunk);
+            }
+            imageBuffer = Buffer.concat(chunks);
+            console.log(`✅ Found image with exact S3 key: ${s3Key}`);
+            
+          } catch (error) {
+            console.log(`❌ Image not found with exact S3 key: ${s3Key}`);
+            console.log(`Error: ${error.message}`);
+            
+            // If the exact key doesn't work, try to find the file by listing objects
+            // and matching the filename (ignoring timestamp)
+            try {
+              console.log(`🔍 Trying to find file by filename: ${defect.selectedFile}`);
+              const listCommand = new ListObjectsV2Command({
+                Bucket: process.env.S3_BUCKET_NAME || 'mvp-labeler-storage',
+                Prefix: `users/${s3Key.split('/')[1]}/images/` // Get the user's images folder
+              });
+              
+              const listResponse = await s3Client.send(listCommand);
+              const filename = defect.selectedFile;
+              
+              // Find a file that ends with the same filename
+              const matchingFile = listResponse.Contents?.find(obj => 
+                obj.Key && obj.Key.endsWith(filename)
+              );
+              
+              if (matchingFile) {
+                console.log(`✅ Found matching file: ${matchingFile.Key}`);
+                actualS3Key = matchingFile.Key;
+                
+                // Get the image using the found key
+                const getObjectCommand = new GetObjectCommand({
+                  Bucket: process.env.S3_BUCKET_NAME || 'mvp-labeler-storage',
+                  Key: matchingFile.Key
+                });
+                
+                const response = await s3Client.send(getObjectCommand);
+                
+                // Convert stream to buffer
+                const chunks = [];
+                for await (const chunk of response.Body) {
+                  chunks.push(chunk);
+                }
+                imageBuffer = Buffer.concat(chunks);
+                console.log(`✅ Successfully retrieved image with fallback key`);
+                
+              } else {
+                console.log(`❌ No matching file found for filename: ${filename}`);
+                throw new Error(`No matching file found for ${filename}`);
+              }
+            } catch (listError) {
+              console.log(`❌ Error listing objects: ${listError.message}`);
+              throw error; // Re-throw the original error
+            }
           }
-          const buffer = Buffer.concat(chunks);
 
-          // Add to ZIP with defect-specific filename in proper format
-          const imageFileName = `Photo ${defect.photoNumber || '1'} ^ ${defect.description || 'LM'} ^ ${formattedDate}.jpg`;
-          zip.file(imageFileName, buffer);
-          console.log(`Added ${imageFileName} to ZIP`);
+          if (imageBuffer) {
+            // Add to ZIP with defect-specific filename in proper format
+            const imageFileName = `Photo ${defect.photoNumber || '1'} ^ ${defect.description || 'LM'} ^ ${formattedDate}.jpg`;
+            zip.file(imageFileName, imageBuffer);
+            console.log(`✅ Added ${imageFileName} to ZIP`);
+          } else {
+            console.error(`❌ Failed to retrieve image for defect ${defect.photoNumber}`);
+          }
 
         } catch (error) {
           console.error(`Error processing bulk defect ${defect.photoNumber}:`, error);
