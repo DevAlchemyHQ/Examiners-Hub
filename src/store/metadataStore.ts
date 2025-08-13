@@ -646,11 +646,11 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
     });
   },
 
-  removeImage: async (id) => {
+  removeImage: async (id: string) => {
     try {
       set((state) => {
         const updatedImages = state.images.filter((img) => img.id !== id);
-        const updatedSelected = new Set([...state.selectedImages].filter(imgId => imgId !== id));
+        const updatedSelected = state.selectedImages.filter(item => item.id !== id);
         const updatedBulkSelected = state.bulkSelectedImages.filter(imgId => imgId !== id);
         
         return { 
@@ -991,7 +991,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
 
   getSelectedCounts: () => {
     const state = get();
-    const selectedImagesList = state.images.filter(img => state.selectedImages.has(img.id));
+    const selectedImagesList = state.images.filter(img => state.selectedImages.some(selected => selected.id === img.id));
     const sketches = selectedImagesList.filter(img => img.isSketch).length;
     const defects = selectedImagesList.filter(img => !img.isSketch).length;
     return { sketches, defects };
@@ -1450,7 +1450,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
               console.log('🔄 Restoring bulk defect order from session state:', sessionState.bulkDefectOrder);
               
               // Create a map for quick lookup
-              const defectMap = new Map(bulkDefects.map(defect => [defect.id || defect.photoNumber, defect]));
+              const defectMap = new Map<string, BulkDefect>(bulkDefects.map(defect => [defect.id || defect.photoNumber, defect]));
               
               // Reorder defects according to saved order
               const reorderedDefects = sessionState.bulkDefectOrder
@@ -1503,7 +1503,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
                 console.log('🔄 Restoring bulk defect order from session state (AWS):', sessionState.bulkDefectOrder);
                 
                 // Create a map for quick lookup
-                const defectMap = new Map(defects.map(defect => [defect.id || defect.photoNumber, defect]));
+                const defectMap = new Map<string, BulkDefect>(defects.map(defect => [defect.id || defect.photoNumber, defect]));
                 
                 // Reorder defects according to saved order
                 const reorderedDefects = sessionState.bulkDefectOrder
@@ -1540,7 +1540,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           console.log('🔄 Reordering existing bulk defects from session state:', sessionState.bulkDefectOrder);
           
           // Create a map for quick lookup
-          const defectMap = new Map(currentState.bulkDefects.map(defect => [defect.id || defect.photoNumber, defect]));
+          const defectMap = new Map<string, BulkDefect>(currentState.bulkDefects.map(defect => [defect.id || defect.photoNumber, defect]));
           
           // Reorder defects according to saved order
           const reorderedDefects = sessionState.bulkDefectOrder
