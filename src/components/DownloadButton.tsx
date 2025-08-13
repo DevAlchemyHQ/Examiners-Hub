@@ -7,11 +7,8 @@ import { useValidation } from '../hooks/useValidation';
 import { useBulkValidation } from '../hooks/useBulkValidation';
 import { useAnalytics } from '../hooks/useAnalytics';
 import { 
-  transformSelectedImagesForLambda, 
-  transformBulkDefectsForLambda, 
-  validateTransformedData 
+  transformSelectedImagesForLambda
 } from '../utils/downloadTransformers';
-import { getFullApiUrl } from '../utils/apiConfig';
 import { validateDescription } from '../utils/fileValidation';
 import { toast } from 'react-hot-toast';
 
@@ -67,8 +64,8 @@ export const DownloadButton: React.FC = () => {
       trackUserAction('download_attempt', 'download_button_click');
 
       if (viewMode === 'bulk') {
-        // Handle bulk mode download - Call Lambda function
-        console.log('Bulk mode download - calling Lambda');
+        // Handle bulk mode download - Use local generateBulkZip function
+        console.log('Bulk mode download - using local generateBulkZip function');
         
         if (isSubscriptionExpired) {
           throw new Error('Your subscription has expired. Please upgrade to continue.');
@@ -81,82 +78,12 @@ export const DownloadButton: React.FC = () => {
           throw new Error('Please select images for at least one defect');
         }
 
-        // Transform bulk defects to unified format (same as BulkTextInput.tsx)
-        const originalBulkData = { bulkDefects, images, formData };
-        const transformedData = transformBulkDefectsForLambda(bulkDefects, images, formData);
+        console.log('🚀 Using local generateBulkZip function for bulk download...');
         
-        // Validate that transformation preserves core functionality
-        if (!validateTransformedData(originalBulkData, transformedData, 'bulk')) {
-          throw new Error('Data transformation validation failed');
-        }
-
-        console.log('🚀 Calling Lambda for bulk download with unified format...');
+        // Use the local generateBulkZip function instead of calling Lambda
+        await useMetadataStore.getState().generateBulkZip();
         
-        // Call Lambda function for bulk mode (same as BulkTextInput.tsx)
-        const apiUrl = getFullApiUrl();
-        console.log('🌐 Using API endpoint:', apiUrl);
-        
-        const response = await new Promise((resolve, reject) => {
-          const xhr = new XMLHttpRequest();
-          xhr.open('POST', apiUrl, true);
-          xhr.setRequestHeader('Content-Type', 'application/json');
-          
-          // Set longer timeout for download generation (Lambda can take time)
-          xhr.timeout = 90000; // 90 seconds - increased for large ZIP files
-          
-          xhr.onload = function() {
-            if (xhr.status >= 200 && xhr.status < 300) {
-              resolve({
-                ok: true,
-                status: xhr.status,
-                statusText: xhr.statusText,
-                headers: new Headers(),
-                json: () => Promise.resolve(JSON.parse(xhr.responseText))
-              });
-            } else {
-              reject(new Error(`HTTP ${xhr.status}: ${xhr.statusText}`));
-            }
-          };
-          
-          xhr.onerror = function() {
-            reject(new Error('Network request failed'));
-          };
-          
-          xhr.ontimeout = function() {
-            reject(new Error('Request timeout - download generation took too long. Please try again or contact support if this persists.'));
-          };
-          
-          xhr.send(JSON.stringify(transformedData));
-        });
-
-        if (!response.ok) {
-          let errorMessage = 'Bulk download failed';
-          try {
-            const errorData = await response.json();
-            errorMessage = errorData.error || errorMessage;
-          } catch (parseError) {
-            console.error('Failed to parse error response:', parseError);
-            errorMessage = `HTTP ${response.status}: ${response.statusText}`;
-          }
-          throw new Error(errorMessage);
-        }
-
-        const result = await response.json();
-        
-        if (!result.success) {
-          throw new Error(result.error || 'Bulk download failed');
-        }
-
-        console.log('✅ Lambda bulk response received, download URL:', result.downloadUrl);
-        
-        // Download the file using a hidden link to prevent page flickering
-        const downloadLink = document.createElement('a');
-        downloadLink.href = result.downloadUrl;
-        downloadLink.download = `${formData.elr}_${formData.structureNo}_bulk_defects.zip`;
-        downloadLink.style.display = 'none';
-        document.body.appendChild(downloadLink);
-        downloadLink.click();
-        document.body.removeChild(downloadLink);
+        console.log('✅ Local bulk download completed successfully');
 
         // Track bulk download success
         trackBulkDownload(transformedData.selectedImages.length, bulkDefects.length);
