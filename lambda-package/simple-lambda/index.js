@@ -54,6 +54,7 @@ exports.handler = async (event) => {
     if (mode === 'bulk') {
       // Handle bulk mode - process bulk defects
       console.log('Processing bulk defects mode');
+      console.log('Bulk defects data structure:', JSON.stringify(selectedImages, null, 2));
       
       // Format date as DD-MM-YY (shared for metadata and filenames)
       const formatDate = (dateString) => {
@@ -89,13 +90,12 @@ exports.handler = async (event) => {
         try {
           console.log(`Processing bulk defect: ${defect.photoNumber} - ${defect.selectedFile}`);
 
-          // Find the corresponding image in the images array
-          const image = defect.image || { s3Key: defect.s3Key, filename: defect.selectedFile };
-
-          console.log(`S3 Key for defect ${defect.photoNumber}:`, image.s3Key);
+          // The defect object contains s3Key directly
+          const s3Key = defect.s3Key;
+          console.log(`S3 Key for defect ${defect.photoNumber}:`, s3Key);
           console.log(`Bucket name:`, process.env.S3_BUCKET_NAME || 'mvp-labeler-storage');
 
-          if (!image.s3Key) {
+          if (!s3Key) {
             console.warn(`No S3 key for defect ${defect.photoNumber}, skipping`);
             continue;
           }
@@ -103,7 +103,7 @@ exports.handler = async (event) => {
           // Get image from S3
           const getObjectCommand = new GetObjectCommand({
             Bucket: process.env.S3_BUCKET_NAME || 'mvp-labeler-storage',
-            Key: image.s3Key
+            Key: s3Key
           });
 
           const response = await s3Client.send(getObjectCommand);
@@ -122,6 +122,14 @@ exports.handler = async (event) => {
 
         } catch (error) {
           console.error(`Error processing bulk defect ${defect.photoNumber}:`, error);
+          console.error(`Defect details:`, {
+            photoNumber: defect.photoNumber,
+            description: defect.description,
+            selectedFile: defect.selectedFile,
+            s3Key: defect.s3Key,
+            errorMessage: error.message,
+            errorCode: error.Code || error.code
+          });
           // Continue with other defects
         }
       }
