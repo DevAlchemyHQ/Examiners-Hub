@@ -128,6 +128,12 @@ interface MetadataState extends MetadataStateOnly {
   restoreSessionState: () => Promise<void>;
   updateSessionState: (updates: Partial<SessionState>) => void;
   clearSessionState: () => void;
+  // Enhanced AWS save function for comprehensive cross-browser persistence
+  saveAllUserDataToAWS: () => Promise<void>;
+  // Enhanced load function for comprehensive cross-browser data restoration
+  loadAllUserDataFromAWS: () => Promise<void>;
+  // Cache AWS data to localStorage for faster access
+  cacheDataToLocalStorage: () => void;
 }
 
 // Helper function for debounced AWS session state saves
@@ -2282,6 +2288,179 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       localStorage.removeItem(`${keys.formData}-session-state`);
     } catch (error) {
       console.error('Error clearing session state:', error);
+    }
+  },
+
+  // Enhanced AWS save function for comprehensive cross-browser persistence
+  saveAllUserDataToAWS: async () => {
+    try {
+      const state = get();
+      const storedUser = localStorage.getItem('user');
+      const user = storedUser ? JSON.parse(storedUser) : null;
+      
+      if (!user?.email) {
+        console.log('⚠️ No user email found, skipping AWS save');
+        return;
+      }
+      
+      console.log('🔄 Saving ALL user data to AWS for cross-browser persistence...');
+      
+      // Prepare comprehensive data package
+      const dataPackage = {
+        formData: state.formData,
+        images: state.images.map(img => ({
+          id: img.id,
+          fileName: img.fileName,
+          fileSize: img.fileSize,
+          fileType: img.fileType,
+          photoNumber: img.photoNumber,
+          description: img.description,
+          isSketch: img.isSketch,
+          publicUrl: img.publicUrl,
+          userId: img.userId,
+          s3Key: img.s3Key,
+          timestamp: img.timestamp
+        })),
+        selectedImages: state.selectedImages.map(item => ({
+          id: item.id,
+          instanceId: item.instanceId,
+          fileName: item.fileName,
+          photoNumber: item.photoNumber,
+          description: item.description,
+          userId: item.userId
+        })),
+        bulkDefects: state.bulkDefects.map(defect => ({
+          id: defect.id,
+          photoNumber: defect.photoNumber,
+          description: defect.description,
+          selectedFile: defect.selectedFile,
+          userId: defect.userId,
+          timestamp: defect.timestamp
+        })),
+        sessionState: {
+          ...state.sessionState,
+          lastActiveTime: Date.now(),
+          imageOrder: state.images.map(img => img.id),
+          selectedImageOrder: state.selectedImages.map(item => item.instanceId),
+          bulkDefectOrder: state.bulkDefects.map(defect => defect.id || defect.photoNumber),
+          formData: state.formData
+        }
+      };
+      
+      console.log('📦 Data package prepared:', {
+        formData: !!dataPackage.formData,
+        imagesCount: dataPackage.images.length,
+        selectedImagesCount: dataPackage.selectedImages.length,
+        bulkDefectsCount: dataPackage.bulkDefects.length,
+        sessionState: !!dataPackage.sessionState
+      });
+      
+      // Save to AWS
+      const { DatabaseService } = await import('../lib/services');
+      const result = await DatabaseService.updateProject(user.email, 'current', dataPackage);
+      
+      if (result.success) {
+        console.log('✅ ALL user data saved to AWS successfully for cross-browser persistence');
+        // Update last save timestamp
+        localStorage.setItem('last-comprehensive-aws-save', Date.now().toString());
+      } else {
+        console.error('❌ Failed to save user data to AWS:', result.error);
+      }
+    } catch (error) {
+      console.error('❌ Error saving all user data to AWS:', error);
+    }
+  },
+
+  // Enhanced load function for comprehensive cross-browser data restoration
+  loadAllUserDataFromAWS: async () => {
+    try {
+      const storedUser = localStorage.getItem('user');
+      const user = storedUser ? JSON.parse(storedUser) : null;
+      
+      if (!user?.email) {
+        console.log('⚠️ No user email found, skipping AWS load');
+        return;
+      }
+      
+      console.log('🔄 Loading ALL user data from AWS for cross-browser restoration...');
+      
+      const { DatabaseService } = await import('../lib/services');
+      const result = await DatabaseService.getProject(user.email, 'current');
+      
+      if (!result.project) {
+        console.log('⚠️ No project data found in AWS');
+        return;
+      }
+      
+      console.log('📦 AWS project data loaded:', {
+        hasFormData: !!result.project.formData,
+        hasImages: !!result.project.images,
+        hasSelectedImages: !!result.project.selectedImages,
+        hasBulkDefects: !!result.project.bulkDefects,
+        hasSessionState: !!result.project.sessionState
+      });
+      
+      // Restore form data
+      if (result.project.formData) {
+        set({ formData: result.project.formData });
+        console.log('✅ Form data restored from AWS');
+      }
+      
+      // Restore images
+      if (result.project.images && Array.isArray(result.project.images)) {
+        set({ images: result.project.images });
+        console.log('✅ Images restored from AWS:', result.project.images.length);
+      }
+      
+      // Restore selected images
+      if (result.project.selectedImages && Array.isArray(result.project.selectedImages)) {
+        set({ selectedImages: result.project.selectedImages });
+        console.log('✅ Selected images restored from AWS:', result.project.selectedImages.length);
+      }
+      
+      // Restore bulk defects
+      if (result.project.bulkDefects && Array.isArray(result.project.bulkDefects)) {
+        set({ bulkDefects: result.project.bulkDefects });
+        console.log('✅ Bulk defects restored from AWS:', result.project.bulkDefects.length);
+      }
+      
+      // Restore session state
+      if (result.project.sessionState) {
+        set({ sessionState: result.project.sessionState });
+        console.log('✅ Session state restored from AWS');
+        
+        // Restore view mode
+        if (result.project.sessionState.lastActiveTab) {
+          set({ viewMode: result.project.sessionState.lastActiveTab });
+          console.log('✅ View mode restored from AWS:', result.project.sessionState.lastActiveTab);
+        }
+      }
+      
+      // Cache to localStorage for faster future access
+      this.cacheDataToLocalStorage();
+      
+      console.log('✅ ALL user data restored from AWS successfully');
+    } catch (error) {
+      console.error('❌ Error loading user data from AWS:', error);
+    }
+  },
+
+  // Cache AWS data to localStorage for faster access
+  cacheDataToLocalStorage: () => {
+    try {
+      const state = get();
+      const keys = getUserSpecificKeys();
+      
+      // Cache all data to localStorage
+      localStorage.setItem(keys.formData, JSON.stringify(state.formData));
+      localStorage.setItem(keys.images, JSON.stringify(state.images));
+      localStorage.setItem(keys.selections, JSON.stringify(state.selectedImages));
+      localStorage.setItem(keys.bulkData, JSON.stringify(state.bulkDefects));
+      localStorage.setItem(`${keys.formData}-session-state`, JSON.stringify(state.sessionState));
+      
+      console.log('💾 Data cached to localStorage for faster access');
+    } catch (error) {
+      console.error('❌ Error caching data to localStorage:', error);
     }
   },
 }));

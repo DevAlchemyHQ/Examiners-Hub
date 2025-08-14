@@ -56,13 +56,22 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   logout: async () => {
     set({ isLoading: true });
     try {
-      // Save all user data to AWS before logout
+      // Save ALL user data to AWS before logout for cross-browser persistence
       try {
         const { useMetadataStore } = await import('./metadataStore');
-        await useMetadataStore.getState().saveUserData();
-        console.log('✅ User data saved to AWS before logout');
+        console.log('💾 Saving comprehensive user data to AWS before logout...');
+        await useMetadataStore.getState().saveAllUserDataToAWS();
+        console.log('✅ Comprehensive user data saved to AWS before logout');
       } catch (error) {
-        console.error('❌ Error saving user data before logout:', error);
+        console.error('❌ Error saving comprehensive user data before logout:', error);
+        
+        // Fallback to old save method
+        try {
+          await useMetadataStore.getState().saveUserData();
+          console.log('✅ User data saved to AWS using fallback method');
+        } catch (fallbackError) {
+          console.error('❌ Fallback save also failed:', fallbackError);
+        }
       }
       
       await AuthService.signOut();
@@ -155,39 +164,25 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         }
       });
       
-      // Reset all Zustand stores
+      console.log('✅ All application data cleared successfully');
+      
+      // Reset all stores to initial state
       try {
-        // Import and reset metadata store
         const { useMetadataStore } = await import('./metadataStore');
-        useMetadataStore.getState().reset();
-        console.log('✅ Metadata store reset on logout');
-        
-        // Import and reset PDF store if available
-        const { usePDFStore } = await import('./pdfStore');
-        usePDFStore.getState().reset();
-        console.log('✅ PDF store reset on logout');
-        
-        // Import and reset project store if available
         const { useProjectStore } = await import('./projectStore');
-        // Don't call clearProject as it's async and we're already in logout
-        // Just reset the state
-        useProjectStore.setState({ isLoading: false, error: null, isClearing: false });
-        console.log('✅ Project store reset on logout');
+        
+        useMetadataStore.getState().reset();
+        useProjectStore.getState().clearProject();
+        
+        console.log('✅ All stores reset to initial state');
       } catch (error) {
-        console.error('Error resetting stores on logout:', error);
+        console.error('Error resetting stores:', error);
       }
       
-      console.log('✅ All application data cleared on logout');
-      set({ isAuthenticated: false, user: null });
     } catch (error) {
-      console.error('Logout error:', error);
-      // Even if signOut fails, clear local state
-      localStorage.removeItem('isAuthenticated');
-      localStorage.removeItem('user');
-      localStorage.removeItem('userEmail');
-      set({ isAuthenticated: false, user: null });
+      console.error('Error during logout:', error);
     } finally {
-      set({ isLoading: false });
+      set({ isAuthenticated: false, user: null, isLoading: false });
     }
   },
   
