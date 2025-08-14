@@ -260,3 +260,4 @@ Located in `src/utils/downloadTransformers.ts` and `src/utils/downloadTransforme
 
 MIT
 # Trigger Amplify deployment
+# Amplify deployment trigger
