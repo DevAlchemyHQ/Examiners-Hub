@@ -128,12 +128,9 @@ interface MetadataState extends MetadataStateOnly {
   restoreSessionState: () => Promise<void>;
   updateSessionState: (updates: Partial<SessionState>) => void;
   clearSessionState: () => void;
-  // Enhanced AWS save function for comprehensive cross-browser persistence
-  saveAllUserDataToAWS: () => Promise<void>;
-  // Enhanced load function for comprehensive cross-browser data restoration
   loadAllUserDataFromAWS: () => Promise<void>;
-  // Cache AWS data to localStorage for faster access
-  cacheDataToLocalStorage: () => void;
+  saveAllUserDataToAWS: () => Promise<void>;
+  smartAutoSave: (dataType: 'form' | 'images' | 'bulk' | 'selections' | 'session' | 'all' = 'all') => Promise<void>;
 }
 
 // Helper function for debounced AWS session state saves
@@ -328,11 +325,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
     set((state) => {
       const newFormData = { ...state.formData, ...data };
       
-      // Auto-save to localStorage immediately
-      const keys = getUserSpecificKeys();
-      localStorage.setItem(keys.formData, JSON.stringify(newFormData));
-      
-      // Auto-save to AWS with throttling to reduce costs
+      // Use smart auto-save for cross-browser persistence
       (async () => {
         try {
           // Check if project is being cleared
@@ -341,25 +334,21 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             return;
           }
           
-          // Get user from localStorage to avoid circular import
-          const storedUser = localStorage.getItem('user');
-          const user = storedUser ? JSON.parse(storedUser) : null;
+          // Update session state with new form data
+          const updatedSessionState = {
+            ...state.sessionState,
+            formData: newFormData,
+            lastActiveTime: Date.now()
+          };
           
-          if (user?.email) {
-            console.log('💾 Saving form data to AWS:', newFormData);
-            // Use static import - save immediately for cross-browser persistence
-            await DatabaseService.updateProject(user.email, 'current', { 
-              formData: newFormData,
-              sessionState: {
-                ...get().sessionState,
-                formData: newFormData,
-                lastActiveTime: Date.now()
-              }
-            });
-            console.log('✅ Form data saved to AWS successfully');
-          }
+          // Update session state first
+          set({ sessionState: updatedSessionState });
+          
+          // Use smart auto-save for comprehensive persistence
+          await get().smartAutoSave('form');
+          
         } catch (error) {
-          console.error('Error saving form data to AWS:', error);
+          console.error('Error in form data auto-save:', error);
         }
       })();
       
@@ -1383,6 +1372,16 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
     
     // Update session state
     get().updateSessionState({ lastActiveTab: mode });
+    
+    // Use smart auto-save for cross-browser persistence when switching tabs
+    (async () => {
+      try {
+        await get().smartAutoSave('session');
+        console.log('✅ Tab switch data saved to AWS for cross-browser persistence');
+      } catch (error) {
+        console.error('❌ Error saving tab switch data to AWS:', error);
+      }
+    })();
   },
 
   saveBulkData: async () => {
@@ -1504,9 +1503,8 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             
             if (defects && defects.length > 0) {
               // Restore order from session state if available
-              const sessionState = get().sessionState;
               if (sessionState.bulkDefectOrder && sessionState.bulkDefectOrder.length > 0) {
-                console.log('🔄 Restoring bulk defect order from session state (AWS):', sessionState.bulkDefectOrder);
+                console.log('🔄 Restoring bulk defect order from session state:', sessionState.bulkDefectOrder);
                 
                 // Create a map for quick lookup
                 const defectMap = new Map<string, BulkDefect>(defects.map(defect => [defect.id || defect.photoNumber, defect]));
@@ -1524,29 +1522,116 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
                 const finalDefects = [...reorderedDefects, ...remainingDefects];
                 set({ bulkDefects: finalDefects });
                 console.log('✅ Bulk defects loaded and reordered from AWS:', finalDefects.length);
+                
+                // Cache to localStorage for faster future access
+                localStorage.setItem(userSpecificKeys.bulkData, JSON.stringify(finalDefects));
+                console.log('💾 Cached bulk defects to localStorage');
               } else {
                 set({ bulkDefects: defects });
                 console.log('✅ Bulk defects loaded from AWS (no order restoration):', defects.length);
+                
+                // Cache to localStorage for faster future access
+                localStorage.setItem(userSpecificKeys.bulkData, JSON.stringify(defects));
+                console.log('💾 Cached bulk defects to localStorage');
               }
               return;
-            } else {
-              console.log('📭 No defects found in AWS');
             }
           }
         } catch (error) {
-          console.warn('⚠️ AWS load failed, continuing with empty state:', error);
+          console.error('❌ Error loading bulk data from AWS:', error);
         }
       }
       
-      // Check if bulk defects are already loaded but need reordering
-      if (currentState.bulkDefects && currentState.bulkDefects.length > 0) {
-        console.log('🔄 Bulk defects already loaded, checking for reordering...');
+      // If we get here, no data was found
+      console.log('⚠️ No bulk data found from any source');
+      set({ bulkDefects: [] });
+    } catch (error) {
+      console.error('Error loading bulk data:', error);
+      set({ bulkDefects: [] });
+    }
+  },
+
+  // NEW FUNCTION: Load all user data from AWS for cross-browser persistence
+  loadAllUserDataFromAWS: async () => {
+    try {
+      console.log('🌐 loadAllUserDataFromAWS: Starting AWS data load...');
+      
+      const storedUser = localStorage.getItem('user');
+      const user = storedUser ? JSON.parse(storedUser) : null;
+      const userId = user?.email || localStorage.getItem('userEmail') || 'anonymous';
+      
+      if (userId === 'anonymous') {
+        console.log('⚠️ No authenticated user, skipping AWS load');
+        return;
+      }
+      
+      console.log('👤 Loading AWS data for user:', userId);
+      
+      // Load all data from AWS in parallel
+      const [projectResult, bulkDefectsResult, selectedImagesResult, instanceMetadataResult] = await Promise.allSettled([
+        // Load project data (form data + session state)
+        DatabaseService.getProject(userId, 'current'),
+        // Load bulk defects
+        DatabaseService.getBulkDefects(userId),
+        // Load selected images
+        DatabaseService.getSelectedImages(userId),
+        // Load instance metadata
+        DatabaseService.getInstanceMetadata(userId)
+      ]);
+      
+      // Process project data (form data + session state)
+      if (projectResult.status === 'fulfilled' && projectResult.value.project) {
+        const project = projectResult.value.project;
+        console.log('📋 Project data loaded from AWS:', {
+          hasFormData: !!project.formData,
+          hasSessionState: !!project.sessionState,
+          hasSortPreferences: !!project.sortPreferences
+        });
+        
+        // Update form data if available
+        if (project.formData) {
+          set({ formData: project.formData });
+          console.log('✅ Form data loaded from AWS');
+          
+          // Cache to localStorage for faster future access
+          const keys = getUserSpecificKeys();
+          localStorage.setItem(keys.formData, JSON.stringify(project.formData));
+        }
+        
+        // Update session state if available
+        if (project.sessionState) {
+          set({ sessionState: project.sessionState });
+          console.log('✅ Session state loaded from AWS');
+          
+          // Cache to localStorage for faster future access
+          const keys = getUserSpecificKeys();
+          localStorage.setItem(`${keys.formData}-session-state`, JSON.stringify(project.sessionState));
+        }
+        
+        // Update sort preferences if available
+        if (project.sortPreferences) {
+          const { defectSortDirection, sketchSortDirection } = project.sortPreferences;
+          set({ defectSortDirection, sketchSortDirection });
+          console.log('✅ Sort preferences loaded from AWS');
+        }
+      } else {
+        console.log('⚠️ No project data found in AWS');
+      }
+      
+      // Process bulk defects
+      if (bulkDefectsResult.status === 'fulfilled' && bulkDefectsResult.value.defects) {
+        const defects = bulkDefectsResult.value.defects;
+        console.log('📦 Bulk defects loaded from AWS:', defects.length);
+        
+        // Restore order from session state if available
+        const currentState = get();
+        const sessionState = currentState.sessionState;
         
         if (sessionState.bulkDefectOrder && sessionState.bulkDefectOrder.length > 0) {
-          console.log('🔄 Reordering existing bulk defects from session state:', sessionState.bulkDefectOrder);
+          console.log('🔄 Restoring bulk defect order from session state');
           
           // Create a map for quick lookup
-          const defectMap = new Map<string, BulkDefect>(currentState.bulkDefects.map(defect => [defect.id || defect.photoNumber, defect]));
+          const defectMap = new Map<string, BulkDefect>(defects.map(defect => [defect.id || defect.photoNumber, defect]));
           
           // Reorder defects according to saved order
           const reorderedDefects = sessionState.bulkDefectOrder
@@ -1554,26 +1639,244 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             .filter(Boolean) as BulkDefect[];
           
           // Add any defects not in the saved order at the end
-          const remainingDefects = currentState.bulkDefects.filter(defect => 
+          const remainingDefects = defects.filter(defect => 
             !sessionState.bulkDefectOrder.includes(defect.id || defect.photoNumber)
           );
           
           const finalDefects = [...reorderedDefects, ...remainingDefects];
           set({ bulkDefects: finalDefects });
-          console.log('✅ Existing bulk defects reordered from session state:', finalDefects.length);
-          return;
+          
+          // Cache to localStorage for faster future access
+          const keys = getUserSpecificKeys();
+          localStorage.setItem(keys.bulkData, JSON.stringify(finalDefects));
         } else {
-          console.log('✅ Bulk defects already loaded, no reordering needed');
-          return;
+          set({ bulkDefects: defects });
+          
+          // Cache to localStorage for faster future access
+          const keys = getUserSpecificKeys();
+          localStorage.setItem(keys.bulkData, JSON.stringify(defects));
+        }
+        
+        console.log('✅ Bulk defects loaded and cached from AWS');
+      } else {
+        console.log('⚠️ No bulk defects found in AWS');
+      }
+      
+      // Process selected images
+      if (selectedImagesResult.status === 'fulfilled' && selectedImagesResult.value) {
+        const selectedImages = selectedImagesResult.value;
+        console.log('📸 Selected images loaded from AWS:', selectedImages.length);
+        
+        // Migrate selected image IDs to match current S3 image IDs
+        const currentImages = get().images;
+        const migratedSelections = migrateSelectedImageIds(selectedImages, currentImages);
+        
+        set({ selectedImages: migratedSelections });
+        console.log('✅ Selected images loaded and migrated from AWS');
+        
+        // Cache to localStorage for faster future access
+        const keys = getUserSpecificKeys();
+        localStorage.setItem(keys.selections, JSON.stringify(migratedSelections));
+      } else {
+        console.log('⚠️ No selected images found in AWS');
+      }
+      
+      // Process instance metadata
+      if (instanceMetadataResult.status === 'fulfilled' && instanceMetadataResult.value) {
+        const instanceMetadata = instanceMetadataResult.value;
+        console.log('🏷️ Instance metadata loaded from AWS');
+        
+        set({ instanceMetadata });
+        console.log('✅ Instance metadata loaded from AWS');
+        
+        // Cache to localStorage for faster future access
+        const keys = getUserSpecificKeys();
+        localStorage.setItem(`${keys.selections}-instance-metadata`, JSON.stringify(instanceMetadata));
+      } else {
+        console.log('⚠️ No instance metadata found in AWS');
+      }
+      
+      console.log('✅ AWS data load completed successfully');
+      
+    } catch (error) {
+      console.error('❌ Error loading AWS data:', error);
+    }
+  },
+
+  // NEW FUNCTION: Save all user data to AWS for cross-browser persistence
+  saveAllUserDataToAWS: async () => {
+    try {
+      console.log('🌐 saveAllUserDataToAWS: Starting AWS data save...');
+      
+      const storedUser = localStorage.getItem('user');
+      const user = storedUser ? JSON.parse(storedUser) : null;
+      const userId = user?.email || localStorage.getItem('userEmail') || 'anonymous';
+      
+      if (userId === 'anonymous') {
+        console.log('⚠️ No authenticated user, skipping AWS save');
+        return;
+      }
+      
+      console.log('👤 Saving AWS data for user:', userId);
+      
+      const state = get();
+      const { formData, bulkDefects, selectedImages, instanceMetadata, sessionState, defectSortDirection, sketchSortDirection } = state;
+      
+      // Save all data to AWS in parallel
+      const savePromises = [
+        // Save project data (form data + session state + sort preferences)
+        DatabaseService.updateProject(userId, 'current', {
+          formData,
+          sessionState,
+          sortPreferences: {
+            defectSortDirection,
+            sketchSortDirection
+          }
+        }),
+        // Save bulk defects
+        DatabaseService.updateBulkDefects(userId, bulkDefects),
+        // Save selected images
+        DatabaseService.updateSelectedImages(userId, selectedImages),
+        // Save instance metadata
+        DatabaseService.saveInstanceMetadata(userId, instanceMetadata)
+      ];
+      
+      const results = await Promise.allSettled(savePromises);
+      
+      // Check results
+      const [projectResult, bulkResult, selectedResult, metadataResult] = results;
+      
+      if (projectResult.status === 'fulfilled') {
+        console.log('✅ Project data saved to AWS');
+      } else {
+        console.error('❌ Failed to save project data:', projectResult.reason);
+      }
+      
+      if (bulkResult.status === 'fulfilled') {
+        console.log('✅ Bulk defects saved to AWS');
+      } else {
+        console.error('❌ Failed to save bulk defects:', bulkResult.reason);
+      }
+      
+      if (selectedResult.status === 'fulfilled') {
+        console.log('✅ Selected images saved to AWS');
+      } else {
+        console.error('❌ Failed to save selected images:', selectedResult.reason);
+      }
+      
+      if (metadataResult.status === 'fulfilled') {
+        console.log('✅ Instance metadata saved to AWS');
+      } else {
+        console.error('❌ Failed to save instance metadata:', metadataResult.reason);
+      }
+      
+      console.log('✅ AWS data save completed');
+      
+    } catch (error) {
+      console.error('❌ Error saving AWS data:', error);
+    }
+  },
+
+  // NEW FUNCTION: Smart auto-save that saves to AWS for cross-browser persistence
+  smartAutoSave: async (dataType: 'form' | 'images' | 'bulk' | 'selections' | 'session' | 'all' = 'all') => {
+    try {
+      const storedUser = localStorage.getItem('user');
+      const user = storedUser ? JSON.parse(storedUser) : null;
+      const userId = user?.email || localStorage.getItem('userEmail') || 'anonymous';
+      
+      if (userId === 'anonymous') {
+        console.log('⚠️ No authenticated user, skipping smart auto-save');
+        return;
+      }
+      
+      // Check if project is being cleared - don't auto-save during clearing
+      const projectStore = useProjectStore.getState();
+      if (projectStore.isClearing) {
+        console.log('⏸️ Skipping smart auto-save during project clear');
+        return;
+      }
+      
+      console.log(`🔄 Smart auto-save triggered for: ${dataType}`);
+      
+      const state = get();
+      
+      // Save to localStorage immediately for fast access
+      const keys = getUserSpecificKeys();
+      
+      try {
+        switch (dataType) {
+          case 'form':
+            localStorage.setItem(keys.formData, JSON.stringify(state.formData));
+            break;
+          case 'images':
+            localStorage.setItem(keys.images, JSON.stringify(state.images));
+            break;
+          case 'bulk':
+            localStorage.setItem(keys.bulkData, JSON.stringify(state.bulkDefects));
+            break;
+          case 'selections':
+            localStorage.setItem(keys.selections, JSON.stringify(state.selectedImages));
+            localStorage.setItem(`${keys.selections}-instance-metadata`, JSON.stringify(state.instanceMetadata));
+            break;
+          case 'session':
+            localStorage.setItem(`${keys.formData}-session-state`, JSON.stringify(state.sessionState));
+            break;
+          case 'all':
+          default:
+            // Save all data to localStorage
+            localStorage.setItem(keys.formData, JSON.stringify(state.formData));
+            localStorage.setItem(keys.images, JSON.stringify(state.images));
+            localStorage.setItem(keys.bulkData, JSON.stringify(state.bulkDefects));
+            localStorage.setItem(keys.selections, JSON.stringify(state.selectedImages));
+            localStorage.setItem(`${keys.selections}-instance-metadata`, JSON.stringify(state.instanceMetadata));
+            localStorage.setItem(`${keys.formData}-session-state`, JSON.stringify(state.sessionState));
+            break;
+        }
+        console.log('✅ Data saved to localStorage');
+      } catch (error) {
+        console.warn('⚠️ localStorage save error:', error);
+      }
+      
+      // Save to AWS for cross-browser persistence (with debouncing to reduce costs)
+      if (dataType === 'all' || dataType === 'form' || dataType === 'session') {
+        try {
+          await DatabaseService.updateProject(userId, 'current', {
+            formData: state.formData,
+            sessionState: state.sessionState,
+            sortPreferences: {
+              defectSortDirection: state.defectSortDirection,
+              sketchSortDirection: state.sketchSortDirection
+            }
+          });
+          console.log('✅ Form data and session state saved to AWS');
+        } catch (error) {
+          console.error('❌ Error saving form data to AWS:', error);
         }
       }
       
-      // Fallback to empty state
-      console.log('📭 No bulk defects found, starting with empty state');
-      set({ bulkDefects: [] });
+      if (dataType === 'all' || dataType === 'bulk') {
+        try {
+          await DatabaseService.updateBulkDefects(userId, state.bulkDefects);
+          console.log('✅ Bulk defects saved to AWS');
+        } catch (error) {
+          console.error('❌ Error saving bulk defects to AWS:', error);
+        }
+      }
+      
+      if (dataType === 'all' || dataType === 'selections') {
+        try {
+          await DatabaseService.updateSelectedImages(userId, state.selectedImages);
+          await DatabaseService.saveInstanceMetadata(userId, state.instanceMetadata);
+          console.log('✅ Selected images and metadata saved to AWS');
+        } catch (error) {
+          console.error('❌ Error saving selected images to AWS:', error);
+        }
+      }
+      
+      console.log(`✅ Smart auto-save completed for: ${dataType}`);
+      
     } catch (error) {
-      console.error('❌ Error loading bulk data:', error);
-      set({ bulkDefects: [] });
+      console.error('❌ Error in smart auto-save:', error);
     }
   },
 
@@ -2288,179 +2591,6 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       localStorage.removeItem(`${keys.formData}-session-state`);
     } catch (error) {
       console.error('Error clearing session state:', error);
-    }
-  },
-
-  // Enhanced AWS save function for comprehensive cross-browser persistence
-  saveAllUserDataToAWS: async () => {
-    try {
-      const state = get();
-      const storedUser = localStorage.getItem('user');
-      const user = storedUser ? JSON.parse(storedUser) : null;
-      
-      if (!user?.email) {
-        console.log('⚠️ No user email found, skipping AWS save');
-        return;
-      }
-      
-      console.log('🔄 Saving ALL user data to AWS for cross-browser persistence...');
-      
-      // Prepare comprehensive data package
-      const dataPackage = {
-        formData: state.formData,
-        images: state.images.map(img => ({
-          id: img.id,
-          fileName: img.fileName,
-          fileSize: img.fileSize,
-          fileType: img.fileType,
-          photoNumber: img.photoNumber,
-          description: img.description,
-          isSketch: img.isSketch,
-          publicUrl: img.publicUrl,
-          userId: img.userId,
-          s3Key: img.s3Key,
-          timestamp: img.timestamp
-        })),
-        selectedImages: state.selectedImages.map(item => ({
-          id: item.id,
-          instanceId: item.instanceId,
-          fileName: item.fileName,
-          photoNumber: item.photoNumber,
-          description: item.description,
-          userId: item.userId
-        })),
-        bulkDefects: state.bulkDefects.map(defect => ({
-          id: defect.id,
-          photoNumber: defect.photoNumber,
-          description: defect.description,
-          selectedFile: defect.selectedFile,
-          userId: defect.userId,
-          timestamp: defect.timestamp
-        })),
-        sessionState: {
-          ...state.sessionState,
-          lastActiveTime: Date.now(),
-          imageOrder: state.images.map(img => img.id),
-          selectedImageOrder: state.selectedImages.map(item => item.instanceId),
-          bulkDefectOrder: state.bulkDefects.map(defect => defect.id || defect.photoNumber),
-          formData: state.formData
-        }
-      };
-      
-      console.log('📦 Data package prepared:', {
-        formData: !!dataPackage.formData,
-        imagesCount: dataPackage.images.length,
-        selectedImagesCount: dataPackage.selectedImages.length,
-        bulkDefectsCount: dataPackage.bulkDefects.length,
-        sessionState: !!dataPackage.sessionState
-      });
-      
-      // Save to AWS
-      const { DatabaseService } = await import('../lib/services');
-      const result = await DatabaseService.updateProject(user.email, 'current', dataPackage);
-      
-      if (result.success) {
-        console.log('✅ ALL user data saved to AWS successfully for cross-browser persistence');
-        // Update last save timestamp
-        localStorage.setItem('last-comprehensive-aws-save', Date.now().toString());
-      } else {
-        console.error('❌ Failed to save user data to AWS:', result.error);
-      }
-    } catch (error) {
-      console.error('❌ Error saving all user data to AWS:', error);
-    }
-  },
-
-  // Enhanced load function for comprehensive cross-browser data restoration
-  loadAllUserDataFromAWS: async () => {
-    try {
-      const storedUser = localStorage.getItem('user');
-      const user = storedUser ? JSON.parse(storedUser) : null;
-      
-      if (!user?.email) {
-        console.log('⚠️ No user email found, skipping AWS load');
-        return;
-      }
-      
-      console.log('🔄 Loading ALL user data from AWS for cross-browser restoration...');
-      
-      const { DatabaseService } = await import('../lib/services');
-      const result = await DatabaseService.getProject(user.email, 'current');
-      
-      if (!result.project) {
-        console.log('⚠️ No project data found in AWS');
-        return;
-      }
-      
-      console.log('📦 AWS project data loaded:', {
-        hasFormData: !!result.project.formData,
-        hasImages: !!result.project.images,
-        hasSelectedImages: !!result.project.selectedImages,
-        hasBulkDefects: !!result.project.bulkDefects,
-        hasSessionState: !!result.project.sessionState
-      });
-      
-      // Restore form data
-      if (result.project.formData) {
-        set({ formData: result.project.formData });
-        console.log('✅ Form data restored from AWS');
-      }
-      
-      // Restore images
-      if (result.project.images && Array.isArray(result.project.images)) {
-        set({ images: result.project.images });
-        console.log('✅ Images restored from AWS:', result.project.images.length);
-      }
-      
-      // Restore selected images
-      if (result.project.selectedImages && Array.isArray(result.project.selectedImages)) {
-        set({ selectedImages: result.project.selectedImages });
-        console.log('✅ Selected images restored from AWS:', result.project.selectedImages.length);
-      }
-      
-      // Restore bulk defects
-      if (result.project.bulkDefects && Array.isArray(result.project.bulkDefects)) {
-        set({ bulkDefects: result.project.bulkDefects });
-        console.log('✅ Bulk defects restored from AWS:', result.project.bulkDefects.length);
-      }
-      
-      // Restore session state
-      if (result.project.sessionState) {
-        set({ sessionState: result.project.sessionState });
-        console.log('✅ Session state restored from AWS');
-        
-        // Restore view mode
-        if (result.project.sessionState.lastActiveTab) {
-          set({ viewMode: result.project.sessionState.lastActiveTab });
-          console.log('✅ View mode restored from AWS:', result.project.sessionState.lastActiveTab);
-        }
-      }
-      
-      // Cache to localStorage for faster future access
-      this.cacheDataToLocalStorage();
-      
-      console.log('✅ ALL user data restored from AWS successfully');
-    } catch (error) {
-      console.error('❌ Error loading user data from AWS:', error);
-    }
-  },
-
-  // Cache AWS data to localStorage for faster access
-  cacheDataToLocalStorage: () => {
-    try {
-      const state = get();
-      const keys = getUserSpecificKeys();
-      
-      // Cache all data to localStorage
-      localStorage.setItem(keys.formData, JSON.stringify(state.formData));
-      localStorage.setItem(keys.images, JSON.stringify(state.images));
-      localStorage.setItem(keys.selections, JSON.stringify(state.selectedImages));
-      localStorage.setItem(keys.bulkData, JSON.stringify(state.bulkDefects));
-      localStorage.setItem(`${keys.formData}-session-state`, JSON.stringify(state.sessionState));
-      
-      console.log('💾 Data cached to localStorage for faster access');
-    } catch (error) {
-      console.error('❌ Error caching data to localStorage:', error);
     }
   },
 }));

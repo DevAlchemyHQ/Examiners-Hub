@@ -45,7 +45,7 @@ function setLocalDefectSets(sets: any[]) {
   }
 }
 
-// Auto-save defect set on every modification
+// Auto-save defect set on every modification with cross-browser persistence
 async function autoSaveDefectSet(formData: any, bulkDefects: any[], selectedImages: Array<{ id: string; instanceId: string }>, images: any[]) {
   try {
     // Only save if we have project details
@@ -57,7 +57,8 @@ async function autoSaveDefectSet(formData: any, bulkDefects: any[], selectedImag
     
     // Get instance metadata from the store
     const { useMetadataStore } = await import('../store/metadataStore');
-    const instanceMetadata = useMetadataStore.getState().instanceMetadata;
+    const metadataStore = useMetadataStore.getState();
+    const instanceMetadata = metadataStore.instanceMetadata;
     
     const data = {
       defects: bulkDefects,
@@ -93,24 +94,33 @@ async function autoSaveDefectSet(formData: any, bulkDefects: any[], selectedImag
     
     setLocalDefectSets(sets);
     
-    // Save to AWS DynamoDB for cross-device persistence with rate limiting
-    const storedUser = localStorage.getItem('user');
-    const user = storedUser ? JSON.parse(storedUser) : null;
-    
-    if (user?.email) {
-      // Rate limiting: Only save every 15 seconds to prevent DynamoDB throughput issues
-      const lastDefectSetSaveTime = localStorage.getItem('last-defect-set-aws-save');
-      const now = Date.now();
-      const minInterval = 15000; // 15 seconds
+    // Use smart auto-save for comprehensive cross-browser persistence
+    try {
+      await metadataStore.smartAutoSave('all');
+      console.log('✅ Defect set auto-saved with cross-browser persistence');
+    } catch (error) {
+      console.error('❌ Error in smart auto-save:', error);
       
-      if (lastDefectSetSaveTime && (now - parseInt(lastDefectSetSaveTime)) < minInterval) {
-        return;
+      // Fallback to direct AWS save if smart auto-save fails
+      const storedUser = localStorage.getItem('user');
+      const user = storedUser ? JSON.parse(storedUser) : null;
+      
+      if (user?.email) {
+        // Rate limiting: Only save every 15 seconds to prevent DynamoDB throughput issues
+        const lastDefectSetSaveTime = localStorage.getItem('last-defect-set-aws-save');
+        const now = Date.now();
+        const minInterval = 15000; // 15 seconds
+        
+        if (lastDefectSetSaveTime && (now - parseInt(lastDefectSetSaveTime)) < minInterval) {
+          return;
+        }
+        
+        const { DatabaseService } = await import('../lib/services');
+        await DatabaseService.saveDefectSet(user.email, defectSet);
+        // Update the last save time only on success
+        localStorage.setItem('last-defect-set-aws-save', now.toString());
+        console.log('✅ Defect set fallback save completed');
       }
-      
-      const { DatabaseService } = await import('../lib/services');
-      await DatabaseService.saveDefectSet(user.email, defectSet);
-      // Update the last save time only on success
-      localStorage.setItem('last-defect-set-aws-save', now.toString());
     }
   } catch (error) {
     console.error('Error auto-saving defect set:', error);

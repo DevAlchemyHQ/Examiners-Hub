@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { AuthService, ProfileService } from '../../lib/services';
 import { EditProfile } from './EditProfile';
-import { User, Settings, LogOut, Mail, Calendar, MapPin, Phone, Globe, Award, Star, Heart, Zap, Target, Palette, Music, Gamepad2, BookOpen, Camera, Palette as PaletteIcon, Music as MusicIcon, Gamepad2 as GamepadIcon, BookOpen as BookIcon, Camera as CameraIcon, Save, Cloud, Database } from 'lucide-react';
+import { User, Settings, LogOut, Mail, Calendar, MapPin, Phone, Globe, Award, Star, Heart, Zap, Target, Palette, Music, Gamepad2, BookOpen, Camera, Palette as PaletteIcon, Music as MusicIcon, Gamepad2 as GamepadIcon, BookOpen as BookIcon, Camera as CameraIcon } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
-import { useMetadataStore } from '../../store/metadataStore';
 import { useNavigate } from 'react-router-dom';
 import type { UserProfile as UserProfileType } from '../../types/profile';
 import { StorageService } from '../../lib/services';
@@ -17,10 +16,7 @@ export const UserProfile: React.FC = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState('');
   const [isUploading, setIsUploading] = useState(false);
-  const [isSavingData, setIsSavingData] = useState(false);
-  const [lastSaveTime, setLastSaveTime] = useState<string | null>(null);
   const { logout, user } = useAuthStore();
-  const { saveAllUserDataToAWS, loadAllUserDataFromAWS } = useMetadataStore();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -170,59 +166,6 @@ export const UserProfile: React.FC = () => {
       setIsUploading(false);
     }
   };
-
-  // Add data persistence functions
-  const handleSaveDataToAWS = async () => {
-    try {
-      setIsSavingData(true);
-      setError(null);
-      setMessage(null);
-      
-      console.log('💾 Manual AWS save triggered by user...');
-      await saveAllUserDataToAWS();
-      
-      const now = new Date().toLocaleString();
-      setLastSaveTime(now);
-      setMessage('Data saved to AWS successfully! Your progress is now available across all browsers.');
-      
-      // Store the last save time
-      localStorage.setItem('last-manual-aws-save', now);
-      
-      setTimeout(() => setMessage(null), 5000);
-    } catch (error) {
-      console.error('❌ Manual AWS save failed:', error);
-      setError('Failed to save data to AWS. Please try again.');
-    } finally {
-      setIsSavingData(false);
-    }
-  };
-
-  const handleLoadDataFromAWS = async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      setMessage(null);
-      
-      console.log('🔄 Manual AWS load triggered by user...');
-      await loadAllUserDataFromAWS();
-      
-      setMessage('Data loaded from AWS successfully! Your progress has been restored.');
-      setTimeout(() => setMessage(null), 5000);
-    } catch (error) {
-      console.error('❌ Manual AWS load failed:', error);
-      setError('Failed to load data from AWS. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Load last save time on component mount
-  useEffect(() => {
-    const saved = localStorage.getItem('last-manual-aws-save');
-    if (saved) {
-      setLastSaveTime(saved);
-    }
-  }, []);
 
   if (isLoading) {
     return (
@@ -433,68 +376,6 @@ export const UserProfile: React.FC = () => {
                         {selectedEmoji}
                       </button>
                     </div>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
-                  Data Persistence
-                </h3>
-                
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      Cross-Browser Sync Status
-                    </label>
-                    <div className="p-3 border border-gray-200 dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-700">
-                      <div className="flex items-center justify-between">
-                        <span className="text-gray-700 dark:text-gray-300">
-                          {lastSaveTime ? `Last saved: ${lastSaveTime}` : 'Never saved'}
-                        </span>
-                        <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
-                          lastSaveTime 
-                            ? 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300'
-                            : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300'
-                        }`}>
-                          {lastSaveTime ? 'Synced' : 'Not Synced'}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex gap-2">
-                    <button
-                      onClick={handleSaveDataToAWS}
-                      disabled={isSavingData}
-                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    >
-                      {isSavingData ? (
-                        <>
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                          Saving...
-                        </>
-                      ) : (
-                        <>
-                          <Save size={16} />
-                          Save to Cloud
-                        </>
-                      )}
-                    </button>
-                    
-                    <button
-                      onClick={handleLoadDataFromAWS}
-                      disabled={isLoading}
-                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    >
-                      <Cloud size={16} />
-                      Load from Cloud
-                    </button>
-                  </div>
-
-                  <div className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 p-2 rounded">
-                    <p>💡 Your data is automatically saved every 2 minutes and when you log out.</p>
-                    <p>🔄 Use these buttons to manually sync your progress across different browsers.</p>
                   </div>
                 </div>
               </div>

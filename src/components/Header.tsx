@@ -499,6 +499,42 @@ export const Header: React.FC = React.memo(() => {
                       />
                     </div>
 
+                    {/* Cross-Browser Persistence Test */}
+                    <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-700">
+                      <button
+                        onClick={async () => {
+                          try {
+                            console.log('🧪 Testing cross-browser persistence...');
+                            
+                            const { smartAutoSave, loadAllUserDataFromAWS } = await import('../store/metadataStore');
+                            const metadataStore = useMetadataStore.getState();
+                            
+                            // Test saving all data to AWS
+                            console.log('💾 Testing AWS save...');
+                            await metadataStore.smartAutoSave('all');
+                            console.log('✅ AWS save test completed');
+                            
+                            // Test loading data from AWS
+                            console.log('📥 Testing AWS load...');
+                            await metadataStore.loadAllUserDataFromAWS();
+                            console.log('✅ AWS load test completed');
+                            
+                            console.log('🎉 Cross-browser persistence test completed successfully!');
+                            
+                            // Show success message
+                            alert('✅ Cross-browser persistence test completed successfully! Check console for details.');
+                            
+                          } catch (error) {
+                            console.error('❌ Cross-browser persistence test failed:', error);
+                            alert('❌ Cross-browser persistence test failed. Check console for details.');
+                          }
+                        }}
+                        className="w-full px-4 py-3 text-sm font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 flex items-center justify-center gap-2 transition-colors"
+                      >
+                        🧪 Test Cross-Browser Persistence
+                      </button>
+                    </div>
+
                     {/* Sign Out */}
                     <div className="px-6 pb-6">
                       <button

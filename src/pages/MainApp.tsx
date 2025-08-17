@@ -2,15 +2,15 @@ import React, { useEffect, useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { useMetadataStore } from '../store/metadataStore';
-import { LoginScreen } from '../components/LoginScreen';
-import { Header } from '../components/Header';
-import { MainLayout } from '../components/layout/MainLayout';
-import { FeedbackAdmin } from './FeedbackAdmin';
-import { UserProfile } from '../components/profile/UserProfile';
-import SubscriptionPage from './subscription.page';
-import { CalculatorPage } from './calculator.page';
-import { GamesPage } from './games.page';
-import { GridReferenceFinder } from '../components/GridReferenceFinder/GridReferenceFinder';
+import LoginScreen from '../components/LoginScreen';
+import Header from '../components/layout/Header';
+import MainLayout from '../components/layout/MainLayout';
+import FeedbackAdmin from '../components/FeedbackAdmin';
+import UserProfile from '../components/UserProfile';
+import SubscriptionPage from '../components/SubscriptionPage';
+import CalculatorPage from '../components/CalculatorPage';
+import GamesPage from '../components/GamesPage';
+import GridReferenceFinderPage from '../components/GridReferenceFinderPage';
 import RefreshBanner from '../components/RefreshBanner';
 
 const MainApp = () => {
@@ -70,7 +70,7 @@ const MainApp = () => {
   // Periodic session state saving to both localStorage and AWS
   useEffect(() => {
     if (isAuthenticated) {
-      const { saveSessionState } = useMetadataStore.getState();
+      const { saveSessionState, smartAutoSave } = useMetadataStore.getState();
       
       // Save session state to localStorage every 30 seconds
       const localStorageInterval = setInterval(() => {
@@ -81,7 +81,8 @@ const MainApp = () => {
       const awsInterval = setInterval(async () => {
         try {
           console.log('🔄 Periodic AWS save for cross-browser persistence...');
-          await saveAllUserDataToAWS();
+          await smartAutoSave('all');
+          console.log('✅ Periodic AWS save completed successfully');
         } catch (error) {
           console.error('❌ Periodic AWS save failed:', error);
         }
@@ -90,8 +91,8 @@ const MainApp = () => {
       // Save session state when user leaves the page
       const handleBeforeUnload = () => {
         saveSessionState();
-        // Also save to AWS before leaving
-        saveAllUserDataToAWS().catch(error => {
+        // Also save to AWS before leaving for cross-browser persistence
+        smartAutoSave('all').catch(error => {
           console.error('❌ AWS save before unload failed:', error);
         });
       };
@@ -104,7 +105,41 @@ const MainApp = () => {
         window.removeEventListener('beforeunload', handleBeforeUnload);
       };
     }
-  }, [isAuthenticated, saveAllUserDataToAWS]);
+  }, [isAuthenticated]);
+
+  // Test cross-browser persistence functionality
+  const testCrossBrowserPersistence = async () => {
+    try {
+      console.log('🧪 Testing cross-browser persistence...');
+      
+      const { smartAutoSave, loadAllUserDataFromAWS } = useMetadataStore.getState();
+      
+      // Test saving all data to AWS
+      console.log('💾 Testing AWS save...');
+      await smartAutoSave('all');
+      console.log('✅ AWS save test completed');
+      
+      // Test loading data from AWS
+      console.log('📥 Testing AWS load...');
+      await loadAllUserDataFromAWS();
+      console.log('✅ AWS load test completed');
+      
+      console.log('🎉 Cross-browser persistence test completed successfully!');
+      
+      // Show success message to user
+      if (typeof window !== 'undefined' && window.toast) {
+        window.toast.success('Cross-browser persistence test completed successfully!');
+      }
+      
+    } catch (error) {
+      console.error('❌ Cross-browser persistence test failed:', error);
+      
+      // Show error message to user
+      if (typeof window !== 'undefined' && window.toast) {
+        window.toast.error('Cross-browser persistence test failed. Check console for details.');
+      }
+    }
+  };
 
   // Show loading only if we haven't initialized yet (first time check)
   if (!isInitialized) {
@@ -132,7 +167,7 @@ const MainApp = () => {
         <Route path="subscriptions" element={<SubscriptionPage />} />
         <Route path="calculator" element={<CalculatorPage />} />
         <Route path="games" element={<GamesPage />} />
-        <Route path="grid" element={<GridReferenceFinder />} />
+        <Route path="grid" element={<GridReferenceFinderPage />} />
 
         <Route path="bcmi" element={<MainLayout />} />
         <Route path="*" element={<Navigate to="/" replace />} />
