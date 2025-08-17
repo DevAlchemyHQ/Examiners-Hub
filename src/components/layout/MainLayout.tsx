@@ -106,7 +106,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 
   return (
     <div className="h-screen w-full bg-gray-900 flex flex-col overflow-hidden">
-      <Header />
+      {/* Header removed - already rendered by MainApp */}
       {/* <MigrationStatus /> */}
       {/* <MigrationControls /> */}
       <main className="flex-1 w-full px-2 overflow-hidden bg-gray-900 h-full">
