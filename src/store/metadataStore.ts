@@ -130,7 +130,7 @@ interface MetadataState extends MetadataStateOnly {
   clearSessionState: () => void;
   loadAllUserDataFromAWS: () => Promise<void>;
   saveAllUserDataToAWS: () => Promise<void>;
-  smartAutoSave: (dataType: 'form' | 'images' | 'bulk' | 'selections' | 'session' | 'all' = 'all') => Promise<void>;
+  smartAutoSave: (dataType?: 'form' | 'images' | 'bulk' | 'selections' | 'session' | 'all') => Promise<void>;
 }
 
 // Helper function for debounced AWS session state saves
@@ -1779,6 +1779,8 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
 
   // NEW FUNCTION: Smart auto-save that saves to AWS for cross-browser persistence
   smartAutoSave: async (dataType: 'form' | 'images' | 'bulk' | 'selections' | 'session' | 'all' = 'all') => {
+    // Set default value if not provided
+    const effectiveDataType = dataType || 'all';
     try {
       const storedUser = localStorage.getItem('user');
       const user = storedUser ? JSON.parse(storedUser) : null;
@@ -1796,7 +1798,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         return;
       }
       
-      console.log(`🔄 Smart auto-save triggered for: ${dataType}`);
+      console.log(`🔄 Smart auto-save triggered for: ${effectiveDataType}`);
       
       const state = get();
       
@@ -1804,7 +1806,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       const keys = getUserSpecificKeys();
       
       try {
-        switch (dataType) {
+        switch (effectiveDataType) {
           case 'form':
             localStorage.setItem(keys.formData, JSON.stringify(state.formData));
             break;
@@ -1838,7 +1840,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       }
       
       // Save to AWS for cross-browser persistence (with debouncing to reduce costs)
-      if (dataType === 'all' || dataType === 'form' || dataType === 'session') {
+      if (effectiveDataType === 'all' || effectiveDataType === 'form' || effectiveDataType === 'session') {
         try {
           await DatabaseService.updateProject(userId, 'current', {
             formData: state.formData,
@@ -1854,7 +1856,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         }
       }
       
-      if (dataType === 'all' || dataType === 'bulk') {
+      if (effectiveDataType === 'all' || effectiveDataType === 'bulk') {
         try {
           await DatabaseService.updateBulkDefects(userId, state.bulkDefects);
           console.log('✅ Bulk defects saved to AWS');
@@ -1863,7 +1865,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         }
       }
       
-      if (dataType === 'all' || dataType === 'selections') {
+      if (effectiveDataType === 'all' || effectiveDataType === 'selections') {
         try {
           await DatabaseService.updateSelectedImages(userId, state.selectedImages);
           await DatabaseService.saveInstanceMetadata(userId, state.instanceMetadata);
@@ -1873,7 +1875,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         }
       }
       
-      console.log(`✅ Smart auto-save completed for: ${dataType}`);
+      console.log(`✅ Smart auto-save completed for: ${effectiveDataType}`);
       
     } catch (error) {
       console.error('❌ Error in smart auto-save:', error);
