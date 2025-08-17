@@ -109,67 +109,22 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       {/* Header removed - already rendered by MainApp */}
       {/* <MigrationStatus /> */}
       {/* <MigrationControls /> */}
-      <main className="flex-1 w-full px-2 overflow-hidden bg-gray-900 h-full">
-        <div className="flex-shrink-0">
-          <div className="flex items-center justify-between border-b border-slate-200 dark:border-gray-700">
-            <div className="flex items-center gap-0.5">
-              {[
-                { id: 'images', icon: Images, label: 'Images' },
-                { id: 'calculator', icon: Calculator, label: 'Calc' },
-                { id: 'grid', icon: Map, label: 'Grid' },
-                { id: 'bcmi', icon: Brain, label: 'BCMI & AI' },
-                { id: 'games', icon: GameController, label: 'Games' },
-                { id: 'project', icon: FolderOpen, label: 'Project' }
-              ].map(({ id, icon: Icon, label }) => (
-                <button
-                  key={id}
-                  onClick={() => setActiveTab(id as TabType)}
-                  className={`flex items-center gap-1 px-2 py-1.5 min-w-[70px] ${
-                    activeTab === id
-                      ? 'border-b-2 border-indigo-500 text-indigo-500'
-                      : 'text-slate-600 dark:text-gray-300'
-                  }`}
-                >
-                  <Icon size={14} />
-                  <span className="text-xs whitespace-nowrap">{label}</span>
-                </button>
-              ))}
-            </div>
-            
-            {/* Clear project buttons - always visible when on Images tab */}
-            {activeTab === 'images' && (
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => useProjectStore.getState().testAWSOperations()}
-                  className="flex items-center gap-1 px-3 py-1.5 bg-blue-500 text-white rounded text-xs hover:bg-blue-600 transition-colors"
-                >
-                  <Brain size={12} />
-                  Test AWS
-                </button>
-                <button
-                  onClick={() => setShowClearConfirm(true)}
-                  disabled={isClearingProject || isLoading}
-                  className="flex items-center gap-1 px-3 py-1.5 bg-red-500 text-white rounded text-xs hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <Trash2 size={12} />
-                  {isClearingProject || isLoading ? 'Clearing...' : 'Clear Project'}
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-
+      <main className="flex-1 w-full overflow-hidden bg-gray-900 h-full">
+        {/* Removed duplicate navigation tabs - they're already in the main header */}
+        
         <div className="flex-1 h-[calc(100vh-120px)]">
           {/* Remove opacity transition to prevent flickering */}
           <div className="h-full">
             {activeTab === 'images' ? (
-              <div className="h-full grid grid-cols-1 lg:grid-cols-12 gap-4">
+              <div className="h-full grid grid-cols-1 lg:grid-cols-12 gap-0">
                 <div className="lg:col-span-2 overflow-hidden">
                   {/* Pass isLoading to Sidebar for skeletons */}
                   <Sidebar isLoading={isPageLoading} />
                 </div>
                 {/* Pass isLoading to MainContent for skeletons */}
-                <MainContent isLoading={isPageLoading} />
+                <div className="lg:col-span-10 overflow-hidden">
+                  <MainContent isLoading={isPageLoading} />
+                </div>
               </div>
             ) : activeTab === 'calculator' ? (
               <CalculatorTabs />
