@@ -74,10 +74,10 @@ export const MainContent: React.FC<{ isLoading?: boolean }> = ({ isLoading }) =>
   }, [updateSessionState]);
 
   return (
-    <div className="h-full grid grid-cols-1 lg:grid-cols-12 gap-4">
+    <div className="h-full flex gap-0">
       {/* Image Grid - Hide when expanded */}
       {!isExpanded && (
-        <div className="h-full lg:col-span-6">
+        <div className="h-full flex-1">
           <div ref={imageGridRef} className="h-full">
             <ImageGrid />
           </div>
@@ -87,7 +87,7 @@ export const MainContent: React.FC<{ isLoading?: boolean }> = ({ isLoading }) =>
       {/* Selected Images Panel - Expand to full width when expanded */}
       <div 
         className={`h-full transition-all duration-300 ${
-          isExpanded ? 'lg:col-span-12' : 'lg:col-span-6'
+          isExpanded ? 'flex-1' : 'flex-1'
         }`}
       >
         <div ref={selectedPanelRef} className="h-full overflow-y-auto overflow-x-hidden scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent hover:scrollbar-thumb-slate-400 dark:hover:scrollbar-thumb-slate-400">

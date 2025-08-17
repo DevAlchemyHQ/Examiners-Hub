@@ -116,13 +116,13 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           {/* Remove opacity transition to prevent flickering */}
           <div className="h-full">
             {activeTab === 'images' ? (
-              <div className="h-full grid grid-cols-1 lg:grid-cols-12 gap-0">
-                <div className="lg:col-span-2 overflow-hidden">
+              <div className="h-full flex">
+                <div className="w-64 flex-shrink-0 overflow-hidden">
                   {/* Pass isLoading to Sidebar for skeletons */}
                   <Sidebar isLoading={isPageLoading} />
                 </div>
                 {/* Pass isLoading to MainContent for skeletons */}
-                <div className="lg:col-span-10 overflow-hidden">
+                <div className="flex-1 overflow-hidden">
                   <MainContent isLoading={isPageLoading} />
                 </div>
               </div>
