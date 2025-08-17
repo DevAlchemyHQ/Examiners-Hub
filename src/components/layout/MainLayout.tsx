@@ -117,12 +117,8 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           <div className="h-full">
             {activeTab === 'images' ? (
               <div className="h-full grid grid-cols-1 lg:grid-cols-12 gap-0">
-                <div className="lg:col-span-1 overflow-hidden">
-                  {/* Pass isLoading to Sidebar for skeletons */}
-                  <Sidebar isLoading={isPageLoading} />
-                </div>
-                {/* Pass isLoading to MainContent for skeletons */}
-                <div className="lg:col-span-11 overflow-hidden">
+                {/* MainContent now takes full width to extend to left edge */}
+                <div className="lg:col-span-12 overflow-hidden">
                   <MainContent isLoading={isPageLoading} />
                 </div>
               </div>
