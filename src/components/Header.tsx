@@ -95,7 +95,23 @@ export const Header: React.FC = React.memo(() => {
     { path: '/faq', label: 'FAQ' },
   ], []);
 
-  const profileImage = useMemo(() => user?.user_metadata.avatar_url || '🚂', [user?.user_metadata.avatar_url]);
+  const profileImage = useMemo(() => {
+    const avatarUrl = user?.user_metadata?.avatar_url;
+    console.log('🔍 Profile image debug:', {
+      hasUser: !!user,
+      hasUserMetadata: !!user?.user_metadata,
+      avatarUrl,
+      fullUserMetadata: user?.user_metadata
+    });
+    
+    // If we have a valid avatar URL, use it
+    if (avatarUrl && avatarUrl !== '' && avatarUrl !== '🚂') {
+      return avatarUrl;
+    }
+    
+    // Fallback to emoji or default
+    return user?.user_metadata?.avatar_emoji || '🚂';
+  }, [user?.user_metadata?.avatar_url, user?.user_metadata?.avatar_emoji]);
   const subscriptionPlan = useMemo(() => user?.user_metadata.subscription_plan, [user?.user_metadata.subscription_plan]);
   const subscriptionStatus = useMemo(() => user?.user_metadata.subscription_status || 'active', [user?.user_metadata.subscription_status]);
   const subscriptionEndDate = useMemo(() => user?.user_metadata.subscription_end_date || '', [user?.user_metadata.subscription_end_date]);
@@ -290,6 +306,84 @@ export const Header: React.FC = React.memo(() => {
     navigate(path);
     setActiveTab(path);
   }, [navigate]);
+
+  // Test cross-browser persistence functionality
+  const testCrossBrowserPersistence = async () => {
+    try {
+      console.log('🧪 Testing cross-browser persistence...');
+      
+      const { smartAutoSave, loadAllUserDataFromAWS } = useMetadataStore.getState();
+      
+      // Test saving all data to AWS
+      console.log('💾 Testing AWS save...');
+      await smartAutoSave('all');
+      console.log('✅ AWS save test completed');
+      
+      // Test loading data from AWS
+      console.log('📥 Testing AWS load...');
+      await loadAllUserDataFromAWS();
+      console.log('✅ AWS load test completed');
+      
+      console.log('🎉 Cross-browser persistence test completed successfully!');
+      
+      // Show success message to user
+      if (typeof window !== 'undefined' && window.toast) {
+        window.toast.success('Cross-browser persistence test completed successfully!');
+      }
+      
+    } catch (error) {
+      console.error('❌ Cross-browser persistence test failed:', error);
+      
+      // Show error message to user
+      if (typeof window !== 'undefined' && window.toast) {
+        window.toast.error('Cross-browser persistence test failed. Check console for details.');
+      }
+    }
+  };
+
+  // Refresh profile data to fix avatar display issues
+  const refreshProfileData = async () => {
+    try {
+      console.log('🔄 Refreshing profile data...');
+      
+      if (!user?.id || !user?.email) {
+        console.error('❌ No user ID or email available');
+        return;
+      }
+      
+      const { ProfileService } = await import('../lib/services');
+      const profileResult = await ProfileService.getOrCreateUserProfile(user.id, user.email);
+      
+      if (profileResult) {
+        console.log('✅ Profile data refreshed:', profileResult);
+        
+        // Update user with fresh profile data
+        const updatedUser = {
+          ...user,
+          user_metadata: {
+            ...user.user_metadata,
+            avatar_url: profileResult.avatar_url,
+            avatar_emoji: profileResult.avatar_emoji,
+            full_name: profileResult.full_name || user.user_metadata?.full_name
+          }
+        };
+        
+        // Update the user in the store
+        const { setUser } = useAuthStore.getState();
+        setUser(updatedUser);
+        
+        console.log('✅ User updated with fresh profile data');
+        alert('✅ Profile data refreshed! Check if your avatar is now visible.');
+      } else {
+        console.error('❌ Failed to refresh profile data');
+        alert('❌ Failed to refresh profile data. Check console for details.');
+      }
+      
+    } catch (error) {
+      console.error('❌ Error refreshing profile data:', error);
+      alert('❌ Error refreshing profile data. Check console for details.');
+    }
+  };
 
   return (
     <>
@@ -532,6 +626,16 @@ export const Header: React.FC = React.memo(() => {
                         className="w-full px-4 py-3 text-sm font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 flex items-center justify-center gap-2 transition-colors"
                       >
                         🧪 Test Cross-Browser Persistence
+                      </button>
+                    </div>
+
+                    {/* Refresh Profile Data */}
+                    <div className="px-6 py-2">
+                      <button
+                        onClick={refreshProfileData}
+                        className="w-full px-4 py-3 text-sm font-medium text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 flex items-center justify-center gap-2 transition-colors"
+                      >
+                        🔄 Refresh Profile Data
                       </button>
                     </div>
 

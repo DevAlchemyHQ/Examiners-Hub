@@ -1559,17 +1559,27 @@ export class ProfileService {
   static async getOrCreateUserProfile(userId: string, email: string) {
     try {
       console.log('🗄️ AWS ProfileService getOrCreateUserProfile:', userId);
+      
+      // First try to get existing profile
       const result = await DatabaseService.getProfile(userId);
       
-      if (result.profile) {
+      if (result.profile && result.profile.avatar_url) {
+        console.log('✅ Found existing profile with avatar:', result.profile.avatar_url);
         return result.profile;
       }
       
-      // Create new profile if doesn't exist
+      // If profile exists but has no avatar, return it (don't overwrite)
+      if (result.profile) {
+        console.log('⚠️ Found existing profile but no avatar, returning as-is');
+        return result.profile;
+      }
+      
+      // Only create new profile if none exists
+      console.log('🆕 Creating new profile for user:', userId);
       const newProfile = {
         user_id: userId,
         email: email,
-        full_name: '',
+        full_name: email.split('@')[0] || 'User',
         avatar_url: '',
         avatar_emoji: '😊',
         created_at: new Date().toISOString(),
