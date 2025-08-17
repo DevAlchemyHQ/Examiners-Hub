@@ -2,15 +2,15 @@ import React, { useEffect, useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { useMetadataStore } from '../store/metadataStore';
-import LoginScreen from '../components/LoginScreen';
-import Header from '../components/layout/Header';
-import MainLayout from '../components/layout/MainLayout';
-import FeedbackAdmin from '../components/FeedbackAdmin';
-import UserProfile from '../components/UserProfile';
-import SubscriptionPage from '../components/SubscriptionPage';
-import CalculatorPage from '../components/CalculatorPage';
-import GamesPage from '../components/GamesPage';
-import GridReferenceFinderPage from '../components/GridReferenceFinderPage';
+import { LoginScreen } from '../components/LoginScreen';
+import { Header } from '../components/Header';
+import { MainLayout } from '../components/layout/MainLayout';
+import { FeedbackAdmin } from './FeedbackAdmin';
+import { UserProfile } from '../components/profile/UserProfile';
+import SubscriptionPage from './subscription.page';
+import { CalculatorPage } from './calculator.page';
+import { GamesPage } from './games.page';
+import { GridReferenceFinder } from '../components/GridReferenceFinder/GridReferenceFinder';
 import RefreshBanner from '../components/RefreshBanner';
 
 const MainApp = () => {
@@ -132,7 +132,7 @@ const MainApp = () => {
         <Route path="subscriptions" element={<SubscriptionPage />} />
         <Route path="calculator" element={<CalculatorPage />} />
         <Route path="games" element={<GamesPage />} />
-        <Route path="grid" element={<GridReferenceFinderPage />} />
+        <Route path="grid" element={<GridReferenceFinder />} />
 
         <Route path="bcmi" element={<MainLayout />} />
         <Route path="*" element={<Navigate to="/" replace />} />

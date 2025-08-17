@@ -11,8 +11,8 @@ import { useMetadataStore } from '../../store/metadataStore';
 import { usePDFStore } from '../../store/pdfStore';
 import { useProjectStore } from '../../store/projectStore';
 import { FeedbackTab } from '../FeedbackTab';
-import { MigrationStatus } from '../MigrationStatus';
-import { MigrationControls } from '../MigrationControls';
+// import { MigrationStatus } from '../MigrationStatus';
+// import { MigrationControls } from '../MigrationControls';
 import { useLocation } from 'react-router-dom';
 
 type TabType = 'images' | 'calculator' | 'bcmi' | 'grid' | 'games' | 'project';
@@ -95,20 +95,20 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       <>
         <Header />
         {children}
-        <MigrationStatus />
-        <MigrationControls />
+        {/* <MigrationStatus /> */}
+        {/* <MigrationControls /> */}
         <FeedbackTab />
       </>
     );
   }
 
-  const isLoading = isClearingProject || isLoading;
+  const isPageLoading = isClearingProject || isLoading;
 
   return (
     <div className="h-screen w-full bg-gray-900 flex flex-col overflow-hidden">
       <Header />
-      <MigrationStatus />
-      <MigrationControls />
+      {/* <MigrationStatus /> */}
+      {/* <MigrationControls /> */}
       <main className="flex-1 w-full px-2 overflow-hidden bg-gray-900 h-full">
         <div className="flex-shrink-0">
           <div className="flex items-center justify-between border-b border-slate-200 dark:border-gray-700">
@@ -166,10 +166,10 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               <div className="h-full grid grid-cols-1 lg:grid-cols-12 gap-4">
                 <div className="lg:col-span-2 overflow-hidden">
                   {/* Pass isLoading to Sidebar for skeletons */}
-                  <Sidebar isLoading={isLoading} />
+                  <Sidebar isLoading={isPageLoading} />
                 </div>
                 {/* Pass isLoading to MainContent for skeletons */}
-                <MainContent isLoading={isLoading} />
+                <MainContent isLoading={isPageLoading} />
               </div>
             ) : activeTab === 'calculator' ? (
               <CalculatorTabs />
