@@ -1202,6 +1202,7 @@ export class DatabaseService {
   static async updateBulkDefects(userId: string, defects: any[]) {
     try {
       console.log('🗄️ AWS DynamoDB updateBulkDefects:', userId);
+      console.log('📊 Defects to save:', defects);
       
       // First, get existing defects to delete them
       const queryCommand = new QueryCommand({
@@ -1212,7 +1213,9 @@ export class DatabaseService {
         }
       });
       
+      console.log('🔍 Querying existing defects...');
       const existingDefects = await docClient.send(queryCommand);
+      console.log('📊 Existing defects found:', existingDefects.Items?.length || 0);
       
       // Delete existing defects using batch operations
       if (existingDefects.Items && existingDefects.Items.length > 0) {
@@ -1225,6 +1228,7 @@ export class DatabaseService {
           }
         }));
         
+        console.log('🗑️ Deleting existing defects...');
         // DynamoDB batch operations are limited to 25 items
         const batchSize = 25;
         for (let i = 0; i < deleteRequests.length; i += batchSize) {
@@ -1235,7 +1239,9 @@ export class DatabaseService {
             }
           });
           
-          await docClient.send(batchDeleteCommand);
+          console.log(`🗑️ Deleting batch ${Math.floor(i / batchSize) + 1}...`);
+          const deleteResult = await docClient.send(batchDeleteCommand);
+          console.log('🗑️ Delete result:', deleteResult);
         }
         
         console.log(`🗑️ Deleted ${existingDefects.Items.length} existing defects`);
@@ -1243,19 +1249,27 @@ export class DatabaseService {
       
       // Add new defects using batch operations
       if (defects.length > 0) {
-        const putRequests = defects.map(defect => ({
-          PutRequest: {
-            Item: {
-              user_id: userId,
-              defect_id: defect.id || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-              photoNumber: defect.photoNumber || '',
-              description: defect.description || '',
-              selectedFile: defect.selectedFile || '',
-              severity: defect.severity || 'medium',
-              created_at: new Date().toISOString()
+        console.log('➕ Adding new defects...');
+        const putRequests = defects.map(defect => {
+          const defectId = defect.id || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+          console.log(`➕ Processing defect:`, { defectId, defect });
+          
+          return {
+            PutRequest: {
+              Item: {
+                user_id: userId,
+                defect_id: defectId,
+                photoNumber: defect.photoNumber || '',
+                description: defect.description || '',
+                selectedFile: defect.selectedFile || '',
+                severity: defect.severity || 'medium',
+                created_at: new Date().toISOString()
+              }
             }
-          }
-        }));
+          };
+        });
+        
+        console.log('📊 Put requests prepared:', putRequests.length);
         
         // DynamoDB batch operations are limited to 25 items
         const batchSize = 25;
@@ -1267,15 +1281,25 @@ export class DatabaseService {
             }
           });
           
-          await docClient.send(batchPutCommand);
+          console.log(`➕ Adding batch ${Math.floor(i / batchSize) + 1}...`);
+          const putResult = await docClient.send(batchPutCommand);
+          console.log('➕ Put result:', putResult);
         }
         
         console.log(`✅ Added ${defects.length} new defects`);
+      } else {
+        console.log('⚠️ No defects to add');
       }
       
       return { success: true, error: null };
     } catch (error) {
-      console.error('AWS DynamoDB updateBulkDefects error:', error);
+      console.error('❌ AWS DynamoDB updateBulkDefects error:', error);
+      console.error('❌ Error details:', {
+        name: error.name,
+        message: error.message,
+        code: error.code,
+        statusCode: error.statusCode
+      });
       return { success: false, error };
     }
   }
