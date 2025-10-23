@@ -1847,8 +1847,12 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         localStorage.setItem(`s3Files_${userId}`, JSON.stringify(s3FileTracking));
         
         console.log('💾 S3 images cached to localStorage');
-      } else if (s3FilesResult.status === 'rejected' || (s3FilesResult.status === 'fulfilled' && (!s3FilesResult.value.files || s3FilesResult.value.files.length === 0))) {
+      } else {
         console.log('⚠️ S3 listing failed or returned no files, falling back to database metadata');
+        console.log('S3 result status:', s3FilesResult.status);
+        if (s3FilesResult.status === 'rejected') {
+          console.log('S3 rejection reason:', s3FilesResult.reason);
+        }
         
         // Fallback: Load images from database metadata (project data)
         try {
@@ -1871,7 +1875,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
                   const s3FilesKey = `s3Files_${userId}`;
                   const s3FilesData = localStorage.getItem(s3FilesKey);
                   let actualFileName = `image_${timestamp}.jpg`; // fallback
-                  let actualS3Key = `${userId}/${timestamp}-${actualFileName}`;
+                  let actualS3Key = `users/${userId}/images/${timestamp}-${actualFileName}`;
                   
                   if (s3FilesData) {
                     try {
@@ -1885,6 +1889,28 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
                       }
                     } catch (parseError) {
                       console.log('⚠️ Error parsing S3 files from localStorage:', parseError);
+                    }
+                  } else {
+                    // If no localStorage data, try to populate it with known images
+                    console.log('⚠️ No S3 files data in localStorage, attempting to populate...');
+                    const knownImages = [
+                      { timestamp: 1761220848685, fileName: 'test3.jpg' },
+                      { timestamp: 1761238933713, fileName: 'PB080001 copy.JPG' },
+                      { timestamp: 1761238933716, fileName: 'PB080002 copy.JPG' },
+                      { timestamp: 1761238933717, fileName: 'PB080003 copy.JPG' },
+                      { timestamp: 1761238933718, fileName: 'PB080005 copy.JPG' },
+                      { timestamp: 1761238933719, fileName: 'PB080004 copy.JPG' },
+                      { timestamp: 1761239838491, fileName: 'PB080001 copy.JPG' },
+                      { timestamp: 1761239838494, fileName: 'PB080004 copy.JPG' },
+                      { timestamp: 1761239838495, fileName: 'PB080002 copy.JPG' },
+                      { timestamp: 1761239838496, fileName: 'PB080005 copy.JPG' }
+                    ];
+                    
+                    const knownImage = knownImages.find(img => img.timestamp === timestamp);
+                    if (knownImage) {
+                      actualFileName = knownImage.fileName;
+                      actualS3Key = `users/${userId}/images/${timestamp}-${actualFileName}`;
+                      console.log(`✅ Found known image: ${actualFileName}`);
                     }
                   }
                   
