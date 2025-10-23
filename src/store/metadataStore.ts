@@ -1867,28 +1867,45 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
                   // Extract timestamp from image ID (format: img--timestamp)
                   const timestamp = parseInt(imageId.split('--')[1]);
                   
-                  // Generate a filename based on the image ID
-                  const fileName = `image_${timestamp}.jpg`;
+                  // Try to find the actual S3 filename by checking localStorage first
+                  const s3FilesKey = `s3Files_${userId}`;
+                  const s3FilesData = localStorage.getItem(s3FilesKey);
+                  let actualFileName = `image_${timestamp}.jpg`; // fallback
+                  let actualS3Key = `${userId}/${timestamp}-${actualFileName}`;
                   
-                  // Generate S3 URL based on the image ID
-                  const s3Key = `${userId}/${timestamp}-${fileName}`;
-                  const s3Url = `https://mvp-labeler-storage.s3.eu-west-2.amazonaws.com/${s3Key}`;
+                  if (s3FilesData) {
+                    try {
+                      const s3Files = JSON.parse(s3FilesData);
+                      const matchingFile = s3Files.find((file: any) => 
+                        file.uploadTime === timestamp || file.s3Key.includes(timestamp.toString())
+                      );
+                      if (matchingFile) {
+                        actualFileName = matchingFile.fileName;
+                        actualS3Key = matchingFile.s3Key;
+                      }
+                    } catch (parseError) {
+                      console.log('⚠️ Error parsing S3 files from localStorage:', parseError);
+                    }
+                  }
+                  
+                  // Generate S3 URL based on the actual S3 key
+                  const s3Url = `https://mvp-labeler-storage.s3.eu-west-2.amazonaws.com/${actualS3Key}`;
                   
                   // Get metadata from instanceMetadata if available
                   const metadata = instanceMetadata && instanceMetadata[imageId] ? instanceMetadata[imageId] : {};
                   
-                  console.log(`🔄 Processing image from database metadata: ${fileName}`);
+                  console.log(`🔄 Processing image from database metadata: ${actualFileName}`);
                   console.log(`🔄 S3 URL: ${s3Url}`);
                   
                   const imageMetadata: ImageMetadata = {
                     id: imageId,
-                    fileName: fileName,
+                    fileName: actualFileName,
                     file: null, // No local file for S3 images
                     preview: s3Url,
-                    s3Key: s3Key,
+                    s3Key: actualS3Key,
                     s3Url: s3Url,
                     uploadTime: timestamp,
-                    isSketch: fileName.toLowerCase().includes('sketch'),
+                    isSketch: actualFileName.toLowerCase().includes('sketch'),
                     description: metadata.description || '',
                     photoNumber: metadata.photoNumber || '',
                     assignedNumber: null
