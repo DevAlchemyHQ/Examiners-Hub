@@ -1,7 +1,7 @@
 // AWS Services Configuration
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, GetCommand, PutCommand, UpdateCommand, DeleteCommand, QueryCommand, ScanCommand, BatchWriteCommand } from '@aws-sdk/lib-dynamodb';
-import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, ListObjectsV2Command, DeleteObjectsCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { CognitoIdentityProviderClient, InitiateAuthCommand, SignUpCommand, ConfirmSignUpCommand, AdminCreateUserCommand, AdminGetUserCommand, AdminInitiateAuthCommand, AdminDeleteUserCommand, AdminConfirmSignUpCommand, AdminUpdateUserAttributesCommand, ForgotPasswordCommand, ConfirmForgotPasswordCommand, ResendConfirmationCodeCommand } from '@aws-sdk/client-cognito-identity-provider';
 
@@ -897,6 +897,60 @@ export class StorageService {
       return { files: [], error };
     }
   }
+
+  static async deleteUserFiles(userId: string) {
+    try {
+      console.log('🗄️ AWS S3 deleteUserFiles for user:', userId);
+      
+      const prefix = `users/${userId}/images/`;
+      
+      // First, list all files for this user
+      const listCommand = new ListObjectsV2Command({
+        Bucket: BUCKET_NAME,
+        Prefix: prefix
+      });
+      
+      const listResult = await s3Client.send(listCommand);
+      
+      if (!listResult.Contents || listResult.Contents.length === 0) {
+        console.log('✅ No files found for user:', userId);
+        return { success: true, deletedCount: 0, error: null };
+      }
+      
+      console.log(`📊 Found ${listResult.Contents.length} files to delete for user:`, userId);
+      
+      // Delete files in batches (S3 allows up to 1000 objects per batch)
+      const batchSize = 1000;
+      let deletedCount = 0;
+      
+      for (let i = 0; i < listResult.Contents.length; i += batchSize) {
+        const batch = listResult.Contents.slice(i, i + batchSize);
+        
+        const deleteObjects = batch.map(obj => ({
+          Key: obj.Key!
+        }));
+        
+        const deleteCommand = new DeleteObjectsCommand({
+          Bucket: BUCKET_NAME,
+          Delete: {
+            Objects: deleteObjects
+          }
+        });
+        
+        const deleteResult = await s3Client.send(deleteCommand);
+        deletedCount += deleteResult.Deleted?.length || 0;
+        
+        console.log(`✅ Deleted batch ${Math.floor(i / batchSize) + 1}: ${deleteResult.Deleted?.length || 0} files`);
+      }
+      
+      console.log(`✅ Successfully deleted ${deletedCount} files for user:`, userId);
+      return { success: true, deletedCount, error: null };
+      
+    } catch (error) {
+      console.error('AWS S3 deleteUserFiles error:', error);
+      return { success: false, deletedCount: 0, error };
+    }
+  }
 }
 
 // Database Service
@@ -1004,6 +1058,16 @@ export class DatabaseService {
           
           // Merge new data with existing project data to preserve images and other data
           const existingProject = getProjectResult.project;
+          
+          // Deep merge sessionState if it exists in both objects
+          let mergedSessionState = existingProject.sessionState || {};
+          if (smallData.sessionState) {
+            mergedSessionState = {
+              ...mergedSessionState,
+              ...smallData.sessionState
+            };
+          }
+          
           const mergedProjectData = isClearing ? {
             // When clearing, replace data instead of merging
             ...smallData,
@@ -1012,6 +1076,7 @@ export class DatabaseService {
             // Normal update: preserve existing data and apply new data
             ...existingProject,  // Preserve existing data
             ...smallData,        // Apply new data
+            sessionState: mergedSessionState, // Use deep-merged sessionState
             updated_at: new Date().toISOString()
           };
           
