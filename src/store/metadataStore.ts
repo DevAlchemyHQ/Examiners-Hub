@@ -939,7 +939,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         console.error('Error saving bulk defects to localStorage:', error);
       }
       
-      // Auto-save to AWS in background with rate limiting to prevent throughput issues
+      // Auto-save to AWS immediately for cross-browser consistency
       (async () => {
         try {
           // Check if project is being cleared
@@ -948,24 +948,16 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             return;
           }
           
-          // Rate limiting: Only save every 10 seconds to prevent DynamoDB throughput issues
-          const lastBulkSaveTime = localStorage.getItem('last-bulk-aws-save');
-          const now = Date.now();
-          const minInterval = 10000; // 10 seconds
-          
-          if (lastBulkSaveTime && (now - parseInt(lastBulkSaveTime)) < minInterval) {
-            return;
-          }
-          
           const storedUser = localStorage.getItem('user');
           const user = storedUser ? JSON.parse(storedUser) : null;
           
           if (user?.email) {
-            // Use static import
+            console.log('🔄 Auto-save triggered for bulk defects:', newBulkDefects);
             const result = await DatabaseService.updateBulkDefects(user.email, newBulkDefects);
             if (result.success) {
-              // Update the last save time only on success
-              localStorage.setItem('last-bulk-aws-save', now.toString());
+              console.log('✅ Manual save: Bulk defects saved to AWS for user:', user.email);
+            } else {
+              console.error('❌ Failed to save bulk defects to AWS:', result.error);
             }
           }
         } catch (error) {
