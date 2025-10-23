@@ -1910,10 +1910,13 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
                     ];
                     
                     const knownImage = knownImages.find(img => img.timestamp === timestamp);
+                    console.log(`🔍 Looking for timestamp ${timestamp} in knownImages:`, knownImages.map(img => img.timestamp));
                     if (knownImage) {
                       actualFileName = knownImage.fileName;
                       actualS3Key = `users/${userId}/images/${timestamp}-${actualFileName}`;
                       console.log(`✅ Found known image: ${actualFileName}`);
+                    } else {
+                      console.log(`❌ No known image found for timestamp ${timestamp}`);
                     }
                   }
                   
