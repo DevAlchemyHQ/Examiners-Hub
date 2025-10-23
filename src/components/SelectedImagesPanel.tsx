@@ -303,11 +303,43 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
   const { gridWidth } = useGridWidth();
   
   const [enlargedImage, setEnlargedImage] = useState<string | null>(null);
+  const [enlargedImageIndex, setEnlargedImageIndex] = useState<number | null>(null);
+  const [clickPosition, setClickPosition] = useState<{ x: number; y: number } | null>(null);
   const [showLoadTray, setShowLoadTray] = useState(false);
   const [savedSets, setSavedSets] = useState<{id: string, title: string, data: any, created_at: string, updated_at?: string}[]>([]);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [showBulkPaste, setShowBulkPaste] = useState(false);
+
+  // Navigation handlers for zoom
+  const handleImageEnlarge = (index: number, event: React.MouseEvent) => {
+    event.stopPropagation();
+    setEnlargedImageIndex(index);
+    setEnlargedImage(selectedImagesList[index].preview);
+    setClickPosition({ x: event.clientX, y: event.clientY });
+  };
+
+  const handleCloseEnlarged = () => {
+    setEnlargedImage(null);
+    setEnlargedImageIndex(null);
+    setClickPosition(null);
+  };
+
+  const handlePreviousImage = () => {
+    if (enlargedImageIndex !== null && enlargedImageIndex > 0) {
+      const newIndex = enlargedImageIndex - 1;
+      setEnlargedImageIndex(newIndex);
+      setEnlargedImage(selectedImagesList[newIndex].preview);
+    }
+  };
+
+  const handleNextImage = () => {
+    if (enlargedImageIndex !== null && enlargedImageIndex < selectedImagesList.length - 1) {
+      const newIndex = enlargedImageIndex + 1;
+      setEnlargedImageIndex(newIndex);
+      setEnlargedImage(selectedImagesList[newIndex].preview);
+    }
+  };
 
   // Auto-save on every modification
   useEffect(() => {
@@ -1184,7 +1216,7 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
                       />
                     </div>
                   </div>
-                  {sketchImages.map((img) => (
+                  {sketchImages.map((img, index) => (
                     <div key={img.instanceId || img.id} className={`relative flex flex-col bg-slate-50 dark:bg-gray-700 rounded-lg overflow-hidden group ${
                       isTileIncomplete(img) ? 'bg-amber-50/30 dark:bg-amber-900/20' : ''
                     }`}>
@@ -1193,7 +1225,7 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
                           src={img.preview}
                           alt={img.fileName || img.file?.name || 'Image'}
                           className="w-full h-full object-cover cursor-pointer hover:opacity-95 transition-opacity select-none"
-                          onClick={() => setEnlargedImage(img.preview)}
+                          onClick={(e) => handleImageEnlarge(index, e)}
                           draggable="false"
                           style={{ width: '100%', height: '100%' }}
                         />
@@ -1233,7 +1265,7 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
               {/* Defects Section */}
               {defectImages.length > 0 && (
                 <>
-                  {defectImages.map((img) => (
+                  {defectImages.map((img, index) => (
                     <div key={img.instanceId || img.id} className={`relative bg-white dark:bg-gray-800 rounded-lg border overflow-hidden shadow-sm group ${
                       isTileIncomplete(img) ? 'bg-amber-50/30 dark:bg-amber-900/20' : 'border-gray-200 dark:border-gray-700'
                     }`}>
@@ -1242,7 +1274,7 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
                           src={img.preview}
                           alt={img.fileName || img.file?.name || 'Image'}
                           className="w-full h-full object-cover cursor-pointer hover:opacity-95 transition-opacity select-none"
-                          onClick={() => setEnlargedImage(img.preview)}
+                          onClick={(e) => handleImageEnlarge(index, e)}
                           draggable="false"
                           style={{ width: '100%', height: '100%' }}
                         />
@@ -1335,12 +1367,19 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
 
 
         {/* ImageZoom positioned within the panel */}
-      {enlargedImage && (
+      {enlargedImage && enlargedImageIndex !== null && (
           <ImageZoom
             src={enlargedImage}
-            alt="Enlarged view"
-            title="Enlarged view"
-            onClose={() => setEnlargedImage(null)}
+            alt={selectedImagesList[enlargedImageIndex].fileName || selectedImagesList[enlargedImageIndex].file?.name || 'Image'}
+            title={selectedImagesList[enlargedImageIndex].fileName || selectedImagesList[enlargedImageIndex].file?.name || 'Image'}
+            description={getImageDescription(selectedImagesList[enlargedImageIndex])}
+            photoNumber={getImageNumber(selectedImagesList[enlargedImageIndex])}
+            onClose={handleCloseEnlarged}
+            onPrevious={handlePreviousImage}
+            onNext={handleNextImage}
+            hasPrevious={enlargedImageIndex > 0}
+            hasNext={enlargedImageIndex < selectedImagesList.length - 1}
+            position={clickPosition || undefined}
           />
         )}
       </div>

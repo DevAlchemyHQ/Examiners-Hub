@@ -210,11 +210,12 @@ const migrateSelectedImageIds = (
   
   console.log('🔄 Starting ID migration for', selectedImages.length, 'selected images');
   console.log('📊 Available loaded images:', loadedImages.map(img => ({ id: img.id, fileName: img.fileName })));
+  console.log('📊 Selected images to migrate:', selectedImages);
   
   const migratedSelections: Array<{ id: string; instanceId: string }> = [];
   
-  selectedImages.forEach(selectedItem => {
-    console.log('🔄 Processing selected item:', selectedItem);
+  selectedImages.forEach((selectedItem, index) => {
+    console.log(`🔄 Processing selected item ${index + 1}:`, selectedItem);
     
     // Extract filename from the selected item ID if fileName is not available
     let selectedFileName = '';
@@ -242,7 +243,7 @@ const migrateSelectedImageIds = (
     }
     
     // Try to find matching image by filename first (most reliable)
-    const matchingImage = loadedImages.find(img => {
+    const matchingImages = loadedImages.filter(img => {
       const loadedFileName = img.fileName || '';
       
       // Clean filenames for comparison
@@ -252,11 +253,34 @@ const migrateSelectedImageIds = (
       return cleanSelected === cleanLoaded || cleanSelected.includes(cleanLoaded) || cleanLoaded.includes(cleanSelected);
     });
     
-    if (matchingImage) {
-      console.log('✅ Found matching image by filename:', selectedFileName, '->', matchingImage.fileName);
+    if (matchingImages.length > 0) {
+      // If we have multiple matching images (same filename), we need to be more careful
+      let targetImage = matchingImages[0]; // Default to first match
+      
+      // If we have multiple instances of the same image, try to preserve the original mapping
+      if (matchingImages.length > 1) {
+        console.log(`🔍 Multiple images found for filename ${selectedFileName}:`, matchingImages.map(img => img.id));
+        
+        // Try to find the exact ID match first
+        const exactMatch = matchingImages.find(img => img.id === selectedItem.id);
+        if (exactMatch) {
+          targetImage = exactMatch;
+          console.log('✅ Found exact ID match:', selectedItem.id);
+        } else {
+          // If no exact match, use the first available image
+          // This preserves the original behavior but logs the issue
+          console.log('⚠️ No exact ID match found, using first available image');
+        }
+      }
+      
+      console.log('✅ Found matching image by filename:', selectedFileName, '->', targetImage.fileName, '(ID:', targetImage.id, ')');
+      
+      // Preserve the original instanceId if it exists, otherwise use the image ID
+      const preservedInstanceId = selectedItem.instanceId || `${targetImage.id}-instance-${index}`;
+      
       migratedSelections.push({
-        id: matchingImage.id,
-        instanceId: selectedItem.instanceId || matchingImage.id
+        id: targetImage.id,
+        instanceId: preservedInstanceId
       });
     } else {
       // Fallback: try to find by ID pattern matching
@@ -275,7 +299,7 @@ const migrateSelectedImageIds = (
         console.log('✅ Found matching image by ID pattern:', selectedItem.id, '->', matchingImageById.id);
         migratedSelections.push({
           id: matchingImageById.id,
-          instanceId: selectedItem.instanceId || matchingImageById.id
+          instanceId: selectedItem.instanceId || `${matchingImageById.id}-instance-${index}`
         });
       } else {
         console.warn('⚠️ Could not migrate selected image:', selectedItem);
@@ -284,6 +308,7 @@ const migrateSelectedImageIds = (
   });
   
   console.log('🔄 Migration complete. Migrated', migratedSelections.length, 'out of', selectedImages.length, 'selected images');
+  console.log('📊 Migrated selections:', migratedSelections);
   return migratedSelections;
 };
 
@@ -490,6 +515,20 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           }
           
           console.log(`✅ S3 upload successful: ${file.name}`);
+          
+          // Store S3 file info in localStorage for tracking (since we can't list S3 files)
+          const s3FileInfo = {
+            fileName: file.name,
+            s3Key: `${timestamp}-${file.name}`,
+            s3Url: uploadResult.url,
+            uploadTime: timestamp,
+            userId: userId
+          };
+          
+          // Get existing S3 files list and add new file
+          const existingS3Files = JSON.parse(localStorage.getItem(`s3Files_${userId}`) || '[]');
+          existingS3Files.push(s3FileInfo);
+          localStorage.setItem(`s3Files_${userId}`, JSON.stringify(existingS3Files));
           
           // Update the image metadata with S3 URL but keep local file for downloads
           const consistentId = getConsistentImageId(file.name, `${timestamp}-${file.name}`, timestamp);
@@ -981,6 +1020,17 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       console.error('Error removing viewMode key:', error);
     }
     
+    // Clear S3 file tracking
+    try {
+      const storedUser = localStorage.getItem('user');
+      const user = storedUser ? JSON.parse(storedUser) : null;
+      const userId = user?.email || localStorage.getItem('userEmail') || 'anonymous';
+      localStorage.removeItem(`s3Files_${userId}`);
+      console.log('🗑️ Cleared S3 file tracking from localStorage');
+    } catch (error) {
+      console.error('Error removing S3 file tracking:', error);
+    }
+    
     console.log('✅ Metadata store reset completed');
   },
 
@@ -1093,90 +1143,93 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         // Load images from S3 first, then localStorage as fallback
         (async () => {
           try {
+            // Try to load S3 files from localStorage tracking (since we can't list S3 directly)
             if (userId !== 'anonymous') {
-              const { files, error } = await StorageService.listFiles(`users/${userId}/images/`);
-              
-              if (error) {
-                console.error('Error listing S3 files:', error);
-              } else if (files && files.length > 0) {
-                const loadedImages: ImageMetadata[] = [];
+              try {
+                console.log('🔄 Attempting to load S3 files from localStorage tracking...');
                 
-                for (const file of files) {
-                  try {
-                    const originalFileName = file.name.split('-').slice(1).join('-');
-                    const timestamp = parseInt(file.name.split('-')[0]);
-                    
-                    // Generate consistent ID based on filename to maintain selections
-                    const consistentId = getConsistentImageId(originalFileName, file.name, timestamp);
-                    
-                    // Create local blob URL for instant display (same as uploaded images)
-                    let previewUrl = file.url; // Use S3 URL directly
-                    
-                    console.log(`🔄 Processing S3 file: ${file.name}`);
-                    console.log(`🔄 S3 URL: ${file.url}`);
-                    
-                    // Note: S3 fetch is failing due to CORS restrictions
-                    // Using S3 URL directly for display
-                    console.log(`📸 Using S3 URL directly for ${originalFileName}: ${file.url}`);
-                    
-                    // Create image metadata with S3 URL for display
-                    const keyParts = file.name.split('-');
-                    const extractedFileName = keyParts.slice(1).join('-');
-                    
-                    const imageMetadata: ImageMetadata = {
-                      id: consistentId,
-                      fileName: extractedFileName,
-                      fileSize: file.size,
-                      fileType: 'image/jpeg',
-                      photoNumber: '',
-                      description: '',
-                      preview: previewUrl, // Use S3 URL directly
-                      isSketch: false,
-                      publicUrl: file.url, // Keep S3 URL for downloads
-                      userId: userId,
-                      s3Key: file.name, // Store just the filename for downloads
-                    };
-                    
-                    loadedImages.push(imageMetadata);
-                  } catch (error) {
-                    console.error('Error processing S3 file:', file.name, error);
-                  }
+                // Check if project is being cleared - don't load data during clearing
+                const projectStore = useProjectStore.getState();
+                if (projectStore.isClearing) {
+                  console.log('⏸️ Skipping S3 files load - project is being cleared');
+                  return [];
                 }
                 
-                // Sort images by photo number (extract number after "00" in filenames like P1080001)
-                loadedImages.sort((a, b) => {
-                  const aFileName = a.fileName || '';
-                  const bFileName = b.fileName || '';
+                // Check if project was recently cleared (within last 30 seconds)
+                if (projectStore.clearCompletedAt && (Date.now() - projectStore.clearCompletedAt) < 30000) {
+                  console.log('⏸️ Skipping S3 files load - project was recently cleared');
+                  return [];
+                }
+                
+                const s3FilesList = JSON.parse(localStorage.getItem(`s3Files_${userId}`) || '[]');
+                
+                if (s3FilesList && s3FilesList.length > 0) {
+                  console.log(`📁 Found ${s3FilesList.length} S3 files in localStorage tracking`);
                   
-                  // Extract photo number from filenames like P1080001, P1080005, etc.
-                  const extractPhotoNumber = (filename: string) => {
-                    // Look for pattern like P1080001, P1080005, etc.
-                    const match = filename.match(/P\d{3}00(\d+)/);
-                    if (match) {
-                      return parseInt(match[1]);
+                  const loadedImages: ImageMetadata[] = [];
+                  
+                  for (const s3File of s3FilesList) {
+                    try {
+                      const originalFileName = s3File.fileName;
+                      const timestamp = s3File.uploadTime;
+                      
+                      // Generate consistent ID based on filename to maintain selections
+                      const consistentId = getConsistentImageId(originalFileName, s3File.s3Key, timestamp);
+                      
+                      console.log(`🔄 Processing S3 file from tracking: ${originalFileName}`);
+                      console.log(`🔄 S3 URL: ${s3File.s3Url}`);
+                      
+                      const imageMetadata: ImageMetadata = {
+                        id: consistentId,
+                        fileName: originalFileName,
+                        fileSize: 0, // We don't store size in tracking
+                        fileType: 'image/jpeg',
+                        photoNumber: '',
+                        description: '',
+                        preview: s3File.s3Url, // Use S3 URL directly
+                        isSketch: false,
+                        publicUrl: s3File.s3Url,
+                        userId: userId,
+                        s3Key: s3File.s3Key,
+                      };
+                      
+                      loadedImages.push(imageMetadata);
+                    } catch (error) {
+                      console.error('Error processing S3 file from tracking:', s3File.fileName, error);
                     }
-                    return 0;
-                  };
+                  }
                   
-                  return extractPhotoNumber(aFileName) - extractPhotoNumber(bFileName);
-                });
-                
-                console.log('✅ S3 images processed successfully:', loadedImages.length);
-                console.log('✅ First processed image:', loadedImages[0]);
-                
-                return loadedImages;
+                  // Sort images by upload time
+                  loadedImages.sort((a, b) => {
+                    const aTime = parseInt(a.s3Key?.split('-')[0] || '0');
+                    const bTime = parseInt(b.s3Key?.split('-')[0] || '0');
+                    return aTime - bTime;
+                  });
+                  
+                  console.log('✅ S3 images loaded from tracking:', loadedImages.length);
+                  return loadedImages;
+                } else {
+                  console.log('📁 No S3 files found in localStorage tracking');
+                }
+              } catch (s3Error) {
+                console.warn('⚠️ S3 file tracking failed, falling back to localStorage:', s3Error);
               }
             }
             
-            // Fallback to localStorage if no S3 images
+            // Fallback to localStorage if no S3 files or S3 fails
             const savedImages = localStorage.getItem(userSpecificKeys.images);
             if (savedImages) {
               return JSON.parse(savedImages);
             }
             
             return [];
-          } catch (error) {
-            console.error('Error loading images:', error);
+          } catch (s3Error) {
+            console.warn('⚠️ S3 operation failed, using localStorage fallback:', s3Error);
+            // Fallback to localStorage
+            const savedImages = localStorage.getItem(userSpecificKeys.images);
+            if (savedImages) {
+              return JSON.parse(savedImages);
+            }
             return [];
           }
         })(),
@@ -1568,7 +1621,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       console.log('👤 Loading AWS data for user:', userId);
       
       // Load all data from AWS in parallel
-      const [projectResult, bulkDefectsResult, selectedImagesResult, instanceMetadataResult] = await Promise.allSettled([
+      const [projectResult, bulkDefectsResult, selectedImagesResult, instanceMetadataResult, s3FilesResult] = await Promise.allSettled([
         // Load project data (form data + session state)
         DatabaseService.getProject(userId, 'current'),
         // Load bulk defects
@@ -1576,7 +1629,9 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         // Load selected images
         DatabaseService.getSelectedImages(userId),
         // Load instance metadata
-        DatabaseService.getInstanceMetadata(userId)
+        DatabaseService.getInstanceMetadata(userId),
+        // Load S3 files for images
+        StorageService.listFiles(`${userId}/`)
       ]);
       
       // Process project data (form data + session state)
@@ -1694,6 +1749,149 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         localStorage.setItem(`${keys.selections}-instance-metadata`, JSON.stringify(instanceMetadata));
       } else {
         console.log('⚠️ No instance metadata found in AWS');
+      }
+      
+      // Process S3 files for images
+      if (s3FilesResult.status === 'fulfilled' && s3FilesResult.value.files && s3FilesResult.value.files.length > 0) {
+        const s3Files = s3FilesResult.value.files;
+        console.log('🖼️ S3 files loaded from AWS:', s3Files.length);
+        
+        // Convert S3 files to ImageMetadata format
+        const loadedImages: ImageMetadata[] = [];
+        
+        for (const s3File of s3Files) {
+          try {
+            // Extract timestamp from filename (format: timestamp-filename)
+            const fileNameParts = s3File.name.split('-');
+            const timestamp = fileNameParts[0];
+            const originalFileName = fileNameParts.slice(1).join('-');
+            
+            // Generate consistent ID based on filename to maintain selections
+            const consistentId = getConsistentImageId(originalFileName, s3File.name, parseInt(timestamp));
+            
+            console.log(`🔄 Processing S3 file: ${originalFileName}`);
+            console.log(`🔄 S3 URL: ${s3File.url}`);
+            
+            const imageMetadata: ImageMetadata = {
+              id: consistentId,
+              fileName: originalFileName,
+              file: null, // No local file for S3 images
+              preview: s3File.url,
+              s3Key: s3File.name,
+              s3Url: s3File.url,
+              uploadTime: parseInt(timestamp),
+              isSketch: originalFileName.toLowerCase().includes('sketch'),
+              description: '',
+              photoNumber: '',
+              assignedNumber: null
+            };
+            
+            loadedImages.push(imageMetadata);
+          } catch (error) {
+            console.error(`❌ Error processing S3 file ${s3File.name}:`, error);
+          }
+        }
+        
+        // Sort images by upload time
+        loadedImages.sort((a, b) => a.uploadTime - b.uploadTime);
+        
+        console.log('✅ S3 images processed:', loadedImages.length);
+        
+        // Set images in store
+        set({ images: loadedImages });
+        
+        // Cache to localStorage for faster future access
+        const keys = getUserSpecificKeys();
+        localStorage.setItem(keys.images, JSON.stringify(loadedImages));
+        
+        // Also cache S3 file tracking for compatibility
+        const s3FileTracking = s3Files.map(file => ({
+          fileName: file.name.split('-').slice(1).join('-'),
+          s3Key: file.name,
+          s3Url: file.url,
+          uploadTime: parseInt(file.name.split('-')[0]),
+          userId: userId
+        }));
+        localStorage.setItem(`s3Files_${userId}`, JSON.stringify(s3FileTracking));
+        
+        console.log('💾 S3 images cached to localStorage');
+      } else if (s3FilesResult.status === 'rejected' || (s3FilesResult.status === 'fulfilled' && (!s3FilesResult.value.files || s3FilesResult.value.files.length === 0))) {
+        console.log('⚠️ S3 listing failed or returned no files, falling back to database metadata');
+        
+        // Fallback: Load images from database metadata (project data)
+        try {
+          if (projectResult.status === 'fulfilled' && projectResult.value.project) {
+            const project = projectResult.value.project;
+            const sessionState = project.sessionState;
+            const instanceMetadata = project.instanceMetadata;
+            
+            if (sessionState && sessionState.imageOrder && sessionState.imageOrder.length > 0) {
+              console.log(`📁 Found ${sessionState.imageOrder.length} images in database metadata (fallback)`);
+              
+              const loadedImages: ImageMetadata[] = [];
+              
+              for (const imageId of sessionState.imageOrder) {
+                try {
+                  // Extract timestamp from image ID (format: img--timestamp)
+                  const timestamp = parseInt(imageId.split('--')[1]);
+                  
+                  // Generate a filename based on the image ID
+                  const fileName = `image_${timestamp}.jpg`;
+                  
+                  // Generate S3 URL based on the image ID
+                  const s3Key = `${userId}/${timestamp}-${fileName}`;
+                  const s3Url = `https://mvp-labeler-storage.s3.eu-west-2.amazonaws.com/${s3Key}`;
+                  
+                  // Get metadata from instanceMetadata if available
+                  const metadata = instanceMetadata && instanceMetadata[imageId] ? instanceMetadata[imageId] : {};
+                  
+                  console.log(`🔄 Processing image from database metadata: ${fileName}`);
+                  console.log(`🔄 S3 URL: ${s3Url}`);
+                  
+                  const imageMetadata: ImageMetadata = {
+                    id: imageId,
+                    fileName: fileName,
+                    file: null, // No local file for S3 images
+                    preview: s3Url,
+                    s3Key: s3Key,
+                    s3Url: s3Url,
+                    uploadTime: timestamp,
+                    isSketch: fileName.toLowerCase().includes('sketch'),
+                    description: metadata.description || '',
+                    photoNumber: metadata.photoNumber || '',
+                    assignedNumber: null
+                  };
+                  
+                  loadedImages.push(imageMetadata);
+                } catch (error) {
+                  console.error(`❌ Error processing image from database metadata ${imageId}:`, error);
+                }
+              }
+              
+              // Sort images by upload time
+              loadedImages.sort((a, b) => a.uploadTime - b.uploadTime);
+              
+              console.log('✅ Images loaded from database metadata (fallback):', loadedImages.length);
+              
+              // Set images in store
+              set({ images: loadedImages });
+              
+              // Cache to localStorage for faster future access
+              const keys = getUserSpecificKeys();
+              localStorage.setItem(keys.images, JSON.stringify(loadedImages));
+              
+              console.log('💾 Images cached to localStorage (fallback)');
+            } else {
+              console.log('📁 No images found in database metadata either');
+            }
+          } else {
+            console.log('📁 No project data available for fallback');
+          }
+        } catch (fallbackError) {
+          console.error('❌ Fallback to database metadata also failed:', fallbackError);
+        }
+      } else {
+        console.log('⚠️ No S3 files found in AWS');
       }
       
       console.log('✅ AWS data load completed successfully');

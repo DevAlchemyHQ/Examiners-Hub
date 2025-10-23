@@ -10,17 +10,8 @@ const RefreshBanner: React.FC<RefreshBannerProps> = ({ className = '' }) => {
   const [isDismissed, setIsDismissed] = useState(false);
 
   useEffect(() => {
-    // Check if user has already seen this version
-    const currentVersion = '1.1.1';
-    const lastSeenVersion = localStorage.getItem('last-seen-version');
-    const isDismissed = localStorage.getItem('dismissed-version-banner');
-    
-    // Show banner if user hasn't seen this version or hasn't dismissed it
-    if (lastSeenVersion !== currentVersion || !isDismissed) {
-      setIsVisible(true);
-    } else {
-      setIsVisible(false);
-    }
+    // Banner has been seen and dismissed - don't show it again
+    setIsVisible(false);
   }, []);
 
   const handleRefresh = () => {

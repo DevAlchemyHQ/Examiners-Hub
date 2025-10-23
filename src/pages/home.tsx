@@ -18,9 +18,11 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     useEffect(() => {
         const initialLoad = async () => {
         try {
-            await loadUserData();
+            // Data is already loaded by MainApp.tsx Cloud-First approach
+            // No need to load from localStorage here as it would override AWS data
+            console.log('✅ Data already loaded by MainApp.tsx Cloud-First approach');
         } catch (error) {
-            console.error('Error loading user data:', error);
+            console.error('Error in initial load:', error);
         } finally {
             setIsLoadingData(false);
             setIsInitialLoad(false);
@@ -33,7 +35,6 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         try {
         setIsLoadingData(true);
         await clearProject();
-        await loadUserData();
         setShowClearConfirm(false);
         } catch (error) {
         console.error('Error clearing project:', error);

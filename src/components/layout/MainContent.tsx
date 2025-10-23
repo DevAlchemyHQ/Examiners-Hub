@@ -1,12 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ImageGrid } from '../ImageGrid';
 import { SelectedImagesPanel } from '../SelectedImagesPanel';
 import { useMetadataStore } from '../../store/metadataStore';
 
-export const MainContent: React.FC<{ isLoading?: boolean }> = ({ isLoading }) => {
+export const MainContent: React.FC = () => {
   const [isExpanded, setIsExpanded] = useState(false);
   const { updateSessionState, sessionState } = useMetadataStore();
-  const imageGridRef = useRef<HTMLDivElement>(null);
   const selectedPanelRef = useRef<HTMLDivElement>(null);
 
   // Save session state when panel expands/collapses
@@ -17,15 +15,6 @@ export const MainContent: React.FC<{ isLoading?: boolean }> = ({ isLoading }) =>
   // Restore scroll positions on mount
   useEffect(() => {
     if (sessionState.scrollPositions) {
-      // Restore image grid scroll position
-      if (imageGridRef.current && sessionState.scrollPositions.imageGrid > 0) {
-        setTimeout(() => {
-          if (imageGridRef.current) {
-            imageGridRef.current.scrollTop = sessionState.scrollPositions.imageGrid;
-          }
-        }, 100);
-      }
-
       // Restore selected panel scroll position
       if (selectedPanelRef.current && sessionState.scrollPositions.selectedPanel > 0) {
         setTimeout(() => {
@@ -41,7 +30,7 @@ export const MainContent: React.FC<{ isLoading?: boolean }> = ({ isLoading }) =>
   useEffect(() => {
     const saveScrollPositions = () => {
       const scrollPositions = {
-        imageGrid: imageGridRef.current?.scrollTop || 0,
+        imageGrid: 0, // ImageGrid is now in MainLayout
         selectedPanel: selectedPanelRef.current?.scrollTop || 0,
         bulkPanel: 0, // Will be updated by bulk component
       };
@@ -52,21 +41,14 @@ export const MainContent: React.FC<{ isLoading?: boolean }> = ({ isLoading }) =>
     const interval = setInterval(saveScrollPositions, 5000);
 
     // Save scroll positions on scroll events
-    const imageGridElement = imageGridRef.current;
     const selectedPanelElement = selectedPanelRef.current;
 
-    if (imageGridElement) {
-      imageGridElement.addEventListener('scroll', saveScrollPositions);
-    }
     if (selectedPanelElement) {
       selectedPanelElement.addEventListener('scroll', saveScrollPositions);
     }
 
     return () => {
       clearInterval(interval);
-      if (imageGridElement) {
-        imageGridElement.removeEventListener('scroll', saveScrollPositions);
-      }
       if (selectedPanelElement) {
         selectedPanelElement.removeEventListener('scroll', saveScrollPositions);
       }
@@ -74,22 +56,9 @@ export const MainContent: React.FC<{ isLoading?: boolean }> = ({ isLoading }) =>
   }, [updateSessionState]);
 
   return (
-    <div className="lg:col-span-10 grid grid-cols-1 lg:grid-cols-12 gap-4 h-[calc(100vh-120px)]">
-      {/* Image Grid - Hide when expanded */}
-      {!isExpanded && (
-        <div className="h-full lg:col-span-6">
-          <div ref={imageGridRef} className="h-full">
-            <ImageGrid />
-          </div>
-        </div>
-      )}
-
-      {/* Selected Images Panel - Expand to full width when expanded */}
-      <div 
-        className={`h-full transition-all duration-300 ${
-          isExpanded ? 'lg:col-span-12' : 'lg:col-span-6'
-        }`}
-      >
+    <div className="h-[calc(100vh-120px)]">
+      {/* Selected Images Panel - Full width */}
+      <div className="h-full">
         <div ref={selectedPanelRef} className="h-full overflow-y-auto overflow-x-hidden scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent hover:scrollbar-thumb-slate-400 dark:hover:scrollbar-thumb-gray-500">
           <SelectedImagesPanel 
             onExpand={() => setIsExpanded(!isExpanded)} 

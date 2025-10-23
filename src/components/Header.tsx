@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Menu, Camera, User, CreditCard, Settings, LogOut, XCircle, Edit3, X } from 'lucide-react';
+import { Menu, Camera, User, CreditCard, Settings, LogOut, XCircle, Edit3, X, PenTool } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { StorageService, DatabaseService, AuthService } from '../lib/services';
 import { useMetadataStore } from '../store/metadataStore';
@@ -487,14 +487,14 @@ export const Header: React.FC = React.memo(() => {
                 </button>
                 <span className="text-xs text-gray-600 dark:text-gray-300 font-mono font-medium">v1.1.1</span>
                 
-                {/* Profile Menu */}
+                {/* Profile Menu - Spotify Style */}
                 {showProfileMenu && (
-                  <div className="profile-menu absolute right-0 top-full mt-2 w-72 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 z-[9999]">
+                  <div className="profile-menu absolute right-0 top-full mt-2 w-64 bg-gray-900 rounded-lg shadow-xl border border-gray-700 z-[9999]">
                     {/* Header with Profile Picture */}
-                    <div className="p-6 border-b border-gray-100 dark:border-gray-700">
-                      <div className="flex items-center gap-4">
+                    <div className="p-4 border-b border-gray-700">
+                      <div className="flex items-center gap-3">
                         <div className="relative group">
-                          <div className="w-16 h-16 rounded-full bg-indigo-500 flex items-center justify-center cursor-pointer overflow-hidden ring-2 ring-gray-200 dark:ring-gray-600">
+                          <div className="w-12 h-12 rounded-full bg-gray-700 flex items-center justify-center cursor-pointer overflow-hidden">
                             {profileImage ? (
                               <img
                                 src={profileImage}
@@ -502,11 +502,11 @@ export const Header: React.FC = React.memo(() => {
                                 className="w-full h-full object-cover rounded-full"
                               />
                             ) : (
-                              <User size={28} className="text-white" />
+                              <User size={20} className="text-gray-300" />
                             )}
                           </div>
                           <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity rounded-full flex items-center justify-center">
-                            <Camera size={20} className="text-white" />
+                            <Camera size={16} className="text-white" />
                           </div>
                           <input
                             type="file"
@@ -516,140 +516,82 @@ export const Header: React.FC = React.memo(() => {
                           />
                         </div>
                         <div className="flex-1">
-                          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                            {getUserDisplayName()}
-                          </h3>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                          <div className="flex items-center">
+                            <input
+                              type="text"
+                              maxLength={10}
+                              value={user?.user_metadata?.full_name || ''}
+                              onChange={async (e) => {
+                                const newName = e.target.value;
+                                if (user) {
+                                  setUser({
+                                    ...user,
+                                    user_metadata: {
+                                      ...user.user_metadata,
+                                      full_name: newName
+                                    }
+                                  });
+                                  
+                                  // Auto-save after a short delay
+                                  setTimeout(async () => {
+                                    try {
+                                      if (user?.email && newName.trim()) {
+                                        const result = await AuthService.updateUserAttributes(user.email, { name: newName });
+                                        if (result.success) {
+                                          console.log('✅ Profile name auto-saved successfully');
+                                        } else {
+                                          console.error('❌ Failed to auto-save profile name:', result.error);
+                                        }
+                                      }
+                                    } catch (error) {
+                                      console.error('❌ Error auto-saving profile name:', error);
+                                    }
+                                  }, 1000);
+                                }
+                              }}
+                              className="bg-transparent text-sm font-semibold text-white placeholder-gray-400 focus:outline-none focus:ring-0 border-none p-0 w-20"
+                              placeholder="Enter name"
+                            />
+                            <Edit3 
+                              size={14} 
+                              className="text-gray-300 hover:text-white transition-colors cursor-pointer ml-1" 
+                              onClick={() => {
+                                const input = document.querySelector('input[type="text"]') as HTMLInputElement;
+                                if (input) {
+                                  input.focus();
+                                  input.select();
+                                }
+                              }}
+                            />
+                          </div>
+                          <p className="text-xs text-gray-400">
                             {user?.email}
                           </p>
                         </div>
                       </div>
                     </div>
 
-                    {/* Subscription Status */}
-                    <div className="px-6 py-4 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-gray-700 dark:to-gray-600">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Plan</p>
-                          <p className="text-sm font-semibold text-gray-900 dark:text-white">
-                            {subscriptionPlan || 'Basic'}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                            subscriptionStatus === 'active' 
-                              ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' 
-                              : 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200'
-                          }`}>
-                            {subscriptionStatus === 'active' ? 'Active' : 'Cancelled'}
-                          </span>
-                        </div>
+                    {/* Simple Account Info */}
+                    <div className="px-4 py-3 border-b border-gray-700">
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs text-gray-400">Plan</span>
+                        <span className="text-xs text-green-400 font-medium">
+                          {subscriptionPlan || 'Free'}
+                        </span>
                       </div>
-                      {subscriptionEndDate && (
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                          Expires {formattedSubscriptionEndDate}
-                        </p>
-                      )}
                     </div>
 
-                    {/* Name Editor */}
-                    <div className="p-6">
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Display Name
-                      </label>
-                      <input
-                        type="text"
-                        value={user?.user_metadata?.full_name || ''}
-                        onChange={async (e) => {
-                          const newName = e.target.value;
-                          if (user) {
-                            setUser({
-                              ...user,
-                              user_metadata: {
-                                ...user.user_metadata,
-                                full_name: newName
-                              }
-                            });
-                            
-                            // Auto-save after a short delay
-                            setTimeout(async () => {
-                              try {
-                                if (user?.email && newName.trim()) {
-                                  const result = await AuthService.updateUserAttributes(user.email, { name: newName });
-                                  if (result.success) {
-                                    console.log('✅ Profile name auto-saved successfully');
-                                  } else {
-                                    console.error('❌ Failed to auto-save profile name:', result.error);
-                                  }
-                                }
-                              } catch (error) {
-                                console.error('❌ Error auto-saving profile name:', error);
-                              }
-                            }, 1000);
-                          }
-                        }}
-                        className="w-full px-4 py-3 text-sm bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors"
-                        placeholder="Enter your display name"
-                      />
-                    </div>
-
-                    {/* Cross-Browser Persistence Test */}
-                    <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-700">
-                      <button
-                        onClick={async () => {
-                          try {
-                            console.log('🧪 Testing cross-browser persistence...');
-                            
-                            const { smartAutoSave, loadAllUserDataFromAWS } = await import('../store/metadataStore');
-                            const metadataStore = useMetadataStore.getState();
-                            
-                            // Test saving all data to AWS
-                            console.log('💾 Testing AWS save...');
-                            await metadataStore.smartAutoSave('all');
-                            console.log('✅ AWS save test completed');
-                            
-                            // Test loading data from AWS
-                            console.log('📥 Testing AWS load...');
-                            await metadataStore.loadAllUserDataFromAWS();
-                            console.log('✅ AWS load test completed');
-                            
-                            console.log('🎉 Cross-browser persistence test completed successfully!');
-                            
-                            // Show success message
-                            alert('✅ Cross-browser persistence test completed successfully! Check console for details.');
-                            
-                          } catch (error) {
-                            console.error('❌ Cross-browser persistence test failed:', error);
-                            alert('❌ Cross-browser persistence test failed. Check console for details.');
-                          }
-                        }}
-                        className="w-full px-4 py-3 text-sm font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 flex items-center justify-center gap-2 transition-colors"
-                      >
-                        🧪 Test Cross-Browser Persistence
-                      </button>
-                    </div>
-
-                    {/* Refresh Profile Data */}
-                    <div className="px-6 py-2">
-                      <button
-                        onClick={refreshProfileData}
-                        className="w-full px-4 py-3 text-sm font-medium text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 flex items-center justify-center gap-2 transition-colors"
-                      >
-                        🔄 Refresh Profile Data
-                      </button>
-                    </div>
-
-                    {/* Sign Out */}
-                    <div className="px-6 pb-6">
+                    {/* Simple Actions */}
+                    <div className="p-2">
                       <button
                         onClick={handleLogout}
                         disabled={isLoggingOut}
-                        className="w-full px-4 py-3 text-sm font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        className="w-full px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-gray-800 rounded flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                       >
                         {isLoggingOut ? (
-                          <div className="w-4 h-4 border-2 border-red-400 border-t-transparent rounded-full animate-spin" />
+                          <div className="w-3 h-3 border-2 border-gray-300 border-t-transparent rounded-full animate-spin" />
                         ) : (
-                          <LogOut size={16} />
+                          <LogOut size={14} />
                         )}
                         {isLoggingOut ? 'Signing Out...' : 'Sign Out'}
                       </button>

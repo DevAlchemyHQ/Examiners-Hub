@@ -20,7 +20,8 @@
         "s3:PutObjectAcl"
       ],
       "Resource": [
-        "arn:aws:s3:::mvp-labeler-storage/downloads/*"
+        "arn:aws:s3:::mvp-labeler-storage/downloads/*",
+        "arn:aws:s3:::mvp-labeler-storage/users/*"
       ]
     },
     {

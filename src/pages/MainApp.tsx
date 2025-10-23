@@ -2,20 +2,18 @@ import React, { useEffect, useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { useMetadataStore } from '../store/metadataStore';
-import LoginScreen from '../components/LoginScreen';
-import Header from '../components/layout/Header';
-import MainLayout from '../components/layout/MainLayout';
-import FeedbackAdmin from '../components/FeedbackAdmin';
-import UserProfile from '../components/UserProfile';
-import SubscriptionPage from '../components/SubscriptionPage';
-import CalculatorPage from '../components/CalculatorPage';
-import GamesPage from '../components/GamesPage';
-import GridReferenceFinderPage from '../components/GridReferenceFinderPage';
+import { LoginScreen } from '../components/LoginScreen';
+import { Header } from '../components/Header';
+import { MainLayout } from '../components/layout/MainLayout';
+import { UserProfile } from '../components/profile/UserProfile';
+import { CalculatorTabs } from '../components/calculators/CalculatorTabs';
+import { GameTabs } from '../components/games/GameTabs';
+import { GridReferenceFinder } from '../components/GridReferenceFinder/GridReferenceFinder';
 import RefreshBanner from '../components/RefreshBanner';
 
 const MainApp = () => {
   const { isAuthenticated, checkAuth } = useAuthStore();
-  const { loadUserData, loadAllUserDataFromAWS, saveAllUserDataToAWS } = useMetadataStore();
+  const { loadUserData, loadAllUserDataFromAWS } = useMetadataStore();
 
   const [isInitialized, setIsInitialized] = useState(false);
 
@@ -36,25 +34,36 @@ const MainApp = () => {
   // Load user data when authenticated
   useEffect(() => {
     if (isAuthenticated) {
+
       const loadData = async () => {
         try {
+          // Check if project is being cleared - don't load data during clearing
+          const { useProjectStore } = await import('../store/projectStore');
+          const projectStore = useProjectStore.getState();
+          if (projectStore.isClearing) {
+            console.log('⏸️ Skipping data load during project clear');
+            return;
+          }
+          
+          // Check if project was recently cleared (within last 30 seconds)
+          if (projectStore.clearCompletedAt && (Date.now() - projectStore.clearCompletedAt) < 30000) {
+            console.log('⏸️ Skipping data load - project was recently cleared');
+            return;
+          }
+          
           console.log('🔄 Loading user data for authenticated user...');
           
-          // First try to load from AWS for cross-browser persistence
-          console.log('☁️ Attempting to load data from AWS...');
+          // CLOUD-FIRST APPROACH: Load from AWS first for true cross-browser consistency
+          console.log('☁️ Loading data from AWS (Cloud-First)...');
           await loadAllUserDataFromAWS();
           
-          // Then load from localStorage as fallback
-          console.log('📱 Loading data from localStorage as fallback...');
-          await loadUserData();
-          
-          console.log('✅ User data loaded successfully from both sources');
+          console.log('✅ User data loaded successfully from AWS (Cloud-First)');
         } catch (error) {
-          console.error('❌ Error loading user data:', error);
+          console.error('❌ Error loading user data from AWS:', error);
           
-          // If AWS fails, still try localStorage
+          // If AWS fails, try localStorage as fallback
           try {
-            console.log('📱 Falling back to localStorage only...');
+            console.log('📱 Falling back to localStorage...');
             await loadUserData();
             console.log('✅ User data loaded from localStorage fallback');
           } catch (fallbackError) {
@@ -159,21 +168,16 @@ const MainApp = () => {
   return (
     <div className="min-h-screen bg-gray-900">
       <RefreshBanner />
-      <Header />
       <Routes>
         <Route path="/" element={<MainLayout />} />
-        <Route path="feedback" element={<FeedbackAdmin />} />
         <Route path="profile" element={<UserProfile />} />
-        <Route path="subscriptions" element={<SubscriptionPage />} />
-        <Route path="calculator" element={<CalculatorPage />} />
-        <Route path="games" element={<GamesPage />} />
-        <Route path="grid" element={<GridReferenceFinderPage />} />
-
-        <Route path="bcmi" element={<MainLayout />} />
+        <Route path="calculator" element={<CalculatorTabs />} />
+        <Route path="games" element={<GameTabs />} />
+        <Route path="grid" element={<GridReferenceFinder />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </div>
   );
 };
 
-export default MainApp; 
+export default MainApp;

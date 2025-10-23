@@ -2,17 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { Header } from '../Header';
 import { Sidebar } from './Sidebar';
 import { MainContent } from './MainContent';
+import { ImageGrid } from '../ImageGrid';
 import { GridReferenceFinder } from '../GridReferenceFinder/GridReferenceFinder';
 
 import { CalculatorTabs } from '../calculators/CalculatorTabs';
 import { GameTabs } from '../games/GameTabs';
-import { Images, Map, Calculator, Brain, Trash2, TowerControl as GameController, Loader2, FolderOpen } from 'lucide-react';
+import { Brain, Trash2, Loader2, FolderOpen } from 'lucide-react';
 import { useMetadataStore } from '../../store/metadataStore';
 import { usePDFStore } from '../../store/pdfStore';
 import { useProjectStore } from '../../store/projectStore';
 import { FeedbackTab } from '../FeedbackTab';
-import { MigrationStatus } from '../MigrationStatus';
-import { MigrationControls } from '../MigrationControls';
 import { useLocation } from 'react-router-dom';
 
 type TabType = 'images' | 'calculator' | 'bcmi' | 'grid' | 'games' | 'project';
@@ -33,18 +32,27 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 
   // Load user data and restore session state on initial mount
   useEffect(() => {
-    if (!isInitialized) {
+    if (!isInitialized && !isClearing) {
       const initialLoad = async () => {
         try {
-          // Load user data (which includes session state restoration)
-          await loadUserData();
+          // Check if project was recently cleared (within last 30 seconds)
+          const { useProjectStore } = await import('../../store/projectStore');
+          const projectStore = useProjectStore.getState();
+          if (projectStore.clearCompletedAt && (Date.now() - projectStore.clearCompletedAt) < 30000) {
+            console.log('⏸️ Skipping initial load - project was recently cleared');
+            return;
+          }
+          
+          // Data is already loaded by MainApp.tsx Cloud-First approach
+          // No need to load from localStorage here as it would override AWS data
+          console.log('✅ Data already loaded by MainApp.tsx Cloud-First approach');
         } catch (error) {
-          console.error('Error loading user data:', error);
+          console.error('Error in initial load:', error);
         }
       };
       initialLoad();
     }
-  }, [isInitialized, loadUserData]);
+  }, [isInitialized, isClearing]);
 
   // Auto-save changes (but not during clearing)
   useEffect(() => {
@@ -95,81 +103,31 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       <>
         <Header />
         {children}
-        <MigrationStatus />
-        <MigrationControls />
         <FeedbackTab />
       </>
     );
   }
 
-  const isLoading = isClearingProject || isLoading;
+  const isAnyLoading = isClearingProject || isLoading;
 
   return (
     <div className="h-screen w-full bg-gray-900 flex flex-col overflow-hidden">
       <Header />
-      <MigrationStatus />
-      <MigrationControls />
       <main className="flex-1 w-full px-2 overflow-hidden bg-gray-900 h-full">
-        <div className="flex-shrink-0">
-          <div className="flex items-center justify-between border-b border-slate-200 dark:border-gray-700">
-            <div className="flex items-center gap-0.5">
-              {[
-                { id: 'images', icon: Images, label: 'Images' },
-                { id: 'calculator', icon: Calculator, label: 'Calc' },
-                { id: 'grid', icon: Map, label: 'Grid' },
-                { id: 'bcmi', icon: Brain, label: 'BCMI & AI' },
-                { id: 'games', icon: GameController, label: 'Games' },
-                { id: 'project', icon: FolderOpen, label: 'Project' }
-              ].map(({ id, icon: Icon, label }) => (
-                <button
-                  key={id}
-                  onClick={() => setActiveTab(id as TabType)}
-                  className={`flex items-center gap-1 px-2 py-1.5 min-w-[70px] ${
-                    activeTab === id
-                      ? 'border-b-2 border-indigo-500 text-indigo-500'
-                      : 'text-slate-600 dark:text-gray-300'
-                  }`}
-                >
-                  <Icon size={14} />
-                  <span className="text-xs whitespace-nowrap">{label}</span>
-                </button>
-              ))}
-            </div>
-            
-            {/* Clear project buttons - always visible when on Images tab */}
-            {activeTab === 'images' && (
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => useProjectStore.getState().testAWSOperations()}
-                  className="flex items-center gap-1 px-3 py-1.5 bg-blue-500 text-white rounded text-xs hover:bg-blue-600 transition-colors"
-                >
-                  <Brain size={12} />
-                  Test AWS
-                </button>
-                <button
-                  onClick={() => setShowClearConfirm(true)}
-                  disabled={isClearingProject || isLoading}
-                  className="flex items-center gap-1 px-3 py-1.5 bg-red-500 text-white rounded text-xs hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <Trash2 size={12} />
-                  {isClearingProject || isLoading ? 'Clearing...' : 'Clear Project'}
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
 
         <div className="flex-1 h-[calc(100vh-120px)]">
           {/* Remove opacity transition to prevent flickering */}
           <div className="h-full">
             {activeTab === 'images' ? (
-              <div className="h-full grid grid-cols-1 lg:grid-cols-12 gap-4">
-                <div className="lg:col-span-2 overflow-hidden">
-                  {/* Pass isLoading to Sidebar for skeletons */}
-                  <Sidebar isLoading={isLoading} />
+              <div className="h-full grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div className="h-full">
+                  {/* Image Grid takes left half */}
+                  <div className="h-full">
+                    <ImageGrid />
+                  </div>
                 </div>
-                {/* Pass isLoading to MainContent for skeletons */}
-                <MainContent isLoading={isLoading} />
+                {/* Selected Images Panel takes right half */}
+                <MainContent />
               </div>
             ) : activeTab === 'calculator' ? (
               <CalculatorTabs />
@@ -207,19 +165,11 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                     
                     <div className="flex gap-2">
                       <button
-                        onClick={() => useProjectStore.getState().testAWSOperations()}
-                        className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-                      >
-                        <Brain size={16} />
-                        Test AWS
-                      </button>
-                      
-                      <button
                         onClick={() => setShowClearConfirm(true)}
-                        disabled={isClearingProject || isLoading}
-                        className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled={isAnyLoading}
+                        className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        {isClearingProject || isLoading ? (
+                        {isAnyLoading ? (
                           <>
                             <Loader2 size={16} className="animate-spin" />
                             Clearing Project...
@@ -269,10 +219,10 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               </button>
               <button
                 onClick={handleClearProject}
-                disabled={isClearingProject || isLoading}
+                disabled={isAnyLoading}
                 className="px-4 py-2 text-sm bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50 flex items-center gap-2"
               >
-                {isClearingProject || isLoading ? (
+                {isAnyLoading ? (
                   <>
                     <Loader2 size={14} className="animate-spin" />
                     Clearing...

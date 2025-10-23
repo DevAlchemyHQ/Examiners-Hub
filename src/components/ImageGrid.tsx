@@ -1,14 +1,19 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useMetadataStore } from '../store/metadataStore';
+import { useProjectStore } from '../store/projectStore';
 import { useGridWidth } from '../hooks/useGridWidth';
 import { useAnalytics } from '../hooks/useAnalytics';
 import { ImageGridItem } from './ImageGridItem';
 import { ImageUpload } from './ImageUpload';
+import { Trash2, Loader2 } from 'lucide-react';
 
 export const ImageGrid: React.FC = () => {
-  const { images, formData, setFormData, selectedImages, updateSessionState } = useMetadataStore();
+  const { images, formData, setFormData, selectedImages, updateSessionState, loadUserData, isLoading } = useMetadataStore();
+  const { clearProject } = useProjectStore();
   const { gridWidth, setGridWidth } = useGridWidth();
   const { trackGridLoad, trackImageSelection, trackUserAction } = useAnalytics();
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [isClearingProject, setIsClearingProject] = useState(false);
 
   // Check if form fields are incomplete
   const isFormIncomplete = () => {
@@ -49,6 +54,26 @@ export const ImageGrid: React.FC = () => {
     
     // Save session state
     updateSessionState({ gridWidth: newWidth });
+  };
+
+  // Clear project handler
+  const handleClearProject = async () => {
+    setIsClearingProject(true);
+    try {
+      console.log('🚀 handleClearProject called - starting clear process...');
+      
+      // Call the actual clearProject function from project store
+      await clearProject();
+      console.log('✅ clearProject function completed');
+      
+      setShowClearConfirm(false);
+      trackUserAction('project_clear', 'clear_project');
+      console.log('✅ Clear project completed successfully');
+    } catch (error) {
+      console.error('❌ Error clearing project:', error);
+    } finally {
+      setIsClearingProject(false);
+    }
   };
 
   // Separate sketches and defects
@@ -120,6 +145,21 @@ export const ImageGrid: React.FC = () => {
               >
                 +
               </button>
+              {/* Clear Project button - only show when images are uploaded */}
+              {images.length > 0 && (
+                <button
+                  onClick={() => setShowClearConfirm(true)}
+                  disabled={isClearingProject || isLoading}
+                  className="flex items-center gap-1 px-1.5 py-0.5 text-xs bg-red-500 text-white rounded hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+                >
+                  {isClearingProject ? (
+                    <Loader2 size={10} className="animate-spin" />
+                  ) : (
+                    <Trash2 size={10} />
+                  )}
+                  {isClearingProject ? 'Clearing...' : 'Clear'}
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -184,6 +224,21 @@ export const ImageGrid: React.FC = () => {
             >
               +
             </button>
+            {/* Clear Project button - only show when images are uploaded */}
+            {images.length > 0 && (
+              <button
+                onClick={() => setShowClearConfirm(true)}
+                disabled={isClearingProject || isLoading}
+                className="flex items-center gap-1 px-2 py-1 text-xs bg-red-500 text-white rounded hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+              >
+                {isClearingProject ? (
+                  <Loader2 size={12} className="animate-spin" />
+                ) : (
+                  <Trash2 size={12} />
+                )}
+                {isClearingProject ? 'Clearing...' : 'Clear Project'}
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -203,6 +258,55 @@ export const ImageGrid: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Clear Project Confirmation Modal */}
+      {showClearConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+              Clear All Project Data
+            </h3>
+            <div className="text-gray-600 dark:text-gray-300 mb-6 space-y-2">
+              <p className="font-medium">This will permanently delete:</p>
+              <ul className="list-disc list-inside space-y-1 text-sm">
+                <li>All uploaded images from AWS S3</li>
+                <li>All project data from AWS DynamoDB</li>
+                <li>All form data and bulk defects</li>
+                <li>All data from localStorage and sessionStorage</li>
+                <li>All cookies and IndexedDB data</li>
+              </ul>
+              <p className="text-red-600 dark:text-red-400 font-medium mt-3">
+                ⚠️ This action cannot be undone!
+              </p>
+            </div>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setShowClearConfirm(false)}
+                className="px-4 py-2 text-sm bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleClearProject}
+                disabled={isClearingProject}
+                className="px-4 py-2 text-sm bg-red-500 text-white rounded hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {isClearingProject ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    Clearing All Data...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 size={16} />
+                    Clear Everything
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
