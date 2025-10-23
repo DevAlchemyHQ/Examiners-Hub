@@ -497,6 +497,38 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         const imageOrder = combined.map(img => img.id);
         get().updateSessionState({ imageOrder });
         
+        // IMMEDIATELY save image order to AWS for cross-browser consistency
+        (async () => {
+          try {
+            // Check if project is being cleared
+            const projectStore = useProjectStore.getState();
+            if (projectStore.isClearing) {
+              console.log('⏸️ Skipping image order AWS save during project clear');
+              return;
+            }
+            
+            const storedUser = localStorage.getItem('user');
+            const user = storedUser ? JSON.parse(storedUser) : null;
+            
+            if (user?.email) {
+              console.log('🚀 IMMEDIATELY saving image order to AWS for cross-browser consistency');
+              
+              // Get current session state
+              const currentState = get();
+              const sessionState = currentState.sessionState;
+              
+              // Force immediate AWS save (bypass debouncing)
+              await forceAWSSave(sessionState);
+              
+              console.log('✅ Image order immediately saved to AWS for cross-browser consistency');
+            } else {
+              console.warn('⚠️ No user email found for immediate AWS save');
+            }
+          } catch (error) {
+            console.error('❌ Error immediately saving image order to AWS:', error);
+          }
+        })();
+        
         return { images: combined };
       });
       
