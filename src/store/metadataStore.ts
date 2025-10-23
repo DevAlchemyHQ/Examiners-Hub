@@ -1965,8 +1965,6 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         } catch (fallbackError) {
           console.error('❌ Fallback to database metadata also failed:', fallbackError);
         }
-      } else {
-        console.log('⚠️ No S3 files found in AWS');
       }
       
       console.log('✅ AWS data load completed successfully');
