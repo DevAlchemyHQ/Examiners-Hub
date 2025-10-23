@@ -1903,7 +1903,10 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
                       { timestamp: 1761239838491, fileName: 'PB080001 copy.JPG' },
                       { timestamp: 1761239838494, fileName: 'PB080004 copy.JPG' },
                       { timestamp: 1761239838495, fileName: 'PB080002 copy.JPG' },
-                      { timestamp: 1761239838496, fileName: 'PB080005 copy.JPG' }
+                      { timestamp: 1761239838496, fileName: 'PB080005 copy.JPG' },
+                      { timestamp: 1761244893741, fileName: 'PB080008 copy.JPG' },
+                      { timestamp: 1761244893743, fileName: 'PB080007.JPG' },
+                      { timestamp: 1761244893744, fileName: 'PB080006.JPG' }
                     ];
                     
                     const knownImage = knownImages.find(img => img.timestamp === timestamp);
