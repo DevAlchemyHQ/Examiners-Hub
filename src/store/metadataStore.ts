@@ -1663,7 +1663,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         // Load instance metadata
         DatabaseService.getInstanceMetadata(userId),
         // Load S3 files for images
-        StorageService.listFiles(`${userId}/`)
+        StorageService.listFiles(`users/${userId}/images/`)
       ]);
       
       // Process project data (form data + session state)
