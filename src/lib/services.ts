@@ -945,40 +945,146 @@ export class DatabaseService {
 
   static async getProject(userId: string, projectId: string) {
     try {
-      const command = new GetCommand({
-        TableName: 'mvp-labeler-projects',
-        Key: { 
-          user_id: userId,
-          project_id: projectId 
+      // For 'current' project, ensure we get the most recent one
+      if (projectId === 'current') {
+        // Query all projects for this user and get the most recent one
+        const queryCommand = new QueryCommand({
+          TableName: 'mvp-labeler-projects',
+          KeyConditionExpression: 'user_id = :userId',
+          ExpressionAttributeValues: {
+            ':userId': userId
+          },
+          ScanIndexForward: false, // Sort by sort key descending (most recent first)
+          Limit: 1 // Only get the most recent project
+        });
+        
+        const result = await docClient.send(queryCommand);
+        
+        if (result.Items && result.Items.length > 0) {
+          console.log('✅ Found most recent project for user:', userId);
+          return { project: result.Items[0], error: null };
+        } else {
+          console.log('⚠️ No projects found for user:', userId);
+          return { project: null, error: null };
         }
-      });
-      
-      const result = await docClient.send(command);
-      
-      return { project: result.Item || null, error: null };
+      } else {
+        // For specific project IDs, use the original logic
+        const command = new GetCommand({
+          TableName: 'mvp-labeler-projects',
+          Key: { 
+            user_id: userId,
+            project_id: projectId 
+          }
+        });
+        
+        const result = await docClient.send(command);
+        
+        return { project: result.Item || null, error: null };
+      }
     } catch (error) {
       console.error('Error getting project:', error);
       return { project: null, error };
     }
   }
 
-  static async updateProject(userId: string, projectId: string, projectData: any) {
+  static async updateProject(userId: string, projectId: string, projectData: any, isClearing: boolean = false) {
     try {
-      // Separate large data from small data to avoid DynamoDB size limits
-      const { images, ...smallData } = projectData;
-      
-      // Only save small data to DynamoDB (form data, selections, etc.)
-      const command = new PutCommand({
-        TableName: 'mvp-labeler-projects',
-        Item: {
-          user_id: userId,
-          project_id: projectId,
-          ...smallData,
-          updated_at: new Date().toISOString()
+      // For 'current' project, ensure we update the most recent one
+      if (projectId === 'current') {
+        // First, get the most recent project to get its actual project_id
+        const getProjectResult = await this.getProject(userId, 'current');
+        
+        if (getProjectResult.project) {
+          // Use the actual project_id from the most recent project
+          const actualProjectId = getProjectResult.project.project_id;
+          console.log('🔄 Updating most recent project with ID:', actualProjectId);
+          
+          // Separate large data from small data to avoid DynamoDB size limits
+          const { images, ...smallData } = projectData;
+          
+          // Merge new data with existing project data to preserve images and other data
+          const existingProject = getProjectResult.project;
+          const mergedProjectData = isClearing ? {
+            // When clearing, replace data instead of merging
+            ...smallData,
+            updated_at: new Date().toISOString()
+          } : {
+            // Normal update: preserve existing data and apply new data
+            ...existingProject,  // Preserve existing data
+            ...smallData,        // Apply new data
+            updated_at: new Date().toISOString()
+          };
+          
+          // Only save small data to DynamoDB (form data, selections, etc.)
+          const command = new PutCommand({
+            TableName: 'mvp-labeler-projects',
+            Item: mergedProjectData
+          });
+          
+          await docClient.send(command);
+          console.log('✅ Updated most recent project successfully with merged data');
+        } else {
+          // No existing project, create a new one with timestamp-based ID
+          const timestamp = Date.now().toString();
+          console.log('🆕 Creating new project with ID:', timestamp);
+          
+          // Separate large data from small data to avoid DynamoDB size limits
+          const { images, ...smallData } = projectData;
+          
+          const command = new PutCommand({
+            TableName: 'mvp-labeler-projects',
+            Item: {
+              user_id: userId,
+              project_id: timestamp,
+              ...smallData,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            }
+          });
+          
+          await docClient.send(command);
+          console.log('✅ Created new project successfully');
         }
-      });
-      
-      await docClient.send(command);
+      } else {
+        // For specific project IDs, get existing project and merge data
+        const getProjectResult = await this.getProject(userId, projectId);
+        
+        if (getProjectResult.project) {
+          // Merge new data with existing project data
+          const { images, ...smallData } = projectData;
+          const existingProject = getProjectResult.project;
+          const mergedProjectData = {
+            ...existingProject,  // Preserve existing data
+            ...smallData,        // Apply new data
+            updated_at: new Date().toISOString()
+          };
+          
+          const command = new PutCommand({
+            TableName: 'mvp-labeler-projects',
+            Item: mergedProjectData
+          });
+          
+          await docClient.send(command);
+          console.log('✅ Updated specific project successfully with merged data');
+        } else {
+          // No existing project, create a new one
+          const { images, ...smallData } = projectData;
+          
+          const command = new PutCommand({
+            TableName: 'mvp-labeler-projects',
+            Item: {
+              user_id: userId,
+              project_id: projectId,
+              ...smallData,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            }
+          });
+          
+          await docClient.send(command);
+          console.log('✅ Created new specific project successfully');
+        }
+      }
     } catch (error) {
       console.error('Error updating project:', error);
       throw error;
