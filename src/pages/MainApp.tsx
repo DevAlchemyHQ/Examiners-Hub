@@ -12,29 +12,14 @@ import { GridReferenceFinder } from '../components/GridReferenceFinder/GridRefer
 import RefreshBanner from '../components/RefreshBanner';
 
 const MainApp = () => {
-  const { isAuthenticated, checkAuth } = useAuthStore();
+  const { isAuthenticated } = useAuthStore();
   const { loadUserData, loadAllUserDataFromAWS } = useMetadataStore();
 
   const [isInitialized, setIsInitialized] = useState(false);
 
-  useEffect(() => {
-    const initializeAuth = async () => {
-      try {
-        await checkAuth();
-      } catch (error) {
-        console.error('Auth initialization failed:', error);
-      } finally {
-        setIsInitialized(true);
-      }
-    };
-
-    initializeAuth();
-  }, [checkAuth]);
-
-  // Load user data when authenticated
+  // Load user data when authenticated (no duplicate auth check - handled by App.tsx)
   useEffect(() => {
     if (isAuthenticated) {
-
       const loadData = async () => {
         try {
           // Check if project is being cleared - don't load data during clearing
@@ -69,6 +54,8 @@ const MainApp = () => {
           } catch (fallbackError) {
             console.error('❌ Fallback to localStorage also failed:', fallbackError);
           }
+        } finally {
+          setIsInitialized(true);
         }
       };
       

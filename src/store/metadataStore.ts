@@ -350,6 +350,13 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
     set((state) => {
       const newFormData = { ...state.formData, ...data };
       
+      // Update session state with new form data
+      const updatedSessionState = {
+        ...state.sessionState,
+        formData: newFormData,
+        lastActiveTime: Date.now()
+      };
+      
       // Use smart auto-save for cross-browser persistence
       (async () => {
         try {
@@ -359,16 +366,6 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             return;
           }
           
-          // Update session state with new form data
-          const updatedSessionState = {
-            ...state.sessionState,
-            formData: newFormData,
-            lastActiveTime: Date.now()
-          };
-          
-          // Update session state first
-          set({ sessionState: updatedSessionState });
-          
           // Use smart auto-save for comprehensive persistence
           await get().smartAutoSave('form');
           
@@ -377,7 +374,11 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         }
       })();
       
-      return { ...state, formData: newFormData };
+      return { 
+        ...state, 
+        formData: newFormData,
+        sessionState: updatedSessionState
+      };
     });
   },
 
