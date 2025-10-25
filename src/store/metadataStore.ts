@@ -217,7 +217,9 @@ const debouncedAWSSave = async (sessionState: any) => {
       if (user?.email) {
         console.log('☁️ [DEBOUNCED 15s] Saving session state to AWS...');
         const { DatabaseService } = await import('../lib/services');
-        await DatabaseService.updateProject(user.email, 'current', { 
+        const projectId = generateStableProjectId(user.email, 'current');
+        console.log('🔑 AWS update: projectId=' + projectId + ' (✅ deterministic)');
+        await DatabaseService.updateProject(user.email, projectId, { 
           sessionState: sessionState
         });
         console.log('✅ [DEBOUNCED] Session state saved to AWS successfully');
@@ -243,7 +245,9 @@ const forceAWSSave = async (sessionState: any) => {
     if (user?.email) {
       console.log('☁️ [IMMEDIATE] Forcing session state save to AWS...');
       const { DatabaseService } = await import('../lib/services');
-      await DatabaseService.updateProject(user.email, 'current', { 
+      const projectId = generateStableProjectId(user.email, 'current');
+      console.log('🔑 AWS update: projectId=' + projectId + ' (✅ deterministic)');
+      await DatabaseService.updateProject(user.email, projectId, { 
         sessionState: sessionState
       });
       console.log('✅ [IMMEDIATE] Session state forced to AWS successfully');
@@ -643,9 +647,10 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           };
           
           // Get existing S3 files list and add new file
-          const existingS3Files = JSON.parse(localStorage.getItem(`s3Files_${userId}`) || '[]');
+          const projectId = generateStableProjectId(userId, 'current');
+          const existingS3Files = JSON.parse(localStorage.getItem(`s3Files_${projectId}`) || '[]');
           existingS3Files.push(s3FileInfo);
-          localStorage.setItem(`s3Files_${userId}`, JSON.stringify(existingS3Files));
+          localStorage.setItem(`s3Files_${projectId}`, JSON.stringify(existingS3Files));
           
           // Update the image metadata with S3 URL but keep local file for downloads
           const consistentId = generateDeterministicImageId(userId, 'current', file.name, index);
@@ -743,7 +748,9 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
               fileName: img.fileName || img.file?.name || 'unknown'
             }));
             
-            await DatabaseService.updateProject(user.email, 'current', { 
+            const projectId = generateStableProjectId(user.email, 'current');
+            console.log('🔑 AWS update: projectId=' + projectId + ' (✅ deterministic)');
+            await DatabaseService.updateProject(user.email, projectId, { 
               imageMetadata: imageMetadata
             });
             console.log('✅ Image metadata auto-saved to AWS for user:', user.email);
@@ -1134,7 +1141,8 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
     // Clear S3 file tracking
     try {
       const userId = getUserId();
-      localStorage.removeItem(`s3Files_${userId}`);
+      const projectId = generateStableProjectId(userId, 'current');
+      localStorage.removeItem(`s3Files_${projectId}`);
       console.log('🗑️ Cleared S3 file tracking from localStorage');
     } catch (error) {
       console.error('Error removing S3 file tracking:', error);
@@ -1199,7 +1207,9 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           if (userId !== 'anonymous') {
             try {
               console.log('🌐 Loading form data from AWS for user:', userId);
-              const { project } = await DatabaseService.getProject(userId, 'current');
+              const projectId = generateStableProjectId(userId, 'current');
+              console.log('🔑 AWS get: projectId=' + projectId + ' (✅ deterministic)');
+              const { project } = await DatabaseService.getProject(userId, projectId);
               if (project?.formData) {
                 console.log('✅ Form data loaded from AWS:', project.formData);
                 return project.formData;
@@ -1272,7 +1282,8 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
                   return [];
                 }
                 
-                const s3FilesList = JSON.parse(localStorage.getItem(`s3Files_${userId}`) || '[]');
+                const projectId = generateStableProjectId(userId, 'current');
+                const s3FilesList = JSON.parse(localStorage.getItem(`s3Files_${projectId}`) || '[]');
                 
                 if (s3FilesList && s3FilesList.length > 0) {
                   console.log(`📁 Found ${s3FilesList.length} S3 files in localStorage tracking`);
@@ -1488,7 +1499,9 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         try {
           // Save form data and session state to AWS
           console.log('💾 Saving form data and session state to AWS...');
-          await DatabaseService.updateProject(user.email, 'current', { 
+          const projectId = generateStableProjectId(user.email, 'current');
+          console.log('🔑 AWS update: projectId=' + projectId + ' (✅ deterministic)');
+          await DatabaseService.updateProject(user.email, projectId, { 
             formData,
             sessionState: state.sessionState,
             sortPreferences: {
@@ -1732,6 +1745,13 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         'instanceMetadata-' // Old metadata keys
       ];
 
+      // One-time cleanup: Remove old S3 tracking keys that use userId instead of projectId
+      const oldS3Key = `s3Files_${userId}`;
+      if (localStorage.getItem(oldS3Key)) {
+        console.log('🗑️ Removing legacy S3 tracking key:', oldS3Key);
+        localStorage.removeItem(oldS3Key);
+      }
+
       // Remove legacy keys
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
@@ -1766,9 +1786,12 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       
       // STEP 1: Fetch fresh data from AWS DynamoDB FIRST (single source of truth)
       console.log('☁️ Fetching fresh data from AWS DynamoDB...');
+      const projectId = generateStableProjectId(userId, 'current');
+      console.log('🔑 Using deterministic project ID:', projectId);
+      
       const [projectResult, bulkDefectsResult, selectedImagesResult, instanceMetadataResult, s3FilesResult] = await Promise.allSettled([
-        // Load project data (form data + session state)
-        DatabaseService.getProject(userId, 'current'),
+        // Load project data (form data + session state) - using deterministic ID
+        DatabaseService.getProject(userId, projectId),
         // Load bulk defects
         DatabaseService.getBulkDefects(userId),
         // Load selected images
@@ -1979,6 +2002,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         localStorage.setItem(keys.images, JSON.stringify(loadedImages));
         
         // Also cache S3 file tracking for compatibility
+        const projectId = generateStableProjectId(userId, 'current');
         const s3FileTracking = s3Files.map(file => ({
           fileName: file.name.split('-').slice(1).join('-'),
           s3Key: file.name,
@@ -1986,7 +2010,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           uploadTime: parseInt(file.name.split('-')[0]),
           userId: userId
         }));
-        localStorage.setItem(`s3Files_${userId}`, JSON.stringify(s3FileTracking));
+        localStorage.setItem(`s3Files_${projectId}`, JSON.stringify(s3FileTracking));
         
         console.log('💾 S3 images cached to localStorage');
       } else {
@@ -2014,7 +2038,8 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
                   const timestamp = parseInt(imageId.split('--')[1]);
                   
                   // Try to find the actual S3 filename by checking localStorage first
-                  const s3FilesKey = `s3Files_${userId}`;
+                  const projectId = generateStableProjectId(userId, 'current');
+                  const s3FilesKey = `s3Files_${projectId}`;
                   const s3FilesData = localStorage.getItem(s3FilesKey);
                   let actualFileName = `image_${timestamp}.jpg`; // fallback
                   let actualS3Key = `users/${userId}/images/${timestamp}-${actualFileName}`;
@@ -2140,9 +2165,12 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       const { formData, bulkDefects, selectedImages, instanceMetadata, sessionState, defectSortDirection, sketchSortDirection } = state;
       
       // Save all data to AWS in parallel
+      const projectId = generateStableProjectId(userId, 'current');
+      console.log('🔑 AWS update: projectId=' + projectId + ' (✅ deterministic)');
+      
       const savePromises = [
         // Save project data (form data + session state + sort preferences)
-        DatabaseService.updateProject(userId, 'current', {
+        DatabaseService.updateProject(userId, projectId, {
           formData,
           sessionState,
           sortPreferences: {
@@ -2259,7 +2287,10 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       if (effectiveDataType === 'all' || effectiveDataType === 'form' || effectiveDataType === 'session') {
         try {
           const syncVersion = Date.now().toString(); // Generate new sync version
-          await DatabaseService.updateProject(userId, 'current', {
+          const projectId = generateStableProjectId(userId, 'current');
+          console.log('🔑 AWS update: projectId=' + projectId + ' (✅ deterministic)');
+          
+          await DatabaseService.updateProject(userId, projectId, {
             formData: {
               elr: state.elr || '',
               structureNo: state.structureNo || '',
@@ -2841,7 +2872,9 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           if (user?.email) {
             console.log('☁️ Loading session state from AWS...');
             const { DatabaseService } = await import('../lib/services');
-            const result = await DatabaseService.getProject(user.email, 'current');
+            const projectId = generateStableProjectId(user.email, 'current');
+            console.log('🔑 AWS get: projectId=' + projectId + ' (✅ deterministic)');
+            const result = await DatabaseService.getProject(user.email, projectId);
             
             if (result.project?.sessionState) {
               sessionState = result.project.sessionState;
