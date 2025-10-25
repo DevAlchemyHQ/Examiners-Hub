@@ -8,6 +8,63 @@ import { convertImageToJpgBase64, convertBlobToBase64 } from '../utils/fileUtils
 import { useProjectStore } from './projectStore';
 import { toast } from 'react-toastify';
 
+// Minimal Cross-Browser Sync Class
+class MinimalCrossBrowserSync {
+  private channel: BroadcastChannel;
+  private isListening: boolean = false;
+
+  constructor() {
+    this.channel = new BroadcastChannel('exametry-sync');
+    this.setupListeners();
+  }
+
+  private setupListeners() {
+    if (this.isListening) return;
+    
+    this.channel.onmessage = (event) => {
+      const { type, data } = event.data;
+      
+      if (type === 'formDataUpdate') {
+        console.log('🔄 Cross-browser form data update received');
+        const currentState = useMetadataStore.getState();
+        const currentTimestamp = currentState.sessionState.lastActiveTime || 0;
+        const incomingTimestamp = data.timestamp || 0;
+        
+        // Only update if incoming data is newer
+        if (incomingTimestamp > currentTimestamp) {
+          console.log('✅ Updating form data from other browser');
+          useMetadataStore.setState({ 
+            formData: data.formData,
+            sessionState: {
+              ...currentState.sessionState,
+              formData: data.formData,
+              lastActiveTime: incomingTimestamp
+            }
+          });
+        }
+      }
+    };
+    
+    this.isListening = true;
+  }
+
+  broadcast(type: string, data: any) {
+    try {
+      this.channel.postMessage({ type, data, timestamp: Date.now() });
+      console.log('📡 Cross-browser broadcast sent:', type);
+    } catch (error) {
+      console.error('❌ Error broadcasting:', error);
+    }
+  }
+
+  destroy() {
+    this.channel.close();
+    this.isListening = false;
+  }
+}
+
+const minimalSync = new MinimalCrossBrowserSync();
+
 // Standardized ID generation system
 const generateImageId = (fileName: string, source: 'local' | 's3' = 'local', timestamp?: number): string => {
   const cleanFileName = fileName.replace(/[^a-zA-Z0-9]/g, '-');
@@ -356,6 +413,9 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         formData: newFormData,
         lastActiveTime: Date.now()
       };
+      
+      // Broadcast form data changes to other tabs
+      minimalSync.broadcast('formDataUpdate', { formData: newFormData });
       
       // Use smart auto-save for cross-browser persistence
       (async () => {
