@@ -1255,7 +1255,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
                   
                   const loadedImages: ImageMetadata[] = [];
                   
-                  for (const s3File of s3FilesList) {
+                  s3FilesList.forEach((s3File, index) => {
                     try {
                       const originalFileName = s3File.fileName;
                       const timestamp = s3File.uploadTime;
@@ -1846,7 +1846,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         // Convert S3 files to ImageMetadata format
         const loadedImages: ImageMetadata[] = [];
         
-        for (const s3File of s3Files) {
+        s3Files.forEach((s3File, index) => {
           try {
             // Extract timestamp from filename (format: timestamp-filename)
             const fileNameParts = s3File.name.split('-');
