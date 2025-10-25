@@ -1758,8 +1758,14 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           if (localFormDataStr) {
             const versionedFormData = JSON.parse(localFormDataStr);
             console.log('🔍 DEBUG: Raw localStorage form data:', versionedFormData);
-            // Extract actual data from versioned format
-            localFormData = versionedFormData.data || versionedFormData;
+            // Extract actual data from versioned format - handle nested versioned data
+            if (versionedFormData.data && typeof versionedFormData.data === 'object') {
+              // If data is another versioned object, extract its data
+              localFormData = versionedFormData.data.data || versionedFormData.data;
+            } else {
+              // If data is the actual form data, use it directly
+              localFormData = versionedFormData.data || versionedFormData;
+            }
             console.log('🔍 DEBUG: Extracted form data:', localFormData);
             console.log('📋 Local form data loaded for conflict resolution:', localFormData);
           }
@@ -1768,8 +1774,14 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           if (localSessionStateStr) {
             const versionedSessionState = JSON.parse(localSessionStateStr);
             console.log('🔍 DEBUG: Raw localStorage session state:', versionedSessionState);
-            // Extract actual data from versioned format
-            localSessionState = versionedSessionState.data || versionedSessionState;
+            // Extract actual data from versioned format - handle nested versioned data
+            if (versionedSessionState.data && typeof versionedSessionState.data === 'object') {
+              // If data is another versioned object, extract its data
+              localSessionState = versionedSessionState.data.data || versionedSessionState.data;
+            } else {
+              // If data is the actual session state, use it directly
+              localSessionState = versionedSessionState.data || versionedSessionState;
+            }
             console.log('🔍 DEBUG: Extracted session state:', localSessionState);
             console.log('📋 Local session state loaded for conflict resolution:', localSessionState);
           }
