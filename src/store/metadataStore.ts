@@ -422,8 +422,20 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         lastActiveTime: Date.now()
       };
       
-      // Broadcast form data changes to other tabs
-      minimalSync.broadcast('formDataUpdate', { formData: newFormData });
+      // Broadcast form data changes to other tabs using direct BroadcastChannel
+      if (typeof BroadcastChannel !== 'undefined') {
+        try {
+          const channel = new BroadcastChannel('exametry-sync');
+          channel.postMessage({ 
+            type: 'formDataUpdate', 
+            data: { formData: newFormData, timestamp: Date.now() } 
+          });
+          console.log('📡 Form data broadcast sent:', newFormData);
+          channel.close();
+        } catch (error) {
+          console.error('❌ Error broadcasting form data:', error);
+        }
+      }
       
       // Use smart auto-save for cross-browser persistence
       (async () => {
