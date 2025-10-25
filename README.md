@@ -261,3 +261,4 @@ Located in `src/utils/downloadTransformers.ts` and `src/utils/downloadTransforme
 MIT
 # Trigger Amplify deployment
 # Amplify deployment trigger
+# Reverted to working commit 7f3b474
