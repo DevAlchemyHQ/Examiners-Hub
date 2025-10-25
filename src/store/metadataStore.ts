@@ -1750,7 +1750,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
   // REMOTE-FIRST HYDRATION: Load all user data from AWS (single source of truth)
   loadAllUserDataFromAWS: async () => {
     try {
-      console.log('🌐 loadAllUserDataFromAWS: Starting REMOTE-FIRST hydration...');
+      console.log('🚀 REMOTE-FIRST HYDRATION DEPLOYED - Starting AWS-first approach...');
       
       const userId = getUserId();
       
