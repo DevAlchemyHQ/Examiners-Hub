@@ -10,6 +10,7 @@ import { toast } from 'react-toastify';
 import { 
   generateStableProjectId, 
   generateStableImageId, 
+  generateStableSessionId,
   getAllProjectStorageKeys,
   saveVersionedData,
   loadVersionedData,
@@ -71,7 +72,14 @@ class MinimalCrossBrowserSync {
 
   broadcast(type: string, data: any) {
     try {
-      const message = { type, data, timestamp: Date.now() };
+      // Use deterministic timestamp based on data content for consistent ordering
+      const dataHash = JSON.stringify(data).split('').reduce((a, b) => {
+        a = ((a << 5) - a) + b.charCodeAt(0);
+        return a & a;
+      }, 0);
+      const deterministicTimestamp = Math.abs(dataHash) + 1000000000000; // Base timestamp
+      
+      const message = { type, data, timestamp: deterministicTimestamp };
       this.channel.postMessage(message);
       console.log('📡 Cross-browser broadcast sent:', type, 'with data:', data);
       console.log('📡 Full message:', message);
@@ -401,11 +409,15 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
     set((state) => {
       const newFormData = { ...state.formData, ...data };
       
-      // Update session state with new form data
+      // Update session state with new form data using deterministic timestamp
+      const userId = getUserId();
+      const projectId = generateStableProjectId(userId, 'current');
+      const deterministicTimestamp = Math.abs(projectId.split('').reduce((a, b) => a + b.charCodeAt(0), 0)) + 1000000000000;
+      
       const updatedSessionState = {
         ...state.sessionState,
         formData: newFormData,
-        lastActiveTime: Date.now()
+        lastActiveTime: deterministicTimestamp
       };
       
       // Broadcast form data changes to other tabs using direct BroadcastChannel
@@ -414,7 +426,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           const channel = new BroadcastChannel('exametry-sync');
           channel.postMessage({ 
             type: 'formDataUpdate', 
-            data: { formData: newFormData, timestamp: Date.now() } 
+            data: { formData: newFormData, timestamp: deterministicTimestamp } 
           });
           console.log('📡 Form data broadcast sent:', newFormData);
           channel.close();
@@ -458,9 +470,11 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       // Create all image metadata immediately for instant display
       const imageMetadataArray: ImageMetadata[] = files.map((file, index) => {
         // Use deterministic ID generation for cross-browser consistency
-        const deterministicId = generateDeterministicImageId(userId, 'current', file.name, index);
-        const timestamp = Date.now() + index; // Keep timestamp for S3 path only
-        const filePath = `users/${userId}/images/${timestamp}-${file.name}`;
+        const deterministicId = generateStableImageId(userId, 'current', file.name, index);
+        // Use deterministic timestamp based on file content for S3 path consistency
+        const fileHash = file.name.split('').reduce((a, b) => a + b.charCodeAt(0), 0);
+        const deterministicTimestamp = Math.abs(fileHash) + 1000000000000 + index;
+        const filePath = `users/${userId}/images/${deterministicTimestamp}-${file.name}`;
         const previewUrl = URL.createObjectURL(file);
         
         console.log(`📸 Creating image metadata for ${file.name}:`, {
@@ -602,8 +616,10 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       console.log('🔄 Starting parallel S3 uploads in background...');
       const uploadPromises = files.map(async (file, index) => {
         try {
-          const timestamp = Date.now() + index;
-          const filePath = `users/${userId}/images/${timestamp}-${file.name}`;
+          // Use same deterministic timestamp as metadata creation
+          const fileHash = file.name.split('').reduce((a, b) => a + b.charCodeAt(0), 0);
+          const deterministicTimestamp = Math.abs(fileHash) + 1000000000000 + index;
+          const filePath = `users/${userId}/images/${deterministicTimestamp}-${file.name}`;
           
           console.log(`📤 Uploading to S3: ${file.name}`);
           const uploadResult = await StorageService.uploadFile(file, filePath);
@@ -799,8 +815,10 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
 
   toggleImageSelection: (id) => {
     set((state) => {
-      // Always add a new selection with unique instanceId for multiple selections
-      const instanceId = `${id}-${Date.now()}`;
+      // Generate deterministic instanceId based on image ID and selection order
+      const userId = getUserId();
+      const selectionCount = state.selectedImages.length;
+      const instanceId = generateStableImageId(userId, 'current', `${id}-selection-${selectionCount}`, selectionCount);
       const newSelected = [...state.selectedImages, { id, instanceId }];
       
       console.log('🔧 toggleImageSelection - Added image:', { id, instanceId });
