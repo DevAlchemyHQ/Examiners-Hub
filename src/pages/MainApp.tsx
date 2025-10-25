@@ -73,16 +73,8 @@ const MainApp = () => {
         saveSessionState();
       }, 30000);
       
-      // Save comprehensive data to AWS every 2 minutes for cross-browser persistence
-      const awsInterval = setInterval(async () => {
-        try {
-          console.log('🔄 Periodic AWS save for cross-browser persistence...');
-          await smartAutoSave('all');
-          console.log('✅ Periodic AWS save completed successfully');
-        } catch (error) {
-          console.error('❌ Periodic AWS save failed:', error);
-        }
-      }, 120000); // 2 minutes
+      // REMOVED: Periodic AWS saves cause race conditions where one tab overwrites another's data
+      // AWS saves are now only triggered by user actions (form changes, etc.) to prevent conflicts
       
       // Save session state when user leaves the page
       const handleBeforeUnload = () => {
@@ -97,7 +89,6 @@ const MainApp = () => {
       
       return () => {
         clearInterval(localStorageInterval);
-        clearInterval(awsInterval);
         window.removeEventListener('beforeunload', handleBeforeUnload);
       };
     }
