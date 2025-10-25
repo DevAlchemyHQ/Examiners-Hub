@@ -13,7 +13,7 @@ import RefreshBanner from '../components/RefreshBanner';
 
 const MainApp = () => {
   const { isAuthenticated } = useAuthStore();
-  const { loadUserData, loadAllUserDataFromAWS } = useMetadataStore();
+  const { loadUserData, loadAllUserDataFromAWS, initializeSyncCheck } = useMetadataStore();
 
   const [isInitialized, setIsInitialized] = useState(false);
 
@@ -37,6 +37,10 @@ const MainApp = () => {
           }
           
           console.log('🔄 Loading user data for authenticated user...');
+          
+          // Initialize cross-browser sync check
+          initializeSyncCheck();
+          console.log('🌐 Cross-browser sync check initialized');
           
           // CLOUD-FIRST APPROACH: Load from AWS first for true cross-browser consistency
           console.log('☁️ Loading data from AWS (Cloud-First)...');
