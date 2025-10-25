@@ -22,13 +22,17 @@ class MinimalCrossBrowserSync {
     if (this.isListening) return;
     
     this.channel.onmessage = (event) => {
+      console.log('📡 Cross-browser message received:', event.data);
       const { type, data } = event.data;
       
       if (type === 'formDataUpdate') {
         console.log('🔄 Cross-browser form data update received');
+        console.log('🔄 Incoming data:', data);
         const currentState = useMetadataStore.getState();
         const currentTimestamp = currentState.sessionState.lastActiveTime || 0;
         const incomingTimestamp = data.timestamp || 0;
+        
+        console.log('🔄 Timestamp comparison:', { currentTimestamp, incomingTimestamp });
         
         // Only update if incoming data is newer
         if (incomingTimestamp > currentTimestamp) {
@@ -41,6 +45,8 @@ class MinimalCrossBrowserSync {
               lastActiveTime: incomingTimestamp
             }
           });
+        } else {
+          console.log('⚠️ Ignoring older form data update');
         }
       }
     };
@@ -50,8 +56,10 @@ class MinimalCrossBrowserSync {
 
   broadcast(type: string, data: any) {
     try {
-      this.channel.postMessage({ type, data, timestamp: Date.now() });
-      console.log('📡 Cross-browser broadcast sent:', type);
+      const message = { type, data, timestamp: Date.now() };
+      this.channel.postMessage(message);
+      console.log('📡 Cross-browser broadcast sent:', type, 'with data:', data);
+      console.log('📡 Full message:', message);
     } catch (error) {
       console.error('❌ Error broadcasting:', error);
     }
@@ -64,6 +72,11 @@ class MinimalCrossBrowserSync {
 }
 
 const minimalSync = new MinimalCrossBrowserSync();
+
+// Expose minimalSync to global scope for debugging and testing
+if (typeof window !== 'undefined') {
+  (window as any).minimalSync = minimalSync;
+}
 
 // Standardized ID generation system
 const generateImageId = (fileName: string, source: 'local' | 's3' = 'local', timestamp?: number): string => {
