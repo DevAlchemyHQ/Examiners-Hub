@@ -1756,13 +1756,17 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         try {
           const localFormDataStr = localStorage.getItem(keys.formData);
           if (localFormDataStr) {
-            localFormData = JSON.parse(localFormDataStr);
+            const versionedFormData = JSON.parse(localFormDataStr);
+            // Extract actual data from versioned format
+            localFormData = versionedFormData.data || versionedFormData;
             console.log('📋 Local form data loaded for conflict resolution:', localFormData);
           }
           
           const localSessionStateStr = localStorage.getItem(`${keys.formData}-session-state`);
           if (localSessionStateStr) {
-            localSessionState = JSON.parse(localSessionStateStr);
+            const versionedSessionState = JSON.parse(localSessionStateStr);
+            // Extract actual data from versioned format
+            localSessionState = versionedSessionState.data || versionedSessionState;
             console.log('📋 Local session state loaded for conflict resolution:', localSessionState);
           }
         } catch (error) {
