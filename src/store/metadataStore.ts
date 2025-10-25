@@ -2682,6 +2682,11 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
 
   forceSessionStateSave: async (overrideViewMode?: 'images' | 'bulk') => {
     const state = get();
+    
+    // Get userId for storage keys
+    const user = JSON.parse(localStorage.getItem('user') || 'null');
+    const userId = user?.email || localStorage.getItem('userEmail') || 'anonymous';
+    
     const keys = getProjectStorageKeys(userId, 'current');
     
     const effectiveViewMode = overrideViewMode || state.viewMode;
@@ -2722,6 +2727,10 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
   },
 
   restoreSessionState: async () => {
+    // Get userId for storage keys
+    const user = JSON.parse(localStorage.getItem('user') || 'null');
+    const userId = user?.email || localStorage.getItem('userEmail') || 'anonymous';
+    
     const keys = getProjectStorageKeys(userId, 'current');
     
     console.log('🔄 RESTORING SESSION STATE...');
@@ -2930,6 +2939,10 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
   },
 
   clearSessionState: () => {
+    // Get userId for storage keys
+    const user = JSON.parse(localStorage.getItem('user') || 'null');
+    const userId = user?.email || localStorage.getItem('userEmail') || 'anonymous';
+    
     const keys = getProjectStorageKeys(userId, 'current');
     try {
       localStorage.removeItem(`${keys.formData}-session-state`);
