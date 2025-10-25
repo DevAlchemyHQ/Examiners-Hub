@@ -73,11 +73,6 @@ class MinimalCrossBrowserSync {
 
 const minimalSync = new MinimalCrossBrowserSync();
 
-// Expose minimalSync to global scope for debugging and testing
-if (typeof window !== 'undefined') {
-  (window as any).minimalSync = minimalSync;
-}
-
 // Standardized ID generation system
 const generateImageId = (fileName: string, source: 'local' | 's3' = 'local', timestamp?: number): string => {
   const cleanFileName = fileName.replace(/[^a-zA-Z0-9]/g, '-');
@@ -1182,19 +1177,8 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       
       // Load all data in parallel and batch state updates
       const [formDataResult, bulkDataResult, imagesResult, selectionsResult, instanceMetadataResult] = await Promise.allSettled([
-        // Load form data from localStorage first, then AWS
+        // Load form data from AWS first (Cloud-First approach), then localStorage fallback
         (async () => {
-          try {
-            const savedFormData = localStorage.getItem(userSpecificKeys.formData);
-            if (savedFormData) {
-              const formData = JSON.parse(savedFormData);
-              console.log('📋 Form data loaded from localStorage:', formData);
-              return formData;
-            }
-          } catch (error) {
-            console.warn('⚠️ Chrome localStorage read error for formData:', error);
-          }
-            
           if (userId !== 'anonymous') {
             try {
               console.log('🌐 Loading form data from AWS for user:', userId);
@@ -1209,6 +1193,19 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
               console.error('Error loading form data from AWS:', awsError);
             }
           }
+          
+          // Fallback to localStorage if AWS fails or no data found
+          try {
+            const savedFormData = localStorage.getItem(userSpecificKeys.formData);
+            if (savedFormData) {
+              const formData = JSON.parse(savedFormData);
+              console.log('📋 Form data loaded from localStorage fallback:', formData);
+              return formData;
+            }
+          } catch (error) {
+            console.warn('⚠️ Chrome localStorage read error for formData:', error);
+          }
+          
           console.log('⚠️ No form data available from any source');
           return null;
         })(),
