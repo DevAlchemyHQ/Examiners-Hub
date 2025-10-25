@@ -514,7 +514,10 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         elr: data.elr !== undefined ? data.elr : state.elr,
         structureNo: data.structureNo !== undefined ? data.structureNo : state.structureNo,
         date: data.date !== undefined ? data.date : state.date,
-        sessionState: updatedSessionState
+        sessionState: {
+          ...updatedSessionState,
+          formData: newFormData // Ensure session state also has the form data
+        }
       };
     });
   },
@@ -1423,7 +1426,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
                 return awsSelections;
               }
             }
-            return [];
+          return [];
           } catch (error) {
             console.error('Error loading selected images:', error);
             return [];
@@ -1884,7 +1887,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           console.log('✅ Applying AWS session state to store (authoritative):', project.sessionState);
           set({ sessionState: project.sessionState });
         }
-
+        
         // Apply AWS sort preferences to store (AWS is authoritative)
         if (project.sortPreferences) {
           const { defectSortDirection, sketchSortDirection } = project.sortPreferences;
