@@ -2636,6 +2636,11 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
   // Session management functions
   saveSessionState: (overrideViewMode?: 'images' | 'bulk') => {
     const state = get();
+    
+    // Get userId for storage keys
+    const user = JSON.parse(localStorage.getItem('user') || 'null');
+    const userId = user?.email || localStorage.getItem('userEmail') || 'anonymous';
+    
     const keys = getProjectStorageKeys(userId, 'current');
     
     const effectiveViewMode = overrideViewMode || state.viewMode;
