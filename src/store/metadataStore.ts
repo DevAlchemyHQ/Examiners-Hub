@@ -624,7 +624,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           localStorage.setItem(`s3Files_${userId}`, JSON.stringify(existingS3Files));
           
           // Update the image metadata with S3 URL but keep local file for downloads
-          const consistentId = getConsistentImageId(file.name, `${timestamp}-${file.name}`, timestamp);
+          const consistentId = generateDeterministicImageId(userId, 'current', file.name, index);
           
           set((state) => {
             const updatedImages = state.images.map(img => 
@@ -1261,7 +1261,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
                       const timestamp = s3File.uploadTime;
                       
                       // Generate consistent ID based on filename to maintain selections
-                      const consistentId = getConsistentImageId(originalFileName, s3File.s3Key, timestamp);
+                      const consistentId = generateDeterministicImageId(userId, 'current', originalFileName, index);
                       
                       console.log(`🔄 Processing S3 file from tracking: ${originalFileName}`);
                       console.log(`🔄 S3 URL: ${s3File.s3Url}`);
@@ -1854,7 +1854,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             const originalFileName = fileNameParts.slice(1).join('-');
             
             // Generate consistent ID based on filename to maintain selections
-            const consistentId = getConsistentImageId(originalFileName, s3File.name, parseInt(timestamp));
+            const consistentId = generateDeterministicImageId(userId, 'current', originalFileName, index);
             
             console.log(`🔄 Processing S3 file: ${originalFileName}`);
             console.log(`🔄 S3 URL: ${s3File.url}`);
@@ -2887,6 +2887,10 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
 
   updateSessionState: (updates: Partial<SessionState>) => {
     const state = get();
+    
+    // Get userId for storage keys
+    const user = JSON.parse(localStorage.getItem('user') || 'null');
+    const userId = user?.email || localStorage.getItem('userEmail') || 'anonymous';
     
     // Automatically capture current orders when updating session state
     const autoUpdates = {
