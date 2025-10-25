@@ -1745,20 +1745,22 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         'instanceMetadata-' // Old metadata keys
       ];
 
-      // One-time cleanup: Remove old S3 tracking keys that use userId instead of projectId
-      const oldS3Key = `s3Files_${userId}`;
-      if (localStorage.getItem(oldS3Key)) {
-        console.log('🗑️ Removing legacy S3 tracking key:', oldS3Key);
-        localStorage.removeItem(oldS3Key);
-      }
-
-      // Remove legacy keys
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && legacyPatterns.some(pattern => key.includes(pattern))) {
-          console.log('🗑️ Removing legacy key:', key);
-          localStorage.removeItem(key);
-        }
+      // One-time migration script: Purge all old keys with legacy patterns (only run once)
+      const migrationKey = `migration_completed_${userId}`;
+      if (!localStorage.getItem(migrationKey)) {
+        console.log('🧹 Running one-time migration script to purge old keys...');
+        Object.keys(localStorage).forEach(key => {
+          if (key.includes('formData-') || key.includes('images-') || key.includes('s3Files_') || 
+              key.includes('sessionState-') || key.includes('bulkData-') || key.includes('selections-') ||
+              key.includes('instanceMetadata-') || key.includes('proj_61a4446c')) {
+            console.log('🗑️ Removing legacy key:', key);
+            localStorage.removeItem(key);
+          }
+        });
+        localStorage.setItem(migrationKey, 'true');
+        console.log("🧹 Old keys cleared — cross-browser state should now sync properly.");
+      } else {
+        console.log('✅ Migration already completed for this user');
       }
 
       console.log('✅ Legacy cache purge completed');
@@ -1865,6 +1867,22 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           };
           localStorage.setItem(`${keys.formData}-session-state`, JSON.stringify(versionedSessionState));
           console.log('💾 Re-written localStorage session state cache with AWS data (syncVersion:', syncVersion + ')');
+        }
+        
+        // STEP 4: Force save to overwrite old "current" AWS records with deterministic ones (only run once)
+        const forceSaveKey = `force_save_completed_${userId}`;
+        if (!localStorage.getItem(forceSaveKey)) {
+          console.log('💾 Force saving to overwrite old AWS records with deterministic project ID...');
+          try {
+            const currentState = get();
+            await get().smartAutoSave('all');
+            localStorage.setItem(forceSaveKey, 'true');
+            console.log('✅ Force save completed - AWS records now use deterministic project ID');
+          } catch (error) {
+            console.error('❌ Error in force save:', error);
+          }
+        } else {
+          console.log('✅ Force save already completed for this user');
         }
       } else {
         console.log('⚠️ No project data found in AWS');
