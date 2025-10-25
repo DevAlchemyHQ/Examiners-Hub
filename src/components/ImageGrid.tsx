@@ -20,6 +20,41 @@ export const ImageGrid: React.FC = () => {
     return !formData.elr?.trim() || !formData.structureNo?.trim() || !formData.date?.trim();
   };
 
+  // Listen for cross-browser form data updates
+  useEffect(() => {
+    if (typeof BroadcastChannel !== 'undefined') {
+      const channel = new BroadcastChannel('exametry-sync');
+      
+      channel.onmessage = (event) => {
+        console.log('📡 Cross-browser message received:', event.data);
+        const { type, data } = event.data;
+        
+        if (type === 'formDataUpdate') {
+          console.log('🔄 Cross-browser form data update received');
+          console.log('🔄 Incoming data:', data);
+          
+          const currentState = useMetadataStore.getState();
+          const currentTimestamp = currentState.sessionState.lastActiveTime || 0;
+          const incomingTimestamp = data.timestamp || 0;
+          
+          console.log('🔄 Timestamp comparison:', { currentTimestamp, incomingTimestamp });
+          
+          // Only update if incoming data is newer
+          if (incomingTimestamp > currentTimestamp) {
+            console.log('✅ Updating form data from other browser');
+            setFormData(data.formData);
+          } else {
+            console.log('⚠️ Ignoring older form data update');
+          }
+        }
+      };
+      
+      return () => {
+        channel.close();
+      };
+    }
+  }, [setFormData]);
+
   // Track grid load and image selection
   useEffect(() => {
     if (images.length > 0) {
@@ -35,15 +70,54 @@ export const ImageGrid: React.FC = () => {
 
   // Handlers for project details
   const handleELRChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData({ elr: e.target.value.toUpperCase() });
+    const newValue = e.target.value.toUpperCase();
+    setFormData({ elr: newValue });
+    
+    // Broadcast form data changes to other tabs
+    if (typeof BroadcastChannel !== 'undefined') {
+      const channel = new BroadcastChannel('exametry-sync');
+      channel.postMessage({ 
+        type: 'formDataUpdate', 
+        data: { formData: { ...formData, elr: newValue }, timestamp: Date.now() } 
+      });
+      console.log('📡 ELR change broadcast sent:', newValue);
+      channel.close();
+    }
+    
     trackUserAction('form_input', 'elr_change');
   };
   const handleStructureNoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData({ structureNo: e.target.value });
+    const newValue = e.target.value;
+    setFormData({ structureNo: newValue });
+    
+    // Broadcast form data changes to other tabs
+    if (typeof BroadcastChannel !== 'undefined') {
+      const channel = new BroadcastChannel('exametry-sync');
+      channel.postMessage({ 
+        type: 'formDataUpdate', 
+        data: { formData: { ...formData, structureNo: newValue }, timestamp: Date.now() } 
+      });
+      console.log('📡 Structure No change broadcast sent:', newValue);
+      channel.close();
+    }
+    
     trackUserAction('form_input', 'structure_no_change');
   };
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData({ date: e.target.value });
+    const newValue = e.target.value;
+    setFormData({ date: newValue });
+    
+    // Broadcast form data changes to other tabs
+    if (typeof BroadcastChannel !== 'undefined') {
+      const channel = new BroadcastChannel('exametry-sync');
+      channel.postMessage({ 
+        type: 'formDataUpdate', 
+        data: { formData: { ...formData, date: newValue }, timestamp: Date.now() } 
+      });
+      console.log('📡 Date change broadcast sent:', newValue);
+      channel.close();
+    }
+    
     trackUserAction('form_input', 'date_change');
   };
 
