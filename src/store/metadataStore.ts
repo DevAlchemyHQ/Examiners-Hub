@@ -1757,16 +1757,20 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           const localFormDataStr = localStorage.getItem(keys.formData);
           if (localFormDataStr) {
             const versionedFormData = JSON.parse(localFormDataStr);
+            console.log('🔍 DEBUG: Raw localStorage form data:', versionedFormData);
             // Extract actual data from versioned format
             localFormData = versionedFormData.data || versionedFormData;
+            console.log('🔍 DEBUG: Extracted form data:', localFormData);
             console.log('📋 Local form data loaded for conflict resolution:', localFormData);
           }
           
           const localSessionStateStr = localStorage.getItem(`${keys.formData}-session-state`);
           if (localSessionStateStr) {
             const versionedSessionState = JSON.parse(localSessionStateStr);
+            console.log('🔍 DEBUG: Raw localStorage session state:', versionedSessionState);
             // Extract actual data from versioned format
             localSessionState = versionedSessionState.data || versionedSessionState;
+            console.log('🔍 DEBUG: Extracted session state:', localSessionState);
             console.log('📋 Local session state loaded for conflict resolution:', localSessionState);
           }
         } catch (error) {
@@ -1800,6 +1804,12 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             console.log('⚠️ Ignoring older AWS form data, keeping local changes');
             // Load local data if it exists and is newer
             if (localFormData) {
+              console.log('🔍 DEBUG: Setting form data from localStorage:', {
+                formData: localFormData,
+                elr: localFormData.elr || '',
+                structureNo: localFormData.structureNo || '',
+                date: localFormData.date || ''
+              });
               set({ 
                 formData: localFormData,
                 elr: localFormData.elr || '',
@@ -1807,6 +1817,8 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
                 date: localFormData.date || ''
               });
               console.log('✅ Form data loaded from localStorage (newer than AWS)');
+            } else {
+              console.log('⚠️ No local form data available to load');
             }
           }
         }
