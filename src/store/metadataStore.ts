@@ -543,7 +543,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         try {
           const projectStore = useProjectStore.getState();
           if (!projectStore.isClearing) {
-            const keys = getUserSpecificKeys();
+            const keys = getProjectStorageKeys(userId, 'current');
             localStorage.setItem(keys.images, JSON.stringify(combined));
             console.log('📱 Images saved to localStorage:', combined.length);
           }
@@ -645,7 +645,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             try {
               const projectStore = useProjectStore.getState();
               if (!projectStore.isClearing) {
-                const keys = getUserSpecificKeys();
+                const keys = getProjectStorageKeys(userId, 'current');
                 localStorage.setItem(keys.images, JSON.stringify(updatedImages));
               }
             } catch (error) {
@@ -686,7 +686,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         // Check if project is being cleared
         const projectStore = useProjectStore.getState();
         if (!projectStore.isClearing) {
-          const keys = getUserSpecificKeys();
+          const keys = getProjectStorageKeys(userId, 'current');
           localStorage.setItem(keys.images, JSON.stringify(updatedImages));
           console.log('📱 Image metadata saved to localStorage for image:', id);
         } else {
@@ -748,7 +748,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       };
       
       // Save to localStorage
-      const keys = getUserSpecificKeys();
+      const keys = getProjectStorageKeys(userId, 'current');
       const localStorageKey = `${keys.selections}-instance-metadata`;
       localStorage.setItem(localStorageKey, JSON.stringify(updatedInstanceMetadata));
       
@@ -814,7 +814,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
                 fileName: image?.fileName || image?.file?.name || 'unknown'
               };
             });
-            const keys = getUserSpecificKeys();
+            const keys = getProjectStorageKeys(userId, 'current');
             localStorage.setItem(keys.selections, JSON.stringify(selectedWithFilenames));
             console.log('📱 Selected images saved to localStorage:', selectedWithFilenames);
           } else {
@@ -897,7 +897,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
               fileName: image?.fileName || image?.file?.name || 'unknown'
             };
           });
-          const keys = getUserSpecificKeys();
+          const keys = getProjectStorageKeys(userId, 'current');
           localStorage.setItem(keys.selections, JSON.stringify(selectedWithFilenames));
           console.log('📱 Selected images saved to localStorage:', selectedWithFilenames);
         } else {
@@ -993,7 +993,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         // Check if project is being cleared
         const projectStore = useProjectStore.getState();
         if (!projectStore.isClearing) {
-          const keys = getUserSpecificKeys();
+          const keys = getProjectStorageKeys(userId, 'current');
           localStorage.setItem(keys.bulkData, JSON.stringify(newBulkDefects));
         }
       } catch (error) {
@@ -1043,7 +1043,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         // Check if project is being cleared
         const projectStore = useProjectStore.getState();
         if (!projectStore.isClearing) {
-          const keys = getUserSpecificKeys();
+          const keys = getProjectStorageKeys(userId, 'current');
           localStorage.setItem(`${keys.bulkData}-deleted`, JSON.stringify(newDeletedDefects));
           console.log('📱 Deleted defects saved to localStorage:', newDeletedDefects.length);
         } else {
@@ -1097,7 +1097,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
     });
     
     // Clear user-specific viewMode keys
-    const keys = getUserSpecificKeys();
+    const keys = getProjectStorageKeys(userId, 'current');
     try {
       localStorage.removeItem(`${keys.formData}-viewMode`);
       console.log('🗑️ Cleared viewMode from localStorage');
@@ -1346,7 +1346,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         // Load instance metadata from localStorage first, then AWS
         (async () => {
           try {
-            const keys = getUserSpecificKeys();
+            const keys = getProjectStorageKeys(userId, 'current');
             const localStorageKey = `${keys.selections}-instance-metadata`;
             
             const savedInstanceMetadata = localStorage.getItem(localStorageKey);
@@ -1442,7 +1442,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       });
       
       // Get user-specific keys for consistent storage
-      const keys = getUserSpecificKeys();
+      const keys = getProjectStorageKeys(userId, 'current');
       
       // Simple localStorage save with error handling
       try {
@@ -1506,7 +1506,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
     set({ viewMode: mode });
     
     // Save viewMode to localStorage for persistence
-    const keys = getUserSpecificKeys();
+    const keys = getProjectStorageKeys(userId, 'current');
     localStorage.setItem(`${keys.formData}-viewMode`, mode);
     console.log('💾 ViewMode saved to localStorage:', mode);
     
@@ -1535,7 +1535,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       const userId = user?.email || localStorage.getItem('userEmail') || 'anonymous';
       
       // Save to user-specific localStorage
-      const keys = getUserSpecificKeys();
+      const keys = getProjectStorageKeys(userId, 'current');
       localStorage.setItem(keys.bulkData, JSON.stringify(bulkDefects));
       
       // Save to AWS DynamoDB for cross-device persistence (manual save bypasses rate limiting)
@@ -1567,7 +1567,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       console.log('👤 Loading bulk data for user:', userId);
       
       // Create user-specific localStorage keys
-      const userSpecificKeys = getUserSpecificKeys();
+      const userSpecificKeys = getProjectStorageKeys(userId, 'current');
       
       console.log('🔑 Using localStorage key:', userSpecificKeys.bulkData);
       
@@ -1736,7 +1736,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           console.log('✅ Form data loaded from AWS');
           
           // Cache to localStorage for faster future access
-          const keys = getUserSpecificKeys();
+          const keys = getProjectStorageKeys(userId, 'current');
           localStorage.setItem(keys.formData, JSON.stringify(project.formData));
         }
         
@@ -1746,7 +1746,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           console.log('✅ Session state loaded from AWS');
           
           // Cache to localStorage for faster future access
-          const keys = getUserSpecificKeys();
+          const keys = getProjectStorageKeys(userId, 'current');
           localStorage.setItem(`${keys.formData}-session-state`, JSON.stringify(project.sessionState));
         }
         
@@ -1789,13 +1789,13 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           set({ bulkDefects: finalDefects });
           
           // Cache to localStorage for faster future access
-          const keys = getUserSpecificKeys();
+          const keys = getProjectStorageKeys(userId, 'current');
           localStorage.setItem(keys.bulkData, JSON.stringify(finalDefects));
         } else {
           set({ bulkDefects: defects });
           
           // Cache to localStorage for faster future access
-          const keys = getUserSpecificKeys();
+          const keys = getProjectStorageKeys(userId, 'current');
           localStorage.setItem(keys.bulkData, JSON.stringify(defects));
         }
         
@@ -1817,7 +1817,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         console.log('✅ Selected images loaded and migrated from AWS');
         
         // Cache to localStorage for faster future access
-        const keys = getUserSpecificKeys();
+        const keys = getProjectStorageKeys(userId, 'current');
         localStorage.setItem(keys.selections, JSON.stringify(migratedSelections));
       } else {
         console.log('⚠️ No selected images found in AWS');
@@ -1832,7 +1832,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         console.log('✅ Instance metadata loaded from AWS');
         
         // Cache to localStorage for faster future access
-        const keys = getUserSpecificKeys();
+        const keys = getProjectStorageKeys(userId, 'current');
         localStorage.setItem(`${keys.selections}-instance-metadata`, JSON.stringify(instanceMetadata));
       } else {
         console.log('⚠️ No instance metadata found in AWS');
@@ -1888,7 +1888,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         set({ images: loadedImages });
         
         // Cache to localStorage for faster future access
-        const keys = getUserSpecificKeys();
+        const keys = getProjectStorageKeys(userId, 'current');
         localStorage.setItem(keys.images, JSON.stringify(loadedImages));
         
         // Also cache S3 file tracking for compatibility
@@ -2013,7 +2013,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
               set({ images: loadedImages });
               
               // Cache to localStorage for faster future access
-              const keys = getUserSpecificKeys();
+              const keys = getProjectStorageKeys(userId, 'current');
               localStorage.setItem(keys.images, JSON.stringify(loadedImages));
               
               console.log('💾 Images cached to localStorage (fallback)');
@@ -2636,7 +2636,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
   // Session management functions
   saveSessionState: (overrideViewMode?: 'images' | 'bulk') => {
     const state = get();
-    const keys = getUserSpecificKeys();
+    const keys = getProjectStorageKeys(userId, 'current');
     
     const effectiveViewMode = overrideViewMode || state.viewMode;
     
@@ -2677,7 +2677,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
 
   forceSessionStateSave: async (overrideViewMode?: 'images' | 'bulk') => {
     const state = get();
-    const keys = getUserSpecificKeys();
+    const keys = getProjectStorageKeys(userId, 'current');
     
     const effectiveViewMode = overrideViewMode || state.viewMode;
     
@@ -2717,7 +2717,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
   },
 
   restoreSessionState: async () => {
-    const keys = getUserSpecificKeys();
+    const keys = getProjectStorageKeys(userId, 'current');
     
     console.log('🔄 RESTORING SESSION STATE...');
     console.log('🔍 Looking for key:', `${keys.formData}-session-state`);
@@ -2908,7 +2908,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
     });
     
     // Auto-save session state when updated
-    const keys = getUserSpecificKeys();
+    const keys = getProjectStorageKeys(userId, 'current');
     try {
       localStorage.setItem(`${keys.formData}-session-state`, JSON.stringify(newSessionState));
       console.log('💾 Session state saved to localStorage with current orders');
@@ -2921,7 +2921,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
   },
 
   clearSessionState: () => {
-    const keys = getUserSpecificKeys();
+    const keys = getProjectStorageKeys(userId, 'current');
     try {
       localStorage.removeItem(`${keys.formData}-session-state`);
     } catch (error) {
