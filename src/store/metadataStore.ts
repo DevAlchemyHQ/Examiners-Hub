@@ -55,6 +55,9 @@ class MinimalCrossBrowserSync {
           console.log('✅ Updating form data from other browser');
           useMetadataStore.setState({ 
             formData: data.formData,
+            elr: data.formData.elr || '',
+            structureNo: data.formData.structureNo || '',
+            date: data.formData.date || '',
             sessionState: {
               ...currentState.sessionState,
               formData: data.formData,
