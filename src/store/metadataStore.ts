@@ -1748,29 +1748,57 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           hasSortPreferences: !!project.sortPreferences
         });
         
-        // Update form data if available
+        // Update form data if available (with timestamp-based conflict resolution)
         if (project.formData) {
-          set({ 
-            formData: project.formData,
-            elr: project.formData.elr || '',
-            structureNo: project.formData.structureNo || '',
-            date: project.formData.date || ''
-          });
-          console.log('✅ Form data loaded from AWS');
+          const currentState = get();
+          const localTimestamp = currentState.sessionState.lastActiveTime || 0;
+          const remoteTimestamp = project.sessionState?.lastActiveTime || 0;
           
-          // Cache to localStorage for faster future access
-          const keys = getProjectStorageKeys(userId, 'current');
-          localStorage.setItem(keys.formData, JSON.stringify(project.formData));
+          console.log('🔄 AWS form data conflict resolution:', {
+            localTimestamp,
+            remoteTimestamp,
+            localFormData: currentState.formData,
+            remoteFormData: project.formData
+          });
+          
+          if (remoteTimestamp > localTimestamp) {
+            set({ 
+              formData: project.formData,
+              elr: project.formData.elr || '',
+              structureNo: project.formData.structureNo || '',
+              date: project.formData.date || ''
+            });
+            console.log('✅ Form data updated from AWS (newer timestamp)');
+            
+            // Cache to localStorage for faster future access
+            const keys = getProjectStorageKeys(userId, 'current');
+            localStorage.setItem(keys.formData, JSON.stringify(project.formData));
+          } else {
+            console.log('⚠️ Ignoring older AWS form data, keeping local changes');
+          }
         }
         
-        // Update session state if available
+        // Update session state if available (with timestamp-based conflict resolution)
         if (project.sessionState) {
-          set({ sessionState: project.sessionState });
-          console.log('✅ Session state loaded from AWS');
+          const currentState = get();
+          const localTimestamp = currentState.sessionState.lastActiveTime || 0;
+          const remoteTimestamp = project.sessionState.lastActiveTime || 0;
           
-          // Cache to localStorage for faster future access
-          const keys = getProjectStorageKeys(userId, 'current');
-          localStorage.setItem(`${keys.formData}-session-state`, JSON.stringify(project.sessionState));
+          console.log('🔄 AWS session state conflict resolution:', {
+            localTimestamp,
+            remoteTimestamp
+          });
+          
+          if (remoteTimestamp > localTimestamp) {
+            set({ sessionState: project.sessionState });
+            console.log('✅ Session state updated from AWS (newer timestamp)');
+            
+            // Cache to localStorage for faster future access
+            const keys = getProjectStorageKeys(userId, 'current');
+            localStorage.setItem(`${keys.formData}-session-state`, JSON.stringify(project.sessionState));
+          } else {
+            console.log('⚠️ Ignoring older AWS session state, keeping local changes');
+          }
         }
         
         // Update sort preferences if available
