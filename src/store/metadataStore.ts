@@ -2361,7 +2361,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           console.log('🔑 AWS update: projectId=' + projectId + ' (✅ deterministic)');
           
           await DatabaseService.updateProject(userId, projectId, {
-            formData: {
+            formData: state.formData || {
               elr: state.elr || '',
               structureNo: state.structureNo || '',
               date: state.date || ''
