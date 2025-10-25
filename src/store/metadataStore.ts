@@ -1800,20 +1800,26 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         'instanceMetadata-' // Old metadata keys
       ];
 
-      // One-time migration script: Purge all old keys with legacy patterns (only run once)
+      // One-time migration script: Purge ONLY truly legacy keys (not current deterministic keys)
       const migrationKey = `migration_completed_${userId}`;
       if (!localStorage.getItem(migrationKey)) {
-        console.log('🧹 Running one-time migration script to purge old keys...');
+        console.log('🧹 Running one-time migration script to purge ONLY legacy keys...');
         Object.keys(localStorage).forEach(key => {
-          if (key.includes('formData-') || key.includes('images-') || key.includes('s3Files_') || 
-              key.includes('sessionState-') || key.includes('bulkData-') || key.includes('selections-') ||
-              key.includes('instanceMetadata-') || key.includes('proj_61a4446c')) {
+          // Only remove keys that are truly legacy patterns, NOT current deterministic keys
+          if ((key.includes('formData-') && !key.includes('project_proj_')) || 
+              (key.includes('images-') && !key.includes('project_proj_')) || 
+              (key.includes('s3Files_') && !key.includes('project_proj_')) || 
+              (key.includes('sessionState-') && !key.includes('project_proj_')) || 
+              (key.includes('bulkData-') && !key.includes('project_proj_')) || 
+              (key.includes('selections-') && !key.includes('project_proj_')) ||
+              (key.includes('instanceMetadata-') && !key.includes('project_proj_')) || 
+              key.includes('proj_61a4446c')) {
             console.log('🗑️ Removing legacy key:', key);
             localStorage.removeItem(key);
           }
         });
         localStorage.setItem(migrationKey, 'true');
-        console.log("🧹 Old keys cleared — cross-browser state should now sync properly.");
+        console.log("🧹 Legacy keys cleared — current deterministic keys preserved.");
       } else {
         console.log('✅ Migration already completed for this user');
       }
