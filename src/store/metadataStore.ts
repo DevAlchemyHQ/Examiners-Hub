@@ -7,6 +7,15 @@ import { nanoid } from 'nanoid';
 import { convertImageToJpgBase64, convertBlobToBase64 } from '../utils/fileUtils';
 import { useProjectStore } from './projectStore';
 import { toast } from 'react-toastify';
+import { 
+  generateStableProjectId, 
+  generateStableImageId, 
+  getAllProjectStorageKeys,
+  saveVersionedData,
+  loadVersionedData,
+  PERSISTENCE_VERSION,
+  type VersionedData
+} from '../utils/idGenerator';
 
 // Minimal Cross-Browser Sync Class
 class MinimalCrossBrowserSync {
@@ -73,29 +82,9 @@ class MinimalCrossBrowserSync {
 
 const minimalSync = new MinimalCrossBrowserSync();
 
-// Standardized ID generation system
-const generateImageId = (fileName: string, source: 'local' | 's3' = 'local', timestamp?: number): string => {
-  const cleanFileName = fileName.replace(/[^a-zA-Z0-9]/g, '-');
-  const uniqueSuffix = timestamp ? `-${timestamp}` : '';
-  if (source === 's3') {
-    const keyParts = fileName.split('-');
-    const originalFileName = keyParts.slice(1).join('-');
-    return `img-${originalFileName.replace(/[^a-zA-Z0-9]/g, '-')}${uniqueSuffix}`;
-  }
-  return `img-${cleanFileName}${uniqueSuffix}`;
-};
-
-const extractOriginalFileName = (s3Key: string): string => {
-  const keyParts = s3Key.split('-');
-  return keyParts.slice(1).join('-');
-};
-
-const getConsistentImageId = (fileName: string, s3Key?: string, timestamp?: number): string => {
-  if (s3Key) {
-    const originalFileName = extractOriginalFileName(s3Key);
-    return generateImageId(originalFileName, 's3', timestamp);
-  }
-  return generateImageId(fileName, 'local', timestamp);
+// Deterministic image ID generation using stable IDs
+const generateDeterministicImageId = (userEmail: string, projectName: string, fileName: string, uploadOrder: number): string => {
+  return generateStableImageId(userEmail, projectName, fileName, uploadOrder);
 };
 
 // Make sure initialFormData is truly empty
@@ -250,19 +239,9 @@ const forceAWSSave = async (sessionState: any) => {
   }
 };
 
-// Helper function to get user-specific localStorage keys
-const getUserSpecificKeys = () => {
-  const storedUser = localStorage.getItem('user');
-  const user = storedUser ? JSON.parse(storedUser) : null;
-  const userId = user?.email || 'anonymous';
-  
-  return {
-    formData: `formData-${userId}`,
-    images: `images-${userId}`,
-    selections: `selections-${userId}`,
-    bulkData: `bulkData-${userId}`,
-    sessionState: `sessionState-${userId}`
-  };
+// Helper function to get deterministic project storage keys
+const getProjectStorageKeys = (userEmail: string, projectName: string = 'current') => {
+  return getAllProjectStorageKeys(userEmail, projectName);
 };
 
 // Migration function to handle ID mismatches between old and new formats
@@ -473,13 +452,14 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       
       // Create all image metadata immediately for instant display
       const imageMetadataArray: ImageMetadata[] = files.map((file, index) => {
-        const timestamp = Date.now() + index;
+        // Use deterministic ID generation for cross-browser consistency
+        const deterministicId = generateDeterministicImageId(userId, 'current', file.name, index);
+        const timestamp = Date.now() + index; // Keep timestamp for S3 path only
         const filePath = `users/${userId}/images/${timestamp}-${file.name}`;
-        const consistentId = getConsistentImageId(file.name, undefined, timestamp);
         const previewUrl = URL.createObjectURL(file);
         
         console.log(`📸 Creating image metadata for ${file.name}:`, {
-          id: consistentId,
+          id: deterministicId,
           fileName: file.name,
           previewUrl: previewUrl,
           fileSize: file.size,
@@ -488,7 +468,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         
         // Create temporary metadata with local file for instant display
         return {
-          id: consistentId,
+          id: deterministicId,
           file: file,
           fileName: file.name,
           fileSize: file.size,
@@ -1182,10 +1162,11 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       const user = currentUser;
       const userId = user?.email || localStorage.getItem('userEmail') || 'anonymous';
       
-      // Create user-specific localStorage keys to prevent data leakage
-      const userSpecificKeys = getUserSpecificKeys();
+      // Create deterministic project storage keys for consistent cross-browser access
+      const projectKeys = getProjectStorageKeys(userId, 'current');
+      const projectId = generateStableProjectId(userId, 'current');
       
-      console.log('Loading data for user:', userId);
+      console.log('Loading data for user:', userId, 'project:', projectId);
       
       // Load all data in parallel and batch state updates
       const [formDataResult, bulkDataResult, imagesResult, selectionsResult, instanceMetadataResult] = await Promise.allSettled([
@@ -1208,14 +1189,13 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           
           // Fallback to localStorage if AWS fails or no data found
           try {
-            const savedFormData = localStorage.getItem(userSpecificKeys.formData);
-            if (savedFormData) {
-              const formData = JSON.parse(savedFormData);
+            const formData = loadVersionedData(projectKeys.formData);
+            if (formData) {
               console.log('📋 Form data loaded from localStorage fallback:', formData);
               return formData;
             }
           } catch (error) {
-            console.warn('⚠️ Chrome localStorage read error for formData:', error);
+            console.warn('⚠️ localStorage read error for formData:', error);
           }
           
           console.log('⚠️ No form data available from any source');
@@ -1225,13 +1205,13 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         // Load bulk data from localStorage first, then AWS
         (async () => {
           try {
-            const savedBulkData = localStorage.getItem(userSpecificKeys.bulkData);
-            if (savedBulkData) {
-              const bulkDefects = JSON.parse(savedBulkData);
-              return bulkDefects;
+            const bulkData = loadVersionedData(projectKeys.bulkData);
+            if (bulkData) {
+              console.log('📋 Bulk data loaded from localStorage:', bulkData);
+              return bulkData;
             }
           } catch (error) {
-            console.warn('⚠️ Chrome localStorage read error for bulkData:', error);
+            console.warn('⚠️ localStorage read error for bulkData:', error);
           }
             
           if (userId !== 'anonymous') {
@@ -2154,39 +2134,40 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       
       const state = get();
       
-      // Save to localStorage immediately for fast access
-      const keys = getUserSpecificKeys();
+      // Save to localStorage immediately for fast access using deterministic keys
+      const keys = getProjectStorageKeys(userId, 'current');
+      const projectId = generateStableProjectId(userId, 'current');
       
       try {
         switch (effectiveDataType) {
           case 'form':
-            localStorage.setItem(keys.formData, JSON.stringify(state.formData));
+            saveVersionedData(keys.formData, projectId, userId, state.formData);
             break;
           case 'images':
-            localStorage.setItem(keys.images, JSON.stringify(state.images));
+            saveVersionedData(keys.images, projectId, userId, state.images);
             break;
           case 'bulk':
-            localStorage.setItem(keys.bulkData, JSON.stringify(state.bulkDefects));
+            saveVersionedData(keys.bulkData, projectId, userId, state.bulkDefects);
             break;
           case 'selections':
-            localStorage.setItem(keys.selections, JSON.stringify(state.selectedImages));
-            localStorage.setItem(`${keys.selections}-instance-metadata`, JSON.stringify(state.instanceMetadata));
+            saveVersionedData(keys.selections, projectId, userId, state.selectedImages);
+            saveVersionedData(keys.instanceMetadata, projectId, userId, state.instanceMetadata);
             break;
           case 'session':
-            localStorage.setItem(`${keys.formData}-session-state`, JSON.stringify(state.sessionState));
+            saveVersionedData(keys.sessionState, projectId, userId, state.sessionState);
             break;
           case 'all':
           default:
-            // Save all data to localStorage
-            localStorage.setItem(keys.formData, JSON.stringify(state.formData));
-            localStorage.setItem(keys.images, JSON.stringify(state.images));
-            localStorage.setItem(keys.bulkData, JSON.stringify(state.bulkDefects));
-            localStorage.setItem(keys.selections, JSON.stringify(state.selectedImages));
-            localStorage.setItem(`${keys.selections}-instance-metadata`, JSON.stringify(state.instanceMetadata));
-            localStorage.setItem(`${keys.formData}-session-state`, JSON.stringify(state.sessionState));
+            // Save all data to localStorage using versioned format
+            saveVersionedData(keys.formData, projectId, userId, state.formData);
+            saveVersionedData(keys.images, projectId, userId, state.images);
+            saveVersionedData(keys.bulkData, projectId, userId, state.bulkDefects);
+            saveVersionedData(keys.selections, projectId, userId, state.selectedImages);
+            saveVersionedData(keys.instanceMetadata, projectId, userId, state.instanceMetadata);
+            saveVersionedData(keys.sessionState, projectId, userId, state.sessionState);
             break;
         }
-        console.log('✅ Data saved to localStorage');
+        console.log('✅ Versioned data saved to localStorage');
       } catch (error) {
         console.warn('⚠️ localStorage save error:', error);
       }
