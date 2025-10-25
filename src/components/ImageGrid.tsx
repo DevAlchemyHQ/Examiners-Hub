@@ -168,7 +168,7 @@ export const ImageGrid: React.FC = () => {
                 type="text"
                 value={formData.elr}
                 onChange={handleELRChange}
-                className={`p-1 text-xs border rounded text-slate-900 dark:text-white w-12 flex-shrink-0 ${
+                className={`p-1 text-xs border rounded text-slate-900 dark:text-white w-20 flex-shrink-0 ${
                   !formData.elr?.trim() ? 'bg-amber-50/30 dark:bg-amber-900/20 border-amber-300' : 'bg-white dark:bg-gray-800 border-slate-200 dark:border-gray-600'
                 }`}
                 placeholder="ELR"
@@ -181,7 +181,7 @@ export const ImageGrid: React.FC = () => {
                 type="text"
                 value={formData.structureNo}
                 onChange={handleStructureNoChange}
-                className={`p-1 text-xs border rounded text-slate-900 dark:text-white w-12 flex-shrink-0 ${
+                className={`p-1 text-xs border rounded text-slate-900 dark:text-white w-20 flex-shrink-0 ${
                   !formData.structureNo?.trim() ? 'bg-amber-50/30 dark:bg-amber-900/20 border-amber-300' : 'bg-white dark:bg-gray-800 border-slate-200 dark:border-gray-600'
                 }`}
                 placeholder="No"
