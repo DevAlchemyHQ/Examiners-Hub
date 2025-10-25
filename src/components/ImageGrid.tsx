@@ -172,7 +172,7 @@ export const ImageGrid: React.FC = () => {
                   !formData.elr?.trim() ? 'bg-amber-50/30 dark:bg-amber-900/20 border-amber-300' : 'bg-white dark:bg-gray-800 border-slate-200 dark:border-gray-600'
                 }`}
                 placeholder="ELR"
-                maxLength={8}
+                maxLength={20}
               />
             </div>
             <div className="flex items-center gap-1 flex-shrink-0">
@@ -185,7 +185,7 @@ export const ImageGrid: React.FC = () => {
                   !formData.structureNo?.trim() ? 'bg-amber-50/30 dark:bg-amber-900/20 border-amber-300' : 'bg-white dark:bg-gray-800 border-slate-200 dark:border-gray-600'
                 }`}
                 placeholder="No"
-                maxLength={8}
+                maxLength={20}
               />
             </div>
             <div className="flex items-center gap-1 flex-shrink-0">
@@ -251,7 +251,7 @@ export const ImageGrid: React.FC = () => {
                   !formData.elr?.trim() ? 'bg-amber-50/30 dark:bg-amber-900/20 border-amber-300' : 'bg-white dark:bg-gray-800 border-slate-200 dark:border-gray-600'
                 }`}
                 placeholder="ELR"
-                maxLength={8}
+                maxLength={20}
               />
             </div>
             <div className="flex items-center gap-1 flex-shrink-0">
@@ -264,7 +264,7 @@ export const ImageGrid: React.FC = () => {
                   !formData.structureNo?.trim() ? 'bg-amber-50/30 dark:bg-amber-900/20 border-amber-300' : 'bg-white dark:bg-gray-800 border-slate-200 dark:border-gray-600'
                 }`}
                 placeholder="No"
-                maxLength={8}
+                maxLength={20}
               />
             </div>
             <div className="flex items-center gap-1 flex-shrink-0">

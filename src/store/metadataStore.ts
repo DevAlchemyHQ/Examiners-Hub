@@ -455,6 +455,9 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       return { 
         ...state, 
         formData: newFormData,
+        elr: data.elr !== undefined ? data.elr : state.elr,
+        structureNo: data.structureNo !== undefined ? data.structureNo : state.structureNo,
+        date: data.date !== undefined ? data.date : state.date,
         sessionState: updatedSessionState
       };
     });
