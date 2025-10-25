@@ -1758,13 +1758,22 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           if (localFormDataStr) {
             const versionedFormData = JSON.parse(localFormDataStr);
             console.log('🔍 DEBUG: Raw localStorage form data:', versionedFormData);
+            console.log('🔍 DEBUG: versionedFormData.data:', versionedFormData.data);
+            console.log('🔍 DEBUG: versionedFormData.data.data:', versionedFormData.data?.data);
+            
             // Extract actual data from versioned format - handle nested versioned data
-            if (versionedFormData.data && typeof versionedFormData.data === 'object') {
+            if (versionedFormData.data && typeof versionedFormData.data === 'object' && versionedFormData.data.data) {
               // If data is another versioned object, extract its data
-              localFormData = versionedFormData.data.data || versionedFormData.data;
+              localFormData = versionedFormData.data.data;
+              console.log('🔍 DEBUG: Using nested data.data');
+            } else if (versionedFormData.data && typeof versionedFormData.data === 'object' && !versionedFormData.data.version) {
+              // If data is the actual form data (no version property), use it directly
+              localFormData = versionedFormData.data;
+              console.log('🔍 DEBUG: Using data (no version)');
             } else {
-              // If data is the actual form data, use it directly
-              localFormData = versionedFormData.data || versionedFormData;
+              // Fallback to raw data
+              localFormData = versionedFormData;
+              console.log('🔍 DEBUG: Using raw data');
             }
             console.log('🔍 DEBUG: Extracted form data:', localFormData);
             console.log('📋 Local form data loaded for conflict resolution:', localFormData);
