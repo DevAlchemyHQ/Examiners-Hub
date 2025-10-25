@@ -1041,6 +1041,26 @@ export class DatabaseService {
     }
   }
 
+  static async getSyncVersion(userId: string) {
+    try {
+      console.log('🗄️ AWS DynamoDB getSyncVersion:', userId);
+      
+      // Get the most recent project to check its syncVersion
+      const projectResult = await this.getProject(userId, 'current');
+      
+      if (projectResult.project && projectResult.project.syncVersion) {
+        console.log('✅ AWS DynamoDB getSyncVersion result:', projectResult.project.syncVersion);
+        return projectResult.project.syncVersion;
+      } else {
+        console.log('⚠️ No syncVersion found for user:', userId);
+        return null;
+      }
+    } catch (error) {
+      console.error('AWS DynamoDB getSyncVersion error:', error);
+      return null;
+    }
+  }
+
   static async updateProject(userId: string, projectId: string, projectData: any, isClearing: boolean = false) {
     try {
       // For 'current' project, ensure we update the most recent one

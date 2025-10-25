@@ -65,6 +65,16 @@ class MinimalCrossBrowserSync {
           console.log('⚠️ Ignoring older form data update');
         }
       }
+      
+      if (type === 'awsDataUpdated') {
+        console.log('📡 AWS data updated broadcast received:', data);
+        const currentSyncVersion = localStorage.getItem('lastSyncVersion') || 'none';
+        if (data.syncVersion !== currentSyncVersion) {
+          console.log('🔄 Detected new AWS sync version, reloading from AWS...');
+          useMetadataStore.getState().loadAllUserDataFromAWS();
+          localStorage.setItem('lastSyncVersion', data.syncVersion);
+        }
+      }
     };
     
     this.isListening = true;
@@ -95,6 +105,42 @@ class MinimalCrossBrowserSync {
 }
 
 const minimalSync = new MinimalCrossBrowserSync();
+
+// Periodic AWS sync version checking for eventual consistency
+let syncCheckInterval: NodeJS.Timeout | null = null;
+
+const startPeriodicSyncCheck = () => {
+  if (syncCheckInterval) return; // Already running
+  
+  syncCheckInterval = setInterval(async () => {
+    try {
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      if (user?.email) {
+        const { DatabaseService } = await import('../lib/services');
+        const latestVersion = await DatabaseService.getSyncVersion(user.email);
+        const localVersion = localStorage.getItem('lastSyncVersion');
+        
+        if (latestVersion && latestVersion !== localVersion) {
+          console.log('🌐 Detected newer AWS version — refreshing local state');
+          await useMetadataStore.getState().loadAllUserDataFromAWS();
+          localStorage.setItem('lastSyncVersion', latestVersion);
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error in periodic sync check:', error);
+    }
+  }, 30000); // every 30 seconds
+  
+  console.log('🔄 Started periodic AWS sync check (30s interval)');
+};
+
+const stopPeriodicSyncCheck = () => {
+  if (syncCheckInterval) {
+    clearInterval(syncCheckInterval);
+    syncCheckInterval = null;
+    console.log('⏹️ Stopped periodic AWS sync check');
+  }
+};
 
 // Deterministic image ID generation using stable IDs
 const generateDeterministicImageId = (userEmail: string, projectName: string, fileName: string, uploadOrder: number): string => {
@@ -199,6 +245,7 @@ interface MetadataState extends MetadataStateOnly {
   loadAllUserDataFromAWS: () => Promise<void>;
   saveAllUserDataToAWS: () => Promise<void>;
   smartAutoSave: (dataType?: 'form' | 'images' | 'bulk' | 'selections' | 'session' | 'all') => Promise<void>;
+  initializeSyncCheck: () => void;
 }
 
 // Helper function for debounced AWS session state saves
@@ -408,6 +455,11 @@ const initialState: MetadataStateOnly = {
 
 export const useMetadataStore = create<MetadataState>((set, get) => ({
   ...initialState,
+  
+  // Initialize periodic sync check on store creation
+  initializeSyncCheck: () => {
+    startPeriodicSyncCheck();
+  },
 
   setFormData: (data) => {
     set((state) => {
@@ -2322,6 +2374,13 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             syncVersion: syncVersion // Add sync version to AWS payload
           });
           console.log('✅ Form data and session state saved to AWS (syncVersion:', syncVersion + ')');
+          
+          // Broadcast AWS update to other browsers
+          minimalSync.broadcast('awsDataUpdated', {
+            dataType: effectiveDataType,
+            syncVersion: syncVersion,
+            timestamp: Date.now()
+          });
         } catch (error) {
           console.error('❌ Error saving form data to AWS:', error);
         }
@@ -2331,6 +2390,13 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         try {
           await DatabaseService.updateBulkDefects(userId, state.bulkDefects);
           console.log('✅ Bulk defects saved to AWS');
+          
+          // Broadcast AWS update to other browsers
+          minimalSync.broadcast('awsDataUpdated', {
+            dataType: effectiveDataType,
+            syncVersion: Date.now().toString(),
+            timestamp: Date.now()
+          });
         } catch (error) {
           console.error('❌ Error saving bulk defects to AWS:', error);
         }
@@ -2341,6 +2407,13 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           await DatabaseService.updateSelectedImages(userId, state.selectedImages);
           await DatabaseService.saveInstanceMetadata(userId, state.instanceMetadata);
           console.log('✅ Selected images and metadata saved to AWS');
+          
+          // Broadcast AWS update to other browsers
+          minimalSync.broadcast('awsDataUpdated', {
+            dataType: effectiveDataType,
+            syncVersion: Date.now().toString(),
+            timestamp: Date.now()
+          });
         } catch (error) {
           console.error('❌ Error saving selected images to AWS:', error);
         }
