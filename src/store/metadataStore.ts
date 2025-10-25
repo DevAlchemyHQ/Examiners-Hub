@@ -1711,10 +1711,46 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
     }
   },
 
-  // NEW FUNCTION: Load all user data from AWS for cross-browser persistence
+  // Purge legacy localStorage caches and migrate to new key schema
+  purgeLegacyCaches: () => {
+    try {
+      console.log('🧹 Purging legacy localStorage caches...');
+      const userId = getUserId();
+      if (!userId || userId === 'anonymous') return;
+
+      // Get current project keys
+      const keys = getProjectStorageKeys(userId, 'current');
+      
+      // List of legacy key patterns to remove
+      const legacyPatterns = [
+        'proj_61a4446c', // Old project ID
+        'formData-',     // Old form data keys
+        'sessionState-', // Old session state keys
+        'images-',       // Old image keys
+        'bulkData-',     // Old bulk data keys
+        'selections-',   // Old selection keys
+        'instanceMetadata-' // Old metadata keys
+      ];
+
+      // Remove legacy keys
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && legacyPatterns.some(pattern => key.includes(pattern))) {
+          console.log('🗑️ Removing legacy key:', key);
+          localStorage.removeItem(key);
+        }
+      }
+
+      console.log('✅ Legacy cache purge completed');
+    } catch (error) {
+      console.error('❌ Error purging legacy caches:', error);
+    }
+  },
+
+  // REMOTE-FIRST HYDRATION: Load all user data from AWS (single source of truth)
   loadAllUserDataFromAWS: async () => {
     try {
-      console.log('🌐 loadAllUserDataFromAWS: Starting AWS data load...');
+      console.log('🌐 loadAllUserDataFromAWS: Starting REMOTE-FIRST hydration...');
       
       const userId = getUserId();
       
@@ -1725,7 +1761,11 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       
       console.log('👤 Loading AWS data for user:', userId);
       
-      // Load all data from AWS in parallel
+      // STEP 0: Purge legacy caches before remote-first hydration
+      get().purgeLegacyCaches();
+      
+      // STEP 1: Fetch fresh data from AWS DynamoDB FIRST (single source of truth)
+      console.log('☁️ Fetching fresh data from AWS DynamoDB...');
       const [projectResult, bulkDefectsResult, selectedImagesResult, instanceMetadataResult, s3FilesResult] = await Promise.allSettled([
         // Load project data (form data + session state)
         DatabaseService.getProject(userId, 'current'),
@@ -1739,142 +1779,69 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         StorageService.listFiles(`users/${userId}/images/`)
       ]);
       
-      // Process project data (form data + session state)
+      // STEP 2: Apply AWS data to store state (AWS is authoritative)
       if (projectResult.status === 'fulfilled' && projectResult.value.project) {
         const project = projectResult.value.project;
-        console.log('📋 Project data loaded from AWS:', {
+        const syncVersion = project.syncVersion || Date.now().toString();
+        
+        console.log('📋 Fresh project data loaded from AWS:', {
           hasFormData: !!project.formData,
           hasSessionState: !!project.sessionState,
-          hasSortPreferences: !!project.sortPreferences
+          hasSortPreferences: !!project.sortPreferences,
+          syncVersion: syncVersion
         });
         
-        // Load local data first for proper conflict resolution
-        const keys = getProjectStorageKeys(userId, 'current');
-        let localFormData = null;
-        let localSessionState = null;
-        
-        try {
-          const localFormDataStr = localStorage.getItem(keys.formData);
-          if (localFormDataStr) {
-            const versionedFormData = JSON.parse(localFormDataStr);
-            console.log('🔍 DEBUG: Raw localStorage form data:', versionedFormData);
-            console.log('🔍 DEBUG: versionedFormData.data:', versionedFormData.data);
-            console.log('🔍 DEBUG: versionedFormData.data.data:', versionedFormData.data?.data);
-            
-            // Extract actual data from versioned format - handle nested versioned data
-            if (versionedFormData.data && typeof versionedFormData.data === 'object' && versionedFormData.data.data) {
-              // If data is another versioned object, extract its data
-              localFormData = versionedFormData.data.data;
-              console.log('🔍 DEBUG: Using nested data.data');
-            } else if (versionedFormData.data && typeof versionedFormData.data === 'object' && !versionedFormData.data.version) {
-              // If data is the actual form data (no version property), use it directly
-              localFormData = versionedFormData.data;
-              console.log('🔍 DEBUG: Using data (no version)');
-            } else {
-              // Fallback to raw data
-              localFormData = versionedFormData;
-              console.log('🔍 DEBUG: Using raw data');
-            }
-            console.log('🔍 DEBUG: Extracted form data:', localFormData);
-            console.log('📋 Local form data loaded for conflict resolution:', localFormData);
-          }
-          
-          const localSessionStateStr = localStorage.getItem(`${keys.formData}-session-state`);
-          if (localSessionStateStr) {
-            const versionedSessionState = JSON.parse(localSessionStateStr);
-            console.log('🔍 DEBUG: Raw localStorage session state:', versionedSessionState);
-            // Extract actual data from versioned format - handle nested versioned data
-            if (versionedSessionState.data && typeof versionedSessionState.data === 'object') {
-              // If data is another versioned object, extract its data
-              localSessionState = versionedSessionState.data.data || versionedSessionState.data;
-            } else {
-              // If data is the actual session state, use it directly
-              localSessionState = versionedSessionState.data || versionedSessionState;
-            }
-            console.log('🔍 DEBUG: Extracted session state:', localSessionState);
-            console.log('📋 Local session state loaded for conflict resolution:', localSessionState);
-          }
-        } catch (error) {
-          console.warn('⚠️ Error loading local data for conflict resolution:', error);
-        }
-        
-        // Update form data if available (with timestamp-based conflict resolution)
+        // Apply AWS form data to store (AWS is authoritative)
         if (project.formData) {
-          const localTimestamp = localSessionState?.lastActiveTime || 0;
-          const remoteTimestamp = project.sessionState?.lastActiveTime || 0;
-          
-          console.log('🔄 AWS form data conflict resolution:', {
-            localTimestamp,
-            remoteTimestamp,
-            localFormData,
-            remoteFormData: project.formData
+          console.log('✅ Applying AWS form data to store (authoritative):', project.formData);
+          set({ 
+            formData: project.formData,
+            elr: project.formData.elr || '',
+            structureNo: project.formData.structureNo || '',
+            date: project.formData.date || ''
           });
-          
-          if (remoteTimestamp > localTimestamp) {
-            set({ 
-              formData: project.formData,
-              elr: project.formData.elr || '',
-              structureNo: project.formData.structureNo || '',
-              date: project.formData.date || ''
-            });
-            console.log('✅ Form data updated from AWS (newer timestamp)');
-            
-            // Cache to localStorage for faster future access
-            localStorage.setItem(keys.formData, JSON.stringify(project.formData));
-          } else {
-            console.log('⚠️ Ignoring older AWS form data, keeping local changes');
-            // Load local data if it exists and is newer
-            if (localFormData) {
-              console.log('🔍 DEBUG: Setting form data from localStorage:', {
-                formData: localFormData,
-                elr: localFormData.elr || '',
-                structureNo: localFormData.structureNo || '',
-                date: localFormData.date || ''
-              });
-              set({ 
-                formData: localFormData,
-                elr: localFormData.elr || '',
-                structureNo: localFormData.structureNo || '',
-                date: localFormData.date || ''
-              });
-              console.log('✅ Form data loaded from localStorage (newer than AWS)');
-            } else {
-              console.log('⚠️ No local form data available to load');
-            }
-          }
         }
-        
-        // Update session state if available (with timestamp-based conflict resolution)
+
+        // Apply AWS session state to store (AWS is authoritative)
         if (project.sessionState) {
-          const localTimestamp = localSessionState?.lastActiveTime || 0;
-          const remoteTimestamp = project.sessionState.lastActiveTime || 0;
-          
-          console.log('🔄 AWS session state conflict resolution:', {
-            localTimestamp,
-            remoteTimestamp
-          });
-          
-          if (remoteTimestamp > localTimestamp) {
-            set({ sessionState: project.sessionState });
-            console.log('✅ Session state updated from AWS (newer timestamp)');
-            
-            // Cache to localStorage for faster future access
-            localStorage.setItem(`${keys.formData}-session-state`, JSON.stringify(project.sessionState));
-          } else {
-            console.log('⚠️ Ignoring older AWS session state, keeping local changes');
-            // Load local session state if it exists and is newer
-            if (localSessionState) {
-              set({ sessionState: localSessionState });
-              console.log('✅ Session state loaded from localStorage (newer than AWS)');
-            }
-          }
+          console.log('✅ Applying AWS session state to store (authoritative):', project.sessionState);
+          set({ sessionState: project.sessionState });
         }
-        
-        // Update sort preferences if available
+
+        // Apply AWS sort preferences to store (AWS is authoritative)
         if (project.sortPreferences) {
           const { defectSortDirection, sketchSortDirection } = project.sortPreferences;
           set({ defectSortDirection, sketchSortDirection });
-          console.log('✅ Sort preferences loaded from AWS');
+          console.log('✅ Sort preferences applied from AWS (authoritative)');
+        }
+
+        // STEP 3: Re-write localStorage cache with fresh AWS data
+        const keys = getProjectStorageKeys(userId, 'current');
+        
+        if (project.formData) {
+          const versionedFormData = {
+            version: PERSISTENCE_VERSION,
+            timestamp: Date.now(),
+            projectId: keys.projectId,
+            userId: userId,
+            syncVersion: syncVersion,
+            data: project.formData
+          };
+          localStorage.setItem(keys.formData, JSON.stringify(versionedFormData));
+          console.log('💾 Re-written localStorage form data cache with AWS data (syncVersion:', syncVersion + ')');
+        }
+
+        if (project.sessionState) {
+          const versionedSessionState = {
+            version: PERSISTENCE_VERSION,
+            timestamp: Date.now(),
+            projectId: keys.projectId,
+            userId: userId,
+            syncVersion: syncVersion,
+            data: project.sessionState
+          };
+          localStorage.setItem(`${keys.formData}-session-state`, JSON.stringify(versionedSessionState));
+          console.log('💾 Re-written localStorage session state cache with AWS data (syncVersion:', syncVersion + ')');
         }
       } else {
         console.log('⚠️ No project data found in AWS');
@@ -2291,6 +2258,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       // Save to AWS for cross-browser persistence (with debouncing to reduce costs)
       if (effectiveDataType === 'all' || effectiveDataType === 'form' || effectiveDataType === 'session') {
         try {
+          const syncVersion = Date.now().toString(); // Generate new sync version
           await DatabaseService.updateProject(userId, 'current', {
             formData: {
               elr: state.elr || '',
@@ -2301,9 +2269,10 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             sortPreferences: {
               defectSortDirection: state.defectSortDirection,
               sketchSortDirection: state.sketchSortDirection
-            }
+            },
+            syncVersion: syncVersion // Add sync version to AWS payload
           });
-          console.log('✅ Form data and session state saved to AWS');
+          console.log('✅ Form data and session state saved to AWS (syncVersion:', syncVersion + ')');
         } catch (error) {
           console.error('❌ Error saving form data to AWS:', error);
         }
