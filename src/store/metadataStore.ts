@@ -17,6 +17,12 @@ import {
   type VersionedData
 } from '../utils/idGenerator';
 
+// Helper function to get userId consistently
+const getUserId = (): string => {
+  const user = JSON.parse(localStorage.getItem('user') || 'null');
+  return user?.email || localStorage.getItem('userEmail') || 'anonymous';
+};
+
 // Minimal Cross-Browser Sync Class
 class MinimalCrossBrowserSync {
   private channel: BroadcastChannel;
@@ -244,6 +250,7 @@ const getProjectStorageKeys = (userEmail: string, projectName: string = 'current
   return getAllProjectStorageKeys(userEmail, projectName);
 };
 
+
 // Migration function to handle ID mismatches between old and new formats
 const migrateSelectedImageIds = (
   selectedImages: Array<{ id: string; instanceId: string }>, 
@@ -446,9 +453,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       console.log('🚀 Starting ultra-fast parallel upload of', files.length, 'files');
       
       // Get user info once
-      const storedUser = localStorage.getItem('user');
-      const user = storedUser ? JSON.parse(storedUser) : null;
-      const userId = user?.email || localStorage.getItem('userEmail') || 'anonymous';
+      const userId = getUserId();
       
       // Create all image metadata immediately for instant display
       const imageMetadataArray: ImageMetadata[] = files.map((file, index) => {
@@ -1107,9 +1112,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
     
     // Clear S3 file tracking
     try {
-      const storedUser = localStorage.getItem('user');
-      const user = storedUser ? JSON.parse(storedUser) : null;
-      const userId = user?.email || localStorage.getItem('userEmail') || 'anonymous';
+      const userId = getUserId();
       localStorage.removeItem(`s3Files_${userId}`);
       console.log('🗑️ Cleared S3 file tracking from localStorage');
     } catch (error) {
@@ -1530,9 +1533,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       const { bulkDefects } = state;
       
       // Get user for user-specific keys
-      const storedUser = localStorage.getItem('user');
-      const user = storedUser ? JSON.parse(storedUser) : null;
-      const userId = user?.email || localStorage.getItem('userEmail') || 'anonymous';
+      const userId = getUserId();
       
       // Save to user-specific localStorage
       const keys = getProjectStorageKeys(userId, 'current');
@@ -1560,9 +1561,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       console.log('🔄 Loading bulk data...');
       
       // Get user from localStorage to avoid dynamic imports
-      const storedUser = localStorage.getItem('user');
-      const user = storedUser ? JSON.parse(storedUser) : null;
-      const userId = user?.email || localStorage.getItem('userEmail') || 'anonymous';
+      const userId = getUserId();
       
       console.log('👤 Loading bulk data for user:', userId);
       
@@ -1696,9 +1695,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
     try {
       console.log('🌐 loadAllUserDataFromAWS: Starting AWS data load...');
       
-      const storedUser = localStorage.getItem('user');
-      const user = storedUser ? JSON.parse(storedUser) : null;
-      const userId = user?.email || localStorage.getItem('userEmail') || 'anonymous';
+      const userId = getUserId();
       
       if (userId === 'anonymous') {
         console.log('⚠️ No authenticated user, skipping AWS load');
@@ -2040,9 +2037,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
     try {
       console.log('🌐 saveAllUserDataToAWS: Starting AWS data save...');
       
-      const storedUser = localStorage.getItem('user');
-      const user = storedUser ? JSON.parse(storedUser) : null;
-      const userId = user?.email || localStorage.getItem('userEmail') || 'anonymous';
+      const userId = getUserId();
       
       if (userId === 'anonymous') {
         console.log('⚠️ No authenticated user, skipping AWS save');
@@ -2114,9 +2109,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
     // Set default value if not provided
     const effectiveDataType = dataType || 'all';
     try {
-      const storedUser = localStorage.getItem('user');
-      const user = storedUser ? JSON.parse(storedUser) : null;
-      const userId = user?.email || localStorage.getItem('userEmail') || 'anonymous';
+      const userId = getUserId();
       
       if (userId === 'anonymous') {
         console.log('⚠️ No authenticated user, skipping smart auto-save');
@@ -2638,8 +2631,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
     const state = get();
     
     // Get userId for storage keys
-    const user = JSON.parse(localStorage.getItem('user') || 'null');
-    const userId = user?.email || localStorage.getItem('userEmail') || 'anonymous';
+    const userId = getUserId();
     
     const keys = getProjectStorageKeys(userId, 'current');
     
@@ -2684,8 +2676,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
     const state = get();
     
     // Get userId for storage keys
-    const user = JSON.parse(localStorage.getItem('user') || 'null');
-    const userId = user?.email || localStorage.getItem('userEmail') || 'anonymous';
+    const userId = getUserId();
     
     const keys = getProjectStorageKeys(userId, 'current');
     
@@ -2728,8 +2719,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
 
   restoreSessionState: async () => {
     // Get userId for storage keys
-    const user = JSON.parse(localStorage.getItem('user') || 'null');
-    const userId = user?.email || localStorage.getItem('userEmail') || 'anonymous';
+    const userId = getUserId();
     
     const keys = getProjectStorageKeys(userId, 'current');
     
@@ -2903,8 +2893,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
     const state = get();
     
     // Get userId for storage keys
-    const user = JSON.parse(localStorage.getItem('user') || 'null');
-    const userId = user?.email || localStorage.getItem('userEmail') || 'anonymous';
+    const userId = getUserId();
     
     // Automatically capture current orders when updating session state
     const autoUpdates = {
@@ -2940,8 +2929,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
 
   clearSessionState: () => {
     // Get userId for storage keys
-    const user = JSON.parse(localStorage.getItem('user') || 'null');
-    const userId = user?.email || localStorage.getItem('userEmail') || 'anonymous';
+    const userId = getUserId();
     
     const keys = getProjectStorageKeys(userId, 'current');
     try {
