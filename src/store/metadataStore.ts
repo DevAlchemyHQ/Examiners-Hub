@@ -1748,16 +1748,36 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           hasSortPreferences: !!project.sortPreferences
         });
         
+        // Load local data first for proper conflict resolution
+        const keys = getProjectStorageKeys(userId, 'current');
+        let localFormData = null;
+        let localSessionState = null;
+        
+        try {
+          const localFormDataStr = localStorage.getItem(keys.formData);
+          if (localFormDataStr) {
+            localFormData = JSON.parse(localFormDataStr);
+            console.log('📋 Local form data loaded for conflict resolution:', localFormData);
+          }
+          
+          const localSessionStateStr = localStorage.getItem(`${keys.formData}-session-state`);
+          if (localSessionStateStr) {
+            localSessionState = JSON.parse(localSessionStateStr);
+            console.log('📋 Local session state loaded for conflict resolution:', localSessionState);
+          }
+        } catch (error) {
+          console.warn('⚠️ Error loading local data for conflict resolution:', error);
+        }
+        
         // Update form data if available (with timestamp-based conflict resolution)
         if (project.formData) {
-          const currentState = get();
-          const localTimestamp = currentState.sessionState.lastActiveTime || 0;
+          const localTimestamp = localSessionState?.lastActiveTime || 0;
           const remoteTimestamp = project.sessionState?.lastActiveTime || 0;
           
           console.log('🔄 AWS form data conflict resolution:', {
             localTimestamp,
             remoteTimestamp,
-            localFormData: currentState.formData,
+            localFormData,
             remoteFormData: project.formData
           });
           
@@ -1771,17 +1791,25 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             console.log('✅ Form data updated from AWS (newer timestamp)');
             
             // Cache to localStorage for faster future access
-            const keys = getProjectStorageKeys(userId, 'current');
             localStorage.setItem(keys.formData, JSON.stringify(project.formData));
           } else {
             console.log('⚠️ Ignoring older AWS form data, keeping local changes');
+            // Load local data if it exists and is newer
+            if (localFormData) {
+              set({ 
+                formData: localFormData,
+                elr: localFormData.elr || '',
+                structureNo: localFormData.structureNo || '',
+                date: localFormData.date || ''
+              });
+              console.log('✅ Form data loaded from localStorage (newer than AWS)');
+            }
           }
         }
         
         // Update session state if available (with timestamp-based conflict resolution)
         if (project.sessionState) {
-          const currentState = get();
-          const localTimestamp = currentState.sessionState.lastActiveTime || 0;
+          const localTimestamp = localSessionState?.lastActiveTime || 0;
           const remoteTimestamp = project.sessionState.lastActiveTime || 0;
           
           console.log('🔄 AWS session state conflict resolution:', {
@@ -1794,10 +1822,14 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             console.log('✅ Session state updated from AWS (newer timestamp)');
             
             // Cache to localStorage for faster future access
-            const keys = getProjectStorageKeys(userId, 'current');
             localStorage.setItem(`${keys.formData}-session-state`, JSON.stringify(project.sessionState));
           } else {
             console.log('⚠️ Ignoring older AWS session state, keeping local changes');
+            // Load local session state if it exists and is newer
+            if (localSessionState) {
+              set({ sessionState: localSessionState });
+              console.log('✅ Session state loaded from localStorage (newer than AWS)');
+            }
           }
         }
         
