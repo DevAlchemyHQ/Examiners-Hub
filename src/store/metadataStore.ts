@@ -1287,7 +1287,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
                     } catch (error) {
                       console.error('Error processing S3 file from tracking:', s3File.fileName, error);
                     }
-                  }
+                  });
                   
                   // Sort images by upload time
                   loadedImages.sort((a, b) => {
@@ -1874,7 +1874,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           } catch (error) {
             console.error(`❌ Error processing S3 file ${s3File.name}:`, error);
           }
-        }
+        });
         
         // Sort images by upload time
         loadedImages.sort((a, b) => a.uploadTime - b.uploadTime);
