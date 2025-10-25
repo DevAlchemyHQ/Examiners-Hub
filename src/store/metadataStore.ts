@@ -1750,7 +1750,12 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         
         // Update form data if available
         if (project.formData) {
-          set({ formData: project.formData });
+          set({ 
+            formData: project.formData,
+            elr: project.formData.elr || '',
+            structureNo: project.formData.structureNo || '',
+            date: project.formData.date || ''
+          });
           console.log('✅ Form data loaded from AWS');
           
           // Cache to localStorage for faster future access
@@ -2190,7 +2195,11 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       if (effectiveDataType === 'all' || effectiveDataType === 'form' || effectiveDataType === 'session') {
         try {
           await DatabaseService.updateProject(userId, 'current', {
-            formData: state.formData,
+            formData: {
+              elr: state.elr || '',
+              structureNo: state.structureNo || '',
+              date: state.date || ''
+            },
             sessionState: state.sessionState,
             sortPreferences: {
               defectSortDirection: state.defectSortDirection,
