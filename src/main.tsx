@@ -11,3 +11,4 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     </ThemeProvider>
   </React.StrictMode>,
 )
+console.log('DEPLOYMENT TRIGGER: Sat Oct 25 21:28:33 BST 2025');
