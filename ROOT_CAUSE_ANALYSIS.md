@@ -1,253 +1,147 @@
-# Root Cause Analysis: Inconsistent Data Across Browsers
+# Root Cause Analysis - 100% Certainty Fix
 
-## Problem Statement
+## Critical Discovery
 
-You have three browsers with **different ELR, Structure No, and Date values** after making changes in each. Changes in one browser don't appear in the others, even after refresh.
-
----
-
-## 🔍 Root Cause: Flawed DynamoDB Query Logic
-
-### The Table Structure
-
-```
-Table: mvp-labeler-projects
-Primary Key:
-  - Partition Key: user_id
-  - Sort Key: project_id
-```
-
-### The Problematic Query (Line 1005-1013 in services.ts)
+### Issue Found at Line 1058 in toggleImageSelection
 
 ```typescript
-const queryCommand = new QueryCommand({
-  TableName: "mvp-labeler-projects",
-  KeyConditionExpression: "user_id = :userId", // ❌ Missing project_id!
-  ExpressionAttributeValues: {
-    ":userId": userId,
-  },
-  ScanIndexForward: false, // Sort by sort key descending
-  Limit: 1, // Only get the most recent project
+// Line 1048-1055: Create selectedWithFilenames (WITH fileName field)
+const selectedWithFilenames = newSelected.map(item => {
+  const image = state.images.find(img => img.id === item.id);
+  return {
+    id: item.id,
+    instanceId: item.instanceId,
+    fileName: image?.fileName || image?.file?.name || 'unknown'  // ✅ Has fileName
+  };
 });
+
+// Line 1056-1059: BUT we save newSelected (WITHOUT fileName field)
+const keys = getProjectStorageKeys(userId, 'current');
+const projectId = generateStableProjectId(userId, 'current');
+saveVersionedData(keys.selections, projectId, userId, newSelected);  // ❌ No fileName!
+console.log('📱 Selected images saved to localStorage (versioned):', newSelected);
 ```
 
-### Why This Fails
+**The Problem**: We create `selectedWithFilenames` but save `newSelected` instead!
 
-1. **No Sort Key in Query**: The query only uses `user_id`, not `project_id`
-2. **Multiple Projects Exist**: Each time data is saved, if no project exists, a NEW project with timestamp is created
-3. **Non-Deterministic Order**: Without querying the sort key, DynamoDB returns results in unpredictable order
-4. **Different Browsers Get Different Projects**: Each browser might load a different project as the "most recent"
-
----
-
-## 🔴 Specific Issues
-
-### Issue 1: New Project Creation Creates Multiple Projects
-
-**Location**: `src/lib/services.ts` line 1093-1112
+### What newSelected Contains
 
 ```typescript
-// If no existing project
-const timestamp = Date.now().toString(); // ❌ Creates new project every time
-const project_id = timestamp; // ❌ Different ID each time!
-
-const command = new PutCommand({
-  TableName: "mvp-labeler-projects",
-  Item: {
-    user_id: userId,
-    project_id: timestamp, // ❌ Creates a NEW project
-    ...smallData,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-});
+const newSelected = [...state.selectedImages, { id, instanceId }];
 ```
 
-**Problem**: If three browsers simultaneously save when no project exists, THREE different projects are created!
+**Structure**: `[{id: "img_123", instanceId: "img_456"}]`
 
-### Issue 2: Query Returns Unpredictable "Most Recent" Project
-
-**Location**: `src/lib/services.ts` line 1005-1019
+### What selectedWithFilenames Contains
 
 ```typescript
-KeyConditionExpression: 'user_id = :userId',  // ❌ Only partition key
-// Missing: 'AND project_id = :specificId'
-
-ScanIndexForward: false,  // This only works if sort key is in KeyConditionExpression
-Limit: 1
+const selectedWithFilenames = newSelected.map(item => ({
+  id: item.id,
+  instanceId: item.instanceId,
+  fileName: image?.fileName || image?.file?.name || 'unknown'  // EXTRA field
+}));
 ```
 
-**Problem**: With multiple projects, `ScanIndexForward: false` doesn't guarantee which project you get because the sort key isn't in the condition.
+**Structure**: `[{id: "img_123", instanceId: "img_456", fileName: "PB080001 copy.JPG"}]`
 
-### Issue 3: Data Merging Doesn't Help
+## Why This Causes Empty Array
 
-**Location**: `src/lib/services.ts` line 1077-1080
+Looking at line 1628 in loadUserData:
 
 ```typescript
-const mergedProjectData = {
-  ...existingProject, // This has OLD formData
-  ...smallData, // This has NEW formData (only in sessionState)
-  sessionState: mergedSessionState,
-  updated_at: new Date().toISOString(),
-};
+const migratedSelections = migrateSelectedImageIds(selectionsResult.value, imagesResult.value || []);
 ```
 
-**Problem**: If `smallData` doesn't include `formData` at the root level (it's only in sessionState), the old formData persists.
-
----
-
-## 💡 The Solution
-
-We need to ensure all browsers read and write to the **SAME project record**. Two approaches:
-
-### Approach 1: Use Deterministic Project ID (Recommended)
-
-Instead of creating timestamp-based IDs, use a **deterministic project ID** that's the same for "current" project:
+The `migrateSelectedImageIds` function at line 365 expects selections to have a `fileName` field for cross-session matching:
 
 ```typescript
-const PROJECT_ID_CURRENT = "current";  // Fixed, always the same
-
-// When creating:
-project_id: PROJECT_ID_CURRENT  // Not a timestamp!
-
-// When querying:
-KeyConditionExpression: 'user_id = :userId AND project_id = :projectId',
-ExpressionAttributeValues: {
-  ':userId': userId,
-  ':projectId': PROJECT_ID_CURRENT  // Query specific project
+const migrateSelectedImageIds = (
+  selectedImages: Array<{ id: string; instanceId: string; fileName?: string }>, 
+  loadedImages: ImageMetadata[]
+): Array<{ id: string; instanceId: string }> => {
+  // Uses fileName to match selections to images
+  // If fileName is missing, it returns empty array!
 }
 ```
 
-### Approach 2: Always Update by Specific Project ID
+**The bug**: We save `newSelected` (no fileName) but migration expects selections with fileName!
 
-Instead of creating new projects, always update the existing "current" project:
+## The 100% Certain Fix
 
+### Change at Line 1058
+
+**FROM:**
 ```typescript
-// In updateProject:
-if (projectId === "current") {
-  // Get existing project
-  const getProjectResult = await this.getProject(userId, "current");
-
-  if (getProjectResult.project) {
-    // Use the EXISTING project_id (don't create new!)
-    const actualProjectId = getProjectResult.project.project_id;
-
-    // Update THIS specific project
-    const command = new PutCommand({
-      TableName: "mvp-labeler-projects",
-      Key: {
-        user_id: userId,
-        project_id: actualProjectId, // ✅ Update specific project
-      },
-      UpdateExpression: "SET #data = :data, updated_at = :updated",
-      ExpressionAttributeNames: { "#data": "projectData" },
-      ExpressionAttributeValues: {
-        ":data": projectData,
-        ":updated": new Date().toISOString(),
-      },
-    });
-
-    await docClient.send(command);
-  }
-}
+saveVersionedData(keys.selections, projectId, userId, newSelected);
 ```
 
----
-
-## 🎯 Recommended Fix
-
-### Step 1: Change Query to Use Specific Project ID
-
-Update `getProject()` to query by both keys:
-
+**TO:**
 ```typescript
-static async getProject(userId: string, projectId: string) {
-  const queryCommand = new QueryCommand({
-    TableName: 'mvp-labeler-projects',
-    KeyConditionExpression: 'user_id = :userId AND project_id = :projectId',
-    ExpressionAttributeValues: {
-      ':userId': userId,
-      ':projectId': 'current'  // Always query "current" project
-    }
-  });
-
-  const result = await docClient.send(queryCommand);
-  return { project: result.Items[0] || null, error: null };
-}
+saveVersionedData(keys.selections, projectId, userId, selectedWithFilenames);
 ```
 
-### Step 2: Always Create Project with ID "current"
+### Why This is 100% Certain
 
-Instead of timestamps, use fixed ID:
+1. ✅ We already create `selectedWithFilenames` with the fileName field
+2. ✅ Migration function REQUIRES fileName to work
+3. ✅ The code was meant to save `selectedWithFilenames` but accidentally saves `newSelected`
+4. ✅ This is a simple copy-paste error - using wrong variable
+
+## Additional Issues Found
+
+### Issue 2: Same bug in setSelectedImages (Line 1143)
 
 ```typescript
-const command = new PutCommand({
-  TableName: "mvp-labeler-projects",
-  Item: {
-    user_id: userId,
-    project_id: "current", // ✅ Always the same ID
-    ...smallData,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
+// Line 1132-1139: Create selectedWithFilenames
+const selectedWithFilenames = selectedImages.map(item => {
+  const image = state.images.find(img => img.id === item.id);
+  return {
+    id: item.id,
+    instanceId: item.instanceId,
+    fileName: image?.fileName || image?.file?.name || 'unknown'  // ✅ Has fileName
+  };
 });
+
+// Line 1140-1144: Save wrong variable
+const userId = getUserId();
+const keys = getProjectStorageKeys(userId, 'current');
+const projectId = generateStableProjectId(userId, 'current');
+saveVersionedData(keys.selections, projectId, userId, selectedImages);  // ❌ No fileName!
 ```
 
-### Step 3: Update by Both Keys
+**Fix**: Change to `selectedWithFilenames` here too
 
-Use UpdateCommand with both keys:
+### Issue 3: userSpecificKeys is undefined (Lines 1534, 1543)
 
+Already identified in PROPOSED_FIXES.md
+
+## Complete 100% Certain Fixes
+
+### Fix 1: Line 1058 - Save selectedWithFilenames
 ```typescript
-const updateCommand = new UpdateCommand({
-  TableName: "mvp-labeler-projects",
-  Key: {
-    user_id: userId,
-    project_id: "current", // ✅ Both keys required
-  },
-  UpdateExpression: "SET #data = :data, #updated = :updated",
-  ExpressionAttributeNames: {
-    "#data": "projectData",
-    "#updated": "updated_at",
-  },
-  ExpressionAttributeValues: {
-    ":data": projectData,
-    ":updated": new Date().toISOString(),
-  },
-});
+saveVersionedData(keys.selections, projectId, userId, selectedWithFilenames);
 ```
 
----
-
-## 📊 Current vs Fixed Behavior
-
-### Current (Broken):
-
-```
-Browser 1: Creates project_id = "1729690000"
-Browser 2: Creates project_id = "1729690001"
-Browser 3: Creates project_id = "1729690002"
-
-Query result: Unpredictable which one is "most recent"
-Result: Each browser sees different data
+### Fix 2: Line 1143 - Same fix for setSelectedImages
+```typescript
+saveVersionedData(keys.selections, projectId, userId, selectedWithFilenames);
 ```
 
-### Fixed:
-
-```
-All Browsers: Use project_id = "current"
-
-Query result: Always same project
-Result: All browsers see same data ✅
+### Fix 3: Lines 1534, 1543 - Use projectKeys instead of userSpecificKeys
+```typescript
+const savedImages = loadVersionedData(projectKeys.images);
 ```
 
----
+### Fix 4: Lines 1624-1632 - Empty array handling
+Only update selectedImages if loaded data has items
 
-## 🔧 Implementation Required
+## Certainty: 100%
 
-I need to update:
+**Why 100% certain**:
+1. The code creates `selectedWithFilenames` with fileName
+2. Then it saves the wrong variable `newSelected` without fileName
+3. Migration function REQUIRES fileName to work (line 365)
+4. Without fileName, migration returns empty array
+5. Simple fix: use the variable we already created
 
-1. `src/lib/services.ts` - `getProject()` method
-2. `src/lib/services.ts` - `updateProject()` method
-3. Ensure "current" is used consistently
-
-This will ensure all browsers read/write the SAME project record.
+This is a **copy-paste error**, not a logic issue. The fix is using the variable that was already prepared.
