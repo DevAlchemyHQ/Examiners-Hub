@@ -730,9 +730,10 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
               // Get current session state
               const currentState = get();
               const sessionState = currentState.sessionState;
+              const formData = currentState.formData;
               
-              // Force immediate AWS save (bypass debouncing)
-              await forceAWSSave(sessionState);
+              // Force immediate AWS save (bypass debouncing) with complete formData
+              await forceAWSSave(sessionState, formData);
               
               console.log('✅ Image order immediately saved to AWS for cross-browser consistency');
             } else {
@@ -3032,8 +3033,9 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       localStorage.setItem(`${keys.formData}-session-state`, JSON.stringify(sessionState));
       console.log('✅ [FORCE SAVE] Session state saved successfully to localStorage');
       
-      // Force immediate AWS save for critical operations
-      await forceAWSSave(sessionState);
+      // Force immediate AWS save for critical operations with complete formData
+      const currentState = get();
+      await forceAWSSave(sessionState, currentState.formData);
     } catch (error) {
       console.error('❌ [FORCE SAVE] Error saving session state:', error);
     }
