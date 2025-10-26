@@ -2650,55 +2650,61 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
               }
               
               if (awsInstanceMetadata) {
-                // Compare timestamps to see if AWS has newer data
-                const currentKeys = Object.keys(currentState.instanceMetadata);
-                const awsKeys = Object.keys(awsInstanceMetadata);
-                const allKeys = new Set([...currentKeys, ...awsKeys]);
-                
-                const mergedInstanceMetadata: any = {};
-                let hasNewerData = false;
-                
-                // Only update if AWS has newer data (check if description or photoNumber is different and longer/newer)
-                for (const key of allKeys) {
-                  const currentValue = currentState.instanceMetadata[key];
-                  const awsValue = awsInstanceMetadata[key];
+                // CRITICAL: Check if debounced save is still pending (3 seconds after typing)
+                // If yes, skip this sync to avoid overwriting with old data
+                if (instanceMetadataSaveTimeout) {
+                  console.log('⏸️ [POLLING] Debounced save still pending, skipping sync to avoid conflict');
+                } else {
+                  // Safe to sync - no pending saves
+                  const currentKeys = Object.keys(currentState.instanceMetadata);
+                  const awsKeys = Object.keys(awsInstanceMetadata);
+                  const allKeys = new Set([...currentKeys, ...awsKeys]);
                   
-                  if (!currentValue || !currentValue.description) {
-                    // Current has no description, use AWS if available
-                    if (awsValue && awsValue.description) {
-                      mergedInstanceMetadata[key] = awsValue;
-                      hasNewerData = true;
+                  const mergedInstanceMetadata: any = {};
+                  let hasNewerData = false;
+                  
+                  // Only update if AWS has newer data (check if description or photoNumber is different and longer/newer)
+                  for (const key of allKeys) {
+                    const currentValue = currentState.instanceMetadata[key];
+                    const awsValue = awsInstanceMetadata[key];
+                    
+                    if (!currentValue || !currentValue.description) {
+                      // Current has no description, use AWS if available
+                      if (awsValue && awsValue.description) {
+                        mergedInstanceMetadata[key] = awsValue;
+                        hasNewerData = true;
+                      } else {
+                        mergedInstanceMetadata[key] = currentValue || awsValue;
+                      }
+                    } else if (awsValue && awsValue.description) {
+                      // Both have descriptions - use the one with more content
+                      if (awsValue.description.length > currentValue.description.length) {
+                        mergedInstanceMetadata[key] = awsValue;
+                        hasNewerData = true;
+                      } else {
+                        mergedInstanceMetadata[key] = currentValue;
+                      }
                     } else {
-                      mergedInstanceMetadata[key] = currentValue || awsValue;
-                    }
-                  } else if (awsValue && awsValue.description) {
-                    // Both have descriptions - use the one with more content or newer
-                    if (awsValue.description.length > currentValue.description.length) {
-                      mergedInstanceMetadata[key] = awsValue;
-                      hasNewerData = true;
-                    } else {
+                      // Keep current
                       mergedInstanceMetadata[key] = currentValue;
                     }
-                  } else {
-                    // Keep current
-                    mergedInstanceMetadata[key] = currentValue;
-                  }
-                  
-                  // Also compare photoNumber
-                  if (currentValue && awsValue && awsValue.photoNumber && awsValue.photoNumber !== currentValue.photoNumber) {
-                    if (!currentValue.photoNumber || awsValue.photoNumber.length > currentValue.photoNumber.length) {
-                      mergedInstanceMetadata[key] = { ...mergedInstanceMetadata[key], photoNumber: awsValue.photoNumber };
-                      hasNewerData = true;
+                    
+                    // Also compare photoNumber
+                    if (currentValue && awsValue && awsValue.photoNumber && awsValue.photoNumber !== currentValue.photoNumber) {
+                      if (!currentValue.photoNumber || awsValue.photoNumber.length > currentValue.photoNumber.length) {
+                        mergedInstanceMetadata[key] = { ...mergedInstanceMetadata[key], photoNumber: awsValue.photoNumber };
+                        hasNewerData = true;
+                      }
                     }
                   }
-                }
-                
-                if (hasNewerData) {
-                  updates.instanceMetadata = mergedInstanceMetadata;
-                  console.log('✅ [POLLING] Merged instance metadata with newer AWS data');
-                  syncedMetadata = true;
-                } else {
-                  console.log('✅ [POLLING] AWS metadata is older or same, keeping local');
+                  
+                  if (hasNewerData) {
+                    updates.instanceMetadata = mergedInstanceMetadata;
+                    console.log('✅ [POLLING] Merged instance metadata with newer AWS data');
+                    syncedMetadata = true;
+                  } else {
+                    console.log('✅ [POLLING] AWS metadata is older or same, keeping local');
+                  }
                 }
               }
               
