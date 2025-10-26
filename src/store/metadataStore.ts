@@ -363,7 +363,7 @@ const getProjectStorageKeys = (userEmail: string, projectName: string = 'current
 
 // Migration function to handle ID mismatches between old and new formats
 const migrateSelectedImageIds = (
-  selectedImages: Array<{ id: string; instanceId: string }>, 
+  selectedImages: Array<{ id: string; instanceId: string; fileName?: string }>, 
   loadedImages: ImageMetadata[]
 ): Array<{ id: string; instanceId: string }> => {
   if (!selectedImages || selectedImages.length === 0) return [];
@@ -378,8 +378,8 @@ const migrateSelectedImageIds = (
   selectedImages.forEach((selectedItem, index) => {
     console.log(`🔄 Processing selected item ${index + 1}:`, selectedItem);
     
-    // Extract filename from the selected item ID if fileName is not available
-    let selectedFileName = '';
+    // Extract filename from the selected item - check fileName property first
+    let selectedFileName = (selectedItem as any).fileName || '';
     if (selectedItem.id.startsWith('img-')) {
       // Extract filename from ID like 'img-PB080001-copy-JPG-1754603458580'
       const idParts = selectedItem.id.replace('img-', '').split('-');
