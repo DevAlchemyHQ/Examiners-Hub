@@ -2563,6 +2563,39 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
               console.warn('⚠️ Error updating localStorage from polling:', error);
             }
             
+            // 🆕 CRITICAL FIX: Also sync selected images and instance metadata for cross-browser sync
+            try {
+              const { selectedImages } = await DatabaseService.getSelectedImages(userId);
+              const instanceMetadata = await DatabaseService.getInstanceMetadata(userId);
+              
+              if (selectedImages || instanceMetadata) {
+                console.log('🔄 [POLLING] Syncing selected images and metadata from AWS...');
+                
+                const updates: any = {};
+                if (selectedImages) {
+                  updates.selectedImages = selectedImages;
+                }
+                if (instanceMetadata) {
+                  updates.instanceMetadata = instanceMetadata;
+                }
+                
+                set(updates);
+                
+                // Also update localStorage
+                const keys = getProjectStorageKeys(userId, 'current');
+                if (selectedImages) {
+                  localStorage.setItem(keys.selections, JSON.stringify(selectedImages));
+                }
+                if (instanceMetadata) {
+                  localStorage.setItem(`${keys.selections}-instance-metadata`, JSON.stringify(instanceMetadata));
+                }
+                
+                console.log('✅ [POLLING] Selected images and metadata synced from AWS');
+              }
+            } catch (error) {
+              console.error('❌ [POLLING] Error syncing selected images metadata:', error);
+            }
+            
             // Show toast notification
             if (typeof toast !== 'undefined') {
               toast.success('Form data synced from cloud');
