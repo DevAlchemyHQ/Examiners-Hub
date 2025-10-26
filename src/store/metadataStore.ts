@@ -1575,12 +1575,19 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           try {
             // Use loadVersionedData to properly extract .data from versioned objects
             const savedSelections = loadVersionedData(projectKeys.selections);
+            console.log('🔍 DEBUG: savedSelections from loadVersionedData:', savedSelections);
+            console.log('🔍 DEBUG: savedSelections type:', typeof savedSelections);
+            console.log('🔍 DEBUG: savedSelections isArray:', Array.isArray(savedSelections));
+            
             if (savedSelections) {
+              console.log('🔍 DEBUG: savedSelections has data, length:', (savedSelections as any).length);
               return savedSelections;
             }
             
+            console.log('⚠️ No savedSelections found, trying AWS...');
             if (userId !== 'anonymous') {
               const awsSelections = await DatabaseService.getSelectedImages(userId);
+              console.log('🔍 DEBUG: awsSelections:', awsSelections);
               if (awsSelections && awsSelections.length > 0) {
                 return awsSelections;
               }
@@ -1700,12 +1707,10 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       const keys = getProjectStorageKeys(userId, 'current');
       
       // Simple localStorage save with error handling
-      // CRITICAL: Use saveVersionedData for selected images to maintain format consistency
       try {
-        const projectId = generateStableProjectId(userId, 'current');
-        saveVersionedData(keys.formData, projectId, userId, formData);
+        localStorage.setItem(keys.formData, JSON.stringify(formData));
         localStorage.setItem(`${keys.selections}-instance-metadata`, JSON.stringify(instanceMetadata));
-        saveVersionedData(keys.selections, projectId, userId, selectedImages);
+        localStorage.setItem(keys.selections, JSON.stringify(selectedImages));
         console.log('✅ localStorage save completed');
       } catch (error) {
         console.warn('⚠️ localStorage save error:', error);
@@ -2615,11 +2620,10 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
                 
                 set(updates);
                 
-                // Also update localStorage with versioned format for consistency
+                // Also update localStorage
                 const keys = getProjectStorageKeys(userId, 'current');
-                const projectId = generateStableProjectId(userId, 'current');
                 if (selectedImages) {
-                  saveVersionedData(keys.selections, projectId, userId, selectedImages);
+                  localStorage.setItem(keys.selections, JSON.stringify(selectedImages));
                 }
                 if (instanceMetadata) {
                   localStorage.setItem(`${keys.selections}-instance-metadata`, JSON.stringify(instanceMetadata));
