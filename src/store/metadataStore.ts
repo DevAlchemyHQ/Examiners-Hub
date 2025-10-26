@@ -648,20 +648,35 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         console.log('🔄 Combined images count:', combined.length);
         console.log('🔄 New images being added:', imageMetadataArray.length);
         
-        // Sort images by photo number (extract number after "00" in filenames like P1080001)
+        // Sort images by photo number - extract numbers from various filename patterns
         combined.sort((a, b) => {
           const aFileName = a.fileName || a.file?.name || '';
           const bFileName = b.fileName || b.file?.name || '';
           
-          // Extract photo number from filenames like P5110001, P3080002, etc.
+          // Extract photo number from various filename patterns
           const extractPhotoNumber = (filename: string) => {
-            // Look for pattern like P5110001, P3080002, etc.
-            const match = filename.match(/P(\d{3})(\d{4})/);
+            // Pattern 1: PB08003, PB08012 (PB + 2 digits + 3 digits)
+            let match = filename.match(/PB(\d{2})(\d{3})/);
+            if (match) {
+              const prefix = parseInt(match[1]); // PB08 -> 08
+              const sequence = parseInt(match[2]); // 003, 012
+              return prefix * 1000 + sequence; // Combine for sorting: 8*1000 + 3 = 8003
+            }
+            
+            // Pattern 2: P5110001, P3080002 (P + 3 digits + 4 digits)
+            match = filename.match(/P(\d{3})(\d{4})/);
             if (match) {
               const prefix = parseInt(match[1]); // P511 -> 511, P308 -> 308
-              const sequence = parseInt(match[2]); // 0001, 0002, etc.
-              return prefix * 10000 + sequence; // Combine for proper sorting
+              const sequence = parseInt(match[2]); // 0001, 0002
+              return prefix * 10000 + sequence; // Combine for sorting
             }
+            
+            // Pattern 3: Any filename with digits after PB/P
+            match = filename.match(/(PB|P)(\d+)/);
+            if (match) {
+              return parseInt(match[2]); // Use just the number part
+            }
+            
             return null;
           };
           
