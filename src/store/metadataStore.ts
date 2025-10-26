@@ -365,7 +365,7 @@ const getProjectStorageKeys = (userEmail: string, projectName: string = 'current
 const migrateSelectedImageIds = (
   selectedImages: Array<{ id: string; instanceId: string; fileName?: string }>, 
   loadedImages: ImageMetadata[]
-): Array<{ id: string; instanceId: string }> => {
+): Array<{ id: string; instanceId: string; fileName?: string }> => {
   if (!selectedImages || selectedImages.length === 0) return [];
   if (!loadedImages || loadedImages.length === 0) return [];
   
@@ -373,7 +373,7 @@ const migrateSelectedImageIds = (
   console.log('📊 Available loaded images:', loadedImages.map(img => ({ id: img.id, fileName: img.fileName })));
   console.log('📊 Selected images to migrate:', selectedImages);
   
-  const migratedSelections: Array<{ id: string; instanceId: string }> = [];
+  const migratedSelections: Array<{ id: string; instanceId: string; fileName?: string }> = [];
   
   selectedImages.forEach((selectedItem, index) => {
     console.log(`🔄 Processing selected item ${index + 1}:`, selectedItem);
@@ -449,9 +449,11 @@ const migrateSelectedImageIds = (
       // Preserve the original instanceId if it exists, otherwise use the image ID
       const preservedInstanceId = selectedItem.instanceId || `${targetImage.id}-instance-${index}`;
       
+      // Add fileName to migrated selection for future persistence
       migratedSelections.push({
         id: targetImage.id,
-        instanceId: preservedInstanceId
+        instanceId: preservedInstanceId,
+        fileName: targetImage.fileName // Preserve fileName for future migrations
       });
     } else {
       // Fallback: try to find by ID pattern matching
@@ -470,7 +472,8 @@ const migrateSelectedImageIds = (
         console.log('✅ Found matching image by ID pattern:', selectedItem.id, '->', matchingImageById.id);
         migratedSelections.push({
           id: matchingImageById.id,
-          instanceId: selectedItem.instanceId || `${matchingImageById.id}-instance-${index}`
+          instanceId: selectedItem.instanceId || `${matchingImageById.id}-instance-${index}`,
+          fileName: matchingImageById.fileName // Preserve fileName for future migrations
         });
       } else {
         console.warn('⚠️ Could not migrate selected image:', selectedItem);
@@ -1650,20 +1653,37 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         updates.images = [];
       }
       
-      if (selectionsResult.status === 'fulfilled' && selectionsResult.value && selectionsResult.value.length > 0) {
+      // Handle selected images loading with fallback logic
+      if (selectionsResult.status === 'fulfilled' && selectionsResult.value) {
         console.log('📥 Loaded selectedImages from storage:', selectionsResult.value);
+        console.log('📥 SelectedImages value type:', typeof selectionsResult.value);
+        console.log('📥 SelectedImages is array:', Array.isArray(selectionsResult.value));
+        console.log('📥 SelectedImages length:', selectionsResult.value.length);
         
-        // Migrate old selected image IDs to match new S3 image IDs
-        const migratedSelections = migrateSelectedImageIds(selectionsResult.value, imagesResult.value || []);
-        
-        if (migratedSelections.length > 0) {
-          updates.selectedImages = migratedSelections;
-          console.log('✅ Migrated selections applied:', migratedSelections.length);
+        // If we have loaded images, try to migrate the selections
+        if (imagesResult.status === 'fulfilled' && imagesResult.value && imagesResult.value.length > 0) {
+          const migratedSelections = migrateSelectedImageIds(selectionsResult.value, imagesResult.value || []);
+          
+          if (migratedSelections.length > 0) {
+            updates.selectedImages = migratedSelections;
+            console.log('✅ Migrated selections applied:', migratedSelections.length);
+          } else {
+            console.log('⚠️ Migration returned empty array');
+            // Even if migration failed, try to use the original data if images haven't loaded yet
+            // This handles the case where images load asynchronously after selections
+            if (selectionsResult.value.length > 0) {
+              console.log('🔄 Attempting to preserve original selections temporarily');
+              updates.selectedImages = selectionsResult.value as any;
+            }
+          }
         } else {
-          console.log('⚠️ Migration returned empty array, preserving existing selections');
+          console.log('⚠️ Images not loaded yet, preserving original selections');
+          if (selectionsResult.value.length > 0) {
+            updates.selectedImages = selectionsResult.value as any;
+          }
         }
       } else {
-        console.log('⚠️ No selectedImages found in storage or empty array');
+        console.log('⚠️ No selectedImages found in storage or failed to load');
       }
       
       // Add instance metadata to state updates
