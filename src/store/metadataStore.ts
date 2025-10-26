@@ -1888,27 +1888,39 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             awsIsNewer: awsLastActiveTime > localLastActiveTime
           });
           
-          // Only overwrite local data if AWS data is newer
-          if (awsLastActiveTime > localLastActiveTime) {
-            set({ formData: project.formData });
-            console.log('✅ Form data loaded from AWS (newer)');
+          // For cross-browser sync: Use AWS data if it's different from local
+          // Load local data first to compare
+          let localFormData = null;
+          try {
+            const keys = getProjectStorageKeys(userId, 'current');
+            localFormData = loadVersionedData(keys.formData);
+          } catch (error) {
+            console.warn('⚠️ Could not load local formData:', error);
+          }
+          
+          const localDataStr = JSON.stringify(localFormData || {});
+          const awsDataStr = JSON.stringify(project.formData);
+          const dataIsDifferent = localDataStr !== awsDataStr;
+          const localIsEmpty = !(localFormData as any)?.elr && !(localFormData as any)?.structureNo;
+          
+          // Use AWS data if:
+          // 1. Local is empty, OR
+          // 2. Data is different (cross-browser sync)
+          if (localIsEmpty || dataIsDifferent) {
+            console.log('🔄 Loading AWS data for cross-browser sync', { 
+              localIsEmpty, 
+              dataIsDifferent,
+              local: localFormData,
+              aws: project.formData
+            });
+            set({ formData: project.formData as FormData });
             
-            // Cache to localStorage for faster future access
+            // Update localStorage to match AWS
             const keys = getProjectStorageKeys(userId, 'current');
             localStorage.setItem(keys.formData, JSON.stringify(project.formData));
+            console.log('✅ Cross-browser sync complete - localStorage updated');
           } else {
-            console.log('⚠️ Skipping AWS formData - local data is newer');
-            // Load from localStorage if AWS is skipped
-            try {
-              const keys = getProjectStorageKeys(userId, 'current');
-              const localFormData = loadVersionedData(keys.formData);
-              if (localFormData) {
-                set({ formData: localFormData });
-                console.log('✅ Form data loaded from localStorage (newer than AWS)');
-              }
-            } catch (error) {
-              console.warn('⚠️ Error loading formData from localStorage:', error);
-            }
+            console.log('✅ Local and AWS data match - using local');
           }
         } else {
           // No formData in AWS, try localStorage
