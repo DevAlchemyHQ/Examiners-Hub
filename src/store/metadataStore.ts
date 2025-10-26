@@ -24,10 +24,49 @@ const getUserId = (): string => {
   return user?.email || localStorage.getItem('userEmail') || 'anonymous';
 };
 
+// Helper function to standardize date to YYYY-MM-DD format
+const standardizeDate = (dateValue: string | Date | undefined): string => {
+  if (!dateValue) return '';
+  
+  try {
+    // If already in YYYY-MM-DD format, validate and return
+    if (typeof dateValue === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateValue)) {
+      return dateValue;
+    }
+    
+    // Parse the date and convert to YYYY-MM-DD
+    const date = new Date(dateValue);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    
+    return `${year}-${month}-${day}`;
+  } catch (error) {
+    console.error('❌ Error standardizing date:', dateValue, error);
+    return '';
+  }
+};
+
+// Helper function to generate deterministic timestamp with random offset to reduce collisions
+const generateTimestamp = (data: any): number => {
+  const dataHash = JSON.stringify(data).split('').reduce((a, b) => {
+    a = ((a << 5) - a) + b.charCodeAt(0);
+    return a & a;
+  }, 0);
+  
+  // Add random offset (0-10) to reduce collisions while keeping the deterministic base
+  const randomOffset = Math.random() * 10;
+  const timestamp = Math.abs(dataHash) + 1000000000000 + randomOffset;
+  
+  console.log('🕐 Generated timestamp with random offset:', { dataHash, randomOffset, timestamp });
+  return timestamp;
+};
+
 // Minimal Cross-Browser Sync Class
 class MinimalCrossBrowserSync {
   private channel: BroadcastChannel;
   private isListening: boolean = false;
+  private storageListener: ((e: StorageEvent) => void) | null = null;
 
   constructor() {
     this.channel = new BroadcastChannel('exametry-sync');
@@ -37,12 +76,13 @@ class MinimalCrossBrowserSync {
   private setupListeners() {
     if (this.isListening) return;
     
+    // Listen to BroadcastChannel messages
     this.channel.onmessage = (event) => {
-      console.log('📡 Cross-browser message received:', event.data);
+      console.log('📡 Cross-tab message received:', event.data);
       const { type, data } = event.data;
       
       if (type === 'formDataUpdate') {
-        console.log('🔄 Cross-browser form data update received');
+        console.log('🔄 Cross-tab form data update received');
         console.log('🔄 Incoming data:', data);
         const currentState = useMetadataStore.getState();
         const currentTimestamp = currentState.sessionState.lastActiveTime || 0;
@@ -52,43 +92,97 @@ class MinimalCrossBrowserSync {
         
         // Only update if incoming data is newer
         if (incomingTimestamp > currentTimestamp) {
-          console.log('✅ Updating form data from other browser');
+          console.log('✅ Updating form data from other tab');
+          
+          // Merge form data to preserve existing fields
+          const mergedFormData = { ...currentState.formData, ...data.formData };
+          console.log('🔄 Merged form data:', { from: currentState.formData, to: mergedFormData });
+          
           useMetadataStore.setState({ 
-            formData: data.formData,
+            formData: mergedFormData,
             sessionState: {
               ...currentState.sessionState,
-              formData: data.formData,
+              formData: mergedFormData,
               lastActiveTime: incomingTimestamp
             }
           });
+          
+          // Show toast notification
+          if (typeof toast !== 'undefined') {
+            toast.success('Form data synced from another tab');
+          }
         } else {
           console.log('⚠️ Ignoring older form data update');
         }
       }
     };
     
+    // Listen to localStorage changes for same-browser sync
+    this.storageListener = (event: StorageEvent) => {
+      if (event.key && event.key.includes('session-state') && event.newValue) {
+        console.log('📦 Storage event detected:', event.key);
+        try {
+          const sessionData = JSON.parse(event.newValue);
+          if (sessionData.formData) {
+            console.log('🔄 Form data from storage event:', sessionData.formData);
+            const currentState = useMetadataStore.getState();
+            const currentTimestamp = currentState.sessionState.lastActiveTime || 0;
+            const incomingTimestamp = sessionData.lastActiveTime || 0;
+            
+            console.log('🔄 Storage timestamp comparison:', { currentTimestamp, incomingTimestamp });
+            
+            // Only update if incoming data is newer
+            if (incomingTimestamp > currentTimestamp) {
+              console.log('✅ Updating form data from localStorage change');
+              const mergedFormData = { ...currentState.formData, ...sessionData.formData };
+              console.log('🔄 Merged form data from storage:', { from: currentState.formData, to: mergedFormData });
+              
+              useMetadataStore.setState({ 
+                formData: mergedFormData,
+                sessionState: {
+                  ...currentState.sessionState,
+                  formData: mergedFormData,
+                  lastActiveTime: incomingTimestamp
+                }
+              });
+              
+              if (typeof toast !== 'undefined') {
+                toast.success('Form data synced from localStorage');
+              }
+            }
+          }
+        } catch (error) {
+          console.error('❌ Error parsing storage event:', error);
+        }
+      }
+    };
+    
+    window.addEventListener('storage', this.storageListener);
+    console.log('📡 Storage event listener added for cross-tab sync');
+    
     this.isListening = true;
   }
 
   broadcast(type: string, data: any) {
     try {
-      // Use deterministic timestamp based on data content for consistent ordering
-      const dataHash = JSON.stringify(data).split('').reduce((a, b) => {
-        a = ((a << 5) - a) + b.charCodeAt(0);
-        return a & a;
-      }, 0);
-      const deterministicTimestamp = Math.abs(dataHash) + 1000000000000; // Base timestamp
+      // Use generateTimestamp helper with random offset to reduce collisions
+      const timestamp = generateTimestamp(data);
       
-      const message = { type, data, timestamp: deterministicTimestamp };
+      const message = { type, data, timestamp };
       this.channel.postMessage(message);
-      console.log('📡 Cross-browser broadcast sent:', type, 'with data:', data);
-      console.log('📡 Full message:', message);
+      console.log('📡 Cross-tab broadcast sent:', type, 'with data:', data);
+      console.log('📡 Full message with timestamp:', message);
     } catch (error) {
       console.error('❌ Error broadcasting:', error);
     }
   }
 
   destroy() {
+    // Remove storage event listener
+    if (this.storageListener) {
+      window.removeEventListener('storage', this.storageListener);
+    }
+    
     this.channel.close();
     this.isListening = false;
   }
@@ -199,6 +293,7 @@ interface MetadataState extends MetadataStateOnly {
   loadAllUserDataFromAWS: () => Promise<void>;
   saveAllUserDataToAWS: () => Promise<void>;
   smartAutoSave: (dataType?: 'form' | 'images' | 'bulk' | 'selections' | 'session' | 'all') => Promise<void>;
+  startPolling: () => void;
 }
 
 // Helper function for debounced AWS session state saves
@@ -407,48 +502,80 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
 
   setFormData: (data) => {
     set((state) => {
-      const newFormData = { ...state.formData, ...data };
+      console.log('📝 setFormData called with data:', data);
       
-      // Update session state with new form data using deterministic timestamp
+      // Standardize date field if present
+      let processedData = { ...data };
+      if (data.date !== undefined) {
+        const standardizedDate = standardizeDate(data.date);
+        console.log('📅 Date standardization:', { 
+          original: data.date, 
+          standardized: standardizedDate 
+        });
+        processedData.date = standardizedDate;
+      }
+      
+      const newFormData = { ...state.formData, ...processedData };
+      
+      console.log('📝 Form data updated:', {
+        previous: state.formData,
+        new: newFormData,
+        dateValue: newFormData.date,
+        elrValue: newFormData.elr,
+        structureNoValue: newFormData.structureNo
+      });
+      
+      // Generate timestamp with random offset to reduce collisions
       const userId = getUserId();
       const projectId = generateStableProjectId(userId, 'current');
-      const deterministicTimestamp = Math.abs(projectId.split('').reduce((a, b) => a + b.charCodeAt(0), 0)) + 1000000000000;
+      const timestamp = generateTimestamp({ formData: newFormData, projectId });
+      
+      console.log('🕐 Generated timestamp for form data:', timestamp);
       
       const updatedSessionState = {
         ...state.sessionState,
         formData: newFormData,
-        lastActiveTime: deterministicTimestamp
+        lastActiveTime: timestamp
       };
       
-      // Broadcast form data changes to other tabs using direct BroadcastChannel
-      if (typeof BroadcastChannel !== 'undefined') {
-        try {
-          const channel = new BroadcastChannel('exametry-sync');
-          channel.postMessage({ 
-            type: 'formDataUpdate', 
-            data: { formData: newFormData, timestamp: deterministicTimestamp } 
-          });
-          console.log('📡 Form data broadcast sent:', newFormData);
-          channel.close();
-        } catch (error) {
-          console.error('❌ Error broadcasting form data:', error);
-        }
+      // Broadcast form data changes to other tabs using minimal sync
+      try {
+        minimalSync.broadcast('formDataUpdate', { 
+          formData: newFormData, 
+          timestamp: timestamp 
+        });
+        console.log('📡 Form data broadcast sent via minimal sync');
+      } catch (error) {
+        console.error('❌ Error broadcasting form data:', error);
       }
       
-      // Use smart auto-save for cross-browser persistence
+      // Use forceAWSSave for immediate AWS syncing instead of smartAutoSave
       (async () => {
         try {
           // Check if project is being cleared
           const projectStore = useProjectStore.getState();
           if (projectStore.isClearing) {
+            console.log('⏸️ Skipping AWS save during project clear');
             return;
           }
           
-          // Use smart auto-save for comprehensive persistence
-          await get().smartAutoSave('form');
+          console.log('☁️ Force saving form data to AWS...');
           
+          // Use forceAWSSave for immediate sync
+          await forceAWSSave(updatedSessionState);
+          
+          console.log('✅ Form data force saved to AWS');
         } catch (error) {
-          console.error('Error in form data auto-save:', error);
+          console.error('❌ Error in form data force save:', error);
+          
+          // Show toast notification for errors
+          try {
+            if (typeof toast !== 'undefined') {
+              toast.error('Failed to sync form data to cloud. Changes saved locally.');
+            }
+          } catch (toastError) {
+            console.warn('⚠️ Could not show error toast:', toastError);
+          }
         }
       })();
       
@@ -2226,6 +2353,103 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
     }
   },
 
+  startPolling: () => {
+    // Poll AWS every 5 seconds to check for newer form data
+    console.log('🔄 Starting polling for AWS form data sync (every 5 seconds)...');
+    
+    const pollInterval = setInterval(async () => {
+      try {
+        const userId = getUserId();
+        
+        if (userId === 'anonymous') {
+          console.log('⚠️ No authenticated user, skipping polling');
+          return;
+        }
+        
+        // Check if project is being cleared
+        const projectStore = useProjectStore.getState();
+        if (projectStore.isClearing) {
+          console.log('⏸️ Skipping polling during project clear');
+          return;
+        }
+        
+        console.log('🔄 [POLLING] Checking AWS for newer form data...');
+        const state = get();
+        const currentTimestamp = state.sessionState.lastActiveTime || 0;
+        
+        const { DatabaseService } = await import('../lib/services');
+        const result = await DatabaseService.getProject(userId, 'current');
+        
+        if (result.project?.sessionState) {
+          const awsTimestamp = result.project.sessionState.lastActiveTime || 0;
+          console.log('🔄 [POLLING] AWS timestamp check:', { 
+            local: currentTimestamp, 
+            aws: awsTimestamp,
+            newer: awsTimestamp > currentTimestamp
+          });
+          
+          // Only update if AWS data is newer
+          if (awsTimestamp > currentTimestamp && result.project.sessionState.formData) {
+            console.log('✅ [POLLING] Found newer form data on AWS');
+            
+            // Standardize and merge form data
+            let mergedFormData = { ...state.formData };
+            
+            if (result.project.sessionState.formData.date) {
+              const standardizedDate = standardizeDate(result.project.sessionState.formData.date);
+              mergedFormData.date = standardizedDate;
+              console.log('📅 [POLLING] Restored date:', standardizedDate);
+            }
+            
+            if (result.project.sessionState.formData.elr) {
+              mergedFormData.elr = result.project.sessionState.formData.elr;
+              console.log('📝 [POLLING] Restored elr:', result.project.sessionState.formData.elr);
+            }
+            
+            if (result.project.sessionState.formData.structureNo) {
+              mergedFormData.structureNo = result.project.sessionState.formData.structureNo;
+              console.log('📝 [POLLING] Restored structureNo:', result.project.sessionState.formData.structureNo);
+            }
+            
+            // Merge any additional fields
+            if (result.project && result.project.sessionState && result.project.sessionState.formData) {
+              Object.keys(result.project.sessionState.formData).forEach(key => {
+                if (key !== 'date' && key !== 'elr' && key !== 'structureNo' && 
+                    result.project?.sessionState?.formData[key]) {
+                  mergedFormData[key as keyof typeof mergedFormData] = result.project.sessionState.formData[key];
+                  console.log(`📝 [POLLING] Restored ${key}:`, result.project.sessionState.formData[key]);
+                }
+              });
+            }
+            
+            set({ 
+              formData: mergedFormData,
+              sessionState: {
+                ...state.sessionState,
+                formData: mergedFormData,
+                lastActiveTime: awsTimestamp
+              }
+            });
+            
+            console.log('✅ [POLLING] Form data synced from AWS:', mergedFormData);
+            
+            // Show toast notification
+            if (typeof toast !== 'undefined') {
+              toast.success('Form data synced from cloud');
+            }
+          } else {
+            console.log('⏭️ [POLLING] No newer data on AWS');
+          }
+        }
+      } catch (error) {
+        console.error('❌ [POLLING] Error checking AWS:', error);
+      }
+    }, 5000); // Poll every 5 seconds
+    
+    // Store interval ID for potential cleanup (could be added to MetadataState if needed)
+    console.log('✅ Polling started, interval ID:', pollInterval);
+  },
+
   generateBulkZip: async () => {
     try {
       console.log('Starting bulk ZIP generation...');
@@ -2817,19 +3041,44 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           console.log('⚠️ No lastActiveTab found in session state');
         }
         
-        // Restore formData from session state if current formData is empty or has no meaningful data
-        // This prevents overwriting AWS-loaded data with localStorage data
+        // Restore formData from session state with merging logic
+        // Merge to preserve existing date, elr, and structureNo fields
         const currentState = get();
-        const hasCurrentFormData = currentState.formData && 
-          currentState.formData.elr && 
-          currentState.formData.structureNo && 
-          currentState.formData.date;
         
-        if (sessionState.formData && !hasCurrentFormData) {
-          set({ formData: sessionState.formData });
-          console.log('✅ Form data restored from session state:', sessionState.formData);
-        } else if (sessionState.formData && hasCurrentFormData) {
-          console.log('⚠️ Form data already exists, not overwriting with session state');
+        if (sessionState.formData) {
+          console.log('📋 Session state form data:', sessionState.formData);
+          console.log('📋 Current form data:', currentState.formData);
+          
+          // Standardize and merge form data
+          let mergedFormData = { ...currentState.formData };
+          
+          if (sessionState.formData.date) {
+            const standardizedDate = standardizeDate(sessionState.formData.date);
+            mergedFormData.date = standardizedDate;
+            console.log('📅 Restored date:', standardizedDate);
+          }
+          
+          // Merge elr, structureNo, and other fields
+          if (sessionState.formData.elr) {
+            mergedFormData.elr = sessionState.formData.elr;
+            console.log('📝 Restored elr:', sessionState.formData.elr);
+          }
+          
+          if (sessionState.formData.structureNo) {
+            mergedFormData.structureNo = sessionState.formData.structureNo;
+            console.log('📝 Restored structureNo:', sessionState.formData.structureNo);
+          }
+          
+          // Merge any additional fields
+          Object.keys(sessionState.formData).forEach(key => {
+            if (key !== 'date' && key !== 'elr' && key !== 'structureNo' && sessionState.formData[key]) {
+              mergedFormData[key as keyof typeof mergedFormData] = sessionState.formData[key];
+              console.log(`📝 Restored ${key}:`, sessionState.formData[key]);
+            }
+          });
+          
+          set({ formData: mergedFormData });
+          console.log('✅ Form data merged and restored:', mergedFormData);
         } else {
           console.log('⚠️ No form data available in session state');
         }
