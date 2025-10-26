@@ -2095,9 +2095,9 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         set({ selectedImages: migratedSelections });
         console.log('✅ Selected images loaded and migrated from AWS');
         
-        // Cache to localStorage for faster future access
+        // Cache to localStorage for faster future access (using versioned format)
         const keys = getProjectStorageKeys(userId, 'current');
-        localStorage.setItem(keys.selections, JSON.stringify(migratedSelections));
+        saveVersionedData(keys.selections, projectId, userId, migratedSelections);
       } else {
         console.log('⚠️ No selected images found in AWS');
       }
@@ -2110,9 +2110,9 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         set({ instanceMetadata });
         console.log('✅ Instance metadata loaded from AWS');
         
-        // Cache to localStorage for faster future access
+        // Cache to localStorage for faster future access (using versioned format)
         const keys = getProjectStorageKeys(userId, 'current');
-        localStorage.setItem(`${keys.selections}-instance-metadata`, JSON.stringify(instanceMetadata));
+        saveVersionedData(`${keys.selections}-instance-metadata`, projectId, userId, instanceMetadata);
       } else {
         console.log('⚠️ No instance metadata found in AWS');
       }
