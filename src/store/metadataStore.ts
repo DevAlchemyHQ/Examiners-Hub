@@ -324,7 +324,7 @@ const debouncedAWSSave = async (sessionState: any) => {
 };
 
 // Helper function for immediate AWS saves (for critical operations)
-const forceAWSSave = async (sessionState: any) => {
+const forceAWSSave = async (sessionState: any, fullFormData?: any) => {
   // Clear any pending debounced save
   if (awsSessionSaveTimeout) {
     clearTimeout(awsSessionSaveTimeout);
@@ -339,12 +339,16 @@ const forceAWSSave = async (sessionState: any) => {
       console.log('☁️ [IMMEDIATE] Forcing session state save to AWS...');
       const { DatabaseService } = await import('../lib/services');
       
-      // ✅ Include formData at root level for proper persistence
+      // ✅ Always send COMPLETE formData to prevent data loss
+      const formDataToSave = fullFormData || sessionState.formData || {};
+      
+      console.log('☁️ [IMMEDIATE] Saving complete formData:', formDataToSave);
+      
       await DatabaseService.updateProject(user.email, 'current', { 
-        formData: sessionState.formData || {},
+        formData: formDataToSave, // ✅ Always send complete formData
         sessionState: sessionState
       });
-      console.log('✅ [IMMEDIATE] Session state forced to AWS successfully');
+      console.log('✅ [IMMEDIATE] Session state forced to AWS successfully with complete formData');
     }
   } catch (error) {
     console.error('❌ [IMMEDIATE] Error forcing session state to AWS:', error);
@@ -564,8 +568,8 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           
           console.log('☁️ Force saving form data to AWS...');
           
-          // Use forceAWSSave for immediate sync
-          await forceAWSSave(updatedSessionState);
+          // Use forceAWSSave for immediate sync with COMPLETE formData
+          await forceAWSSave(updatedSessionState, newFormData);
           
           console.log('✅ Form data force saved to AWS');
         } catch (error) {

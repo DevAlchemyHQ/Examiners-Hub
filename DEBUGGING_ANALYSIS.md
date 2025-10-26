@@ -3,7 +3,7 @@
 ## The Problem You Described
 
 1. ✅ Changes applied ONCE initially
-2. ❌ Subsequent changes don't sync between browsers  
+2. ❌ Subsequent changes don't sync between browsers
 3. ❌ After a few refreshes, data reverts to old values
 
 This suggests a **merge issue** where old data is overwriting new data.
@@ -20,17 +20,17 @@ const existingProject = getProjectResult.project;
 let mergedSessionState = existingProject.sessionState || {};
 if (smallData.sessionState) {
   mergedSessionState = {
-    ...mergedSessionState,      // Old data FIRST
-    ...smallData.sessionState   // New data SECOND (should win)
+    ...mergedSessionState, // Old data FIRST
+    ...smallData.sessionState, // New data SECOND (should win)
   };
 }
 
 // ⚠️ PROBLEM: Re-merge everything (line 1076-1082)
 const mergedProjectData = {
-  ...existingProject,           // Old formData + old sessionState
-  ...smallData,                  // New formData + new sessionState
-  sessionState: mergedSessionState,  // ⚠️ OVERWRITES with old+new merge
-  updated_at: new Date().toISOString()
+  ...existingProject, // Old formData + old sessionState
+  ...smallData, // New formData + new sessionState
+  sessionState: mergedSessionState, // ⚠️ OVERWRITES with old+new merge
+  updated_at: new Date().toISOString(),
 };
 ```
 
@@ -39,6 +39,7 @@ const mergedProjectData = {
 ## The Issue
 
 When merging, we do:
+
 1. **Merge sessionState** (old + new sessionState) → gets new formData
 2. **Merge entire project** (old + new project) → should get new formData
 3. **BUT**: `sessionState: mergedSessionState` line **overwrites** the sessionState from step 2
@@ -55,13 +56,14 @@ Let me check what's actually being passed to updateProject:
 
 ```typescript
 // From forceAWSSave (line 343-346):
-await DatabaseService.updateProject(user.email, 'current', { 
-  formData: sessionState.formData || {},  // ✅ formData at root
-  sessionState: sessionState              // ✅ sessionState (with formData inside)
+await DatabaseService.updateProject(user.email, "current", {
+  formData: sessionState.formData || {}, // ✅ formData at root
+  sessionState: sessionState, // ✅ sessionState (with formData inside)
 });
 ```
 
 So smallData should be:
+
 ```typescript
 {
   formData: {...},
@@ -89,12 +91,13 @@ Wait, I see it now! Look at the merge at line 1065-1069:
 
 ```typescript
 mergedSessionState = {
-  ...mergedSessionState,      // Old sessionState
-  ...smallData.sessionState   // New sessionState
+  ...mergedSessionState, // Old sessionState
+  ...smallData.sessionState, // New sessionState
 };
 ```
 
 This is a **shallow merge**! If `mergedSessionState` has:
+
 ```typescript
 {
   formData: { elr: "OLD", date: "OLD", structureNo: "OLD" },
@@ -103,6 +106,7 @@ This is a **shallow merge**! If `mergedSessionState` has:
 ```
 
 And `smallData.sessionState` has:
+
 ```typescript
 {
   formData: { elr: "NEW" },  // Only elr changed
@@ -111,6 +115,7 @@ And `smallData.sessionState` has:
 ```
 
 Then mergedSessionState becomes:
+
 ```typescript
 {
   formData: { elr: "NEW" },  // ⚠️ Lost date and structureNo!
@@ -127,4 +132,3 @@ So the merge is LOST fields from new sessionState if they're not present in the 
 We need to NOT re-merge the sessionState, or do a DEEP merge instead of a shallow merge.
 
 Let me provide the fix.
-

@@ -9,9 +9,10 @@ You have three browsers with **different ELR, Structure No, and Date values** af
 ## 🔍 Root Cause: Flawed DynamoDB Query Logic
 
 ### The Table Structure
+
 ```
 Table: mvp-labeler-projects
-Primary Key: 
+Primary Key:
   - Partition Key: user_id
   - Sort Key: project_id
 ```
@@ -20,13 +21,13 @@ Primary Key:
 
 ```typescript
 const queryCommand = new QueryCommand({
-  TableName: 'mvp-labeler-projects',
-  KeyConditionExpression: 'user_id = :userId',  // ❌ Missing project_id!
+  TableName: "mvp-labeler-projects",
+  KeyConditionExpression: "user_id = :userId", // ❌ Missing project_id!
   ExpressionAttributeValues: {
-    ':userId': userId
+    ":userId": userId,
   },
   ScanIndexForward: false, // Sort by sort key descending
-  Limit: 1 // Only get the most recent project
+  Limit: 1, // Only get the most recent project
 });
 ```
 
@@ -47,18 +48,18 @@ const queryCommand = new QueryCommand({
 
 ```typescript
 // If no existing project
-const timestamp = Date.now().toString();  // ❌ Creates new project every time
-const project_id = timestamp;             // ❌ Different ID each time!
+const timestamp = Date.now().toString(); // ❌ Creates new project every time
+const project_id = timestamp; // ❌ Different ID each time!
 
 const command = new PutCommand({
-  TableName: 'mvp-labeler-projects',
+  TableName: "mvp-labeler-projects",
   Item: {
     user_id: userId,
-    project_id: timestamp,  // ❌ Creates a NEW project
+    project_id: timestamp, // ❌ Creates a NEW project
     ...smallData,
     created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
-  }
+    updated_at: new Date().toISOString(),
+  },
 });
 ```
 
@@ -84,10 +85,10 @@ Limit: 1
 
 ```typescript
 const mergedProjectData = {
-  ...existingProject,  // This has OLD formData
-  ...smallData,         // This has NEW formData (only in sessionState)
+  ...existingProject, // This has OLD formData
+  ...smallData, // This has NEW formData (only in sessionState)
   sessionState: mergedSessionState,
-  updated_at: new Date().toISOString()
+  updated_at: new Date().toISOString(),
 };
 ```
 
@@ -123,29 +124,29 @@ Instead of creating new projects, always update the existing "current" project:
 
 ```typescript
 // In updateProject:
-if (projectId === 'current') {
+if (projectId === "current") {
   // Get existing project
-  const getProjectResult = await this.getProject(userId, 'current');
-  
+  const getProjectResult = await this.getProject(userId, "current");
+
   if (getProjectResult.project) {
     // Use the EXISTING project_id (don't create new!)
     const actualProjectId = getProjectResult.project.project_id;
-    
+
     // Update THIS specific project
     const command = new PutCommand({
-      TableName: 'mvp-labeler-projects',
-      Key: { 
+      TableName: "mvp-labeler-projects",
+      Key: {
         user_id: userId,
-        project_id: actualProjectId  // ✅ Update specific project
+        project_id: actualProjectId, // ✅ Update specific project
       },
-      UpdateExpression: 'SET #data = :data, updated_at = :updated',
-      ExpressionAttributeNames: { '#data': 'projectData' },
-      ExpressionAttributeValues: { 
-        ':data': projectData,
-        ':updated': new Date().toISOString()
-      }
+      UpdateExpression: "SET #data = :data, updated_at = :updated",
+      ExpressionAttributeNames: { "#data": "projectData" },
+      ExpressionAttributeValues: {
+        ":data": projectData,
+        ":updated": new Date().toISOString(),
+      },
     });
-    
+
     await docClient.send(command);
   }
 }
@@ -169,7 +170,7 @@ static async getProject(userId: string, projectId: string) {
       ':projectId': 'current'  // Always query "current" project
     }
   });
-  
+
   const result = await docClient.send(queryCommand);
   return { project: result.Items[0] || null, error: null };
 }
@@ -181,14 +182,14 @@ Instead of timestamps, use fixed ID:
 
 ```typescript
 const command = new PutCommand({
-  TableName: 'mvp-labeler-projects',
+  TableName: "mvp-labeler-projects",
   Item: {
     user_id: userId,
-    project_id: 'current',  // ✅ Always the same ID
+    project_id: "current", // ✅ Always the same ID
     ...smallData,
     created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
-  }
+    updated_at: new Date().toISOString(),
+  },
 });
 ```
 
@@ -198,20 +199,20 @@ Use UpdateCommand with both keys:
 
 ```typescript
 const updateCommand = new UpdateCommand({
-  TableName: 'mvp-labeler-projects',
+  TableName: "mvp-labeler-projects",
   Key: {
     user_id: userId,
-    project_id: 'current'  // ✅ Both keys required
+    project_id: "current", // ✅ Both keys required
   },
-  UpdateExpression: 'SET #data = :data, #updated = :updated',
-  ExpressionAttributeNames: { 
-    '#data': 'projectData',
-    '#updated': 'updated_at'
+  UpdateExpression: "SET #data = :data, #updated = :updated",
+  ExpressionAttributeNames: {
+    "#data": "projectData",
+    "#updated": "updated_at",
   },
-  ExpressionAttributeValues: { 
-    ':data': projectData,
-    ':updated': new Date().toISOString()
-  }
+  ExpressionAttributeValues: {
+    ":data": projectData,
+    ":updated": new Date().toISOString(),
+  },
 });
 ```
 
@@ -220,9 +221,10 @@ const updateCommand = new UpdateCommand({
 ## 📊 Current vs Fixed Behavior
 
 ### Current (Broken):
+
 ```
 Browser 1: Creates project_id = "1729690000"
-Browser 2: Creates project_id = "1729690001"  
+Browser 2: Creates project_id = "1729690001"
 Browser 3: Creates project_id = "1729690002"
 
 Query result: Unpredictable which one is "most recent"
@@ -230,6 +232,7 @@ Result: Each browser sees different data
 ```
 
 ### Fixed:
+
 ```
 All Browsers: Use project_id = "current"
 
@@ -242,9 +245,9 @@ Result: All browsers see same data ✅
 ## 🔧 Implementation Required
 
 I need to update:
+
 1. `src/lib/services.ts` - `getProject()` method
-2. `src/lib/services.ts` - `updateProject()` method  
+2. `src/lib/services.ts` - `updateProject()` method
 3. Ensure "current" is used consistently
 
 This will ensure all browsers read/write the SAME project record.
-

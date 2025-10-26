@@ -29,7 +29,7 @@ if (awsLastActiveTime > localLastActiveTime) {
   // ✅ Load from AWS
 } else {
   // ❌ SKIP AWS - Keep local!
-  console.log('⚠️ Skipping AWS formData - local data is newer');
+  console.log("⚠️ Skipping AWS formData - local data is newer");
 }
 ```
 
@@ -38,6 +38,7 @@ if (awsLastActiveTime > localLastActiveTime) {
 ## Why This Logic Exists (And Why It's Wrong)
 
 The timestamp protection was added to prevent:
+
 - User typing in Browser 1
 - Page refreshes
 - AWS has old data (slow save)
@@ -45,6 +46,7 @@ The timestamp protection was added to prevent:
 - DON'T overwrite with old AWS data ✅
 
 BUT it also prevents:
+
 - Browser 2 loading
 - AWS has NEW data from Browser 1
 - Local has OLD data
@@ -53,6 +55,7 @@ BUT it also prevents:
 ## The Fix
 
 For **cross-browser sync**, we need different logic:
+
 1. If AWS data is NEWER → Use AWS ✅
 2. If AWS data is OLDER BUT local data is MORE THAN X seconds old → Force AWS (cross-browser sync)
 3. If AWS data is OLDER AND local data is recent (<5 seconds) → Keep local (prevent overwrite)
@@ -66,6 +69,7 @@ For **cross-browser sync**, we need different logic:
 ## Solution
 
 Change the logic to:
+
 ```typescript
 const now = Date.now();
 const localAge = now - localLastActiveTime;
@@ -76,11 +80,10 @@ if (awsLastActiveTime > localLastActiveTime) {
   set({ formData: project.formData });
 } else if (localAge > THRESHOLD) {
   // Local is OLD - force AWS (cross-browser sync)
-  console.log('🔄 Local data is stale, forcing AWS sync');
+  console.log("🔄 Local data is stale, forcing AWS sync");
   set({ formData: project.formData });
 } else {
   // Local is recent - keep it to prevent overwrite
-  console.log('⚠️ Keeping recent local data');
+  console.log("⚠️ Keeping recent local data");
 }
 ```
-
