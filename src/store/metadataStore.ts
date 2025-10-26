@@ -655,8 +655,11 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           
           // Extract photo number from various filename patterns
           const extractPhotoNumber = (filename: string) => {
+            // Normalize to uppercase for pattern matching
+            const normalized = filename.toUpperCase();
+            
             // Pattern 1: PB08003, PB08012 (PB + 2 digits + 3 digits)
-            let match = filename.match(/PB(\d{2})(\d{3})/);
+            let match = normalized.match(/PB(\d{2})(\d{3})/);
             if (match) {
               const prefix = parseInt(match[1]); // PB08 -> 08
               const sequence = parseInt(match[2]); // 003, 012
@@ -813,6 +816,60 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
                   }
                 : img
             );
+            
+            // Sort again after upload to maintain photo number order
+            updatedImages.sort((a, b) => {
+              const aFileName = a.fileName || a.file?.name || '';
+              const bFileName = b.fileName || b.file?.name || '';
+              
+              const extractPhotoNumber = (filename: string) => {
+                const normalized = filename.toUpperCase();
+                
+                let match = normalized.match(/PB(\d{2})(\d{3})/);
+                if (match) {
+                  const prefix = parseInt(match[1]);
+                  const sequence = parseInt(match[2]);
+                  return prefix * 1000 + sequence;
+                }
+                
+                match = normalized.match(/P(\d{3})(\d{4})/);
+                if (match) {
+                  const prefix = parseInt(match[1]);
+                  const sequence = parseInt(match[2]);
+                  return prefix * 10000 + sequence;
+                }
+                
+                match = normalized.match(/(PB|P)(\d+)/);
+                if (match) {
+                  return parseInt(match[2]);
+                }
+                
+                return null;
+              };
+              
+              const aPhotoNum = extractPhotoNumber(aFileName);
+              const bPhotoNum = extractPhotoNumber(bFileName);
+              
+              if (aPhotoNum !== null && bPhotoNum !== null) {
+                return aPhotoNum - bPhotoNum;
+              }
+              
+              if (aPhotoNum !== null && bPhotoNum === null) {
+                return -1;
+              }
+              if (aPhotoNum === null && bPhotoNum !== null) {
+                return 1;
+              }
+              
+              const aTime = (a as any).uploadedAt || parseInt(a.s3Key?.split('-')[0] || '0');
+              const bTime = (b as any).uploadedAt || parseInt(b.s3Key?.split('-')[0] || '0');
+              
+              if (aTime && bTime) {
+                return aTime - bTime;
+              }
+              
+              return aFileName.localeCompare(bFileName);
+            });
             
             // Save updated state
             try {
