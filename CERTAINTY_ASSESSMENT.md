@@ -16,12 +16,14 @@
 
 **Issue**: Images use raw JSON, selections use versioned format  
 **Current State**:
+
 - Images SAVE with: `localStorage.setItem(keys.images, JSON.stringify(combined))` (line 719)
 - Images LOAD with: `localStorage.getItem(userSpecificKeys.images)` + `JSON.parse()`
 - Selections SAVE with: `saveVersionedData(keys.selections, projectId, userId, newSelected)` (line 1058)
 - Selections LOAD with: `loadVersionedData(projectKeys.selections)` (line 1555)
 
-**Problem**: 
+**Problem**:
+
 - Selections are being SAVED in versioned format: `{version, timestamp, projectId, userId, data: [...]}`
 - But when loading, if the versioned data exists but `.data` is `[]`, we get empty array
 - OR if the data isn't being saved at all, we get `null` → returns `[]`
@@ -29,12 +31,14 @@
 **Certainty**: 80% this is the issue
 
 **Evidence from console logs**:
+
 ```
 ✅ Versioned data saved: project_proj_6c894ef_selections (v2)  ← Saving works
 📥 Loaded selectedImages from storage: []                       ← Loading returns []
 ```
 
 **This means**:
+
 - Data IS being saved (we see the success message)
 - But `.data` field is `[]` (empty array)
 - OR the save isn't actually working despite the log
@@ -42,11 +46,13 @@
 **Proposed Fix 2: Two options**
 
 **Option A: Make EVERYTHING use versioned format**
+
 - Images: Change line 719 to use `saveVersionedData()`
 - Images: Change lines 1534, 1543 to use `loadVersionedData()`
 - Certainty: 85% this will work (makes everything consistent)
 
 **Option B: Keep images as raw JSON, make selections work like images**
+
 - Revert selections to raw JSON parsing
 - Certainty: 70% this will work (inconsistent but might work)
 
@@ -69,11 +75,13 @@
 ### Scenario 1: All Fixes Applied (Expected)
 
 **Immediate outcome**:
+
 1. ✅ Images load successfully (Fix 1 fixes undefined variable)
 2. ✅ Selected images load from versioned format (Fix 2A)
 3. ✅ Empty selections don't clear existing state (Fix 3)
 
 **Expected behavior**:
+
 1. Select image → Appears in selected images tile ✅
 2. Add description → Saves to localStorage + AWS ✅
 3. Refresh page → Selection persists ✅
@@ -81,6 +89,7 @@
 5. Cross-browser → Selections sync to other browser ✅
 
 **Console logs expected**:
+
 ```
 ✅ Versioned data loaded: project_proj_6c894ef_selections (v2)
 📥 Loaded selectedImages from storage: [{id: "img_123", instanceId: "img_456"}]
@@ -97,6 +106,7 @@
 **Certainty**: 85% confident
 
 **If it doesn't work, likely causes**:
+
 1. Data corruption in localStorage (old inconsistent data)
 2. AWS data structure issue
 3. Migration logic failing
@@ -109,6 +119,7 @@
 ## Final Recommendation
 
 **Implement all 3 fixes** in this order:
+
 1. Fix 1 (certainty: 95%)
 2. Fix 2 Option A - versioned format everywhere (certainty: 85%)
 3. Fix 3 - empty array protection (certainty: 70%)
@@ -116,6 +127,7 @@
 **Expected Success Rate**: 85%
 
 **If it doesn't work, next steps**:
+
 1. Check localStorage to see what data is actually stored
 2. Add more console logging to trace save/load flow
 3. Check if `saveVersionedData` is being called with correct parameters
@@ -129,4 +141,3 @@
 5. Refresh page
 6. Check console for "Versioned data loaded" message
 7. Verify selection persisted
-

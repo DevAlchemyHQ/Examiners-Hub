@@ -5,11 +5,13 @@
 **Problem**: Selected images not persisting after refresh or syncing cross-browser
 
 **Comparison with Images Grid** (which works correctly):
+
 - Images use versioned format throughout
 - When saving: `saveVersionedData()` creates `{version, timestamp, projectId, userId, data}`
 - When loading: `loadVersionedData()` extracts `.data` from versioned object
 
 **What Selected Images Was Doing** (broken):
+
 - When saving: Used `localStorage.setItem()` with raw JSON
 - When loading: Expected versioned object but got raw array
 - Result: `loadVersionedData()` returned `null` because data wasn't versioned
@@ -17,28 +19,34 @@
 ## Fixes Applied
 
 ### Commit fafda01 - toggleImageSelection
+
 **Before:**
+
 ```typescript
 localStorage.setItem(keys.selections, JSON.stringify(selectedWithFilenames));
 ```
 
 **After:**
+
 ```typescript
-const projectId = generateStableProjectId(userId, 'current');
+const projectId = generateStableProjectId(userId, "current");
 saveVersionedData(keys.selections, projectId, userId, newSelected);
 ```
 
 ### Commit cf4f0df - setSelectedImages
+
 **Before:**
+
 ```typescript
 localStorage.setItem(keys.selections, JSON.stringify(selectedWithFilenames));
 ```
 
 **After:**
+
 ```typescript
 const userId = getUserId();
-const keys = getProjectStorageKeys(userId, 'current');
-const projectId = generateStableProjectId(userId, 'current');
+const keys = getProjectStorageKeys(userId, "current");
+const projectId = generateStableProjectId(userId, "current");
 saveVersionedData(keys.selections, projectId, userId, selectedImages);
 ```
 

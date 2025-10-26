@@ -3,6 +3,7 @@
 ## Test Conducted
 
 ### Steps
+
 1. Navigated to app: ✅ Loaded successfully
 2. Selected image: ✅ Image "PB080001 copy.JPG" selected, counter shows "(1)"
 3. Added description: ✅ "TEST PERSISTENCE 123" typed into description field
@@ -12,12 +13,14 @@
 ### Console Logs Analysis
 
 **Before refresh (after selection):**
+
 ```
 ✅ Versioned data saved: project_proj_6c894ef_selections (v2)
 ✅ Selected images auto-saved to AWS
 ```
 
 **After refresh:**
+
 ```
 📥 Loaded selectedImages from storage: []
 ⚠️ No selectedImages found in storage or failed to load
@@ -30,6 +33,7 @@
 **Console log shows**: `Loaded selectedImages from storage: []`
 
 This means:
+
 1. Data IS being saved (logs confirm versioned save succeeded)
 2. Data IS being loaded (logs show load attempt)
 3. **BUT the loaded data is an empty array `[]`**
@@ -50,7 +54,7 @@ This means:
 ## Next Steps
 
 Need to investigate:
+
 1. What data is actually in localStorage key `project_proj_6c894ef_selections`
 2. What `loadVersionedData()` is returning
 3. Why migration returns empty array
-

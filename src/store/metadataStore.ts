@@ -1055,8 +1055,8 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             });
             const keys = getProjectStorageKeys(userId, 'current');
             const projectId = generateStableProjectId(userId, 'current');
-            saveVersionedData(keys.selections, projectId, userId, newSelected);
-            console.log('📱 Selected images saved to localStorage (versioned):', newSelected);
+            saveVersionedData(keys.selections, projectId, userId, selectedWithFilenames);
+            console.log('📱 Selected images saved to localStorage (versioned):', selectedWithFilenames);
           } else {
             console.log('⏸️ Skipping localStorage save during project clear');
           }
@@ -1140,8 +1140,8 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           const userId = getUserId();
           const keys = getProjectStorageKeys(userId, 'current');
           const projectId = generateStableProjectId(userId, 'current');
-          saveVersionedData(keys.selections, projectId, userId, selectedImages);
-          console.log('📱 Selected images saved to localStorage (versioned):', selectedImages);
+          saveVersionedData(keys.selections, projectId, userId, selectedWithFilenames);
+          console.log('📱 Selected images saved to localStorage (versioned):', selectedWithFilenames);
         } else {
           console.log('⏸️ Skipping localStorage save during project clear');
         }
@@ -1531,18 +1531,18 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             }
             
             // Fallback to localStorage if no S3 files or S3 fails
-            const savedImages = localStorage.getItem(userSpecificKeys.images);
+            const savedImages = loadVersionedData(projectKeys.images);
             if (savedImages) {
-              return JSON.parse(savedImages);
+              return savedImages;
             }
             
             return [];
           } catch (s3Error) {
             console.warn('⚠️ S3 operation failed, using localStorage fallback:', s3Error);
             // Fallback to localStorage
-            const savedImages = localStorage.getItem(userSpecificKeys.images);
+            const savedImages = loadVersionedData(projectKeys.images);
             if (savedImages) {
-              return JSON.parse(savedImages);
+              return savedImages;
             }
             return [];
           }
@@ -1621,15 +1621,20 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         updates.images = [];
       }
       
-      if (selectionsResult.status === 'fulfilled' && selectionsResult.value) {
+      if (selectionsResult.status === 'fulfilled' && selectionsResult.value && selectionsResult.value.length > 0) {
         console.log('📥 Loaded selectedImages from storage:', selectionsResult.value);
         
         // Migrate old selected image IDs to match new S3 image IDs
         const migratedSelections = migrateSelectedImageIds(selectionsResult.value, imagesResult.value || []);
         
-        updates.selectedImages = migratedSelections;
+        if (migratedSelections.length > 0) {
+          updates.selectedImages = migratedSelections;
+          console.log('✅ Migrated selections applied:', migratedSelections.length);
+        } else {
+          console.log('⚠️ Migration returned empty array, preserving existing selections');
+        }
       } else {
-        console.log('⚠️ No selectedImages found in storage or failed to load');
+        console.log('⚠️ No selectedImages found in storage or empty array');
       }
       
       // Add instance metadata to state updates
