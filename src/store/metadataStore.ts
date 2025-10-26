@@ -1548,10 +1548,10 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         // Load selected images from localStorage first, then AWS
         (async () => {
           try {
-            const savedSelections = localStorage.getItem(userSpecificKeys.selections);
+            // Use loadVersionedData to properly extract .data from versioned objects
+            const savedSelections = loadVersionedData(projectKeys.selections);
             if (savedSelections) {
-              const selectedImageIds = JSON.parse(savedSelections);
-              return selectedImageIds;
+              return savedSelections;
             }
             
             if (userId !== 'anonymous') {
