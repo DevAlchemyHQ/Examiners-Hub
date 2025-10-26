@@ -1068,6 +1068,19 @@ export class DatabaseService {
             };
           }
           
+          // ✅ Critical: Always use NEW formData, NEVER fall back to old data
+          // Priority: 1) smallData.formData 2) smallData.sessionState?.formData 3) empty
+          // Do NOT use existingProject.formData (old data)
+          const formDataToSave = smallData.formData || 
+                                 smallData.sessionState?.formData || 
+                                 {};
+          
+          console.log('🔄 AWS Update Merge Debug:', {
+            existingFormData: existingProject.formData,
+            newFormData: smallData.formData,
+            formDataToSave: formDataToSave
+          });
+          
           const mergedProjectData = isClearing ? {
             // When clearing, replace data instead of merging
             ...smallData,
@@ -1077,9 +1090,15 @@ export class DatabaseService {
             // Note: smallData properties (including formData) will overwrite existingProject properties
             ...existingProject,  // Preserve existing data (like images)
             ...smallData,        // Apply new data (formData, sessionState, etc.) - OVERWRITES existingProject values
-            sessionState: mergedSessionState, // Use deep-merged sessionState (not spread from smallData)
+            formData: formDataToSave,  // ✅ Explicitly set formData to ensure new data
+            sessionState: mergedSessionState, // Use deep-merged sessionState
             updated_at: new Date().toISOString()
           };
+          
+          console.log('🔄 Final merged data being saved:', {
+            formData: mergedProjectData.formData,
+            sessionState: mergedProjectData.sessionState
+          });
           
           // Ensure both keys are explicitly set (user_id + project_id)
           const command = new PutCommand({

@@ -1875,24 +1875,50 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           hasSortPreferences: !!project.sortPreferences
         });
         
-        // Update form data if available
+        // Update form data if available (only if it's newer than current state)
         if (project.formData) {
-          set({ formData: project.formData });
-          console.log('✅ Form data loaded from AWS');
+          const currentState = get();
+          const currentSessionState = currentState.sessionState;
+          const awsLastActiveTime = project.sessionState?.lastActiveTime || 0;
+          const localLastActiveTime = currentSessionState?.lastActiveTime || 0;
           
-          // Cache to localStorage for faster future access
-          const keys = getProjectStorageKeys(userId, 'current');
-          localStorage.setItem(keys.formData, JSON.stringify(project.formData));
+          console.log('🔄 AWS vs Local timestamp check:', {
+            aws: awsLastActiveTime,
+            local: localLastActiveTime,
+            awsIsNewer: awsLastActiveTime > localLastActiveTime
+          });
+          
+          // Only overwrite local data if AWS data is newer
+          if (awsLastActiveTime > localLastActiveTime) {
+            set({ formData: project.formData });
+            console.log('✅ Form data loaded from AWS (newer)');
+            
+            // Cache to localStorage for faster future access
+            const keys = getProjectStorageKeys(userId, 'current');
+            localStorage.setItem(keys.formData, JSON.stringify(project.formData));
+          } else {
+            console.log('⚠️ Skipping AWS formData - local data is newer');
+          }
         }
         
-        // Update session state if available
+        // Update session state if available (only if it's newer)
         if (project.sessionState) {
-          set({ sessionState: project.sessionState });
-          console.log('✅ Session state loaded from AWS');
+          const currentState = get();
+          const localSessionState = currentState.sessionState;
+          const awsLastActiveTime = project.sessionState?.lastActiveTime || 0;
+          const localLastActiveTime = localSessionState?.lastActiveTime || 0;
           
-          // Cache to localStorage for faster future access
-          const keys = getProjectStorageKeys(userId, 'current');
-          localStorage.setItem(`${keys.formData}-session-state`, JSON.stringify(project.sessionState));
+          // Only overwrite local data if AWS data is newer
+          if (awsLastActiveTime > localLastActiveTime) {
+            set({ sessionState: project.sessionState });
+            console.log('✅ Session state loaded from AWS (newer)');
+            
+            // Cache to localStorage for faster future access
+            const keys = getProjectStorageKeys(userId, 'current');
+            localStorage.setItem(`${keys.formData}-session-state`, JSON.stringify(project.sessionState));
+          } else {
+            console.log('⚠️ Skipping AWS sessionState - local data is newer');
+          }
         }
         
         // Update sort preferences if available
