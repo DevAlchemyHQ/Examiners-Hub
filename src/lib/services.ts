@@ -999,14 +999,26 @@ export class DatabaseService {
 
   static async getProject(userId: string, projectId: string) {
     try {
-      // For 'current' project, always use project_id = "current" for consistency
+      // For 'current' project, use deterministic project ID (proj_6c894ef)
       if (projectId === 'current') {
+        // Calculate deterministic project ID to match localStorage
+        const normalized = `${userId.toLowerCase().trim()}::current`;
+        let hash = 0;
+        for (let i = 0; i < normalized.length; i++) {
+          const char = normalized.charCodeAt(i);
+          hash = ((hash << 5) - hash) + char;
+          hash = hash & hash;
+        }
+        const deterministicProjectId = `proj_${Math.abs(hash).toString(16)}`;
+        
+        console.log('🔑 Using deterministic projectId:', deterministicProjectId);
+        
         // Use GetCommand with BOTH keys (user_id + project_id) for deterministic results
         const getCommand = new GetCommand({
           TableName: 'mvp-labeler-projects',
           Key: {
             user_id: userId,
-            project_id: 'current'  // ✅ Fixed: Always query specific "current" project
+            project_id: deterministicProjectId  // ✅ Use hash-based ID to match localStorage
           }
         });
         
@@ -1041,10 +1053,19 @@ export class DatabaseService {
 
   static async updateProject(userId: string, projectId: string, projectData: any, isClearing: boolean = false) {
     try {
-      // For 'current' project, always use project_id = "current" for consistency
+      // For 'current' project, use deterministic project ID (proj_6c894ef)
       if (projectId === 'current') {
-        // Always use "current" as the project_id (not timestamp-based)
-        const actualProjectId = 'current';
+        // Calculate deterministic project ID to match localStorage
+        const normalized = `${userId.toLowerCase().trim()}::current`;
+        let hash = 0;
+        for (let i = 0; i < normalized.length; i++) {
+          const char = normalized.charCodeAt(i);
+          hash = ((hash << 5) - hash) + char;
+          hash = hash & hash;
+        }
+        const actualProjectId = `proj_${Math.abs(hash).toString(16)}`;
+        
+        console.log('🔑 Using deterministic projectId for update:', actualProjectId);
         
         // Get existing project (will be null if doesn't exist)
         const getProjectResult = await this.getProject(userId, 'current');
@@ -1106,14 +1127,14 @@ export class DatabaseService {
             Item: {
               ...mergedProjectData,
               user_id: userId,      // ✅ Explicitly set both keys
-              project_id: 'current' // ✅ Always use "current"
+              project_id: actualProjectId  // ✅ Use hash-based ID to match localStorage
             }
           });
           
           await docClient.send(command);
           console.log('✅ Updated current project successfully with merged data');
         } else {
-          // No existing "current" project, create one with project_id = "current"
+          // No existing project, create one with deterministic project ID
           console.log('🆕 Creating new current project');
           
           // Separate large data from small data to avoid DynamoDB size limits
@@ -1123,7 +1144,7 @@ export class DatabaseService {
             TableName: 'mvp-labeler-projects',
             Item: {
               user_id: userId,
-              project_id: 'current',  // ✅ Fixed: Always use "current", not timestamp
+              project_id: actualProjectId,  // ✅ Use hash-based ID to match localStorage
               ...smallData,
               created_at: new Date().toISOString(),
               updated_at: new Date().toISOString()
