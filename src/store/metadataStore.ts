@@ -1090,6 +1090,12 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
               return;
             }
             
+            // Only save if we have actual selections
+            if (newSelected.length === 0) {
+              console.log('⏸️ No selections to save to AWS');
+              return;
+            }
+            
             const storedUser = localStorage.getItem('user');
             const user = storedUser ? JSON.parse(storedUser) : null;
             
