@@ -1137,9 +1137,11 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
               fileName: image?.fileName || image?.file?.name || 'unknown'
             };
           });
+          const userId = getUserId();
           const keys = getProjectStorageKeys(userId, 'current');
-          localStorage.setItem(keys.selections, JSON.stringify(selectedWithFilenames));
-          console.log('📱 Selected images saved to localStorage:', selectedWithFilenames);
+          const projectId = generateStableProjectId(userId, 'current');
+          saveVersionedData(keys.selections, projectId, userId, selectedImages);
+          console.log('📱 Selected images saved to localStorage (versioned):', selectedImages);
         } else {
           console.log('⏸️ Skipping localStorage save during project clear');
         }
