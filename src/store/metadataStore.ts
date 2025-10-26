@@ -2147,18 +2147,28 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         const selectedImages = selectedImagesResult.value;
         console.log('📸 Selected images loaded from AWS:', selectedImages.length);
         
-        // Migrate selected image IDs to match current S3 image IDs
-        const currentImages = get().images;
-        const migratedSelections = migrateSelectedImageIds(selectedImages, currentImages);
-        
-        set({ selectedImages: migratedSelections });
-        console.log('✅ Selected images loaded and migrated from AWS');
-        
-        // Cache to localStorage for faster future access (using versioned format)
-        const keys = getProjectStorageKeys(userId, 'current');
-        saveVersionedData(keys.selections, projectId, userId, migratedSelections);
+        // Only process if we actually have selections from AWS
+        if (selectedImages.length > 0) {
+          // Migrate selected image IDs to match current S3 image IDs
+          const currentImages = get().images;
+          const migratedSelections = migrateSelectedImageIds(selectedImages, currentImages);
+          
+          // Only update if migration succeeded
+          if (migratedSelections.length > 0) {
+            set({ selectedImages: migratedSelections });
+            console.log('✅ Selected images loaded and migrated from AWS:', migratedSelections.length);
+            
+            // Cache to localStorage for faster future access (using versioned format)
+            const keys = getProjectStorageKeys(userId, 'current');
+            saveVersionedData(keys.selections, projectId, userId, migratedSelections);
+          } else {
+            console.log('⚠️ Migration failed, preserving existing selections');
+          }
+        } else {
+          console.log('⚠️ AWS returned empty array - preserving existing localStorage selections');
+        }
       } else {
-        console.log('⚠️ No selected images found in AWS');
+        console.log('⚠️ No selected images found in AWS - preserving existing localStorage selections');
       }
       
       // Process instance metadata
