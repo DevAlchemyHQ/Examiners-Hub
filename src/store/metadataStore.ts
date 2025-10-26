@@ -1918,6 +1918,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       console.log('🌐 loadAllUserDataFromAWS: Starting AWS data load...');
       
       const userId = getUserId();
+      const projectId = generateStableProjectId(userId, 'current');
       
       if (userId === 'anonymous') {
         console.log('⚠️ No authenticated user, skipping AWS load');
