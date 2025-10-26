@@ -380,28 +380,36 @@ const migrateSelectedImageIds = (
     
     // Extract filename from the selected item - check fileName property first
     let selectedFileName = (selectedItem as any).fileName || '';
-    if (selectedItem.id.startsWith('img-')) {
-      // Extract filename from ID like 'img-PB080001-copy-JPG-1754603458580'
-      const idParts = selectedItem.id.replace('img-', '').split('-');
-      if (idParts.length > 1) {
-        // Remove timestamp and get filename
-        selectedFileName = idParts.slice(0, -1).join('-');
+    
+    console.log('📝 Extracted fileName from selected item:', selectedFileName);
+    
+    // If fileName property is not available, try to derive it from ID
+    if (!selectedFileName) {
+      if (selectedItem.id.startsWith('img-')) {
+        // Extract filename from ID like 'img-PB080001-copy-JPG-1754603458580'
+        const idParts = selectedItem.id.replace('img-', '').split('-');
+        if (idParts.length > 1) {
+          // Remove timestamp and get filename
+          selectedFileName = idParts.slice(0, -1).join('-');
+        } else {
+          selectedFileName = idParts[0];
+        }
+      } else if (selectedItem.id.startsWith('s3-')) {
+        selectedFileName = selectedItem.id.replace('s3-', '');
+      } else if (selectedItem.id.startsWith('local-')) {
+        // Handle old local- format
+        const idParts = selectedItem.id.replace('local-', '').split('-');
+        if (idParts.length > 1) {
+          selectedFileName = idParts.slice(1).join('-');
+        } else {
+          selectedFileName = idParts[0];
+        }
       } else {
-        selectedFileName = idParts[0];
+        selectedFileName = selectedItem.id;
       }
-    } else if (selectedItem.id.startsWith('s3-')) {
-      selectedFileName = selectedItem.id.replace('s3-', '');
-    } else if (selectedItem.id.startsWith('local-')) {
-      // Handle old local- format
-      const idParts = selectedItem.id.replace('local-', '').split('-');
-      if (idParts.length > 1) {
-        selectedFileName = idParts.slice(1).join('-');
-      } else {
-        selectedFileName = idParts[0];
-      }
-    } else {
-      selectedFileName = selectedItem.id;
     }
+    
+    console.log('✅ Final selectedFileName:', selectedFileName);
     
     // Try to find matching image by filename first (most reliable)
     const matchingImages = loadedImages.filter(img => {
