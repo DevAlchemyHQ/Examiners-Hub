@@ -234,7 +234,7 @@ const AWS_SAVE_DEBOUNCE_MS = 15000; // 15 seconds debounce for better cost optim
 // We need to separate the state interface from the actions
 interface MetadataStateOnly {
   images: ImageMetadata[];
-  selectedImages: Array<{ id: string; instanceId: string }>; // Store both base ID and instance ID
+  selectedImages: Array<{ id: string; instanceId: string; fileName?: string }>; // Store both base ID and instance ID
   bulkSelectedImages: string[];
   formData: FormData;
   defectSortDirection: 'asc' | 'desc' | null;
@@ -260,7 +260,7 @@ interface MetadataState extends MetadataStateOnly {
   removeImage: (id: string) => Promise<void>;
   toggleImageSelection: (id: string) => void;
   toggleBulkImageSelection: (id: string) => void;
-  setSelectedImages: (selectedImages: Array<{ id: string; instanceId: string }>) => void;
+  setSelectedImages: (selectedImages: Array<{ id: string; instanceId: string; fileName?: string }>) => void;
   clearSelectedImages: () => void;
   clearBulkSelectedImages: () => void;
   setDefectSortDirection: (direction: 'asc' | 'desc' | null) => void;
@@ -1035,9 +1035,14 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       const userId = getUserId();
       const selectionCount = state.selectedImages.length;
       const instanceId = generateStableImageId(userId, 'current', `${id}-selection-${selectionCount}`, selectionCount);
-      const newSelected = [...state.selectedImages, { id, instanceId }];
       
-      console.log('🔧 toggleImageSelection - Added image:', { id, instanceId });
+      // Find the image being selected to get its fileName
+      const image = state.images.find(img => img.id === id);
+      const fileName = image?.fileName || image?.file?.name || 'unknown';
+      
+      const newSelected = [...state.selectedImages, { id, instanceId, fileName }];
+      
+      console.log('🔧 toggleImageSelection - Added image:', { id, instanceId, fileName });
       console.log('🔧 toggleImageSelection - Total selected:', newSelected.length);
         
         // Auto-save selections to localStorage immediately with filenames for cross-session matching (but not during clearing)
@@ -1045,14 +1050,12 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           // Check if project is being cleared
           const projectStore = useProjectStore.getState();
           if (!projectStore.isClearing) {
-            const selectedWithFilenames = newSelected.map(item => {
-              const image = state.images.find(img => img.id === item.id);
-              return {
-                id: item.id,
-                instanceId: item.instanceId,
-                fileName: image?.fileName || image?.file?.name || 'unknown'
-              };
-            });
+            // Map to include fileName for each selected item
+            const selectedWithFilenames = newSelected.map(item => ({
+              id: item.id,
+              instanceId: item.instanceId,
+              fileName: item.fileName || 'unknown'
+            }));
             const keys = getProjectStorageKeys(userId, 'current');
             const projectId = generateStableProjectId(userId, 'current');
             saveVersionedData(keys.selections, projectId, userId, selectedWithFilenames);
@@ -1129,7 +1132,16 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         // Check if project is being cleared
         const projectStore = useProjectStore.getState();
         if (!projectStore.isClearing) {
+          // Use fileName from item if available, otherwise try to find it in state.images
           const selectedWithFilenames = selectedImages.map(item => {
+            // If fileName is already in item, use it; otherwise try to find it
+            if (item.fileName) {
+              return {
+                id: item.id,
+                instanceId: item.instanceId,
+                fileName: item.fileName
+              };
+            }
             const image = state.images.find(img => img.id === item.id);
             return {
               id: item.id,
