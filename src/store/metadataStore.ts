@@ -338,7 +338,10 @@ const forceAWSSave = async (sessionState: any) => {
     if (user?.email) {
       console.log('☁️ [IMMEDIATE] Forcing session state save to AWS...');
       const { DatabaseService } = await import('../lib/services');
+      
+      // ✅ Include formData at root level for proper persistence
       await DatabaseService.updateProject(user.email, 'current', { 
+        formData: sessionState.formData || {},
         sessionState: sessionState
       });
       console.log('✅ [IMMEDIATE] Session state forced to AWS successfully');

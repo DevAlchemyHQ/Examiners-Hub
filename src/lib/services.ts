@@ -999,26 +999,24 @@ export class DatabaseService {
 
   static async getProject(userId: string, projectId: string) {
     try {
-      // For 'current' project, ensure we get the most recent one
+      // For 'current' project, always use project_id = "current" for consistency
       if (projectId === 'current') {
-        // Query all projects for this user and get the most recent one
-        const queryCommand = new QueryCommand({
+        // Use GetCommand with BOTH keys (user_id + project_id) for deterministic results
+        const getCommand = new GetCommand({
           TableName: 'mvp-labeler-projects',
-          KeyConditionExpression: 'user_id = :userId',
-          ExpressionAttributeValues: {
-            ':userId': userId
-          },
-          ScanIndexForward: false, // Sort by sort key descending (most recent first)
-          Limit: 1 // Only get the most recent project
+          Key: {
+            user_id: userId,
+            project_id: 'current'  // ✅ Fixed: Always query specific "current" project
+          }
         });
         
-        const result = await docClient.send(queryCommand);
+        const result = await docClient.send(getCommand);
         
-        if (result.Items && result.Items.length > 0) {
-          console.log('✅ Found most recent project for user:', userId);
-          return { project: result.Items[0], error: null };
+        if (result.Item) {
+          console.log('✅ Found current project for user:', userId);
+          return { project: result.Item, error: null };
         } else {
-          console.log('⚠️ No projects found for user:', userId);
+          console.log('⚠️ No current project found for user:', userId);
           return { project: null, error: null };
         }
       } else {
@@ -1043,15 +1041,17 @@ export class DatabaseService {
 
   static async updateProject(userId: string, projectId: string, projectData: any, isClearing: boolean = false) {
     try {
-      // For 'current' project, ensure we update the most recent one
+      // For 'current' project, always use project_id = "current" for consistency
       if (projectId === 'current') {
-        // First, get the most recent project to get its actual project_id
+        // Always use "current" as the project_id (not timestamp-based)
+        const actualProjectId = 'current';
+        
+        // Get existing project (will be null if doesn't exist)
         const getProjectResult = await this.getProject(userId, 'current');
         
         if (getProjectResult.project) {
-          // Use the actual project_id from the most recent project
-          const actualProjectId = getProjectResult.project.project_id;
-          console.log('🔄 Updating most recent project with ID:', actualProjectId);
+          // Update existing "current" project
+          console.log('🔄 Updating current project');
           
           // Separate large data from small data to avoid DynamoDB size limits
           const { images, ...smallData } = projectData;
@@ -1074,24 +1074,28 @@ export class DatabaseService {
             updated_at: new Date().toISOString()
           } : {
             // Normal update: preserve existing data and apply new data
-            ...existingProject,  // Preserve existing data
-            ...smallData,        // Apply new data
-            sessionState: mergedSessionState, // Use deep-merged sessionState
+            // Note: smallData properties (including formData) will overwrite existingProject properties
+            ...existingProject,  // Preserve existing data (like images)
+            ...smallData,        // Apply new data (formData, sessionState, etc.) - OVERWRITES existingProject values
+            sessionState: mergedSessionState, // Use deep-merged sessionState (not spread from smallData)
             updated_at: new Date().toISOString()
           };
           
-          // Only save small data to DynamoDB (form data, selections, etc.)
+          // Ensure both keys are explicitly set (user_id + project_id)
           const command = new PutCommand({
             TableName: 'mvp-labeler-projects',
-            Item: mergedProjectData
+            Item: {
+              ...mergedProjectData,
+              user_id: userId,      // ✅ Explicitly set both keys
+              project_id: 'current' // ✅ Always use "current"
+            }
           });
           
           await docClient.send(command);
-          console.log('✅ Updated most recent project successfully with merged data');
+          console.log('✅ Updated current project successfully with merged data');
         } else {
-          // No existing project, create a new one with timestamp-based ID
-          const timestamp = Date.now().toString();
-          console.log('🆕 Creating new project with ID:', timestamp);
+          // No existing "current" project, create one with project_id = "current"
+          console.log('🆕 Creating new current project');
           
           // Separate large data from small data to avoid DynamoDB size limits
           const { images, ...smallData } = projectData;
@@ -1100,7 +1104,7 @@ export class DatabaseService {
             TableName: 'mvp-labeler-projects',
             Item: {
               user_id: userId,
-              project_id: timestamp,
+              project_id: 'current',  // ✅ Fixed: Always use "current", not timestamp
               ...smallData,
               created_at: new Date().toISOString(),
               updated_at: new Date().toISOString()
@@ -1108,7 +1112,7 @@ export class DatabaseService {
           });
           
           await docClient.send(command);
-          console.log('✅ Created new project successfully');
+          console.log('✅ Created new current project successfully');
         }
       } else {
         // For specific project IDs, get existing project and merge data
