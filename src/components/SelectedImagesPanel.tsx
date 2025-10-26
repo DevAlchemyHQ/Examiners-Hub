@@ -717,6 +717,8 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
   const sortImages = (images: ImageMetadata[], direction: 'asc' | 'desc' | null) => {
     if (!direction) return images;
 
+    // CRITICAL FIX: Stable sort - preserve original order for images without photo numbers
+    // This prevents layout shift/bobbing when images don't have numbers yet
     return [...images].sort((a, b) => {
       // Get photo numbers from instance metadata, defaulting to 0 for empty or invalid numbers
       const aPhotoNumber = a.instanceId ? instanceMetadata[a.instanceId]?.photoNumber : a.photoNumber;
@@ -725,8 +727,9 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
       const aNum = aPhotoNumber ? parseInt(aPhotoNumber) : 0;
       const bNum = bPhotoNumber ? parseInt(bPhotoNumber) : 0;
       
-      // If both have no numbers, maintain original order
+      // STABLE SORT: If both have no numbers, maintain original insertion order
       if (aNum === 0 && bNum === 0) {
+        // Keep original insertion order - prevents jumping/bobbing
         return 0;
       }
       
@@ -734,7 +737,13 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
       if (aNum === 0) return 1;
       if (bNum === 0) return -1;
 
-      return direction === 'asc' ? aNum - bNum : bNum - aNum;
+      // Sort by photo number
+      const sorted = direction === 'asc' ? aNum - bNum : bNum - aNum;
+      
+      // If photo numbers are equal, keep original order to prevent visual jumping
+      if (sorted === 0) return 0;
+      
+      return sorted;
     });
   };
 
@@ -1265,8 +1274,13 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
               {/* Defects Section */}
               {defectImages.length > 0 && (
                 <>
-                  {defectImages.map((img, index) => (
-                    <div key={img.instanceId || img.id} className={`relative bg-white dark:bg-gray-800 rounded-lg border overflow-hidden shadow-sm group ${
+                  {defectImages.map((img, index) => {
+                    // CRITICAL: Use stable key based on instanceId to prevent DOM reordering and layout shift
+                    // This ensures smooth rendering without page bobbing
+                    const stableKey = `defect-${img.instanceId || img.id}`;
+                    
+                    return (
+                    <div key={stableKey} className={`relative bg-white dark:bg-gray-800 rounded-lg border overflow-hidden shadow-sm group ${
                       isTileIncomplete(img) ? 'bg-amber-50/30 dark:bg-amber-900/20' : 'border-gray-200 dark:border-gray-700'
                     }`}>
                       <div style={{ aspectRatio: '1/1', height: '120px', minHeight: '120px', maxHeight: '120px', width: '100%' }}>
@@ -1351,7 +1365,8 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
                         </div>
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </>
               )}
             </div>
