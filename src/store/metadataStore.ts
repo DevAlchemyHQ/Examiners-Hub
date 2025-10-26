@@ -2449,8 +2449,13 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         const { DatabaseService } = await import('../lib/services');
         const result = await DatabaseService.getProject(userId, 'current');
         
-        if (result.project?.sessionState) {
-          const awsTimestamp = result.project.sessionState.lastActiveTime || 0;
+        if (result.project) {
+          // ✅ CRITICAL: Priority order for formData:
+          // 1. result.project.formData (root level - most recent from forceAWSSave)
+          // 2. result.project.sessionState.formData (fallback if root level missing)
+          const awsFormData = result.project.formData || result.project.sessionState?.formData || {};
+          
+          const awsTimestamp = result.project.sessionState?.lastActiveTime || 0;
           console.log('🔄 [POLLING] AWS timestamp check:', { 
             local: currentTimestamp, 
             aws: awsTimestamp,
@@ -2459,57 +2464,33 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           
           // For polling: Check if data is different (not just timestamp)
           const currentFormData = state.formData;
-          const awsFormData = result.project.sessionState.formData;
           const dataIsDifferent = JSON.stringify(currentFormData) !== JSON.stringify(awsFormData);
           
-          if (dataIsDifferent && result.project.sessionState.formData) {
+          console.log('🔄 [POLLING] Data comparison:', {
+            current: currentFormData,
+            aws: awsFormData,
+            different: dataIsDifferent
+          });
+          
+          if (dataIsDifferent && Object.keys(awsFormData).length > 0) {
             console.log('✅ [POLLING] Found different form data on AWS (cross-browser sync)');
             
-            // Standardize and merge form data
-            let mergedFormData = { ...state.formData };
-            
-            if (result.project.sessionState.formData.date) {
-              const standardizedDate = standardizeDate(result.project.sessionState.formData.date);
-              mergedFormData.date = standardizedDate;
-              console.log('📅 [POLLING] Restored date:', standardizedDate);
-            }
-            
-            if (result.project.sessionState.formData.elr) {
-              mergedFormData.elr = result.project.sessionState.formData.elr;
-              console.log('📝 [POLLING] Restored elr:', result.project.sessionState.formData.elr);
-            }
-            
-            if (result.project.sessionState.formData.structureNo) {
-              mergedFormData.structureNo = result.project.sessionState.formData.structureNo;
-              console.log('📝 [POLLING] Restored structureNo:', result.project.sessionState.formData.structureNo);
-            }
-            
-            // Merge any additional fields
-            if (result.project && result.project.sessionState && result.project.sessionState.formData) {
-              Object.keys(result.project.sessionState.formData).forEach(key => {
-                if (key !== 'date' && key !== 'elr' && key !== 'structureNo' && 
-                    result.project?.sessionState?.formData[key]) {
-                  mergedFormData[key as keyof typeof mergedFormData] = result.project.sessionState.formData[key];
-                  console.log(`📝 [POLLING] Restored ${key}:`, result.project.sessionState.formData[key]);
-                }
-              });
-            }
-            
+            // Use AWS formData directly (it's already complete and latest)
             set({ 
-              formData: mergedFormData,
+              formData: awsFormData as any,
               sessionState: {
                 ...state.sessionState,
-                formData: mergedFormData,
+                formData: awsFormData as any,
                 lastActiveTime: Date.now() // Use real timestamp, not hash-based
               }
             });
             
-            console.log('✅ [POLLING] Form data synced from AWS:', mergedFormData);
+            console.log('✅ [POLLING] Form data synced from AWS:', awsFormData);
             
             // Also update localStorage
             try {
               const keys = getProjectStorageKeys(userId, 'current');
-              localStorage.setItem(keys.formData, JSON.stringify(mergedFormData));
+              localStorage.setItem(keys.formData, JSON.stringify(awsFormData));
             } catch (error) {
               console.warn('⚠️ Error updating localStorage from polling:', error);
             }
