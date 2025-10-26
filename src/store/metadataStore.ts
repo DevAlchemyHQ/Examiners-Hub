@@ -1898,6 +1898,29 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             localStorage.setItem(keys.formData, JSON.stringify(project.formData));
           } else {
             console.log('⚠️ Skipping AWS formData - local data is newer');
+            // Load from localStorage if AWS is skipped
+            try {
+              const keys = getProjectStorageKeys(userId, 'current');
+              const localFormData = loadVersionedData(keys.formData);
+              if (localFormData) {
+                set({ formData: localFormData });
+                console.log('✅ Form data loaded from localStorage (newer than AWS)');
+              }
+            } catch (error) {
+              console.warn('⚠️ Error loading formData from localStorage:', error);
+            }
+          }
+        } else {
+          // No formData in AWS, try localStorage
+          try {
+            const keys = getProjectStorageKeys(userId, 'current');
+            const localFormData = loadVersionedData(keys.formData);
+            if (localFormData) {
+              set({ formData: localFormData });
+              console.log('✅ Form data loaded from localStorage (no AWS data)');
+            }
+          } catch (error) {
+            console.warn('⚠️ Error loading formData from localStorage:', error);
           }
         }
         
