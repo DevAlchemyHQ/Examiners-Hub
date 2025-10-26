@@ -1656,6 +1656,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
     try {
       console.log('🔄 saveUserData called - starting save process...');
       
+      const userId = getUserId();
       const state = get();
       const { formData, instanceMetadata, selectedImages } = state;
       
