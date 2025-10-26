@@ -2630,11 +2630,14 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           // CRITICAL FIX: Always sync instance metadata, not just when formData changes
           // This ensures description/photo number changes sync within 5 seconds
           let syncedMetadata = false;
+          let mergedInstanceMetadata: any = null;
+          let hasNewerData = false;
+          
           try {
-            const { selectedImages } = await DatabaseService.getSelectedImages(userId);
+            const selectedImages = await DatabaseService.getSelectedImages(userId);
             const awsInstanceMetadata = await DatabaseService.getInstanceMetadata(userId);
             
-            if (selectedImages || awsInstanceMetadata) {
+            if (selectedImages && selectedImages.length > 0 || awsInstanceMetadata) {
               console.log('🔄 [POLLING] Syncing selected images and metadata from AWS...');
               
               const updates: any = {};
@@ -2660,8 +2663,8 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
                   const awsKeys = Object.keys(awsInstanceMetadata);
                   const allKeys = new Set([...currentKeys, ...awsKeys]);
                   
-                  const mergedInstanceMetadata: any = {};
-                  let hasNewerData = false;
+                  mergedInstanceMetadata = {};
+                  hasNewerData = false;
                   
                   // Only update if AWS has newer data (check if description or photoNumber is different and longer/newer)
                   for (const key of allKeys) {
@@ -2721,7 +2724,8 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
                     saveVersionedData(keys.selections, projectId, userId, migratedSelections);
                   }
                 }
-                if (awsInstanceMetadata && hasNewerData) {
+                if (awsInstanceMetadata && hasNewerData && mergedInstanceMetadata) {
+                  // Only save metadata if it was updated
                   saveVersionedData(`${keys.selections}-instance-metadata`, projectId, userId, mergedInstanceMetadata);
                 }
                 
