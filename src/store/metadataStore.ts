@@ -419,6 +419,8 @@ const migrateSelectedImageIds = (
       const cleanSelected = selectedFileName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
       const cleanLoaded = loadedFileName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
       
+      console.log('🔍 Comparing:', { selected: cleanSelected, loaded: cleanLoaded, match: cleanSelected === cleanLoaded });
+      
       return cleanSelected === cleanLoaded || cleanSelected.includes(cleanLoaded) || cleanLoaded.includes(cleanSelected);
     });
     
