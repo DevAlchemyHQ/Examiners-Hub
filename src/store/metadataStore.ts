@@ -231,6 +231,10 @@ interface SessionState {
 let awsSessionSaveTimeout: NodeJS.Timeout | null = null;
 const AWS_SAVE_DEBOUNCE_MS = 15000; // 15 seconds debounce for better cost optimization
 
+// Debouncing for instance metadata saves (prevent excessive saves during typing)
+let instanceMetadataSaveTimeout: NodeJS.Timeout | null = null;
+const INSTANCE_METADATA_DEBOUNCE_MS = 3000; // 3 seconds debounce for typing
+
 // We need to separate the state interface from the actions
 interface MetadataStateOnly {
   images: ImageMetadata[];
@@ -991,31 +995,36 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         }
       };
       
-      // Save to localStorage using versioned format for consistency
+      // Save to localStorage using versioned format for consistency (instant local save)
       const userId = getUserId();
       const keys = getProjectStorageKeys(userId, 'current');
       const projectId = generateStableProjectId(userId, 'current');
       const localStorageKey = `${keys.selections}-instance-metadata`;
       saveVersionedData(localStorageKey, projectId, userId, updatedInstanceMetadata);
+      console.log('💾 Instance metadata saved to localStorage (instant)');
       
-      // Trigger smart auto-save for cross-browser persistence (like updateImageMetadata does)
-      (async () => {
+      // DEBOUNCED AWS save - wait 3 seconds after user stops typing
+      // Clear existing timeout
+      if (instanceMetadataSaveTimeout) {
+        clearTimeout(instanceMetadataSaveTimeout);
+      }
+      
+      // Set new timeout for debounced save
+      instanceMetadataSaveTimeout = setTimeout(async () => {
         try {
+          console.log('💾 Debounced save - saving instance metadata to AWS');
           const storedUser = localStorage.getItem('user');
           const user = storedUser ? JSON.parse(storedUser) : null;
           
           if (user?.email) {
             await DatabaseService.saveInstanceMetadata(user.email, updatedInstanceMetadata);
+            console.log('✅ Instance metadata saved to AWS (debounced)');
           }
         } catch (error) {
-          console.error('Error saving instance metadata to AWS:', error);
+          console.error('❌ Error saving instance metadata to AWS (debounced):', error);
         }
-      })();
-      
-      // TRIGGER SMART AUTO-SAVE FOR CROSS-BROWSER SYNC (CRITICAL FIX)
-      get().smartAutoSave('selections').catch(error => {
-        console.error('Error triggering smart auto-save for selections:', error);
-      });
+        instanceMetadataSaveTimeout = null;
+      }, INSTANCE_METADATA_DEBOUNCE_MS);
       
       return {
         ...state,
