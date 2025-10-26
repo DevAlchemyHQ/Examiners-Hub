@@ -38,11 +38,17 @@ const MainApp = () => {
           
           console.log('🔄 Loading user data for authenticated user...');
           
-          // CLOUD-FIRST APPROACH: Load from AWS first for true cross-browser consistency
-          console.log('☁️ Loading data from AWS (Cloud-First)...');
-          await loadAllUserDataFromAWS();
+          // LOCALSTORAGE-FIRST APPROACH: Load immediately from localStorage, then sync with AWS
+          console.log('📱 Loading data from localStorage first (instant display)...');
+          await loadUserData();
           
-          console.log('✅ User data loaded successfully from AWS (Cloud-First)');
+          console.log('✅ User data loaded from localStorage (instant display)');
+          
+          // Now sync with AWS in the background
+          console.log('☁️ Syncing with AWS in background...');
+          loadAllUserDataFromAWS().catch(err => {
+            console.error('⚠️ AWS sync failed (using local data):', err);
+          });
           
           // Start polling for cross-browser sync
           console.log('🔄 Starting polling for cross-browser sync...');

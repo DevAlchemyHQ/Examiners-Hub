@@ -1326,35 +1326,22 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       
       // Load all data in parallel and batch state updates
       const [formDataResult, bulkDataResult, imagesResult, selectionsResult, instanceMetadataResult] = await Promise.allSettled([
-        // Load form data from AWS first (Cloud-First approach), then localStorage fallback
+        // Load form data from localStorage ONLY (for instant display)
+        // AWS sync happens in background via loadAllUserDataFromAWS
         (async () => {
-          if (userId !== 'anonymous') {
-            try {
-              console.log('🌐 Loading form data from AWS for user:', userId);
-              const { project } = await DatabaseService.getProject(userId, 'current');
-              if (project?.formData) {
-                console.log('✅ Form data loaded from AWS:', project.formData);
-                return project.formData;
-              } else {
-                console.log('⚠️ No form data found in AWS project');
-              }
-            } catch (awsError) {
-              console.error('Error loading form data from AWS:', awsError);
-            }
-          }
-          
-          // Fallback to localStorage if AWS fails or no data found
           try {
             const formData = loadVersionedData(projectKeys.formData);
             if (formData) {
-              console.log('📋 Form data loaded from localStorage fallback:', formData);
+              console.log('📋 Form data loaded from localStorage (instant display):', formData);
               return formData;
+            } else {
+              console.log('⚠️ No form data in localStorage');
             }
           } catch (error) {
             console.warn('⚠️ localStorage read error for formData:', error);
           }
           
-          console.log('⚠️ No form data available from any source');
+          console.log('⚠️ No form data available from localStorage');
           return null;
         })(),
         
