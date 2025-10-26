@@ -1928,7 +1928,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             const keys = getProjectStorageKeys(userId, 'current');
             const localFormData = loadVersionedData(keys.formData);
             if (localFormData) {
-              set({ formData: localFormData });
+              set({ formData: localFormData as FormData });
               console.log('✅ Form data loaded from localStorage (no AWS data)');
             }
           } catch (error) {
@@ -2452,9 +2452,13 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             newer: awsTimestamp > currentTimestamp
           });
           
-          // Only update if AWS data is newer
-          if (awsTimestamp > currentTimestamp && result.project.sessionState.formData) {
-            console.log('✅ [POLLING] Found newer form data on AWS');
+          // For polling: Check if data is different (not just timestamp)
+          const currentFormData = state.formData;
+          const awsFormData = result.project.sessionState.formData;
+          const dataIsDifferent = JSON.stringify(currentFormData) !== JSON.stringify(awsFormData);
+          
+          if (dataIsDifferent && result.project.sessionState.formData) {
+            console.log('✅ [POLLING] Found different form data on AWS (cross-browser sync)');
             
             // Standardize and merge form data
             let mergedFormData = { ...state.formData };
@@ -2491,18 +2495,26 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
               sessionState: {
                 ...state.sessionState,
                 formData: mergedFormData,
-                lastActiveTime: awsTimestamp
+                lastActiveTime: Date.now() // Use real timestamp, not hash-based
               }
             });
             
             console.log('✅ [POLLING] Form data synced from AWS:', mergedFormData);
+            
+            // Also update localStorage
+            try {
+              const keys = getProjectStorageKeys(userId, 'current');
+              localStorage.setItem(keys.formData, JSON.stringify(mergedFormData));
+            } catch (error) {
+              console.warn('⚠️ Error updating localStorage from polling:', error);
+            }
             
             // Show toast notification
             if (typeof toast !== 'undefined') {
               toast.success('Form data synced from cloud');
             }
           } else {
-            console.log('⏭️ [POLLING] No newer data on AWS');
+            console.log('✅ [POLLING] Data is the same, no sync needed');
           }
         }
       } catch (error) {

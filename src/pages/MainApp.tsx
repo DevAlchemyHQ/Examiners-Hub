@@ -13,7 +13,7 @@ import RefreshBanner from '../components/RefreshBanner';
 
 const MainApp = () => {
   const { isAuthenticated } = useAuthStore();
-  const { loadUserData, loadAllUserDataFromAWS } = useMetadataStore();
+  const { loadUserData, loadAllUserDataFromAWS, startPolling } = useMetadataStore();
 
   const [isInitialized, setIsInitialized] = useState(false);
 
@@ -43,6 +43,10 @@ const MainApp = () => {
           await loadAllUserDataFromAWS();
           
           console.log('✅ User data loaded successfully from AWS (Cloud-First)');
+          
+          // Start polling for cross-browser sync
+          console.log('🔄 Starting polling for cross-browser sync...');
+          startPolling();
         } catch (error) {
           console.error('❌ Error loading user data from AWS:', error);
           
