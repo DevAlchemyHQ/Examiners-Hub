@@ -149,7 +149,7 @@ export const ImageGridItem: React.FC<ImageGridItemProps> = ({ images, gridWidth 
         <div
           className="grid"
           style={{
-            gridTemplateColumns: `repeat(auto-fit, minmax(max(120px, calc(100% / ${gridWidth} - 8px)), 1fr))`,
+            gridTemplateColumns: `repeat(${gridWidth}, 1fr)`,
             alignContent: 'start',
             gridAutoRows: 'auto',
             columnGap: '8px',

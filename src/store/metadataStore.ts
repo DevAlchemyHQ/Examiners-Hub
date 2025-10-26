@@ -605,10 +605,9 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       const imageMetadataArray: ImageMetadata[] = files.map((file, index) => {
         // Use deterministic ID generation for cross-browser consistency
         const deterministicId = generateStableImageId(userId, 'current', file.name, index);
-        // Use deterministic timestamp based on file content for S3 path consistency
-        const fileHash = file.name.split('').reduce((a, b) => a + b.charCodeAt(0), 0);
-        const deterministicTimestamp = Math.abs(fileHash) + 1000000000000 + index;
-        const filePath = `users/${userId}/images/${deterministicTimestamp}-${file.name}`;
+        // Use REAL timestamp for proper sorting (not hash-based)
+        const uploadTimestamp = Date.now() + index;
+        const filePath = `users/${userId}/images/${uploadTimestamp}-${file.name}`;
         const previewUrl = URL.createObjectURL(file);
         
         console.log(`📸 Creating image metadata for ${file.name}:`, {
@@ -616,7 +615,8 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           fileName: file.name,
           previewUrl: previewUrl,
           fileSize: file.size,
-          fileType: file.type
+          fileType: file.type,
+          uploadTimestamp
         });
         
         // Create temporary metadata with local file for instant display
@@ -632,6 +632,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           isSketch,
           publicUrl: '', // Will be updated after S3 upload
           userId: userId,
+          uploadedAt: uploadTimestamp, // Store real upload time for sorting
           isUploading: true, // Mark as uploading
         };
       });
@@ -680,12 +681,12 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             return 1; // b comes first
           }
           
-          // If neither has photo numbers, fall back to timestamp sorting
-          const aTimestamp = parseInt(a.s3Key?.split('-')[0] || '0');
-          const bTimestamp = parseInt(b.s3Key?.split('-')[0] || '0');
+          // If neither has photo numbers, fall back to upload time sorting
+          const aTime = (a as any).uploadedAt || parseInt(a.s3Key?.split('-')[0] || '0');
+          const bTime = (b as any).uploadedAt || parseInt(b.s3Key?.split('-')[0] || '0');
           
-          if (!isNaN(aTimestamp) && !isNaN(bTimestamp)) {
-            return aTimestamp - bTimestamp; // Oldest first
+          if (aTime && bTime) {
+            return aTime - bTime; // Oldest first
           }
           
           // Final fallback to filename comparison
@@ -751,10 +752,9 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       console.log('🔄 Starting parallel S3 uploads in background...');
       const uploadPromises = files.map(async (file, index) => {
         try {
-          // Use same deterministic timestamp as metadata creation
-          const fileHash = file.name.split('').reduce((a, b) => a + b.charCodeAt(0), 0);
-          const deterministicTimestamp = Math.abs(fileHash) + 1000000000000 + index;
-          const filePath = `users/${userId}/images/${deterministicTimestamp}-${file.name}`;
+          // Use REAL timestamp for proper sorting
+          const uploadTimestamp = Date.now() + index;
+          const filePath = `users/${userId}/images/${uploadTimestamp}-${file.name}`;
           
           console.log(`📤 Uploading to S3: ${file.name}`);
           const uploadResult = await StorageService.uploadFile(file, filePath);
@@ -768,9 +768,9 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           // Store S3 file info in localStorage for tracking (since we can't list S3 files)
           const s3FileInfo = {
             fileName: file.name,
-            s3Key: `${timestamp}-${file.name}`,
+            s3Key: `${uploadTimestamp}-${file.name}`,
             s3Url: uploadResult.url,
-            uploadTime: timestamp,
+            uploadTime: uploadTimestamp,
             userId: userId
           };
           
@@ -780,7 +780,8 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           localStorage.setItem(`s3Files_${userId}`, JSON.stringify(existingS3Files));
           
           // Update the image metadata with S3 URL but keep local file for downloads
-          const consistentId = generateDeterministicImageId(userId, 'current', file.name, index);
+          // Use the SAME ID that was created at line 607
+          const consistentId = generateStableImageId(userId, 'current', file.name, index);
           
           set((state) => {
             const updatedImages = state.images.map(img => 
@@ -790,7 +791,8 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
                     preview: uploadResult.url!, // Use S3 URL for display
                     publicUrl: uploadResult.url!,
                     isUploading: false,
-                    s3Key: `${timestamp}-${file.name}`, // Store the S3 filename for downloads
+                    s3Key: `${uploadTimestamp}-${file.name}`, // Store the S3 filename for downloads
+                    uploadTimestamp: uploadTimestamp, // Store for sorting
                     // Keep original file reference for immediate download
                     file: img.file // Also keep original file reference for immediate download
                   }
@@ -842,7 +844,8 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         // Check if project is being cleared
         const projectStore = useProjectStore.getState();
         if (!projectStore.isClearing) {
-          const keys = getProjectStorageKeys(userId, 'current');
+          const currentUserId = getUserId();
+          const keys = getProjectStorageKeys(currentUserId, 'current');
           localStorage.setItem(keys.images, JSON.stringify(updatedImages));
           console.log('📱 Image metadata saved to localStorage for image:', id);
         } else {
