@@ -979,6 +979,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       };
       
       // Save to localStorage
+      const userId = getUserId();
       const keys = getProjectStorageKeys(userId, 'current');
       const localStorageKey = `${keys.selections}-instance-metadata`;
       localStorage.setItem(localStorageKey, JSON.stringify(updatedInstanceMetadata));
