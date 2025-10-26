@@ -13,6 +13,7 @@ Based on your logs and browser testing:
 ### ✅ Selections Loaded Successfully
 
 From your logs:
+
 ```
 metadataStore.ts:1587 🔍 DEBUG: savedSelections from loadVersionedData: Array(2)
 metadataStore.ts:372 🔄 Starting ID migration for 2 selected images
@@ -21,6 +22,7 @@ metadataStore.ts:1675 ✅ Migrated selections applied: 2
 ```
 
 **Key Points**:
+
 - ✅ 2 selections found in localStorage
 - ✅ Migration successful (2 out of 2)
 - ✅ Selections applied to state
@@ -29,6 +31,7 @@ metadataStore.ts:1675 ✅ Migrated selections applied: 2
 ### ✅ After Multiple Refreshes
 
 From browser snapshots:
+
 - **Refresh 1**: Selected image visible (1) in counter
 - **Refresh 2**: Selected image still visible (1) in counter
 - **Refresh 3**: Selected image still visible (1) in counter
@@ -44,6 +47,7 @@ From browser snapshots:
 **Problem**: AWS could overwrite localStorage with empty array
 
 **Solution** (Commit `c8462f6`):
+
 ```typescript
 // Only process if we actually have selections from AWS
 if (selectedImages.length > 0) {
@@ -52,10 +56,12 @@ if (selectedImages.length > 0) {
     set({ selectedImages: migratedSelections });
     saveVersionedData(keys.selections, projectId, userId, migratedSelections);
   } else {
-    console.log('⚠️ Migration failed, preserving existing selections');
+    console.log("⚠️ Migration failed, preserving existing selections");
   }
 } else {
-  console.log('⚠️ AWS returned empty array - preserving existing localStorage selections');
+  console.log(
+    "⚠️ AWS returned empty array - preserving existing localStorage selections"
+  );
 }
 ```
 
@@ -68,10 +74,11 @@ if (selectedImages.length > 0) {
 **Problem**: Clearing selections saved `[]` to AWS, which synced to other browsers
 
 **Solution** (Commit `a0afe1a`):
+
 ```typescript
 // Only save if we have actual selections
 if (newSelected.length === 0) {
-  console.log('⏸️ No selections to save to AWS');
+  console.log("⏸️ No selections to save to AWS");
   return;
 }
 // Continue with AWS save...
@@ -87,15 +94,16 @@ await DatabaseService.updateSelectedImages(user.email, selectedWithInstanceIds);
 **Problem**: If migration returned empty array, selections were lost
 
 **Solution** (Commit `55277f9`):
+
 ```typescript
 if (migratedSelections.length > 0) {
   updates.selectedImages = migratedSelections;
-  console.log('✅ Migrated selections applied:', migratedSelections.length);
+  console.log("✅ Migrated selections applied:", migratedSelections.length);
 } else {
-  console.log('⚠️ Migration returned empty array');
+  console.log("⚠️ Migration returned empty array");
   // Preserve original selections
   if (selectionsResult.value.length > 0) {
-    console.log('🔄 Attempting to preserve original selections temporarily');
+    console.log("🔄 Attempting to preserve original selections temporarily");
     updates.selectedImages = selectionsResult.value as any;
   }
 }
@@ -108,6 +116,7 @@ if (migratedSelections.length > 0) {
 ## Complete Fix Flow
 
 ### When Selecting Image:
+
 1. User clicks image
 2. `toggleImageSelection` called
 3. Creates `newSelected` array with `{ id, instanceId, fileName }`
@@ -116,6 +125,7 @@ if (migratedSelections.length > 0) {
 6. Saves to AWS ✅
 
 ### When Loading on Refresh:
+
 1. `loadUserData` called
 2. Loads from localStorage: `Array(2)` ✅
 3. Tries to migrate with images
@@ -125,6 +135,7 @@ if (migratedSelections.length > 0) {
 7. **Check**: AWS returns data? If no, preserves local ✅
 
 ### When Another Browser Syncs:
+
 1. Polling detects AWS update
 2. Fetches selected images from AWS
 3. **Check**: `selectedImages.length > 0`? If yes, syncs
@@ -135,6 +146,7 @@ if (migratedSelections.length > 0) {
 ## Key Insights from Your Logs
 
 From your test logs:
+
 ```
 selectedCount: 1
 📸 Selected images loaded from AWS: 2
@@ -142,6 +154,7 @@ selectedCount: 1
 ```
 
 This shows:
+
 1. ✅ localStorage has 2 selections
 2. ✅ AWS has 2 selections
 3. ✅ Migration working perfectly
@@ -165,6 +178,7 @@ This shows:
 Look for these when it's working:
 
 ### Initial Load:
+
 ```
 🔍 DEBUG: savedSelections from loadVersionedData: Array(2)
 🔄 Starting ID migration for 2 selected images
@@ -172,12 +186,14 @@ Look for these when it's working:
 ```
 
 ### AWS Sync (When Data Exists):
+
 ```
 📸 Selected images loaded from AWS: 2
 ✅ Selected images loaded and migrated from AWS: 2
 ```
 
 ### AWS Sync (When Empty):
+
 ```
 📸 Selected images loaded from AWS: 0
 ⚠️ AWS returned empty array - preserving existing localStorage selections

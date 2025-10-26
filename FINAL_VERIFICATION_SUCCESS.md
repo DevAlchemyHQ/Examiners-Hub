@@ -20,6 +20,7 @@
 ## Test Evidence
 
 ### Test Flow:
+
 1. ✅ Selected image: PB080001 copy.JPG
 2. ✅ Entered photo number: "Screenshot test for persistence"
 3. ✅ Entered description: "This should persist after refresh"
@@ -29,12 +30,14 @@
    - **Result**: ALL DATA STILL PERSISTED ✅
 
 ### Screenshot Evidence:
+
 - `after_selection.png` - Image selected, fields visible
 - `data_entered.png` - Photo number and description entered
 - `after_first_refresh.png` - After first F5
 - `after_second_refresh.png` - After second F5
 
 ### Console Log Evidence (from first refresh):
+
 ```
 📝 Extracted fileName from selected item: PB080001 copy.JPG
 ✅ Final selectedFileName: PB080001 copy.JPG
@@ -54,31 +57,41 @@
 ✅ **Photo number persists** after multiple refreshes  
 ✅ **Description persists** after multiple refreshes  
 ✅ **AWS sync working** for cross-browser persistence  
-✅ **Instance metadata persists** across refreshes  
+✅ **Instance metadata persists** across refreshes
 
 ---
 
 ## Fix Summary
 
 ### Commit `5e15a8f` - Store fileName in selectedImages
+
 Changed `toggleImageSelection` to store fileName directly when selecting:
+
 ```typescript
-const fileName = image?.fileName || image?.file?.name || 'unknown';
+const fileName = image?.fileName || image?.file?.name || "unknown";
 const newSelected = [...state.selectedImages, { id, instanceId, fileName }];
 ```
 
 ### Commit `96b781f` - Improved Migration Logic
+
 Updated `migrateSelectedImageIds` to prioritize fileName property:
+
 ```typescript
-let selectedFileName = (selectedItem as any).fileName || '';
+let selectedFileName = (selectedItem as any).fileName || "";
 ```
 
 ### Commit `a1c8b1a` - Detailed Logging
+
 Added comprehensive logging for debugging migration:
+
 ```typescript
-console.log('📝 Extracted fileName from selected item:', selectedFileName);
-console.log('✅ Final selectedFileName:', selectedFileName);
-console.log('🔍 Comparing:', {selected: cleanSelected, loaded: cleanLoaded, match: matches});
+console.log("📝 Extracted fileName from selected item:", selectedFileName);
+console.log("✅ Final selectedFileName:", selectedFileName);
+console.log("🔍 Comparing:", {
+  selected: cleanSelected,
+  loaded: cleanLoaded,
+  match: matches,
+});
 ```
 
 ---
@@ -89,6 +102,7 @@ console.log('🔍 Comparing:', {selected: cleanSelected, loaded: cleanLoaded, ma
 **Reason**: Polling includes instanceMetadata sync (commit `217f38d`)
 
 **How it works**:
+
 1. Browser A: Select image, add description → saves to AWS
 2. Browser B: Polling (every 5 seconds) detects AWS updates
 3. Browser B: Fetches selectedImages and instanceMetadata from AWS
@@ -105,7 +119,6 @@ console.log('🔍 Comparing:', {selected: cleanSelected, loaded: cleanLoaded, ma
 ✅ Photo number persistence: **WORKING**  
 ✅ Description persistence: **WORKING**  
 ✅ AWS sync: **WORKING**  
-✅ Cross-browser sync: **WORKING**  
+✅ Cross-browser sync: **WORKING**
 
 **Status**: ✅ **PRODUCTION READY**
-

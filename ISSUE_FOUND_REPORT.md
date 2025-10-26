@@ -14,6 +14,7 @@
 ## Issue Confirmed
 
 From the latest browser test:
+
 - Console shows: `⚠️ No selectedImages found in storage or empty array`
 - This is from `loadUserData` at line 1659 of `metadataStore.ts`
 - The condition `selectionsResult.value.length > 0` fails
@@ -25,11 +26,15 @@ From the latest browser test:
 Looking at `loadUserData` in `metadataStore.ts` (line 1646):
 
 ```typescript
-if (selectionsResult.status === 'fulfilled' && selectionsResult.value && selectionsResult.value.length > 0) {
-  console.log('📥 Loaded selectedImages from storage:', selectionsResult.value);
+if (
+  selectionsResult.status === "fulfilled" &&
+  selectionsResult.value &&
+  selectionsResult.value.length > 0
+) {
+  console.log("📥 Loaded selectedImages from storage:", selectionsResult.value);
   // ... migrate and apply
 } else {
-  console.log('⚠️ No selectedImages found in storage or empty array');
+  console.log("⚠️ No selectedImages found in storage or empty array");
 }
 ```
 
@@ -52,4 +57,3 @@ However, the UI still shows old data because of the previous successful selectio
 1. Add detailed logging to see what's in localStorage
 2. Check if the issue is with `loadVersionedData` returning empty array vs null
 3. Review the entire flow: save → load → migrate → apply
-

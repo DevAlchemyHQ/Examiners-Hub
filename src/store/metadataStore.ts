@@ -991,11 +991,12 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         }
       };
       
-      // Save to localStorage
+      // Save to localStorage using versioned format for consistency
       const userId = getUserId();
       const keys = getProjectStorageKeys(userId, 'current');
+      const projectId = generateStableProjectId(userId, 'current');
       const localStorageKey = `${keys.selections}-instance-metadata`;
-      localStorage.setItem(localStorageKey, JSON.stringify(updatedInstanceMetadata));
+      saveVersionedData(localStorageKey, projectId, userId, updatedInstanceMetadata);
       
       // Trigger smart auto-save for cross-browser persistence (like updateImageMetadata does)
       (async () => {
@@ -1614,17 +1615,19 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             const keys = getProjectStorageKeys(userId, 'current');
             const localStorageKey = `${keys.selections}-instance-metadata`;
             
-            const savedInstanceMetadata = localStorage.getItem(localStorageKey);
+            // Use versioned data format for consistency
+            const savedInstanceMetadata = loadVersionedData(localStorageKey);
             
             if (savedInstanceMetadata) {
-              const instanceMetadata = JSON.parse(savedInstanceMetadata);
-              return instanceMetadata;
+              console.log('📋 Instance metadata loaded from localStorage');
+              return savedInstanceMetadata;
             }
             
             // Try AWS if no localStorage data
             if (userId !== 'anonymous') {
               const awsInstanceMetadata = await DatabaseService.getInstanceMetadata(userId);
               if (awsInstanceMetadata) {
+                console.log('📋 Instance metadata loaded from AWS');
                 return awsInstanceMetadata;
               }
             }
@@ -2615,6 +2618,68 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             different: dataIsDifferent
           });
           
+          // CRITICAL FIX: Always sync instance metadata, not just when formData changes
+          // This ensures description/photo number changes sync within 5 seconds
+          let syncedMetadata = false;
+          try {
+            const { selectedImages } = await DatabaseService.getSelectedImages(userId);
+            const awsInstanceMetadata = await DatabaseService.getInstanceMetadata(userId);
+            
+            if (selectedImages || awsInstanceMetadata) {
+              console.log('🔄 [POLLING] Syncing selected images and metadata from AWS...');
+              
+              const updates: any = {};
+              const currentState = get();
+              
+              if (selectedImages && selectedImages.length > 0) {
+                // Migrate selected images to match current image IDs
+                const migratedSelections = migrateSelectedImageIds(selectedImages, currentState.images);
+                if (migratedSelections.length > 0) {
+                  updates.selectedImages = migratedSelections;
+                  console.log('✅ [POLLING] Migrated selected images:', migratedSelections.length);
+                }
+              }
+              
+              if (awsInstanceMetadata) {
+                // Merge instance metadata instead of overwriting (critical for editing)
+                const mergedInstanceMetadata = {
+                  ...currentState.instanceMetadata,
+                  ...awsInstanceMetadata
+                };
+                updates.instanceMetadata = mergedInstanceMetadata;
+                console.log('✅ [POLLING] Merged instance metadata');
+                syncedMetadata = true;
+              }
+              
+              if (Object.keys(updates).length > 0) {
+                set(updates);
+                
+                // Also update localStorage using versioned format
+                const keys = getProjectStorageKeys(userId, 'current');
+                const projectId = generateStableProjectId(userId, 'current');
+                
+                if (selectedImages && selectedImages.length > 0) {
+                  const migratedSelections = migrateSelectedImageIds(selectedImages, currentState.images);
+                  if (migratedSelections.length > 0) {
+                    saveVersionedData(keys.selections, projectId, userId, migratedSelections);
+                  }
+                }
+                if (awsInstanceMetadata) {
+                  const mergedMetadata = {
+                    ...currentState.instanceMetadata,
+                    ...awsInstanceMetadata
+                  };
+                  saveVersionedData(`${keys.selections}-instance-metadata`, projectId, userId, mergedMetadata);
+                }
+                
+                console.log('✅ [POLLING] Selected images and metadata synced from AWS');
+              }
+            }
+          } catch (error) {
+            console.error('❌ [POLLING] Error syncing selected images metadata:', error);
+          }
+          
+          // Sync formData if different
           if (dataIsDifferent && Object.keys(awsFormData).length > 0) {
             console.log('✅ [POLLING] Found different form data on AWS (cross-browser sync)');
             
@@ -2638,45 +2703,16 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
               console.warn('⚠️ Error updating localStorage from polling:', error);
             }
             
-            // 🆕 CRITICAL FIX: Also sync selected images and instance metadata for cross-browser sync
-            try {
-              const { selectedImages } = await DatabaseService.getSelectedImages(userId);
-              const instanceMetadata = await DatabaseService.getInstanceMetadata(userId);
-              
-              if (selectedImages || instanceMetadata) {
-                console.log('🔄 [POLLING] Syncing selected images and metadata from AWS...');
-                
-                const updates: any = {};
-                if (selectedImages) {
-                  updates.selectedImages = selectedImages;
-                }
-                if (instanceMetadata) {
-                  updates.instanceMetadata = instanceMetadata;
-                }
-                
-                set(updates);
-                
-                // Also update localStorage
-                const keys = getProjectStorageKeys(userId, 'current');
-                if (selectedImages) {
-                  localStorage.setItem(keys.selections, JSON.stringify(selectedImages));
-                }
-                if (instanceMetadata) {
-                  localStorage.setItem(`${keys.selections}-instance-metadata`, JSON.stringify(instanceMetadata));
-                }
-                
-                console.log('✅ [POLLING] Selected images and metadata synced from AWS');
-              }
-            } catch (error) {
-              console.error('❌ [POLLING] Error syncing selected images metadata:', error);
-            }
-            
             // Show toast notification
             if (typeof toast !== 'undefined') {
               toast.success('Form data synced from cloud');
             }
           } else {
-            console.log('✅ [POLLING] Data is the same, no sync needed');
+            if (syncedMetadata) {
+              console.log('✅ [POLLING] Metadata synced, form data unchanged');
+            } else {
+              console.log('✅ [POLLING] Data is the same, no sync needed');
+            }
           }
         }
       } catch (error) {

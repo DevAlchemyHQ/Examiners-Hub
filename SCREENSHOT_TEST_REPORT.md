@@ -18,17 +18,20 @@
 ## Test Steps
 
 ### 1. Initial State (`initial_state.png`)
+
 - App loaded with existing images
 - 5 images displayed in grid
 - No images selected initially
 
 ### 2. After Selection (`after_selection.png`)
+
 - Clicked on first image (PB080001 copy.JPG)
 - Image appeared in selected images tile
 - Photo number field shown: "#"
 - Description field shown: "Description"
 
 ### 3. Data Entered (`data_entered.png`)
+
 - Entered photo number: **"Screenshot test for persistence"**
 - Entered description: **"This should persist after refresh"**
 - Console logs show:
@@ -40,6 +43,7 @@
   ```
 
 ### 4. After First Refresh (`after_first_refresh.png`)
+
 - Pressed F5 to refresh page
 - **Result**: ✅ **EVERYTHING PERSISTED**
   - Image still visible in selected images tile
@@ -53,6 +57,7 @@
 ### Key Logs on Refresh:
 
 1. **Migration Success**:
+
    ```
    📝 Extracted fileName from selected item: PB080001 copy.JPG
    ✅ Final selectedFileName: PB080001 copy.JPG
@@ -63,6 +68,7 @@
    ```
 
 2. **Persistence Verification**:
+
    ```
    📥 Loaded selectedImages from storage: [Object]
    📊 Selected images to migrate: [Object]
@@ -85,7 +91,7 @@
 ✅ **Photo number persists** after refresh  
 ✅ **Description persists** after refresh  
 ✅ **Instance metadata persists** after refresh  
-✅ **AWS sync is working** for cross-browser persistence  
+✅ **AWS sync is working** for cross-browser persistence
 
 ---
 
@@ -103,9 +109,8 @@
 **Selected images persistence is working perfectly**. The fix (commit `5e15a8f`) that stores `fileName` directly in the `selectedImages` array when selecting, combined with the improved migration logic (commit `96b781f`), ensures that:
 
 1. Selections persist after page refresh
-2. Photo numbers persist after refresh  
+2. Photo numbers persist after refresh
 3. Descriptions persist after refresh
 4. Data syncs to AWS for cross-browser persistence
 
 **Status**: ✅ **PRODUCTION READY**
-

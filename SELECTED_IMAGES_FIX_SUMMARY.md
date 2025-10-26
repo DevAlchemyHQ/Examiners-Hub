@@ -9,6 +9,7 @@
 ## Problem Summary
 
 User reported:
+
 1. Selected images flicker on first refresh
 2. Disappear on third refresh
 3. Second selection also disappears
@@ -21,14 +22,17 @@ User reported:
 The issue was in `loadUserData` at line 1653 of `metadataStore.ts`:
 
 **Problem 1**: The condition `selectionsResult.value.length > 0` was too strict
+
 - If migration failed (returned empty array), the selections were never applied
 - Even if data existed, it was discarded
 
 **Problem 2**: Migration didn't preserve `fileName` in returned data
+
 - Future migrations would fail because `fileName` was missing
 - Only `id` and `instanceId` were preserved
 
 **Problem 3**: No fallback when images not loaded yet
+
 - Selections could be saved before images load
 - Migration would fail immediately because no images to match against
 
@@ -39,8 +43,13 @@ The issue was in `loadUserData` at line 1653 of `metadataStore.ts`:
 ### 1. Improved Loading Logic (Lines 1653-1684)
 
 **Before**:
+
 ```typescript
-if (selectionsResult.status === 'fulfilled' && selectionsResult.value && selectionsResult.value.length > 0) {
+if (
+  selectionsResult.status === "fulfilled" &&
+  selectionsResult.value &&
+  selectionsResult.value.length > 0
+) {
   // migrate and apply
 } else {
   // nothing
@@ -48,8 +57,9 @@ if (selectionsResult.status === 'fulfilled' && selectionsResult.value && selecti
 ```
 
 **After**:
+
 ```typescript
-if (selectionsResult.status === 'fulfilled' && selectionsResult.value) {
+if (selectionsResult.status === "fulfilled" && selectionsResult.value) {
   // Log detailed info
   // Try to migrate if images are loaded
   // If migration fails, preserve original selections temporarily
@@ -60,30 +70,34 @@ if (selectionsResult.status === 'fulfilled' && selectionsResult.value) {
 ### 2. Added fileName to Migration (Lines 452-457, 473-477)
 
 **Before**:
-```typescript
-migratedSelections.push({
-  id: targetImage.id,
-  instanceId: preservedInstanceId
-});
-```
 
-**After**:
 ```typescript
 migratedSelections.push({
   id: targetImage.id,
   instanceId: preservedInstanceId,
-  fileName: targetImage.fileName // Preserve for future migrations
+});
+```
+
+**After**:
+
+```typescript
+migratedSelections.push({
+  id: targetImage.id,
+  instanceId: preservedInstanceId,
+  fileName: targetImage.fileName, // Preserve for future migrations
 });
 ```
 
 ### 3. Updated Return Type (Line 368, 376)
 
 **Before**:
+
 ```typescript
 ): Array<{ id: string; instanceId: string }>
 ```
 
 **After**:
+
 ```typescript
 ): Array<{ id: string; instanceId: string; fileName?: string }>
 ```
@@ -112,6 +126,7 @@ migratedSelections.push({
 ## Testing Plan
 
 After deployment (3 minutes):
+
 1. Select an image
 2. Enter photo number and description
 3. Refresh page 3 times
@@ -126,4 +141,3 @@ After deployment (3 minutes):
 ✅ Fix applied and deployed  
 ⏳ Waiting for deployment to complete  
 ⏳ Ready for testing
-

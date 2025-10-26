@@ -11,6 +11,7 @@
 Empty selections arrays were being saved to AWS, which then synced to other browsers and cleared their selections.
 
 ### Scenario:
+
 1. User A selects image → saves to AWS
 2. User B refreshes → gets selection from AWS ✅
 3. User A clears selections → saves `[]` to AWS
@@ -35,10 +36,11 @@ await DatabaseService.updateSelectedImages(user.email, selectedWithInstanceIds);
 ### File: `src/store/metadataStore.ts` (Lines 1083-1124)
 
 **Added check before saving to AWS**:
+
 ```typescript
 // Only save if we have actual selections
 if (newSelected.length === 0) {
-  console.log('⏸️ No selections to save to AWS');
+  console.log("⏸️ No selections to save to AWS");
   return;
 }
 
@@ -51,10 +53,12 @@ await DatabaseService.updateSelectedImages(user.email, selectedWithInstanceIds);
 ## What Changed
 
 ### Before:
+
 - Any action on selections → saves to AWS (even empty array)
 - Empty array syncs to other browsers → clears their selections
 
 ### After:
+
 - Only saves to AWS when `newSelected.length > 0`
 - Empty arrays never saved to AWS
 - Other browsers don't get empty arrays
@@ -65,6 +69,7 @@ await DatabaseService.updateSelectedImages(user.email, selectedWithInstanceIds);
 ## How It Works Now
 
 ### When User Selects Image:
+
 1. `toggleImageSelection` called
 2. `newSelected = [{ id, instanceId, fileName }]` (length = 1)
 3. Save to localStorage ✅
@@ -73,6 +78,7 @@ await DatabaseService.updateSelectedImages(user.email, selectedWithInstanceIds);
 6. Other browsers get update ✅
 
 ### When User Clears Selections:
+
 1. `toggleImageSelection` called (remove from array)
 2. `newSelected = []` (length = 0)
 3. Save empty array to localStorage
@@ -120,4 +126,3 @@ This is **expected** and means the fix is working correctly.
 
 ✅ Fix applied and deployed  
 ⏳ Ready for testing in ~3 minutes
-

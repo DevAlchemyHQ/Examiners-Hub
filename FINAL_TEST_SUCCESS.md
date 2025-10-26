@@ -9,20 +9,24 @@
 ## Test Results
 
 ### ✅ Test 1: Initial Selection
+
 - Selected image: PB080001 copy.JPG
 - Photo number: PERSIST123
 - Description: "This should persist after refresh"
 - **Result**: ✅ Saved to localStorage and AWS
 
 ### ✅ Test 2: First Refresh
+
 - Refreshed page (F5)
 - **Result**: ✅ Image persisted, photo number persisted, description persisted
 
 ### ✅ Test 3: Second Refresh
+
 - Refreshed page again (F5)
 - **Result**: ✅ Image persisted, photo number persisted, description persisted
 
 ### ✅ Test 4: Third Refresh
+
 - Refreshed page one more time (F5)
 - **Result**: ✅ Image persisted, photo number persisted, description persisted
 
@@ -33,10 +37,11 @@
 ### Key Fix: Store fileName in selectedImages Array
 
 **Commit `5e15a8f`** changed `toggleImageSelection` to:
+
 ```typescript
 // Find the image being selected to get its fileName
-const image = state.images.find(img => img.id === id);
-const fileName = image?.fileName || image?.file?.name || 'unknown';
+const image = state.images.find((img) => img.id === id);
+const fileName = image?.fileName || image?.file?.name || "unknown";
 
 // Store fileName directly in the selected array
 const newSelected = [...state.selectedImages, { id, instanceId, fileName }];
@@ -48,6 +53,7 @@ const newSelected = [...state.selectedImages, { id, instanceId, fileName }];
 ### Migration Logic Uses fileName
 
 The migration function now:
+
 1. Checks for fileName property first
 2. Falls back to ID parsing only if fileName is missing
 3. Logs all comparison attempts for debugging
@@ -57,6 +63,7 @@ The migration function now:
 ## Persistent Data
 
 After refresh, the following persist correctly:
+
 - ✅ Selected image appears in tile
 - ✅ Photo number: "PERSIST123"
 - ✅ Description: "This should persist after refresh"
@@ -82,6 +89,7 @@ After refresh, the following persist correctly:
 ## Cross-Browser Sync
 
 Polling is active and includes:
+
 - ✅ Selected images sync every 5 seconds
 - ✅ Instance metadata syncs with descriptions
 - ✅ Changes propagate across browsers on refresh
@@ -91,6 +99,7 @@ Polling is active and includes:
 ## Summary
 
 **The fix is complete and working**:
+
 1. ✅ Selected images persist after refresh
 2. ✅ Photo numbers persist
 3. ✅ Descriptions persist
@@ -98,4 +107,3 @@ Polling is active and includes:
 5. ✅ All data saved to AWS and localStorage
 
 **Commit `96b781f` is the final working version.**
-
