@@ -983,7 +983,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       const localStorageKey = `${keys.selections}-instance-metadata`;
       localStorage.setItem(localStorageKey, JSON.stringify(updatedInstanceMetadata));
       
-      // Save to AWS for cross-device persistence
+      // Trigger smart auto-save for cross-browser persistence (like updateImageMetadata does)
       (async () => {
         try {
           const storedUser = localStorage.getItem('user');
@@ -996,6 +996,11 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           console.error('Error saving instance metadata to AWS:', error);
         }
       })();
+      
+      // TRIGGER SMART AUTO-SAVE FOR CROSS-BROWSER SYNC (CRITICAL FIX)
+      get().smartAutoSave('selections').catch(error => {
+        console.error('Error triggering smart auto-save for selections:', error);
+      });
       
       return {
         ...state,
