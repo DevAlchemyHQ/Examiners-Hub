@@ -2666,38 +2666,20 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
                   mergedInstanceMetadata = {};
                   hasNewerData = false;
                   
-                  // Only update if AWS has newer data (check if description or photoNumber is different and longer/newer)
+                  // CRITICAL FIX: Always use AWS data if it exists (AWS is the source of truth for other browsers)
+                  // Don't merge based on length - use AWS data directly to ensure sync works
                   for (const key of allKeys) {
                     const currentValue = currentState.instanceMetadata[key];
                     const awsValue = awsInstanceMetadata[key];
                     
-                    if (!currentValue || !currentValue.description) {
-                      // Current has no description, use AWS if available
-                      if (awsValue && awsValue.description) {
-                        mergedInstanceMetadata[key] = awsValue;
-                        hasNewerData = true;
-                      } else {
-                        mergedInstanceMetadata[key] = currentValue || awsValue;
-                      }
-                    } else if (awsValue && awsValue.description) {
-                      // Both have descriptions - use the one with more content
-                      if (awsValue.description.length > currentValue.description.length) {
-                        mergedInstanceMetadata[key] = awsValue;
-                        hasNewerData = true;
-                      } else {
-                        mergedInstanceMetadata[key] = currentValue;
-                      }
-                    } else {
-                      // Keep current
+                    // If AWS has data, use it (cross-browser sync)
+                    if (awsValue) {
+                      mergedInstanceMetadata[key] = awsValue;
+                      hasNewerData = true;
+                      console.log(`✅ [POLLING] Using AWS data for ${key} - cross-browser sync`);
+                    } else if (currentValue) {
+                      // No AWS data, keep current local data
                       mergedInstanceMetadata[key] = currentValue;
-                    }
-                    
-                    // Also compare photoNumber
-                    if (currentValue && awsValue && awsValue.photoNumber && awsValue.photoNumber !== currentValue.photoNumber) {
-                      if (!currentValue.photoNumber || awsValue.photoNumber.length > currentValue.photoNumber.length) {
-                        mergedInstanceMetadata[key] = { ...mergedInstanceMetadata[key], photoNumber: awsValue.photoNumber };
-                        hasNewerData = true;
-                      }
                     }
                   }
                   
