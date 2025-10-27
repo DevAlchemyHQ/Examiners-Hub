@@ -1615,19 +1615,23 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             console.log('🔍 DEBUG: savedSelections type:', typeof savedSelections);
             console.log('🔍 DEBUG: savedSelections isArray:', Array.isArray(savedSelections));
             
-            if (savedSelections) {
-              console.log('🔍 DEBUG: savedSelections has data, length:', (savedSelections as any).length);
+            // CRITICAL FIX: Check for non-empty array, not just truthy value
+            // Empty array [] is truthy but has length 0, so we should try AWS
+            if (savedSelections && Array.isArray(savedSelections) && savedSelections.length > 0) {
+              console.log('🔍 DEBUG: savedSelections has data, length:', savedSelections.length);
               return savedSelections;
             }
             
-            console.log('⚠️ No savedSelections found, trying AWS...');
+            console.log('⚠️ No savedSelections found or empty array in localStorage, trying AWS...');
             if (userId !== 'anonymous') {
               const awsSelections = await DatabaseService.getSelectedImages(userId);
-              console.log('🔍 DEBUG: awsSelections:', awsSelections);
+              console.log('🔍 DEBUG: awsSelections from AWS:', awsSelections);
               if (awsSelections && awsSelections.length > 0) {
+                console.log('✅ Loaded selected images from AWS:', awsSelections.length);
                 return awsSelections;
               }
             }
+            console.log('⚠️ No selected images found in AWS either');
             return [];
           } catch (error) {
             console.error('Error loading selected images:', error);
@@ -1644,15 +1648,17 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             // Use versioned data format for consistency
             const savedInstanceMetadata = loadVersionedData(localStorageKey);
             
-            if (savedInstanceMetadata) {
+            // CRITICAL FIX: Check for non-empty object (instance metadata is an object, not array)
+            // Empty object {} is truthy but has no data, so we should try AWS
+            if (savedInstanceMetadata && typeof savedInstanceMetadata === 'object' && Object.keys(savedInstanceMetadata).length > 0) {
               console.log('📋 Instance metadata loaded from localStorage');
               return savedInstanceMetadata;
             }
             
-            // Try AWS if no localStorage data
+            // Try AWS if no localStorage data or empty object
             if (userId !== 'anonymous') {
               const awsInstanceMetadata = await DatabaseService.getInstanceMetadata(userId);
-              if (awsInstanceMetadata) {
+              if (awsInstanceMetadata && Object.keys(awsInstanceMetadata).length > 0) {
                 console.log('📋 Instance metadata loaded from AWS');
                 return awsInstanceMetadata;
               }
