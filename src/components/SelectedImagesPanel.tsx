@@ -717,8 +717,8 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
   const sortImages = (images: ImageMetadata[], direction: 'asc' | 'desc' | null) => {
     if (!direction) return images;
 
-    // CRITICAL FIX: Stable sort - preserve original order for images without photo numbers
-    // This prevents layout shift/bobbing when images don't have numbers yet
+    // CRITICAL FIX: Stable sort - preserve insertion position for images without photo numbers
+    // Items without numbers maintain their insertion position from toggleImageSelection
     return [...images].sort((a, b) => {
       // Get photo numbers from instance metadata, defaulting to 0 for empty or invalid numbers
       const aPhotoNumber = a.instanceId ? instanceMetadata[a.instanceId]?.photoNumber : a.photoNumber;
@@ -733,11 +733,13 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
         return 0;
       }
       
-      // IMPORTANT: Put images without numbers at the end (not disrupting sorted ones)
-      if (aNum === 0) return 1;
-      if (bNum === 0) return -1;
+      // CRITICAL: If one has no number, preserve insertion order - DON'T move to end
+      // This keeps the position where toggleImageSelection inserted it
+      if (aNum === 0 || bNum === 0) {
+        return 0; // Don't reorder items without numbers
+      }
 
-      // Sort items that both have photo numbers
+      // Only sort items that both have photo numbers
       const sorted = direction === 'asc' ? aNum - bNum : bNum - aNum;
       
       // If photo numbers are equal, keep original order to prevent visual jumping
