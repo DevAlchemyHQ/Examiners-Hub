@@ -1281,7 +1281,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
     set({ defectSortDirection: direction });
     
     // Save sort preferences to session state and AWS
-    setTimeout(() => {
+    setTimeout(async () => {
       const state = get();
       get().updateSessionState({
         sortPreferences: {
@@ -1291,6 +1291,31 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         // CRITICAL FIX: Preserve selectedImageOrder from session state, don't reorder
         selectedImageOrder: state.sessionState?.selectedImageOrder || state.selectedImages.map(item => item.instanceId)
       });
+      
+      // CRITICAL: Immediately save sort preferences to AWS for cross-browser sync
+      const { DatabaseService } = await import('../lib/services');
+      const storedUser = localStorage.getItem('user');
+      const user = storedUser ? JSON.parse(storedUser) : null;
+      
+      if (user?.email) {
+        const userId = getUserId();
+        const currentState = get();
+        const updatedSessionState = currentState.sessionState;
+        
+        try {
+          console.log('💾 Immediately saving sort preferences to AWS for cross-browser sync');
+          await DatabaseService.updateProject(user.email, 'current', {
+            sessionState: updatedSessionState,
+            sortPreferences: {
+              defectSortDirection: direction,
+              sketchSortDirection: currentState.sketchSortDirection
+            }
+          });
+          console.log('✅ Sort preferences immediately saved to AWS');
+        } catch (error) {
+          console.error('❌ Error immediately saving sort preferences to AWS:', error);
+        }
+      }
     }, 100);
   },
 
@@ -1298,7 +1323,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
     set({ sketchSortDirection: direction });
     
     // Save sort preferences to session state and AWS
-    setTimeout(() => {
+    setTimeout(async () => {
       const state = get();
       get().updateSessionState({
         sortPreferences: {
@@ -1308,6 +1333,31 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         // CRITICAL FIX: Preserve selectedImageOrder from session state, don't reorder
         selectedImageOrder: state.sessionState?.selectedImageOrder || state.selectedImages.map(item => item.instanceId)
       });
+      
+      // CRITICAL: Immediately save sort preferences to AWS for cross-browser sync
+      const { DatabaseService } = await import('../lib/services');
+      const storedUser = localStorage.getItem('user');
+      const user = storedUser ? JSON.parse(storedUser) : null;
+      
+      if (user?.email) {
+        const userId = getUserId();
+        const currentState = get();
+        const updatedSessionState = currentState.sessionState;
+        
+        try {
+          console.log('💾 Immediately saving sort preferences to AWS for cross-browser sync');
+          await DatabaseService.updateProject(user.email, 'current', {
+            sessionState: updatedSessionState,
+            sortPreferences: {
+              defectSortDirection: currentState.defectSortDirection,
+              sketchSortDirection: direction
+            }
+          });
+          console.log('✅ Sort preferences immediately saved to AWS');
+        } catch (error) {
+          console.error('❌ Error immediately saving sort preferences to AWS:', error);
+        }
+      }
     }, 100);
   },
 
