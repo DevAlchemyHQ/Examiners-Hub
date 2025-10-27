@@ -733,11 +733,12 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
         return 0;
       }
       
-      // Put images without numbers at the end
-      if (aNum === 0) return 1;
-      if (bNum === 0) return -1;
+      // CRITICAL FIX: Don't reorder items without numbers - preserve their insertion position
+      // If one item has no number, don't move it - keep it where it was inserted
+      if (aNum === 0) return 0;
+      if (bNum === 0) return 0;
 
-      // Sort by photo number
+      // Only sort items that both have photo numbers
       const sorted = direction === 'asc' ? aNum - bNum : bNum - aNum;
       
       // If photo numbers are equal, keep original order to prevent visual jumping
