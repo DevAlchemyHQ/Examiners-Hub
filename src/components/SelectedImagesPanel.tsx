@@ -719,6 +719,7 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
 
     // CRITICAL FIX: Stable sort - preserve insertion position for images without photo numbers
     // Items without numbers maintain their insertion position from toggleImageSelection
+    // This ensures new selected tiles appear at the start in descending mode
     return [...images].sort((a, b) => {
       // Get photo numbers from instance metadata, defaulting to 0 for empty or invalid numbers
       const aPhotoNumber = a.instanceId ? instanceMetadata[a.instanceId]?.photoNumber : a.photoNumber;
@@ -728,15 +729,16 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
       const bNum = bPhotoNumber ? parseInt(bPhotoNumber) : 0;
       
       // STABLE SORT: If both have no numbers, maintain original insertion order
+      // This is critical for preserving the START position in descending mode
       if (aNum === 0 && bNum === 0) {
-        // Keep original insertion order - prevents jumping/bobbing
-        return 0;
+        return 0; // Keep original insertion order - prevents jumping/bobbing
       }
       
-      // CRITICAL: If one has no number, preserve insertion order - DON'T move to end
-      // This keeps the position where toggleImageSelection inserted it
+      // CRITICAL: If one has no number, preserve its insertion position
+      // This ensures new images appear at START in descending mode and stay there
+      // Also ensures they persist across browsers by maintaining their saved order
       if (aNum === 0 || bNum === 0) {
-        return 0; // Don't reorder items without numbers
+        return 0; // Don't reorder items without numbers - maintain insertion order
       }
 
       // Only sort items that both have photo numbers
