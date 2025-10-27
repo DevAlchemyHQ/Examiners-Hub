@@ -1054,31 +1054,41 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
 
   toggleImageSelection: (id) => {
     set((state) => {
-      // Generate deterministic instanceId based on image ID and selection order
-      const userId = getUserId();
-      const selectionCount = state.selectedImages.length;
-      const instanceId = generateStableImageId(userId, 'current', `${id}-selection-${selectionCount}`, selectionCount);
+      // Check if image is already selected
+      const isAlreadySelected = state.selectedImages.some(img => img.id === id);
       
-      // Find the image being selected to get its fileName
-      const image = state.images.find(img => img.id === id);
-      const fileName = image?.fileName || image?.file?.name || 'unknown';
-      
-      // NEW FIX: Insert new image at correct position based on sort mode
-      const newImageEntry = { id, instanceId, fileName };
       let newSelected: Array<{ id: string; instanceId: string; fileName?: string }>;
       
-      if (state.defectSortDirection === 'asc') {
-        // Ascending: new images go to END (after highest number)
-        newSelected = [...state.selectedImages, newImageEntry];
-        console.log('🔧 toggleImageSelection (ascending) - Added to end:', { id, instanceId, fileName });
-      } else if (state.defectSortDirection === 'desc') {
-        // Descending: new images go to START (before highest number)
-        newSelected = [newImageEntry, ...state.selectedImages];
-        console.log('🔧 toggleImageSelection (descending) - Added to start:', { id, instanceId, fileName });
+      if (isAlreadySelected) {
+        // Deselect: Remove from selection
+        newSelected = state.selectedImages.filter(img => img.id !== id);
+        console.log('🔧 toggleImageSelection - Deselected image:', id);
       } else {
-        // No sort: new images go to END (right side)
-        newSelected = [...state.selectedImages, newImageEntry];
-        console.log('🔧 toggleImageSelection (no sort) - Added to end:', { id, instanceId, fileName });
+        // Select: Add to selection at correct position
+        const userId = getUserId();
+        const selectionCount = state.selectedImages.length;
+        const instanceId = generateStableImageId(userId, 'current', `${id}-selection-${selectionCount}`, selectionCount);
+        
+        // Find the image being selected to get its fileName
+        const image = state.images.find(img => img.id === id);
+        const fileName = image?.fileName || image?.file?.name || 'unknown';
+        
+        // NEW FIX: Insert new image at correct position based on sort mode
+        const newImageEntry = { id, instanceId, fileName };
+        
+        if (state.defectSortDirection === 'asc') {
+          // Ascending: new images go to END (after highest number)
+          newSelected = [...state.selectedImages, newImageEntry];
+          console.log('🔧 toggleImageSelection (ascending) - Added to end:', { id, instanceId, fileName });
+        } else if (state.defectSortDirection === 'desc') {
+          // Descending: new images go to START (before highest number)
+          newSelected = [newImageEntry, ...state.selectedImages];
+          console.log('🔧 toggleImageSelection (descending) - Added to start:', { id, instanceId, fileName });
+        } else {
+          // No sort: new images go to END (right side)
+          newSelected = [...state.selectedImages, newImageEntry];
+          console.log('🔧 toggleImageSelection (no sort) - Added to end:', { id, instanceId, fileName });
+        }
       }
       
       console.log('🔧 toggleImageSelection - Total selected:', newSelected.length);
