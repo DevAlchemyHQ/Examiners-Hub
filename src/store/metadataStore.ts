@@ -1054,6 +1054,8 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
 
   toggleImageSelection: (id) => {
     set((state) => {
+      const userId = getUserId();
+      
       // Check if image is already selected
       const isAlreadySelected = state.selectedImages.some(img => img.id === id);
       
@@ -1065,7 +1067,6 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         console.log('🔧 toggleImageSelection - Deselected image:', id);
       } else {
         // Select: Add to selection at correct position
-        const userId = getUserId();
         const selectionCount = state.selectedImages.length;
         const instanceId = generateStableImageId(userId, 'current', `${id}-selection-${selectionCount}`, selectionCount);
         
