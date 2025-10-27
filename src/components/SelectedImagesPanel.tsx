@@ -1045,15 +1045,22 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1">
               <button
-                title="Sort"
-                className={`p-1 rounded transition-colors ${
+                title={`Sort: ${viewMode === 'bulk' ? (isSortingEnabled ? 'Enabled' : 'Disabled') : (defectSortDirection === 'asc' ? 'Ascending' : defectSortDirection === 'desc' ? 'Descending' : 'Disabled')}`}
+                className={`p-1 rounded transition-colors flex items-center gap-1 ${
                   viewMode === 'bulk' && isSortingEnabled
                     ? 'bg-slate-200 dark:bg-gray-600 text-slate-700 dark:text-gray-300'
-                    : 'text-slate-500 dark:text-gray-300 hover:bg-slate-100 dark:hover:bg-gray-700'
+                    : viewMode === 'images' && defectSortDirection
+                      ? 'bg-indigo-500 text-white'
+                      : 'text-slate-500 dark:text-gray-300 hover:bg-slate-100 dark:hover:bg-gray-700'
                 }`}
                 onClick={viewMode === 'bulk' ? toggleSorting : handleSortImages}
               >
-                <ArrowUpDown size={16} />
+                <ArrowUpDown size={16} className={viewMode === 'images' && defectSortDirection === 'desc' ? 'rotate-180' : ''} />
+                {viewMode === 'images' && defectSortDirection && (
+                  <span className="text-xs font-medium">
+                    {defectSortDirection === 'asc' ? '↑' : '↓'}
+                  </span>
+                )}
               </button>
               <button
                 title="Undo"
@@ -1148,15 +1155,22 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
             )}
             <div className="flex items-center gap-2 ml-2">
               <button
-                title="Sort"
-                className={`p-2 rounded transition-colors ${
+                title={`Sort: ${viewMode === 'bulk' ? (isSortingEnabled ? 'Enabled' : 'Disabled') : (defectSortDirection === 'asc' ? 'Ascending' : defectSortDirection === 'desc' ? 'Descending' : 'Disabled')}`}
+                className={`p-2 rounded transition-colors flex items-center gap-1 ${
                   viewMode === 'bulk' && isSortingEnabled
                     ? 'bg-slate-200 dark:bg-gray-600 text-slate-700 dark:text-gray-300'
-                    : 'text-slate-500 dark:text-gray-300 hover:bg-slate-100 dark:hover:bg-gray-700'
+                    : viewMode === 'images' && defectSortDirection
+                      ? 'bg-indigo-500 text-white'
+                      : 'text-slate-500 dark:text-gray-300 hover:bg-slate-100 dark:hover:bg-gray-700'
                 }`}
                 onClick={viewMode === 'bulk' ? toggleSorting : handleSortImages}
               >
-                <ArrowUpDown size={20} />
+                <ArrowUpDown size={20} className={viewMode === 'images' && defectSortDirection === 'desc' ? 'rotate-180' : ''} />
+                {viewMode === 'images' && defectSortDirection && (
+                  <span className="text-xs font-medium">
+                    {defectSortDirection === 'asc' ? '↑' : '↓'}
+                  </span>
+                )}
               </button>
               <button
                 title="Undo"
