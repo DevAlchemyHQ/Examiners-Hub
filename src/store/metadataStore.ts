@@ -2659,11 +2659,17 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
               const currentState = get();
               
               if (selectedImages && selectedImages.length > 0) {
-                // Migrate selected images to match current image IDs
-                const migratedSelections = migrateSelectedImageIds(selectedImages, currentState.images);
-                if (migratedSelections.length > 0) {
-                  updates.selectedImages = migratedSelections;
-                  console.log('✅ [POLLING] Migrated selected images:', migratedSelections.length);
+                // CRITICAL FIX: Only sync from AWS if local state is NOT empty
+                // This prevents AWS from restoring deleted images
+                if (currentState.selectedImages.length === 0) {
+                  console.log('⏸️ [POLLING] Skipping AWS sync - local state is empty (user deleted all)');
+                } else {
+                  // Migrate selected images to match current image IDs
+                  const migratedSelections = migrateSelectedImageIds(selectedImages, currentState.images);
+                  if (migratedSelections.length > 0) {
+                    updates.selectedImages = migratedSelections;
+                    console.log('✅ [POLLING] Migrated selected images:', migratedSelections.length);
+                  }
                 }
               }
               
