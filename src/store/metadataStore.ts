@@ -225,6 +225,10 @@ interface SessionState {
     selectedPanel: number;
   };
   formData: FormData; // Add formData to session state
+  sortPreferences?: {
+    defectSortDirection: 'asc' | 'desc' | null;
+    sketchSortDirection: 'asc' | 'desc' | null;
+  };
 }
 
 // Debouncing for AWS saves to reduce costs
@@ -1054,6 +1058,26 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
 
   toggleImageSelection: (id) => {
     set((state) => {
+      // CRITICAL FIX: Check if image is already selected and remove it (toggle behavior)
+      const existingIndex = state.selectedImages.findIndex(item => item.id === id);
+      if (existingIndex !== -1) {
+        // Image already selected - remove it (toggle OFF)
+        console.log('🔧 toggleImageSelection - Image already selected, removing:', id);
+        const newSelected = state.selectedImages.filter(item => item.id !== id);
+        
+        // Save to localStorage
+        const userId = getUserId();
+        const keys = getProjectStorageKeys(userId, 'current');
+        const projectId = generateStableProjectId(userId, 'current');
+        saveVersionedData(keys.selections, projectId, userId, newSelected);
+        
+        // Update session state
+        const selectedImageOrder = newSelected.map(item => item.instanceId);
+        get().updateSessionState({ selectedImageOrder });
+        
+        return { selectedImages: newSelected };
+      }
+      
       const userId = getUserId();
       const selectionCount = state.selectedImages.length;
       const instanceId = generateStableImageId(userId, 'current', `${id}-selection-${selectionCount}`, selectionCount);
@@ -1264,7 +1288,9 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         sortPreferences: {
           defectSortDirection: direction,
           sketchSortDirection: state.sketchSortDirection
-        }
+        },
+        // CRITICAL FIX: Preserve selectedImageOrder from session state, don't reorder
+        selectedImageOrder: state.sessionState?.selectedImageOrder || state.selectedImages.map(item => item.instanceId)
       });
     }, 100);
   },
@@ -1279,7 +1305,9 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         sortPreferences: {
           defectSortDirection: state.defectSortDirection,
           sketchSortDirection: direction
-        }
+        },
+        // CRITICAL FIX: Preserve selectedImageOrder from session state, don't reorder
+        selectedImageOrder: state.sessionState?.selectedImageOrder || state.selectedImages.map(item => item.instanceId)
       });
     }, 100);
   },
@@ -1293,6 +1321,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         // Check if project is being cleared
         const projectStore = useProjectStore.getState();
         if (!projectStore.isClearing) {
+          const userId = getUserId();
           const keys = getProjectStorageKeys(userId, 'current');
           localStorage.setItem(keys.bulkData, JSON.stringify(newBulkDefects));
         }
@@ -1343,6 +1372,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         // Check if project is being cleared
         const projectStore = useProjectStore.getState();
         if (!projectStore.isClearing) {
+          const userId = getUserId();
           const keys = getProjectStorageKeys(userId, 'current');
           localStorage.setItem(`${keys.bulkData}-deleted`, JSON.stringify(newDeletedDefects));
           console.log('📱 Deleted defects saved to localStorage:', newDeletedDefects.length);
@@ -1396,22 +1426,15 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       }
     });
     
-    // Clear user-specific viewMode keys
-    const keys = getProjectStorageKeys(userId, 'current');
-    try {
-      localStorage.removeItem(`${keys.formData}-viewMode`);
-      console.log('🗑️ Cleared viewMode from localStorage');
-    } catch (error) {
-      console.error('Error removing viewMode key:', error);
-    }
-    
-    // Clear S3 file tracking
+    // Clear user-specific viewMode keys and S3 file tracking
     try {
       const userId = getUserId();
+      const keys = getProjectStorageKeys(userId, 'current');
+      localStorage.removeItem(`${keys.formData}-viewMode`);
       localStorage.removeItem(`s3Files_${userId}`);
-      console.log('🗑️ Cleared S3 file tracking from localStorage');
+      console.log('🗑️ Cleared viewMode and S3 tracking from localStorage');
     } catch (error) {
-      console.error('Error removing S3 file tracking:', error);
+      console.error('Error removing user-specific keys:', error);
     }
     
     console.log('✅ Metadata store reset completed');
@@ -1829,12 +1852,17 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
     set({ viewMode: mode });
     
     // Save viewMode to localStorage for persistence
+    const userId = getUserId();
     const keys = getProjectStorageKeys(userId, 'current');
     localStorage.setItem(`${keys.formData}-viewMode`, mode);
     console.log('💾 ViewMode saved to localStorage:', mode);
     
-    // Update session state
-    get().updateSessionState({ lastActiveTab: mode });
+    // Update session state (preserve selectedImageOrder)
+    const state = get();
+    get().updateSessionState({ 
+      lastActiveTab: mode,
+      selectedImageOrder: state.sessionState?.selectedImageOrder || state.selectedImages.map(item => item.instanceId)
+    });
     
     // Use smart auto-save for cross-browser persistence when switching tabs
     (async () => {
@@ -2689,8 +2717,23 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
                   // Migrate selected images to match current image IDs
                   const migratedSelections = migrateSelectedImageIds(selectedImages, currentState.images);
                   if (migratedSelections.length > 0) {
-                    updates.selectedImages = migratedSelections;
-                    console.log('✅ [POLLING] Migrated selected images:', migratedSelections.length);
+                    // CRITICAL FIX: Reorder migrated images according to session state's selectedImageOrder
+                    const sessionOrder = currentState.sessionState?.selectedImageOrder;
+                    if (sessionOrder && sessionOrder.length > 0) {
+                      const orderMap = new Map(migratedSelections.map(item => [item.instanceId, item]));
+                      const reordered = sessionOrder
+                        .map(instanceId => orderMap.get(instanceId))
+                        .filter(Boolean) as Array<{ id: string; instanceId: string; fileName?: string }>;
+                      
+                      // Add any missing items at the end
+                      const missingItems = migratedSelections.filter(item => !sessionOrder.includes(item.instanceId));
+                      
+                      console.log('🔧 [POLLING] Reordering migrated images according to session state:', reordered.length, '+', missingItems.length);
+                      updates.selectedImages = [...reordered, ...missingItems];
+                    } else {
+                      updates.selectedImages = migratedSelections;
+                    }
+                    console.log('✅ [POLLING] Migrated selected images:', updates.selectedImages.length);
                   }
                 }
               }
@@ -2746,10 +2789,11 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
                 // CRITICAL FIX: Only save to localStorage if we didn't skip the sync
                 // Don't overwrite localStorage with old AWS data when local has more items
                 if (!skipAllSync && selectedImages && selectedImages.length > 0) {
-                  const migratedSelections = migrateSelectedImageIds(selectedImages, currentState.images);
-                  if (migratedSelections.length > 0 && currentState.selectedImages.length <= migratedSelections.length) {
+                  // Use the already-migrated-and-reordered selectedImages from updates.selectedImages if set
+                  const selectionsToSave = updates.selectedImages || migrateSelectedImageIds(selectedImages, currentState.images);
+                  if (selectionsToSave.length > 0 && currentState.selectedImages.length <= selectionsToSave.length) {
                     // Only save if local doesn't have more items
-                    saveVersionedData(keys.selections, projectId, userId, migratedSelections);
+                    saveVersionedData(keys.selections, projectId, userId, selectionsToSave);
                   }
                 }
                 if (!skipAllSync && awsInstanceMetadata && hasNewerData && mergedInstanceMetadata) {
