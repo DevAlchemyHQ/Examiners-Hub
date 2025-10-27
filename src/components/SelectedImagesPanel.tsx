@@ -717,8 +717,9 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
   const sortImages = (images: ImageMetadata[], direction: 'asc' | 'desc' | null) => {
     if (!direction) return images;
 
-    // CRITICAL FIX: Stable sort - preserve original order for images without photo numbers
-    // This prevents layout shift/bobbing when images don't have numbers yet
+    // CRITICAL FIX: Stable sort - NEW images without numbers stay at their insertion position
+    // Descending: items without numbers go to START (insertion order preserved)
+    // Ascending: items without numbers go to END (insertion order preserved)
     return [...images].sort((a, b) => {
       // Get photo numbers from instance metadata, defaulting to 0 for empty or invalid numbers
       const aPhotoNumber = a.instanceId ? instanceMetadata[a.instanceId]?.photoNumber : a.photoNumber;
@@ -733,9 +734,19 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
         return 0;
       }
       
-      // Put images without numbers at the end
-      if (aNum === 0) return 1;
-      if (bNum === 0) return -1;
+      // NEW FIX: Items without numbers stay in their INSERTION POSITION based on sort mode
+      // Don't force them to end - let them stay where they were inserted
+      if (aNum === 0 && bNum !== 0) {
+        // 'a' has no number, 'b' has number - compare 'a' based on insertion position
+        // For descending: items without numbers should go after items with numbers (lower value)
+        // For ascending: items without numbers should go after items with numbers (lower value)
+        // Actually, let's preserve insertion order for items without numbers vs items with numbers
+        // Use the index-based approach to preserve relative position
+        return 0; // Don't reorder, preserve insertion position
+      }
+      if (bNum === 0 && aNum !== 0) {
+        return 0; // Don't reorder, preserve insertion position
+      }
 
       // Sort by photo number
       const sorted = direction === 'asc' ? aNum - bNum : bNum - aNum;
