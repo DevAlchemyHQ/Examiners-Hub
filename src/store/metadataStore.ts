@@ -2163,6 +2163,16 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           if (defectSortDirection !== null || sketchSortDirection !== null) {
             set({ defectSortDirection, sketchSortDirection });
             console.log('✅ Sort preferences loaded from AWS:', { defectSortDirection, sketchSortDirection });
+            
+            // CRITICAL: Update session state with these sort preferences so they persist
+            const keys = getProjectStorageKeys(userId, 'current');
+            const currentSessionState = get().sessionState;
+            const updatedSessionState = {
+              ...currentSessionState,
+              sortPreferences: { defectSortDirection, sketchSortDirection }
+            };
+            localStorage.setItem(`${keys.formData}-session-state`, JSON.stringify(updatedSessionState));
+            console.log('💾 Updated session state with AWS sort preferences');
           } else {
             console.log('⚠️ AWS sort preferences are null, preserving local state');
           }
