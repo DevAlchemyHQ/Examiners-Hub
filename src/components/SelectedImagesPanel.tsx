@@ -717,8 +717,8 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
   const sortImages = (images: ImageMetadata[], direction: 'asc' | 'desc' | null) => {
     if (!direction) return images;
 
-    // IMPORTANT: Only sort items that HAVE photo numbers
-    // Items WITHOUT numbers maintain their INSERTION ORDER
+    // CRITICAL FIX: Stable sort - preserve original order for images without photo numbers
+    // This prevents layout shift/bobbing when images don't have numbers yet
     return [...images].sort((a, b) => {
       // Get photo numbers from instance metadata, defaulting to 0 for empty or invalid numbers
       const aPhotoNumber = a.instanceId ? instanceMetadata[a.instanceId]?.photoNumber : a.photoNumber;
@@ -727,20 +727,20 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
       const aNum = aPhotoNumber ? parseInt(aPhotoNumber) : 0;
       const bNum = bPhotoNumber ? parseInt(bPhotoNumber) : 0;
       
-      // If both have no numbers, keep insertion order (DON'T REORDER)
+      // STABLE SORT: If both have no numbers, maintain original insertion order
       if (aNum === 0 && bNum === 0) {
+        // Keep original insertion order - prevents jumping/bobbing
         return 0;
       }
       
-      // If one has no number, preserve insertion order relative to the array
-      // This keeps the position where user inserted it
-      if (aNum === 0 && bNum !== 0) return 0;
-      if (bNum === 0 && aNum !== 0) return 0;
+      // Put images without numbers at the end
+      if (aNum === 0) return 1;
+      if (bNum === 0) return -1;
 
-      // Only sort items that both have photo numbers
+      // Sort by photo number
       const sorted = direction === 'asc' ? aNum - bNum : bNum - aNum;
       
-      // If photo numbers are equal, keep original order
+      // If photo numbers are equal, keep original order to prevent visual jumping
       if (sorted === 0) return 0;
       
       return sorted;
