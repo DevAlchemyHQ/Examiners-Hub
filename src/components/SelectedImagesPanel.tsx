@@ -717,9 +717,8 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
   const sortImages = (images: ImageMetadata[], direction: 'asc' | 'desc' | null) => {
     if (!direction) return images;
 
-    // CRITICAL FIX: Stable sort - NEW images without numbers stay at their insertion position
-    // Descending: items without numbers go to START (insertion order preserved)
-    // Ascending: items without numbers go to END (insertion order preserved)
+    // IMPORTANT: Only sort items that HAVE photo numbers
+    // Items WITHOUT numbers maintain their INSERTION ORDER
     return [...images].sort((a, b) => {
       // Get photo numbers from instance metadata, defaulting to 0 for empty or invalid numbers
       const aPhotoNumber = a.instanceId ? instanceMetadata[a.instanceId]?.photoNumber : a.photoNumber;
@@ -728,30 +727,20 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
       const aNum = aPhotoNumber ? parseInt(aPhotoNumber) : 0;
       const bNum = bPhotoNumber ? parseInt(bPhotoNumber) : 0;
       
-      // STABLE SORT: If both have no numbers, maintain original insertion order
+      // If both have no numbers, keep insertion order (DON'T REORDER)
       if (aNum === 0 && bNum === 0) {
-        // Keep original insertion order - prevents jumping/bobbing
         return 0;
       }
       
-      // NEW FIX: Items without numbers stay in their INSERTION POSITION based on sort mode
-      // Don't force them to end - let them stay where they were inserted
-      if (aNum === 0 && bNum !== 0) {
-        // 'a' has no number, 'b' has number - compare 'a' based on insertion position
-        // For descending: items without numbers should go after items with numbers (lower value)
-        // For ascending: items without numbers should go after items with numbers (lower value)
-        // Actually, let's preserve insertion order for items without numbers vs items with numbers
-        // Use the index-based approach to preserve relative position
-        return 0; // Don't reorder, preserve insertion position
-      }
-      if (bNum === 0 && aNum !== 0) {
-        return 0; // Don't reorder, preserve insertion position
-      }
+      // If one has no number, preserve insertion order relative to the array
+      // This keeps the position where user inserted it
+      if (aNum === 0 && bNum !== 0) return 0;
+      if (bNum === 0 && aNum !== 0) return 0;
 
-      // Sort by photo number
+      // Only sort items that both have photo numbers
       const sorted = direction === 'asc' ? aNum - bNum : bNum - aNum;
       
-      // If photo numbers are equal, keep original order to prevent visual jumping
+      // If photo numbers are equal, keep original order
       if (sorted === 0) return 0;
       
       return sorted;
