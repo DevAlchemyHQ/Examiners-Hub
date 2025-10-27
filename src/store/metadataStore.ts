@@ -3304,6 +3304,10 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         selectedPanel: 0,
       },
       formData: state.formData, // Include formData in session state
+      sortPreferences: state.sessionState?.sortPreferences || {
+        defectSortDirection: state.defectSortDirection,
+        sketchSortDirection: state.sketchSortDirection
+      }, // Include sortPreferences
     };
 
     console.log('💾 SAVING SESSION STATE:', {
@@ -3349,6 +3353,10 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         selectedPanel: 0,
       },
       formData: state.formData, // Include formData in session state
+      sortPreferences: state.sessionState?.sortPreferences || {
+        defectSortDirection: state.defectSortDirection,
+        sketchSortDirection: state.sketchSortDirection
+      }, // Include sortPreferences
     };
 
     console.log('💾 [FORCE SAVE] SAVING SESSION STATE:', {
@@ -3430,6 +3438,18 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         
         // Update the session state
         set({ sessionState });
+        
+        // Restore sort preferences from session state
+        if (sessionState.sortPreferences) {
+          const { defectSortDirection, sketchSortDirection } = sessionState.sortPreferences;
+          set({ defectSortDirection, sketchSortDirection });
+          console.log('🔄 Restored sort preferences from session state:', {
+            defectSortDirection,
+            sketchSortDirection
+          });
+        } else {
+          console.log('⚠️ No sortPreferences found in session state');
+        }
         
         // Restore view mode
         if (sessionState.lastActiveTab) {
