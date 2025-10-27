@@ -2719,12 +2719,14 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
                   console.log('⏸️ [POLLING] Skipping AWS sync - local state is empty (user deleted all)');
                 } else {
                   // Migrate selected images to match current image IDs
+                  console.log('🔄 [POLLING] AWS returned selected images in this order:', selectedImages.map(item => `${item.fileName || 'no-name'}(${item.instanceId})`));
                   const migratedSelections = migrateSelectedImageIds(selectedImages, currentState.images);
                   if (migratedSelections.length > 0) {
                     // CRITICAL FIX: Use AWS order directly for cross-browser sync
                     // AWS order is the source of truth for other browsers
                     // Don't try to reorder based on local session state - that would break cross-browser sync
                     console.log('✅ [POLLING] Using AWS order for cross-browser sync:', migratedSelections.map(item => `${item.fileName}(${item.instanceId})`));
+                    console.log('✅ [POLLING] Current sort direction:', currentState.defectSortDirection);
                     updates.selectedImages = migratedSelections;
                     
                     // Store the order update for later (after set completes)
