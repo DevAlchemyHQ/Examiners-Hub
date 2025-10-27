@@ -2666,6 +2666,8 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
               const updates: any = {};
               const currentState = get();
               
+              let skipAllSync = false;
+              
               if (selectedImages && selectedImages.length > 0) {
                 // CRITICAL FIX: Compare local vs AWS to detect if user deleted items locally
                 // Don't restore items from AWS that don't exist in local state
@@ -2677,7 +2679,8 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
                 
                 // CRITICAL: Don't sync if local has MORE items than AWS - user just added something
                 if (currentState.selectedImages.length > selectedImages.length) {
-                  console.log('⏸️ [POLLING] Local has more items than AWS - user just added, skipping sync to prevent overwrite');
+                  console.log('⏸️ [POLLING] Local has more items than AWS - user just added, skipping ALL syncs to prevent overwrite');
+                  skipAllSync = true;
                 } else if (deletedLocally.length > 0) {
                   console.log('⏸️ [POLLING] User deleted items locally, not restoring from AWS:', deletedLocally);
                 } else if (currentState.selectedImages.length === 0) {
@@ -2692,7 +2695,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
                 }
               }
               
-              if (awsInstanceMetadata) {
+              if (awsInstanceMetadata && !skipAllSync) {
                 // CRITICAL: Check if debounced save is still pending (3 seconds after typing)
                 // If yes, skip this sync to avoid overwriting with old data
                 if (instanceMetadataSaveTimeout) {
@@ -2740,13 +2743,16 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
                 const keys = getProjectStorageKeys(userId, 'current');
                 const projectId = generateStableProjectId(userId, 'current');
                 
-                if (selectedImages && selectedImages.length > 0) {
+                // CRITICAL FIX: Only save to localStorage if we didn't skip the sync
+                // Don't overwrite localStorage with old AWS data when local has more items
+                if (!skipAllSync && selectedImages && selectedImages.length > 0) {
                   const migratedSelections = migrateSelectedImageIds(selectedImages, currentState.images);
-                  if (migratedSelections.length > 0) {
+                  if (migratedSelections.length > 0 && currentState.selectedImages.length <= migratedSelections.length) {
+                    // Only save if local doesn't have more items
                     saveVersionedData(keys.selections, projectId, userId, migratedSelections);
                   }
                 }
-                if (awsInstanceMetadata && hasNewerData && mergedInstanceMetadata) {
+                if (!skipAllSync && awsInstanceMetadata && hasNewerData && mergedInstanceMetadata) {
                   // Only save metadata if it was updated
                   saveVersionedData(`${keys.selections}-instance-metadata`, projectId, userId, mergedInstanceMetadata);
                 }
