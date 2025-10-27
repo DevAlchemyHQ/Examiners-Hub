@@ -2884,6 +2884,32 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             console.error('❌ [POLLING] Error syncing selected images metadata:', error);
           }
           
+          // Check for sort preferences changes
+          if (result.project.sortPreferences) {
+            const { defectSortDirection: awsDefectSort, sketchSortDirection: awsSketchSort } = result.project.sortPreferences;
+            const currentDefectSort = currentState.defectSortDirection;
+            const currentSketchSort = currentState.sketchSortDirection;
+            
+            // Check if AWS has different sort preferences
+            if (awsDefectSort !== null && awsDefectSort !== currentDefectSort) {
+              console.log('🔄 [POLLING] AWS has different defect sort direction:', { 
+                current: currentDefectSort, 
+                aws: awsDefectSort 
+              });
+              set({ defectSortDirection: awsDefectSort });
+              console.log('✅ [POLLING] Defect sort direction synced from AWS:', awsDefectSort);
+            }
+            
+            if (awsSketchSort !== null && awsSketchSort !== currentSketchSort) {
+              console.log('🔄 [POLLING] AWS has different sketch sort direction:', { 
+                current: currentSketchSort, 
+                aws: awsSketchSort 
+              });
+              set({ sketchSortDirection: awsSketchSort });
+              console.log('✅ [POLLING] Sketch sort direction synced from AWS:', awsSketchSort);
+            }
+          }
+          
           // Sync formData if different
           if (dataIsDifferent && Object.keys(awsFormData).length > 0) {
             console.log('✅ [POLLING] Found different form data on AWS (cross-browser sync)');
