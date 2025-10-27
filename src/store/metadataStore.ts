@@ -2887,8 +2887,8 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           // Check for sort preferences changes
           if (result.project.sortPreferences) {
             const { defectSortDirection: awsDefectSort, sketchSortDirection: awsSketchSort } = result.project.sortPreferences;
-            const currentDefectSort = currentState.defectSortDirection;
-            const currentSketchSort = currentState.sketchSortDirection;
+            const currentDefectSort = state.defectSortDirection;
+            const currentSketchSort = state.sketchSortDirection;
             
             // Check if AWS has different sort preferences
             if (awsDefectSort !== null && awsDefectSort !== currentDefectSort) {
