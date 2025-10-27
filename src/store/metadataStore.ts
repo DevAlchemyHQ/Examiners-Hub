@@ -259,7 +259,8 @@ interface MetadataStateOnly {
   isInitialized: boolean;
   isSortingEnabled: boolean;
   // Store instance-specific metadata for multiple selections
-  instanceMetadata: Record<string, { photoNumber?: string; description?: string }>;
+  // Enhanced to track when each metadata was last modified
+  instanceMetadata: Record<string, { photoNumber?: string; description?: string; lastModified?: number }>;
   // Session state for comprehensive restoration
   sessionState: SessionState;
 }
@@ -995,14 +996,18 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       // Get existing metadata for this instance
       const existingMetadata = state.instanceMetadata[instanceId] || {};
       
-      // Merge with new metadata, preserving existing values
+      // Merge with new metadata, preserving existing values, and add timestamp
+      const now = Date.now();
       const updatedInstanceMetadata = {
         ...state.instanceMetadata,
         [instanceId]: {
           ...existingMetadata,  // Preserve existing photoNumber and description
-          ...metadata           // Override with new values
+          ...metadata,           // Override with new values
+          lastModified: now      // Track when this metadata was last modified
         }
       };
+      
+      console.log('📝 Instance metadata updated:', { instanceId, metadata, timestamp: now });
       
       // Save to localStorage using versioned format for consistency (instant local save)
       const userId = getUserId();
@@ -2833,8 +2838,23 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
                     if (pendingSave && currentValue) {
                       console.log(`⏸️ [POLLING] Protecting local metadata for ${key} - save pending`);
                       mergedInstanceMetadata[key] = currentValue;
+                    } else if (currentValue && awsValue) {
+                      // Compare timestamps to determine which is newer
+                      const currentTime = currentValue.lastModified || 0;
+                      const awsTime = awsValue.lastModified || 0;
+                      
+                      if (awsTime > currentTime) {
+                        // AWS data is newer, use it
+                        mergedInstanceMetadata[key] = awsValue;
+                        hasNewerData = true;
+                        console.log(`✅ [POLLING] Using AWS data for ${key} (AWS is newer: ${awsTime} vs ${currentTime}) - cross-browser sync`);
+                      } else {
+                        // Local data is newer or same, keep it
+                        mergedInstanceMetadata[key] = currentValue;
+                        console.log(`⏸️ [POLLING] Keeping local data for ${key} (local is newer: ${currentTime} vs ${awsTime})`);
+                      }
                     } else if (awsValue) {
-                      // If AWS has data, use it (cross-browser sync)
+                      // Only AWS has data, use it
                       mergedInstanceMetadata[key] = awsValue;
                       hasNewerData = true;
                       console.log(`✅ [POLLING] Using AWS data for ${key} - cross-browser sync`);
