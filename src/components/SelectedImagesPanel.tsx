@@ -708,7 +708,11 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
     }
     // For images mode, check if this is an instance with its own metadata
     if (img.instanceId && instanceMetadata[img.instanceId]) {
-      return instanceMetadata[img.instanceId].description || '';
+      const desc = instanceMetadata[img.instanceId].description || '';
+      if (!desc && img.fileName) {
+        console.log('⚠️ [DESC] Empty description for:', img.fileName, 'instanceId:', img.instanceId, 'metadata exists:', !!instanceMetadata[img.instanceId]);
+      }
+      return desc;
     }
     // Fallback to image's own description
     return img.description || '';

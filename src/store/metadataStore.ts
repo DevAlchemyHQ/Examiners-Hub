@@ -2899,10 +2899,17 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             const currentDefectSort = state.defectSortDirection;
             const currentSketchSort = state.sketchSortDirection;
             
+            console.log('🔍 [POLLING] Checking sort preferences:', {
+              aws: { defectSort: awsDefectSort, sketchSort: awsSketchSort },
+              local: { defectSort: currentDefectSort, sketchSort: currentSketchSort }
+            });
+            
             // Check timestamp to avoid reverting recent changes (within last 10 seconds)
             const now = Date.now();
             const lastSortChange = state.sessionState?.lastSortChangeTime || 0;
             const recentChange = (now - lastSortChange) < 10000; // 10 seconds
+            
+            console.log('🔍 [POLLING] Sort change protection:', { now, lastSortChange, recentChange });
             
             // Check if AWS has different sort preferences
             if (awsDefectSort !== null && awsDefectSort !== currentDefectSort && !recentChange) {
@@ -2915,6 +2922,8 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
               console.log('✅ [POLLING] Defect sort direction synced from AWS:', awsDefectSort);
             } else if (recentChange) {
               console.log('⏸️ [POLLING] Skipping sort sync - recent local change within 10 seconds');
+            } else {
+              console.log('✅ [POLLING] Sort directions match or AWS is null');
             }
             
             if (awsSketchSort !== null && awsSketchSort !== currentSketchSort && !recentChange) {
@@ -2925,6 +2934,8 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
               set({ sketchSortDirection: awsSketchSort });
               console.log('✅ [POLLING] Sketch sort direction synced from AWS:', awsSketchSort);
             }
+          } else {
+            console.log('⚠️ [POLLING] No sortPreferences in project data');
           }
           
           // Sync formData if different
