@@ -1063,9 +1063,24 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       const image = state.images.find(img => img.id === id);
       const fileName = image?.fileName || image?.file?.name || 'unknown';
       
-      const newSelected = [...state.selectedImages, { id, instanceId, fileName }];
+      // NEW FIX: Insert new image at correct position based on sort mode
+      const newImageEntry = { id, instanceId, fileName };
+      let newSelected: Array<{ id: string; instanceId: string; fileName?: string }>;
       
-      console.log('🔧 toggleImageSelection - Added image:', { id, instanceId, fileName });
+      if (state.defectSortDirection === 'asc') {
+        // Ascending: new images go to END (after highest number)
+        newSelected = [...state.selectedImages, newImageEntry];
+        console.log('🔧 toggleImageSelection (ascending) - Added to end:', { id, instanceId, fileName });
+      } else if (state.defectSortDirection === 'desc') {
+        // Descending: new images go to START (before highest number)
+        newSelected = [newImageEntry, ...state.selectedImages];
+        console.log('🔧 toggleImageSelection (descending) - Added to start:', { id, instanceId, fileName });
+      } else {
+        // No sort: new images go to END (right side)
+        newSelected = [...state.selectedImages, newImageEntry];
+        console.log('🔧 toggleImageSelection (no sort) - Added to end:', { id, instanceId, fileName });
+      }
+      
       console.log('🔧 toggleImageSelection - Total selected:', newSelected.length);
         
         // Auto-save selections to localStorage immediately with filenames for cross-session matching (but not during clearing)
