@@ -2659,9 +2659,17 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
               const currentState = get();
               
               if (selectedImages && selectedImages.length > 0) {
-                // CRITICAL FIX: Only sync from AWS if local state is NOT empty
-                // This prevents AWS from restoring deleted images
-                if (currentState.selectedImages.length === 0) {
+                // CRITICAL FIX: Compare local vs AWS to detect if user deleted items locally
+                // Don't restore items from AWS that don't exist in local state
+                const localInstanceIds = new Set(currentState.selectedImages.map(item => item.instanceId));
+                const awsInstanceIds = new Set(selectedImages.map(item => item.instanceId));
+                
+                // Check if user deleted anything locally
+                const deletedLocally = [...awsInstanceIds].filter(id => !localInstanceIds.has(id));
+                
+                if (deletedLocally.length > 0) {
+                  console.log('⏸️ [POLLING] User deleted items locally, not restoring from AWS:', deletedLocally);
+                } else if (currentState.selectedImages.length === 0) {
                   console.log('⏸️ [POLLING] Skipping AWS sync - local state is empty (user deleted all)');
                 } else {
                   // Migrate selected images to match current image IDs
