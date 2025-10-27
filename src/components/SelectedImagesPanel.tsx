@@ -761,19 +761,21 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
     sketchSortDirection
   );
   
-  // Debug logging to track sorting (after variables are defined)
-  if (defectImages.length > 0) {
-    const beforeSort = selectedImagesList.filter(img => !img.isSketch);
-    console.log('🔍 [SORT] Before sort:', beforeSort.map(img => {
-      const photoNum = getImageNumber(img);
-      return `${img.fileName || 'no-name'}: ${photoNum || '#'}`;
-    }));
-    console.log('🔍 [SORT] Sort direction:', defectSortDirection);
-    console.log('🔍 [SORT] After sort:', defectImages.map(img => {
-      const photoNum = getImageNumber(img);
-      return `${img.fileName || 'no-name'}: ${photoNum || '#'}`;
-    }));
-  }
+  // Debug logging to track sorting (use useEffect to avoid React render issues)
+  useEffect(() => {
+    if (defectImages.length > 0) {
+      const beforeSort = selectedImagesList.filter(img => !img.isSketch);
+      console.log('🔍 [SORT] Before sort:', beforeSort.map(img => {
+        const photoNum = getImageNumber(img);
+        return `${img.fileName || 'no-name'}: ${photoNum || '#'}`;
+      }));
+      console.log('🔍 [SORT] Sort direction:', defectSortDirection);
+      console.log('🔍 [SORT] After sort:', defectImages.map(img => {
+        const photoNum = getImageNumber(img);
+        return `${img.fileName || 'no-name'}: ${photoNum || '#'}`;
+      }));
+    }
+  }, [defectImages, defectSortDirection, selectedImagesList]);
 
   const renderDescriptionField = (img: ImageMetadata) => {
     if (img.isSketch) return null;
