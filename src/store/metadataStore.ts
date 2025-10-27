@@ -1066,6 +1066,8 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       const newImageEntry = { id, instanceId, fileName };
       let newSelected: Array<{ id: string; instanceId: string; fileName?: string }>;
       
+      console.log('🔧 toggleImageSelection - Current defectSortDirection:', state.defectSortDirection);
+      
       if (state.defectSortDirection === 'asc') {
         // Ascending: new images go to END (after highest number)
         newSelected = [...state.selectedImages, newImageEntry];
@@ -1081,6 +1083,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       }
       
       console.log('🔧 toggleImageSelection - Total selected:', newSelected.length);
+      console.log('🔧 toggleImageSelection - New array order:', newSelected.map(item => item.fileName));
         
         // Auto-save selections to localStorage immediately with filenames for cross-session matching (but not during clearing)
         try {
@@ -2666,7 +2669,10 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
                 // Check if user deleted anything locally
                 const deletedLocally = [...awsInstanceIds].filter(id => !localInstanceIds.has(id));
                 
-                if (deletedLocally.length > 0) {
+                // CRITICAL: Don't sync if local has MORE items than AWS - user just added something
+                if (currentState.selectedImages.length > selectedImages.length) {
+                  console.log('⏸️ [POLLING] Local has more items than AWS - user just added, skipping sync to prevent overwrite');
+                } else if (deletedLocally.length > 0) {
                   console.log('⏸️ [POLLING] User deleted items locally, not restoring from AWS:', deletedLocally);
                 } else if (currentState.selectedImages.length === 0) {
                   console.log('⏸️ [POLLING] Skipping AWS sync - local state is empty (user deleted all)');
