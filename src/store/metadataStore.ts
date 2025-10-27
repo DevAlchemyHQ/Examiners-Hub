@@ -3523,11 +3523,12 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
     const userId = getUserId();
     
     // Automatically capture current orders when updating session state
+    // BUT: If updates explicitly provides selectedImageOrder, use it (don't override)
     const autoUpdates = {
       ...updates,
-      imageOrder: state.images.map(img => img.id),
-      selectedImageOrder: state.selectedImages.map(item => item.instanceId),
-      bulkDefectOrder: state.bulkDefects.map(defect => defect.id || defect.photoNumber),
+      imageOrder: updates.imageOrder || state.images.map(img => img.id),
+      selectedImageOrder: updates.selectedImageOrder || state.selectedImages.map(item => item.instanceId),
+      bulkDefectOrder: updates.bulkDefectOrder || state.bulkDefects.map(defect => defect.id || defect.photoNumber),
       lastActiveTime: Date.now()
     };
     
