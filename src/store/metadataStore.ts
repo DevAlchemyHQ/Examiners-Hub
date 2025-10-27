@@ -229,6 +229,7 @@ interface SessionState {
     defectSortDirection: 'asc' | 'desc' | null;
     sketchSortDirection: 'asc' | 'desc' | null;
   };
+  lastSortChangeTime?: number; // Timestamp to prevent polling from reverting recent changes
 }
 
 // Debouncing for AWS saves to reduce costs
@@ -1289,7 +1290,9 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           sketchSortDirection: state.sketchSortDirection
         },
         // CRITICAL FIX: Preserve selectedImageOrder from session state, don't reorder
-        selectedImageOrder: state.sessionState?.selectedImageOrder || state.selectedImages.map(item => item.instanceId)
+        selectedImageOrder: state.sessionState?.selectedImageOrder || state.selectedImages.map(item => item.instanceId),
+        // Record timestamp to prevent polling from reverting recent changes
+        lastSortChangeTime: Date.now()
       });
       
       // CRITICAL: Immediately save sort preferences to AWS for cross-browser sync
@@ -1331,7 +1334,9 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           sketchSortDirection: direction
         },
         // CRITICAL FIX: Preserve selectedImageOrder from session state, don't reorder
-        selectedImageOrder: state.sessionState?.selectedImageOrder || state.selectedImages.map(item => item.instanceId)
+        selectedImageOrder: state.sessionState?.selectedImageOrder || state.selectedImages.map(item => item.instanceId),
+        // Record timestamp to prevent polling from reverting recent changes
+        lastSortChangeTime: Date.now()
       });
       
       // CRITICAL: Immediately save sort preferences to AWS for cross-browser sync
@@ -2818,14 +2823,20 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
                   mergedInstanceMetadata = {};
                   hasNewerData = false;
                   
-                  // CRITICAL FIX: Always use AWS data if it exists (AWS is the source of truth for other browsers)
-                  // Don't merge based on length - use AWS data directly to ensure sync works
+                  // CRITICAL FIX: Smart merge - use AWS data for sync, but protect recent local changes
+                  // Check if there's a pending save (user just typed)
+                  const pendingSave = instanceMetadataSaveTimeout !== null;
+                  
                   for (const key of allKeys) {
                     const currentValue = currentState.instanceMetadata[key];
                     const awsValue = awsInstanceMetadata[key];
                     
-                    // If AWS has data, use it (cross-browser sync)
-                    if (awsValue) {
+                    // If there's a pending save, protect local data to avoid overwriting recent typing
+                    if (pendingSave && currentValue) {
+                      console.log(`⏸️ [POLLING] Protecting local metadata for ${key} - save pending`);
+                      mergedInstanceMetadata[key] = currentValue;
+                    } else if (awsValue) {
+                      // If AWS has data, use it (cross-browser sync)
                       mergedInstanceMetadata[key] = awsValue;
                       hasNewerData = true;
                       console.log(`✅ [POLLING] Using AWS data for ${key} - cross-browser sync`);
@@ -2890,17 +2901,25 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             const currentDefectSort = state.defectSortDirection;
             const currentSketchSort = state.sketchSortDirection;
             
+            // Check timestamp to avoid reverting recent changes (within last 10 seconds)
+            const now = Date.now();
+            const lastSortChange = state.sessionState?.lastSortChangeTime || 0;
+            const recentChange = (now - lastSortChange) < 10000; // 10 seconds
+            
             // Check if AWS has different sort preferences
-            if (awsDefectSort !== null && awsDefectSort !== currentDefectSort) {
+            if (awsDefectSort !== null && awsDefectSort !== currentDefectSort && !recentChange) {
               console.log('🔄 [POLLING] AWS has different defect sort direction:', { 
                 current: currentDefectSort, 
-                aws: awsDefectSort 
+                aws: awsDefectSort,
+                recentChange
               });
               set({ defectSortDirection: awsDefectSort });
               console.log('✅ [POLLING] Defect sort direction synced from AWS:', awsDefectSort);
+            } else if (recentChange) {
+              console.log('⏸️ [POLLING] Skipping sort sync - recent local change within 10 seconds');
             }
             
-            if (awsSketchSort !== null && awsSketchSort !== currentSketchSort) {
+            if (awsSketchSort !== null && awsSketchSort !== currentSketchSort && !recentChange) {
               console.log('🔄 [POLLING] AWS has different sketch sort direction:', { 
                 current: currentSketchSort, 
                 aws: awsSketchSort 
@@ -3401,6 +3420,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         defectSortDirection: state.defectSortDirection,
         sketchSortDirection: state.sketchSortDirection
       }, // Include sortPreferences
+      lastSortChangeTime: state.sessionState?.lastSortChangeTime // Preserve sort change timestamp
     };
 
     console.log('💾 SAVING SESSION STATE:', {
@@ -3450,6 +3470,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         defectSortDirection: state.defectSortDirection,
         sketchSortDirection: state.sketchSortDirection
       }, // Include sortPreferences
+      lastSortChangeTime: state.sessionState?.lastSortChangeTime // Preserve sort change timestamp
     };
 
     console.log('💾 [FORCE SAVE] SAVING SESSION STATE:', {
