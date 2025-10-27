@@ -239,6 +239,10 @@ const AWS_SAVE_DEBOUNCE_MS = 15000; // 15 seconds debounce for better cost optim
 let instanceMetadataSaveTimeout: NodeJS.Timeout | null = null;
 const INSTANCE_METADATA_DEBOUNCE_MS = 3000; // 3 seconds debounce for typing
 
+// Debouncing for selected images saves to prevent DynamoDB throttling
+let selectedImagesSaveTimeout: NodeJS.Timeout | null = null;
+const SELECTED_IMAGES_DEBOUNCE_MS = 2000; // 2 seconds debounce for selected images
+
 // We need to separate the state interface from the actions
 interface MetadataStateOnly {
   images: ImageMetadata[];
@@ -1058,26 +1062,6 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
 
   toggleImageSelection: (id) => {
     set((state) => {
-      // CRITICAL FIX: Check if image is already selected and remove it (toggle behavior)
-      const existingIndex = state.selectedImages.findIndex(item => item.id === id);
-      if (existingIndex !== -1) {
-        // Image already selected - remove it (toggle OFF)
-        console.log('🔧 toggleImageSelection - Image already selected, removing:', id);
-        const newSelected = state.selectedImages.filter(item => item.id !== id);
-        
-        // Save to localStorage
-        const userId = getUserId();
-        const keys = getProjectStorageKeys(userId, 'current');
-        const projectId = generateStableProjectId(userId, 'current');
-        saveVersionedData(keys.selections, projectId, userId, newSelected);
-        
-        // Update session state
-        const selectedImageOrder = newSelected.map(item => item.instanceId);
-        get().updateSessionState({ selectedImageOrder });
-        
-        return { selectedImages: newSelected };
-      }
-      
       const userId = getUserId();
       const selectionCount = state.selectedImages.length;
       const instanceId = generateStableImageId(userId, 'current', `${id}-selection-${selectionCount}`, selectionCount);
@@ -1131,8 +1115,14 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           console.error('❌ Error saving selected images to localStorage:', error);
         }
         
-        // Auto-save to AWS in background (only small data) - but only if not clearing
-        (async () => {
+        // DEBOUNCED save to AWS to prevent DynamoDB throttling
+        // Clear existing timeout
+        if (selectedImagesSaveTimeout) {
+          clearTimeout(selectedImagesSaveTimeout);
+        }
+        
+        // Set new timeout for debounced save
+        selectedImagesSaveTimeout = setTimeout(async () => {
           try {
             // Check if project is being cleared
             const projectStore = useProjectStore.getState();
@@ -1151,7 +1141,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             const user = storedUser ? JSON.parse(storedUser) : null;
             
             if (user?.email) {
-              console.log('💾 Auto-saving selected images to AWS for user:', user.email);
+              console.log('💾 Debounced save - saving selected images to AWS for user:', user.email);
               
               // Send complete instance information to AWS
               const selectedWithInstanceIds = newSelected.map(item => {
@@ -1172,7 +1162,8 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           } catch (error) {
             console.error('❌ Error auto-saving selected images to AWS:', error);
           }
-        })();
+          selectedImagesSaveTimeout = null;
+        }, SELECTED_IMAGES_DEBOUNCE_MS);
         
         // Update session state with new selected image order
         const selectedImageOrder = newSelected.map(item => item.instanceId);
@@ -1231,8 +1222,14 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         console.error('❌ Error saving selected images to localStorage:', error);
       }
       
-      // Auto-save to AWS in background - but only if not clearing
-      (async () => {
+      // DEBOUNCED save to AWS to prevent DynamoDB throttling
+      // Clear existing timeout
+      if (selectedImagesSaveTimeout) {
+        clearTimeout(selectedImagesSaveTimeout);
+      }
+      
+      // Set new timeout for debounced save
+      selectedImagesSaveTimeout = setTimeout(async () => {
         try {
           // Check if project is being cleared
           const projectStore = useProjectStore.getState();
@@ -1245,6 +1242,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           const user = storedUser ? JSON.parse(storedUser) : null;
           
           if (user?.email) {
+            console.log('💾 Debounced save - saving selected images to AWS for user:', user.email);
             // Send complete instance information to AWS
             const selectedWithInstanceIds = selectedImages.map(item => {
               const image = state.images.find(img => img.id === item.id);
@@ -1258,9 +1256,10 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             console.log('✅ Selected images auto-saved to AWS for user:', user.email);
           }
         } catch (error) {
-          console.error('❌ Error auto-saving selected images:', error);
+          console.error('❌ Error auto-saving selected images to AWS:', error);
         }
-      })();
+        selectedImagesSaveTimeout = null;
+      }, SELECTED_IMAGES_DEBOUNCE_MS);
       
       // Update session state with new selected image order
       const selectedImageOrder = selectedImages.map(item => item.instanceId);
