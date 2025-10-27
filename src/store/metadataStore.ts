@@ -1289,8 +1289,8 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           defectSortDirection: direction,
           sketchSortDirection: state.sketchSortDirection
         },
-        // CRITICAL FIX: Preserve selectedImageOrder from session state, don't reorder
-        selectedImageOrder: state.sessionState?.selectedImageOrder || state.selectedImages.map(item => item.instanceId),
+        // Update selectedImageOrder to current state (images stay as-is, just sort them visually)
+        selectedImageOrder: state.selectedImages.map(item => item.instanceId),
         // Record timestamp to prevent polling from reverting recent changes
         lastSortChangeTime: Date.now()
       });
@@ -1303,12 +1303,11 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       if (user?.email) {
         const userId = getUserId();
         const currentState = get();
-        const updatedSessionState = currentState.sessionState;
         
         try {
           console.log('💾 Immediately saving sort preferences to AWS for cross-browser sync');
+          // IMPORTANT: Save sortPreferences at ROOT level, not inside sessionState
           await DatabaseService.updateProject(user.email, 'current', {
-            sessionState: updatedSessionState,
             sortPreferences: {
               defectSortDirection: direction,
               sketchSortDirection: currentState.sketchSortDirection
@@ -1333,8 +1332,8 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           defectSortDirection: state.defectSortDirection,
           sketchSortDirection: direction
         },
-        // CRITICAL FIX: Preserve selectedImageOrder from session state, don't reorder
-        selectedImageOrder: state.sessionState?.selectedImageOrder || state.selectedImages.map(item => item.instanceId),
+        // Update selectedImageOrder to current state (images stay as-is, just sort them visually)
+        selectedImageOrder: state.selectedImages.map(item => item.instanceId),
         // Record timestamp to prevent polling from reverting recent changes
         lastSortChangeTime: Date.now()
       });
@@ -1347,12 +1346,11 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       if (user?.email) {
         const userId = getUserId();
         const currentState = get();
-        const updatedSessionState = currentState.sessionState;
         
         try {
           console.log('💾 Immediately saving sort preferences to AWS for cross-browser sync');
+          // IMPORTANT: Save sortPreferences at ROOT level, not inside sessionState
           await DatabaseService.updateProject(user.email, 'current', {
-            sessionState: updatedSessionState,
             sortPreferences: {
               defectSortDirection: currentState.defectSortDirection,
               sketchSortDirection: direction
