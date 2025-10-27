@@ -750,19 +750,6 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
       return sorted;
     });
   };
-  
-  // Debug logging to track sorting
-  if (defectImages.length > 0) {
-    console.log('🔍 [SORT] Before sort:', selectedImagesList.filter(img => !img.isSketch).map(img => {
-      const photoNum = getImageNumber(img);
-      return `${img.fileName || 'no-name'}: ${photoNum || '#'}`;
-    }));
-    console.log('🔍 [SORT] Sort direction:', defectSortDirection);
-    console.log('🔍 [SORT] After sort:', defectImages.map(img => {
-      const photoNum = getImageNumber(img);
-      return `${img.fileName || 'no-name'}: ${photoNum || '#'}`;
-    }));
-  }
 
   const defectImages = sortImages(
     selectedImagesList.filter(img => !img.isSketch),
@@ -773,6 +760,20 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
     selectedImagesList.filter(img => img.isSketch),
     sketchSortDirection
   );
+  
+  // Debug logging to track sorting (after variables are defined)
+  if (defectImages.length > 0) {
+    const beforeSort = selectedImagesList.filter(img => !img.isSketch);
+    console.log('🔍 [SORT] Before sort:', beforeSort.map(img => {
+      const photoNum = getImageNumber(img);
+      return `${img.fileName || 'no-name'}: ${photoNum || '#'}`;
+    }));
+    console.log('🔍 [SORT] Sort direction:', defectSortDirection);
+    console.log('🔍 [SORT] After sort:', defectImages.map(img => {
+      const photoNum = getImageNumber(img);
+      return `${img.fileName || 'no-name'}: ${photoNum || '#'}`;
+    }));
+  }
 
   const renderDescriptionField = (img: ImageMetadata) => {
     if (img.isSketch) return null;
