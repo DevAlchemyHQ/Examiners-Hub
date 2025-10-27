@@ -2159,8 +2159,13 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         // Update sort preferences if available
         if (project.sortPreferences) {
           const { defectSortDirection, sketchSortDirection } = project.sortPreferences;
-          set({ defectSortDirection, sketchSortDirection });
-          console.log('✅ Sort preferences loaded from AWS:', { defectSortDirection, sketchSortDirection });
+          // Only update if sort preferences are not null (preserve user's explicit choice)
+          if (defectSortDirection !== null || sketchSortDirection !== null) {
+            set({ defectSortDirection, sketchSortDirection });
+            console.log('✅ Sort preferences loaded from AWS:', { defectSortDirection, sketchSortDirection });
+          } else {
+            console.log('⚠️ AWS sort preferences are null, preserving local state');
+          }
         } else {
           console.log('⚠️ No sort preferences in AWS project data');
         }
@@ -3441,14 +3446,19 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         // Update the session state
         set({ sessionState });
         
-        // Restore sort preferences from session state
+          // Restore sort preferences from session state
         if (sessionState.sortPreferences) {
           const { defectSortDirection, sketchSortDirection } = sessionState.sortPreferences;
-          set({ defectSortDirection, sketchSortDirection });
-          console.log('🔄 Restored sort preferences from session state:', {
-            defectSortDirection,
-            sketchSortDirection
-          });
+          // Only update if sort preferences are not null
+          if (defectSortDirection !== null || sketchSortDirection !== null) {
+            set({ defectSortDirection, sketchSortDirection });
+            console.log('🔄 Restored sort preferences from session state:', {
+              defectSortDirection,
+              sketchSortDirection
+            });
+          } else {
+            console.log('⚠️ Session state sort preferences are null, preserving local state');
+          }
         } else {
           console.log('⚠️ No sortPreferences found in session state');
           console.log('📋 Available session state keys:', Object.keys(sessionState));
