@@ -2226,6 +2226,11 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             set({ selectedImages: migratedSelections });
             console.log('✅ Selected images loaded and migrated from AWS:', migratedSelections.length);
             
+            // Update session state's selectedImageOrder to match AWS order
+            const awsOrder = migratedSelections.map(item => item.instanceId);
+            get().updateSessionState({ selectedImageOrder: awsOrder });
+            console.log('✅ Updated session state selectedImageOrder to match AWS:', awsOrder.length);
+            
             // Cache to localStorage for faster future access (using versioned format)
             const keys = getProjectStorageKeys(userId, 'current');
             saveVersionedData(keys.selections, projectId, userId, migratedSelections);
@@ -2716,23 +2721,16 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
                   // Migrate selected images to match current image IDs
                   const migratedSelections = migrateSelectedImageIds(selectedImages, currentState.images);
                   if (migratedSelections.length > 0) {
-                    // CRITICAL FIX: Reorder migrated images according to session state's selectedImageOrder
-                    const sessionOrder = currentState.sessionState?.selectedImageOrder;
-                    if (sessionOrder && sessionOrder.length > 0) {
-                      const orderMap = new Map(migratedSelections.map(item => [item.instanceId, item]));
-                      const reordered = sessionOrder
-                        .map(instanceId => orderMap.get(instanceId))
-                        .filter(Boolean) as Array<{ id: string; instanceId: string; fileName?: string }>;
-                      
-                      // Add any missing items at the end
-                      const missingItems = migratedSelections.filter(item => !sessionOrder.includes(item.instanceId));
-                      
-                      console.log('🔧 [POLLING] Reordering migrated images according to session state:', reordered.length, '+', missingItems.length);
-                      updates.selectedImages = [...reordered, ...missingItems];
-                    } else {
-                      updates.selectedImages = migratedSelections;
-                    }
-                    console.log('✅ [POLLING] Migrated selected images:', updates.selectedImages.length);
+                    // CRITICAL FIX: Use AWS order directly for cross-browser sync
+                    // AWS order is the source of truth for other browsers
+                    // Don't try to reorder based on local session state - that would break cross-browser sync
+                    console.log('✅ [POLLING] Using AWS order for cross-browser sync:', migratedSelections.map(item => `${item.fileName}(${item.instanceId})`));
+                    updates.selectedImages = migratedSelections;
+                    
+                    // Store the order update for later (after set completes)
+                    const awsOrder = migratedSelections.map(item => item.instanceId);
+                    updates._updateSessionOrder = awsOrder;
+                    console.log('✅ [POLLING] Will update session state with AWS order:', awsOrder.length);
                   }
                 }
               }
@@ -2779,7 +2777,17 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
               }
               
               if (Object.keys(updates).length > 0) {
+                // Extract the session order update before set
+                const updateSessionOrder = (updates as any)._updateSessionOrder;
+                delete (updates as any)._updateSessionOrder;
+                
                 set(updates);
+                
+                // Update session state after set completes
+                if (updateSessionOrder) {
+                  get().updateSessionState({ selectedImageOrder: updateSessionOrder });
+                  console.log('✅ [POLLING] Updated session state selectedImageOrder to match AWS:', updateSessionOrder.length);
+                }
                 
                 // Also update localStorage using versioned format
                 const keys = getProjectStorageKeys(userId, 'current');
