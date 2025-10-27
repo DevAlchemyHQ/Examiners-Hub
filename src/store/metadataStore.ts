@@ -2160,7 +2160,9 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         if (project.sortPreferences) {
           const { defectSortDirection, sketchSortDirection } = project.sortPreferences;
           set({ defectSortDirection, sketchSortDirection });
-          console.log('✅ Sort preferences loaded from AWS');
+          console.log('✅ Sort preferences loaded from AWS:', { defectSortDirection, sketchSortDirection });
+        } else {
+          console.log('⚠️ No sort preferences in AWS project data');
         }
       } else {
         console.log('⚠️ No project data found in AWS');
@@ -3449,6 +3451,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           });
         } else {
           console.log('⚠️ No sortPreferences found in session state');
+          console.log('📋 Available session state keys:', Object.keys(sessionState));
         }
         
         // Restore view mode
