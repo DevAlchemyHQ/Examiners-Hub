@@ -2911,6 +2911,66 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
                 }
               }
               
+              // Check for sort preferences changes (INSIDE the try block so updates is in scope)
+              if (result.project.sortPreferences) {
+                const { defectSortDirection: awsDefectSort, sketchSortDirection: awsSketchSort } = result.project.sortPreferences;
+                const currentDefectSort = state.defectSortDirection;
+                const currentSketchSort = state.sketchSortDirection;
+                
+                console.log('🔍 [POLLING] Checking sort preferences:', {
+                  aws: { defectSort: awsDefectSort, sketchSort: awsSketchSort },
+                  local: { defectSort: currentDefectSort, sketchSort: currentSketchSort }
+                });
+                
+                // Check timestamp to avoid reverting recent changes (within last 10 seconds)
+                const now = Date.now();
+                const lastSortChange = state.sessionState?.lastSortChangeTime || 0;
+                const recentChange = (now - lastSortChange) < 10000; // 10 seconds
+                
+                console.log('🔍 [POLLING] Sort change protection:', { now, lastSortChange, recentChange });
+                
+                // Check if AWS has different sort preferences
+                if (awsDefectSort !== null && awsDefectSort !== currentDefectSort && !recentChange) {
+                  console.log('🔄 [POLLING] AWS has different defect sort direction:', { 
+                    current: currentDefectSort, 
+                    aws: awsDefectSort,
+                    recentChange
+                  });
+                  
+                  // Add to updates to be applied in the main set() call
+                  updates.defectSortDirection = awsDefectSort;
+                  console.log('✅ [POLLING] Defect sort direction will be synced from AWS:', awsDefectSort);
+                } else if (recentChange) {
+                  console.log('⏸️ [POLLING] Skipping sort sync - recent local change within 10 seconds');
+                } else {
+                  console.log('✅ [POLLING] Sort directions match or AWS is null');
+                }
+                
+                if (awsSketchSort !== null && awsSketchSort !== currentSketchSort && !recentChange) {
+                  console.log('🔄 [POLLING] AWS has different sketch sort direction:', { 
+                    current: currentSketchSort, 
+                    aws: awsSketchSort 
+                  });
+                  
+                  // Add to updates to be applied in the main set() call
+                  updates.sketchSortDirection = awsSketchSort;
+                  console.log('✅ [POLLING] Sketch sort direction will be synced from AWS:', awsSketchSort);
+                }
+                
+                // Also update session state with AWS sort preferences
+                if (awsDefectSort !== null || awsSketchSort !== null) {
+                  get().updateSessionState({
+                    sortPreferences: {
+                      defectSortDirection: awsDefectSort !== null ? awsDefectSort : currentDefectSort,
+                      sketchSortDirection: awsSketchSort !== null ? awsSketchSort : currentSketchSort
+                    }
+                  });
+                  console.log('✅ [POLLING] Updated session state sort preferences');
+                }
+              } else {
+                console.log('⚠️ [POLLING] No sortPreferences in project data');
+              }
+              
               if (Object.keys(updates).length > 0) {
                 // Extract the session order update before set
                 const updateSessionOrder = (updates as any)._updateSessionOrder;
@@ -2948,66 +3008,6 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             }
           } catch (error) {
             console.error('❌ [POLLING] Error syncing selected images metadata:', error);
-          }
-          
-          // Check for sort preferences changes
-          if (result.project.sortPreferences) {
-            const { defectSortDirection: awsDefectSort, sketchSortDirection: awsSketchSort } = result.project.sortPreferences;
-            const currentDefectSort = state.defectSortDirection;
-            const currentSketchSort = state.sketchSortDirection;
-            
-            console.log('🔍 [POLLING] Checking sort preferences:', {
-              aws: { defectSort: awsDefectSort, sketchSort: awsSketchSort },
-              local: { defectSort: currentDefectSort, sketchSort: currentSketchSort }
-            });
-            
-            // Check timestamp to avoid reverting recent changes (within last 10 seconds)
-            const now = Date.now();
-            const lastSortChange = state.sessionState?.lastSortChangeTime || 0;
-            const recentChange = (now - lastSortChange) < 10000; // 10 seconds
-            
-            console.log('🔍 [POLLING] Sort change protection:', { now, lastSortChange, recentChange });
-            
-            // Check if AWS has different sort preferences
-            if (awsDefectSort !== null && awsDefectSort !== currentDefectSort && !recentChange) {
-              console.log('🔄 [POLLING] AWS has different defect sort direction:', { 
-                current: currentDefectSort, 
-                aws: awsDefectSort,
-                recentChange
-              });
-              
-              // Add to updates to be applied in the main set() call
-              updates.defectSortDirection = awsDefectSort;
-              console.log('✅ [POLLING] Defect sort direction will be synced from AWS:', awsDefectSort);
-            } else if (recentChange) {
-              console.log('⏸️ [POLLING] Skipping sort sync - recent local change within 10 seconds');
-            } else {
-              console.log('✅ [POLLING] Sort directions match or AWS is null');
-            }
-            
-            if (awsSketchSort !== null && awsSketchSort !== currentSketchSort && !recentChange) {
-              console.log('🔄 [POLLING] AWS has different sketch sort direction:', { 
-                current: currentSketchSort, 
-                aws: awsSketchSort 
-              });
-              
-              // Add to updates to be applied in the main set() call
-              updates.sketchSortDirection = awsSketchSort;
-              console.log('✅ [POLLING] Sketch sort direction will be synced from AWS:', awsSketchSort);
-            }
-            
-            // Also update session state with AWS sort preferences
-            if (awsDefectSort !== null || awsSketchSort !== null) {
-              get().updateSessionState({
-                sortPreferences: {
-                  defectSortDirection: awsDefectSort !== null ? awsDefectSort : currentDefectSort,
-                  sketchSortDirection: awsSketchSort !== null ? awsSketchSort : currentSketchSort
-                }
-              });
-              console.log('✅ [POLLING] Updated session state sort preferences');
-            }
-          } else {
-            console.log('⚠️ [POLLING] No sortPreferences in project data');
           }
           
           // Sync formData if different
