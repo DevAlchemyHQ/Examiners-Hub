@@ -730,23 +730,21 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
       const aNum = aPhotoNumber ? parseInt(aPhotoNumber) : null;
       const bNum = bPhotoNumber ? parseInt(bPhotoNumber) : null;
       
-      // If both have no numbers, maintain insertion order
+      // If both have no numbers, maintain insertion order (don't change position)
       if (aNum === null && bNum === null) {
         return 0;
       }
       
-      // If only one has a number, compare based on sort direction
+      // If one has a number and one doesn't:
+      // - In ASCENDING: items without numbers go to end (after numbered items)
+      // - In DESCENDING: items without numbers go to start (before numbered items)
       if (aNum === null && bNum !== null) {
         // 'a' has no number, 'b' has number
-        // In ascending: numbers come first, so a should be AFTER b (+1)
-        // In descending: numbers come last, so a should be BEFORE b (-1)
         return direction === 'asc' ? 1 : -1;
       }
       
       if (aNum !== null && bNum === null) {
-        // 'a' has number, 'b' has no number  
-        // In ascending: numbers come first, so a should be BEFORE b (-1)
-        // In descending: numbers come last, so a should be AFTER b (+1)
+        // 'a' has number, 'b' has no number
         return direction === 'asc' ? -1 : 1;
       }
       
