@@ -2975,8 +2975,10 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
                 aws: awsDefectSort,
                 recentChange
               });
-              set({ defectSortDirection: awsDefectSort });
-              console.log('✅ [POLLING] Defect sort direction synced from AWS:', awsDefectSort);
+              
+              // Add to updates to be applied in the main set() call
+              updates.defectSortDirection = awsDefectSort;
+              console.log('✅ [POLLING] Defect sort direction will be synced from AWS:', awsDefectSort);
             } else if (recentChange) {
               console.log('⏸️ [POLLING] Skipping sort sync - recent local change within 10 seconds');
             } else {
@@ -2988,8 +2990,21 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
                 current: currentSketchSort, 
                 aws: awsSketchSort 
               });
-              set({ sketchSortDirection: awsSketchSort });
-              console.log('✅ [POLLING] Sketch sort direction synced from AWS:', awsSketchSort);
+              
+              // Add to updates to be applied in the main set() call
+              updates.sketchSortDirection = awsSketchSort;
+              console.log('✅ [POLLING] Sketch sort direction will be synced from AWS:', awsSketchSort);
+            }
+            
+            // Also update session state with AWS sort preferences
+            if (awsDefectSort !== null || awsSketchSort !== null) {
+              get().updateSessionState({
+                sortPreferences: {
+                  defectSortDirection: awsDefectSort !== null ? awsDefectSort : currentDefectSort,
+                  sketchSortDirection: awsSketchSort !== null ? awsSketchSort : currentSketchSort
+                }
+              });
+              console.log('✅ [POLLING] Updated session state sort preferences');
             }
           } else {
             console.log('⚠️ [POLLING] No sortPreferences in project data');
