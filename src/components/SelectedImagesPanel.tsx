@@ -721,36 +721,39 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
   const sortImages = (images: ImageMetadata[], direction: 'asc' | 'desc' | null) => {
     if (!direction) return images;
 
-    // CRITICAL FIX: Stable sort - preserve insertion position for images without photo numbers
-    // Items without numbers maintain their insertion position from toggleImageSelection
-    // This ensures new selected tiles appear at the start in descending mode
+    // Sort based on photo numbers with special handling for items without numbers
     return [...images].sort((a, b) => {
-      // Get photo numbers from instance metadata, defaulting to 0 for empty or invalid numbers
+      // Get photo numbers from instance metadata, defaulting to empty string for items without numbers
       const aPhotoNumber = a.instanceId ? instanceMetadata[a.instanceId]?.photoNumber : a.photoNumber;
       const bPhotoNumber = b.instanceId ? instanceMetadata[b.instanceId]?.photoNumber : b.photoNumber;
       
-      const aNum = aPhotoNumber ? parseInt(aPhotoNumber) : 0;
-      const bNum = bPhotoNumber ? parseInt(bPhotoNumber) : 0;
+      const aNum = aPhotoNumber ? parseInt(aPhotoNumber) : null;
+      const bNum = bPhotoNumber ? parseInt(bPhotoNumber) : null;
       
-      // STABLE SORT: If both have no numbers, maintain original insertion order
-      // This is critical for preserving the START position in descending mode
-      if (aNum === 0 && bNum === 0) {
-        return 0; // Keep original insertion order - prevents jumping/bobbing
+      // If both have no numbers, maintain insertion order
+      if (aNum === null && bNum === null) {
+        return 0;
       }
       
-      // CRITICAL: If one has no number, preserve its insertion position
-      // This ensures new images appear at START in descending mode and stay there
-      // Also ensures they persist across browsers by maintaining their saved order
-      if (aNum === 0 || bNum === 0) {
-        return 0; // Don't reorder items without numbers - maintain insertion order
+      // If only one has a number, compare based on sort direction
+      if (aNum === null && bNum !== null) {
+        // 'a' has no number, 'b' has number
+        // In ascending: numbers come first, so a should be AFTER b (+1)
+        // In descending: numbers come last, so a should be BEFORE b (-1)
+        return direction === 'asc' ? 1 : -1;
       }
-
-      // Only sort items that both have photo numbers
-      const sorted = direction === 'asc' ? aNum - bNum : bNum - aNum;
       
-      // If photo numbers are equal, keep original order to prevent visual jumping
-      if (sorted === 0) return 0;
+      if (aNum !== null && bNum === null) {
+        // 'a' has number, 'b' has no number  
+        // In ascending: numbers come first, so a should be BEFORE b (-1)
+        // In descending: numbers come last, so a should be AFTER b (+1)
+        return direction === 'asc' ? -1 : 1;
+      }
       
+      // Both have numbers, sort them numerically
+      const sorted = direction === 'asc' ? aNum! - bNum! : bNum! - aNum!;
+      
+      // If equal, keep insertion order
       return sorted;
     });
   };
