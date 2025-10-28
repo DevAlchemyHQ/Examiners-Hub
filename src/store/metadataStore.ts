@@ -2321,15 +2321,52 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       
       // Process instance metadata
       if (instanceMetadataResult.status === 'fulfilled' && instanceMetadataResult.value) {
-        const instanceMetadata = instanceMetadataResult.value;
+        const awsInstanceMetadata = instanceMetadataResult.value;
         console.log('🏷️ Instance metadata loaded from AWS');
         
-        set({ instanceMetadata });
-        console.log('✅ Instance metadata loaded from AWS');
+        // Merge AWS metadata with local metadata, comparing timestamps
+        const currentState = get();
+        const localInstanceMetadata = currentState.instanceMetadata;
+        const mergedMetadata = { ...localInstanceMetadata };
+        let hasNewerAWSData = false;
         
-        // Cache to localStorage for faster future access (using versioned format)
+        // Merge AWS data if it's newer than local data
+        for (const key in awsInstanceMetadata) {
+          const awsValue = awsInstanceMetadata[key];
+          const localValue = localInstanceMetadata[key];
+          
+          if (!localValue) {
+            // No local data, use AWS data
+            mergedMetadata[key] = awsValue;
+            hasNewerAWSData = true;
+            console.log(`✅ [AWS LOAD] Using AWS data for ${key} - no local data`);
+          } else {
+            // Compare timestamps
+            const awsTime = awsValue.lastModified || 0;
+            const localTime = localValue.lastModified || 0;
+            
+            if (awsTime > localTime) {
+              // AWS data is newer
+              mergedMetadata[key] = awsValue;
+              hasNewerAWSData = true;
+              console.log(`✅ [AWS LOAD] Using AWS data for ${key} (AWS is newer: ${awsTime} vs ${localTime})`);
+            } else {
+              // Local data is newer or same, keep it
+              console.log(`⏸️ [AWS LOAD] Keeping local data for ${key} (local is newer: ${localTime} vs ${awsTime})`);
+            }
+          }
+        }
+        
+        if (hasNewerAWSData) {
+          set({ instanceMetadata: mergedMetadata });
+          console.log('✅ Instance metadata merged with AWS data');
+        } else {
+          console.log('✅ Instance metadata - local data is current, no merge needed');
+        }
+        
+        // Cache merged metadata to localStorage
         const keys = getProjectStorageKeys(userId, 'current');
-        saveVersionedData(`${keys.selections}-instance-metadata`, projectId, userId, instanceMetadata);
+        saveVersionedData(`${keys.selections}-instance-metadata`, projectId, userId, mergedMetadata);
       } else {
         console.log('⚠️ No instance metadata found in AWS');
       }
