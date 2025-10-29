@@ -1227,9 +1227,9 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
                 gridAutoRows: 'auto',
                 columnGap: '4px',
                 rowGap: '4px',
-                minHeight: 'min-content',
-                // CRITICAL: Reserve space immediately to prevent layout shift
-                minHeight: selectedImages.length > 0 ? `${Math.ceil(selectedImages.length / gridWidth) * 200}px` : '0px',
+                // CRITICAL: Reserve exact space immediately to prevent layout shift during refresh
+                // Calculate based on selectedImages count (available synchronously) not defectImages (computed)
+                minHeight: selectedImages.length > 0 ? `${Math.ceil(selectedImages.length / gridWidth) * 220}px` : '0px',
                 contain: 'layout style paint'
               }}
             >
