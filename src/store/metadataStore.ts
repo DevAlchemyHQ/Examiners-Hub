@@ -654,6 +654,9 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           const user = storedUser ? JSON.parse(storedUser) : null;
           
           if (user?.email) {
+            // ✅ CRITICAL FIX: Capture operationQueue from the UPDATED state
+            // Use a small delay to ensure Zustand state update is committed
+            await new Promise(resolve => setTimeout(resolve, 100));
             const currentState = get();
             
             // PHASE 1: Send operations first (new system)
