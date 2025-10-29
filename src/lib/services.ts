@@ -1527,6 +1527,164 @@ export class DatabaseService {
     }
   }
 
+  /**
+   * PHASE 1: OPERATION QUEUE SYSTEM
+   * Save operations to DynamoDB and apply them to current state
+   * 
+   * @param userId User ID
+   * @param operations Array of operations to save
+   * @returns Last version (timestamp) of processed operation
+   */
+  static async saveOperations(userId: string, operations: any[]) {
+    try {
+      if (!operations || operations.length === 0) {
+        console.log('⚠️ No operations to save');
+        return { lastVersion: Date.now(), processedCount: 0 };
+      }
+
+      console.log(`📝 [OPERATION QUEUE] Saving ${operations.length} operations to AWS for user:`, userId);
+
+      // 1. Store operations in DynamoDB table: mvp-labeler-operations
+      // Schema: user_id (partition), operation_id (sort), operation (JSON), timestamp
+      const putRequests = operations.map((op) => ({
+        PutRequest: {
+          Item: {
+            user_id: userId,
+            operation_id: op.id, // Use operation.id as sort key
+            operation: op, // Store full operation object
+            timestamp: op.timestamp,
+            processed: false, // Will be marked true after applying to state
+            created_at: new Date().toISOString(),
+          },
+        },
+      }));
+
+      // Batch write operations (DynamoDB limit: 25 per batch)
+      for (let i = 0; i < putRequests.length; i += 25) {
+        const batch = putRequests.slice(i, i + 25);
+        try {
+          const batchWriteCommand = new BatchWriteCommand({
+            RequestItems: {
+              'mvp-labeler-operations': batch,
+            },
+          });
+
+          console.log(`💾 Saving operation batch ${Math.floor(i / 25) + 1} (${batch.length} items)...`);
+          const result = await docClient.send(batchWriteCommand);
+
+          // Handle unprocessed items (retry)
+          if (result.UnprocessedItems && Object.keys(result.UnprocessedItems).length > 0) {
+            console.warn('⚠️ Unprocessed operations detected, retrying...');
+            await new Promise((resolve) => setTimeout(resolve, 100));
+            const retryCommand = new BatchWriteCommand({
+              RequestItems: result.UnprocessedItems,
+            });
+            await docClient.send(retryCommand);
+            console.log('✅ Retry completed for unprocessed operations');
+          }
+
+          console.log(`✅ Operation batch ${Math.floor(i / 25) + 1} saved successfully`);
+        } catch (batchError: any) {
+          console.error(`❌ Error saving operation batch ${Math.floor(i / 25) + 1}:`, batchError);
+          throw batchError;
+        }
+      }
+
+      // 2. Apply operations to current selected images state
+      // Get current state
+      const currentSelected = await this.getSelectedImages(userId);
+      
+      // Apply operations in order (this is simplified - in production we'd use a more robust state machine)
+      // For now, we'll update the selected-images table directly based on operations
+      let updatedSelected = [...currentSelected];
+      
+      for (const op of operations) {
+        if (op.type === 'ADD_SELECTION') {
+          // Add if not already present
+          if (!updatedSelected.find(item => item.instanceId === op.instanceId)) {
+            updatedSelected.push({
+              id: op.imageId,
+              instanceId: op.instanceId,
+              fileName: op.fileName || 'unknown'
+            });
+          }
+        } else if (op.type === 'DELETE_SELECTION') {
+          // Remove if present
+          updatedSelected = updatedSelected.filter(item => item.instanceId !== op.instanceId);
+        }
+      }
+
+      // 3. Save updated state (using existing updateSelectedImages)
+      if (updatedSelected.length !== currentSelected.length || 
+          JSON.stringify(updatedSelected.map(i => i.instanceId).sort()) !== 
+          JSON.stringify(currentSelected.map(i => i.instanceId).sort())) {
+        console.log('📝 [OPERATION QUEUE] Applying operations to state...');
+        await this.updateSelectedImages(userId, updatedSelected);
+        console.log(`✅ [OPERATION QUEUE] Applied ${operations.length} operations to state`);
+      }
+
+      // 4. Mark operations as processed (optional - for cleanup later)
+      // We could update the operations table, but for now we'll just return success
+      
+      // 5. Return last version (highest timestamp)
+      const lastVersion = Math.max(...operations.map(op => op.timestamp));
+      console.log(`✅ [OPERATION QUEUE] Successfully saved ${operations.length} operations, lastVersion: ${lastVersion}`);
+      
+      return { 
+        lastVersion, 
+        processedCount: operations.length,
+        success: true 
+      };
+    } catch (error) {
+      console.error('❌ Error saving operations:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * PHASE 1: OPERATION QUEUE SYSTEM
+   * Get operations since a given version/timestamp
+   * Used for polling and refresh sync
+   * 
+   * @param userId User ID
+   * @param sinceVersion Timestamp of last synced operation
+   * @returns Array of operations since that timestamp
+   */
+  static async getOperationsSince(userId: string, sinceVersion: number): Promise<any[]> {
+    try {
+      console.log(`📥 [OPERATION QUEUE] Fetching operations since version ${sinceVersion} for user:`, userId);
+
+      // Query operations table where timestamp > sinceVersion
+      // Note: This requires a GSI on timestamp, or we use Scan with FilterExpression
+      // For now, we'll use Scan with FilterExpression (less efficient but works without GSI)
+      const scanCommand = new ScanCommand({
+        TableName: 'mvp-labeler-operations',
+        FilterExpression: 'user_id = :userId AND timestamp > :since',
+        ExpressionAttributeValues: {
+          ':userId': userId,
+          ':since': sinceVersion,
+        },
+      });
+
+      const result = await docClient.send(scanCommand);
+      const operations = (result.Items || [])
+        .map(item => item.operation)
+        .sort((a, b) => a.timestamp - b.timestamp); // Sort by timestamp ascending
+      
+      console.log(`✅ [OPERATION QUEUE] Found ${operations.length} operations since version ${sinceVersion}`);
+      
+      return operations;
+    } catch (error) {
+      console.error('❌ Error getting operations:', error);
+      // If table doesn't exist yet, return empty array (backward compatible)
+      if (error instanceof Error && (error.message.includes('does not exist') || error.message.includes('ResourceNotFoundException'))) {
+        console.warn('⚠️ Operations table does not exist yet, returning empty array');
+        return [];
+      }
+      throw error;
+    }
+  }
+
   static async getInstanceMetadata(userId: string) {
     try {
       const command = new GetCommand({

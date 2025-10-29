@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { StorageService, DatabaseService } from '../lib/services';
 import { ImageMetadata, FormData, BulkDefect } from '../types';
+import { Operation, OperationQueue } from '../types/operations';
 import { createZipFile } from '../utils/zipUtils';
 import { nanoid } from 'nanoid';
 import { convertImageToJpgBase64, convertBlobToBase64 } from '../utils/fileUtils';
@@ -17,6 +18,9 @@ import {
   PERSISTENCE_VERSION,
   type VersionedData
 } from '../utils/idGenerator';
+import { getBrowserId } from '../utils/browserId';
+import { createOperationId } from '../types/operations';
+import { applyOperation, mergeOperations } from '../utils/operationMerge';
 
 // Helper function to get userId consistently
 const getUserId = (): string => {
@@ -264,6 +268,11 @@ interface MetadataStateOnly {
   instanceMetadata: Record<string, { photoNumber?: string; description?: string; lastModified?: number }>;
   // Session state for comprehensive restoration
   sessionState: SessionState;
+  // Operation Queue System (Phase 1: Operation-based sync)
+  // Stores pending operations before they're synced to AWS
+  operationQueue: Operation[];
+  // Last synced version (timestamp of last operation processed)
+  lastSyncedVersion: number;
 }
 
 // Combine state and actions
@@ -530,6 +539,9 @@ const initialState: MetadataStateOnly = {
     },
     formData: initialFormData, // Include formData in session state
   },
+  // Operation Queue System (Phase 1)
+  operationQueue: [],
+  lastSyncedVersion: 0,
 };
 
 export const useMetadataStore = create<MetadataState>((set, get) => ({
@@ -1111,6 +1123,10 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       const image = state.images.find(img => img.id === id);
       const fileName = image?.fileName || image?.file?.name || 'unknown';
       
+      // Check if this image is already selected (to determine if this is an add or remove)
+      const existingSelection = state.selectedImages.find(item => item.id === id && item.instanceId === instanceId);
+      const isAdding = !existingSelection; // If not found, we're adding
+      
       // Insert new image at correct position based on sort mode
       const newImageEntry = { id, instanceId, fileName };
       let newSelected: Array<{ id: string; instanceId: string; fileName?: string }>;
@@ -1133,6 +1149,28 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       
       console.log('🔧 toggleImageSelection - Total selected:', newSelected.length);
       console.log('🔧 toggleImageSelection - New array order:', newSelected.map(item => item.fileName));
+      
+      // PHASE 1: OPERATION QUEUE - Create operation for this change
+      const browserId = getBrowserId();
+      let operationQueue = [...state.operationQueue];
+      
+      if (isAdding) {
+        // Create ADD_SELECTION operation
+        const operation: Operation = {
+          id: createOperationId(browserId),
+          type: 'ADD_SELECTION',
+          instanceId,
+          imageId: id,
+          timestamp: Date.now(),
+          browserId,
+          fileName,
+        };
+        operationQueue.push(operation);
+        console.log('📝 [OPERATION] Added ADD_SELECTION operation to queue:', operation.id);
+      } else {
+        // This should actually be handled by deletion logic, but for now we support it
+        // In practice, deletions happen via setSelectedImages with fewer items
+      }
         
         // Auto-save selections to localStorage immediately with filenames for cross-session matching (but not during clearing)
         try {
@@ -1182,7 +1220,40 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             const user = storedUser ? JSON.parse(storedUser) : null;
             
             if (user?.email) {
-              console.log('💾 Debounced save - saving selected images to AWS for user:', user.email);
+              const currentState = get();
+              
+              // PHASE 1: DUAL-WRITE - Send operations AND full state (backward compatible)
+              // Send operations first (new system)
+              if (currentState.operationQueue.length > 0) {
+                try {
+                  console.log('📝 [OPERATION QUEUE] Sending operations to AWS:', currentState.operationQueue.length);
+                  const result = await DatabaseService.saveOperations(user.email, currentState.operationQueue);
+                  
+                  // Clear queue and update version on success
+                  set({ 
+                    operationQueue: [],
+                    lastSyncedVersion: result.lastVersion 
+                  });
+                  
+                  // Save version to localStorage
+                  try {
+                    const userId = getUserId();
+                    const keys = getProjectStorageKeys(userId, 'current');
+                    const projectId = generateStableProjectId(userId, 'current');
+                    localStorage.setItem(`${keys.selections}-last-synced-version`, result.lastVersion.toString());
+                  } catch (err) {
+                    console.warn('⚠️ Could not save last synced version to localStorage:', err);
+                  }
+                  
+                  console.log('✅ [OPERATION QUEUE] Operations saved successfully, lastVersion:', result.lastVersion);
+                } catch (opError) {
+                  console.error('❌ Error saving operations, keeping in queue for retry:', opError);
+                  // Operations remain in queue - will retry on next save
+                }
+              }
+              
+              // Also send full state (legacy - for backward compatibility during migration)
+              console.log('💾 Debounced save - saving selected images to AWS (legacy) for user:', user.email);
               
               // Send complete instance information to AWS
               const selectedWithInstanceIds = newSelected.map(item => {
@@ -1194,7 +1265,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
                 };
               });
               
-              console.log('📦 Data being sent to AWS:', selectedWithInstanceIds);
+              console.log('📦 Data being sent to AWS (legacy):', selectedWithInstanceIds);
               await DatabaseService.updateSelectedImages(user.email, selectedWithInstanceIds);
               console.log('✅ Selected images auto-saved to AWS for user:', user.email);
             } else {
@@ -1210,7 +1281,11 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         const selectedImageOrder = newSelected.map(item => item.instanceId);
         get().updateSessionState({ selectedImageOrder });
         
-        return { selectedImages: newSelected };
+        // Return state with operation queue updated
+        return { 
+          selectedImages: newSelected,
+          operationQueue, // Include updated operation queue
+        };
       });
     },
 
@@ -1231,6 +1306,59 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
     set((state) => {
       // Detect if this is a deletion (fewer items than before)
       const isDeletion = selectedImages.length < state.selectedImages.length;
+      
+      // PHASE 1: OPERATION QUEUE - Create operations for changes
+      const browserId = getBrowserId();
+      let operationQueue = [...state.operationQueue];
+      
+      if (isDeletion) {
+        // Find deleted items (in state but not in selectedImages)
+        const currentInstanceIds = new Set(state.selectedImages.map(item => item.instanceId));
+        const newInstanceIds = new Set(selectedImages.map(item => item.instanceId));
+        
+        const deletedInstanceIds = [...currentInstanceIds].filter(id => !newInstanceIds.has(id));
+        
+        // Create DELETE_SELECTION operations for each deleted item
+        for (const deletedInstanceId of deletedInstanceIds) {
+          const deletedItem = state.selectedImages.find(item => item.instanceId === deletedInstanceId);
+          if (deletedItem) {
+            const operation: Operation = {
+              id: createOperationId(browserId),
+              type: 'DELETE_SELECTION',
+              instanceId: deletedInstanceId,
+              timestamp: Date.now(),
+              browserId,
+            };
+            operationQueue.push(operation);
+            console.log('📝 [OPERATION] Added DELETE_SELECTION operation to queue:', operation.id, deletedItem.fileName);
+          }
+        }
+      } else {
+        // Could be additions - these are already handled in toggleImageSelection
+        // But we need to check if there are new items here too
+        const currentInstanceIds = new Set(state.selectedImages.map(item => item.instanceId));
+        const newInstanceIds = new Set(selectedImages.map(item => item.instanceId));
+        
+        const addedInstanceIds = [...newInstanceIds].filter(id => !currentInstanceIds.has(id));
+        
+        // Create ADD_SELECTION operations for newly added items
+        for (const addedInstanceId of addedInstanceIds) {
+          const addedItem = selectedImages.find(item => item.instanceId === addedInstanceId);
+          if (addedItem) {
+            const operation: Operation = {
+              id: createOperationId(browserId),
+              type: 'ADD_SELECTION',
+              instanceId: addedInstanceId,
+              imageId: addedItem.id,
+              timestamp: Date.now(),
+              browserId,
+              fileName: addedItem.fileName,
+            };
+            operationQueue.push(operation);
+            console.log('📝 [OPERATION] Added ADD_SELECTION operation to queue (via setSelectedImages):', operation.id);
+          }
+        }
+      }
       
       // Auto-save to localStorage immediately (but not during clearing)
       try {
@@ -1293,6 +1421,36 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             const user = storedUser ? JSON.parse(storedUser) : null;
             
             if (user?.email) {
+              // PHASE 1: DUAL-WRITE - Send operations AND full state
+              // Send operations first (new system)
+              if (currentState.operationQueue.length > 0) {
+                try {
+                  console.log('📝 [OPERATION QUEUE] FAST save - sending operations to AWS:', currentState.operationQueue.length);
+                  const result = await DatabaseService.saveOperations(user.email, currentState.operationQueue);
+                  
+                  // Clear queue and update version on success
+                  set({ 
+                    operationQueue: [],
+                    lastSyncedVersion: result.lastVersion 
+                  });
+                  
+                  // Save version to localStorage
+                  try {
+                    const userId = getUserId();
+                    const keys = getProjectStorageKeys(userId, 'current');
+                    localStorage.setItem(`${keys.selections}-last-synced-version`, result.lastVersion.toString());
+                  } catch (err) {
+                    console.warn('⚠️ Could not save last synced version to localStorage:', err);
+                  }
+                  
+                  console.log('✅ [OPERATION QUEUE] Operations saved (batched deletions), lastVersion:', result.lastVersion);
+                } catch (opError) {
+                  console.error('❌ Error saving operations, keeping in queue for retry:', opError);
+                  // Operations remain in queue - will retry on next save
+                }
+              }
+              
+              // Also send full state (legacy - for backward compatibility)
               console.log('🚨 FAST save (deletion detected, batched) - saving selected images to AWS for user:', user.email);
               // Send complete instance information to AWS (use current state to catch batched deletions)
               const selectedWithInstanceIds = currentSelected.map(item => {
@@ -1356,7 +1514,21 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       const selectedImageOrder = selectedImages.map(item => item.instanceId);
       get().updateSessionState({ selectedImageOrder });
       
-      return { selectedImages };
+      // Save operation queue to localStorage for persistence across refreshes
+      try {
+        const userId = getUserId();
+        const keys = getProjectStorageKeys(userId, 'current');
+        const projectId = generateStableProjectId(userId, 'current');
+        saveVersionedData(`${keys.selections}-operation-queue`, projectId, userId, operationQueue);
+        console.log('📱 Operation queue saved to localStorage:', operationQueue.length, 'operations');
+      } catch (error) {
+        console.error('❌ Error saving operation queue to localStorage:', error);
+      }
+      
+      return { 
+        selectedImages,
+        operationQueue, // Include updated operation queue
+      };
     });
   },
 
@@ -1625,9 +1797,29 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       const user = currentUser;
       const userId = user?.email || localStorage.getItem('userEmail') || 'anonymous';
       
+      // PHASE 1: Load operation queue from localStorage on initial load
+      const keys = getProjectStorageKeys(userId, 'current');
+      const projectId = generateStableProjectId(userId, 'current');
+      
+      try {
+        const savedQueue = loadVersionedData(`${keys.selections}-operation-queue`);
+        const lastSyncedVersion = localStorage.getItem(`${keys.selections}-last-synced-version`);
+        
+        if (savedQueue && Array.isArray(savedQueue) && savedQueue.length > 0) {
+          console.log('📥 [LOAD] Restoring operation queue from localStorage:', savedQueue.length, 'operations');
+          set({ 
+            operationQueue: savedQueue,
+            lastSyncedVersion: lastSyncedVersion ? parseInt(lastSyncedVersion, 10) : 0 
+          });
+        } else {
+          console.log('📥 [LOAD] No saved operation queue found');
+        }
+      } catch (error) {
+        console.warn('⚠️ Error loading operation queue from localStorage:', error);
+      }
+      
       // Create deterministic project storage keys for consistent cross-browser access
       const projectKeys = getProjectStorageKeys(userId, 'current');
-      const projectId = generateStableProjectId(userId, 'current');
       
       console.log('Loading data for user:', userId, 'project:', projectId);
       
@@ -2830,8 +3022,8 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
   },
 
   startPolling: () => {
-    // Poll AWS every 5 seconds to check for newer form data
-    console.log('🔄 Starting polling for AWS form data sync (every 5 seconds)...');
+    // Poll AWS every 10 seconds to check for newer data and operations
+    console.log('🔄 Starting polling for AWS form data and operations sync (every 10 seconds)...');
     
     const pollInterval = setInterval(async () => {
       try {
@@ -2971,6 +3163,60 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
                     }
                   }
                 }
+              }
+              
+              // PHASE 1: OPERATION QUEUE POLLING
+              // Fetch operations since last sync and apply them
+              try {
+                const lastSyncedVersion = currentState.lastSyncedVersion || 0;
+                console.log('📥 [POLLING] Fetching operations since version:', lastSyncedVersion);
+                
+                const remoteOperations = await DatabaseService.getOperationsSince(userId, lastSyncedVersion);
+                
+                if (remoteOperations && remoteOperations.length > 0) {
+                  console.log(`📥 [POLLING] Found ${remoteOperations.length} operations from AWS`);
+                  
+                  // Merge local and remote operations
+                  const localOperations = currentState.operationQueue || [];
+                  const mergedOps = mergeOperations(localOperations, remoteOperations);
+                  
+                  // Apply operations to state (use current browser ID for conflict resolution)
+                  const browserId = getBrowserId();
+                  let updatedState = currentState;
+                  
+                  // Apply remote operations (only those we haven't processed yet)
+                  const remoteOpsToApply = remoteOperations.filter(op => op.timestamp > lastSyncedVersion);
+                  
+                  for (const op of remoteOpsToApply) {
+                    updatedState = applyOperation(updatedState, op, browserId);
+                  }
+                  
+                  // Update state if there were changes
+                  if (remoteOpsToApply.length > 0) {
+                    const newVersion = Math.max(...remoteOpsToApply.map(op => op.timestamp));
+                    
+                    set({
+                      ...updatedState,
+                      lastSyncedVersion: newVersion,
+                    });
+                    
+                    // Save version to localStorage
+                    try {
+                      const keys = getProjectStorageKeys(userId, 'current');
+                      localStorage.setItem(`${keys.selections}-last-synced-version`, newVersion.toString());
+                      console.log(`✅ [POLLING] Applied ${remoteOpsToApply.length} operations, updated version to: ${newVersion}`);
+                    } catch (err) {
+                      console.warn('⚠️ Could not save last synced version:', err);
+                    }
+                  } else {
+                    console.log('⏸️ [POLLING] No new operations to apply');
+                  }
+                } else {
+                  console.log('⏸️ [POLLING] No operations found since version:', lastSyncedVersion);
+                }
+              } catch (opError) {
+                console.error('❌ [POLLING] Error fetching/applying operations:', opError);
+                // Don't throw - continue with other sync logic
               }
               
               if (awsInstanceMetadata && !skipAllSync) {
