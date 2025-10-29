@@ -2767,6 +2767,12 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         StorageService.listFiles(`users/${userId}/images/`)
       ]);
       
+      // BATched updates: Collect all state changes and apply in a single set() call
+      // This prevents flicker from multiple re-renders during AWS sync
+      const currentState = get();
+      const batchedUpdates: Partial<MetadataStateOnly> = {};
+      let hasUpdates = false;
+      
       // Process project data (form data + session state)
       if (projectResult.status === 'fulfilled' && projectResult.value.project) {
         const project = projectResult.value.project;
@@ -2788,29 +2794,25 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         
         if (awsFormData) {
           const rootHasValues = !!awsFormData.elr?.trim() || !!awsFormData.structureNo?.trim();
-          if (rootHasValues) {
+          if (rootHasValues && currentState.lastSyncedVersion === 0) {
             console.log('📋 [FALLBACK] Loading formData from AWS (will be overridden by operations if available):', awsFormData);
-            // Only set if no operations will replay (check happens in operation replay section)
-            const currentState = get();
-            if (currentState.lastSyncedVersion === 0) {
-              set({ formData: awsFormData as FormData });
+            batchedUpdates.formData = awsFormData as FormData;
+            hasUpdates = true;
             const keys = getProjectStorageKeys(userId, 'current');
-              const projectId = generateStableProjectId(userId, 'current');
-              saveVersionedData(keys.formData, projectId, userId, awsFormData);
-            }
+            saveVersionedData(keys.formData, projectId, userId, awsFormData);
           }
         }
         
         // Update session state if available (only if it's newer)
         if (project.sessionState) {
-          const currentState = get();
           const localSessionState = currentState.sessionState;
           const awsLastActiveTime = project.sessionState?.lastActiveTime || 0;
           const localLastActiveTime = localSessionState?.lastActiveTime || 0;
           
           // Only overwrite local data if AWS data is newer
           if (awsLastActiveTime > localLastActiveTime) {
-            set({ sessionState: project.sessionState });
+            batchedUpdates.sessionState = project.sessionState;
+            hasUpdates = true;
             console.log('✅ Session state loaded from AWS (newer)');
             
             // Cache to localStorage for faster future access
@@ -2826,12 +2828,14 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           const { defectSortDirection, sketchSortDirection } = project.sortPreferences;
           // Only update if sort preferences are not null (preserve user's explicit choice)
           if (defectSortDirection !== null || sketchSortDirection !== null) {
-          set({ defectSortDirection, sketchSortDirection });
+            batchedUpdates.defectSortDirection = defectSortDirection;
+            batchedUpdates.sketchSortDirection = sketchSortDirection;
+            hasUpdates = true;
             console.log('✅ Sort preferences loaded from AWS:', { defectSortDirection, sketchSortDirection });
             
             // CRITICAL: Update session state with these sort preferences so they persist
             const keys = getProjectStorageKeys(userId, 'current');
-            const currentSessionState = get().sessionState;
+            const currentSessionState = currentState.sessionState;
             const updatedSessionState = {
               ...currentSessionState,
               sortPreferences: { defectSortDirection, sketchSortDirection }
@@ -2854,8 +2858,8 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         console.log('📦 Bulk defects loaded from AWS:', defects.length);
         
         // Restore order from session state if available
-        const currentState = get();
         const sessionState = currentState.sessionState;
+        let finalDefects = defects;
         
         if (sessionState.bulkDefectOrder && sessionState.bulkDefectOrder.length > 0) {
           console.log('🔄 Restoring bulk defect order from session state');
@@ -2873,18 +2877,18 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             !sessionState.bulkDefectOrder.includes(defect.id || defect.photoNumber)
           );
           
-          const finalDefects = [...reorderedDefects, ...remainingDefects];
-          set({ bulkDefects: finalDefects });
+          finalDefects = [...reorderedDefects, ...remainingDefects];
+        }
+        
+        // Only update if data actually changed (shallow comparison)
+        const currentDefects = currentState.bulkDefects;
+        if (JSON.stringify(finalDefects) !== JSON.stringify(currentDefects)) {
+          batchedUpdates.bulkDefects = finalDefects;
+          hasUpdates = true;
           
           // Cache to localStorage for faster future access
           const keys = getProjectStorageKeys(userId, 'current');
           localStorage.setItem(keys.bulkData, JSON.stringify(finalDefects));
-        } else {
-          set({ bulkDefects: defects });
-          
-          // Cache to localStorage for faster future access
-          const keys = getProjectStorageKeys(userId, 'current');
-          localStorage.setItem(keys.bulkData, JSON.stringify(defects));
         }
         
         console.log('✅ Bulk defects loaded and cached from AWS');
@@ -2893,6 +2897,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       }
       
       // Process selected images
+      let finalSelectedImages: any[] | undefined;
       if (selectedImagesResult.status === 'fulfilled' && selectedImagesResult.value) {
         const selectedImages = selectedImagesResult.value;
         console.log('📸 Selected images loaded from AWS:', selectedImages.length);
@@ -2901,18 +2906,13 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         // AWS is the source of truth for latest state, especially after login/refresh
         if (selectedImages && selectedImages.length > 0) {
           // Migrate selected image IDs to match current S3 image IDs
-          const currentImages = get().images;
+          const currentImages = currentState.images;
           const migratedSelections = migrateSelectedImageIds(selectedImages, currentImages);
           
           // Only update if migration succeeded
           if (migratedSelections.length > 0) {
-            set({ selectedImages: migratedSelections });
+            finalSelectedImages = migratedSelections;
             console.log('✅ Selected images loaded and migrated from AWS (overriding localStorage):', migratedSelections.length);
-            
-            // Update session state's selectedImageOrder to match AWS order
-            const awsOrder = migratedSelections.map(item => item.instanceId);
-            get().updateSessionState({ selectedImageOrder: awsOrder });
-            console.log('✅ Updated session state selectedImageOrder to match AWS:', awsOrder.length);
             
             // Cache to localStorage for faster future access (using versioned format)
             const keys = getProjectStorageKeys(userId, 'current');
@@ -2929,26 +2929,46 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           if (hasLocalSelections) {
             console.log('⚠️ AWS returned empty array - preserving localStorage selections:', localSelections.length);
             // Restore selections from localStorage - AWS sync hasn't happened yet
-            const currentImages = get().images;
+            const currentImages = currentState.images;
             if (currentImages && currentImages.length > 0) {
               const migratedSelections = migrateSelectedImageIds(localSelections as any[], currentImages);
               if (migratedSelections.length > 0) {
-                set({ selectedImages: migratedSelections });
+                finalSelectedImages = migratedSelections;
                 console.log('✅ Restored selections from localStorage:', migratedSelections.length);
               } else {
                 console.log('⚠️ Migration failed, preserving original localStorage selections');
-                set({ selectedImages: localSelections as any[] });
+                finalSelectedImages = localSelections as any[];
               }
             } else {
               // Images not loaded yet, preserve selections temporarily
-              set({ selectedImages: localSelections as any[] });
+              finalSelectedImages = localSelections as any[];
               console.log('✅ Preserved localStorage selections (images loading):', localSelections.length);
             }
           } else {
             console.log('⚠️ AWS returned empty array and no localStorage selections - clearing state');
-            set({ selectedImages: [] });
+            finalSelectedImages = [];
             // Clear from localStorage only if we truly have no selections
             saveVersionedData(keys.selections, projectId, userId, []);
+          }
+        }
+        
+        // Only update if data actually changed
+        if (finalSelectedImages !== undefined) {
+          const currentSelections = currentState.selectedImages;
+          if (JSON.stringify(finalSelectedImages) !== JSON.stringify(currentSelections)) {
+            batchedUpdates.selectedImages = finalSelectedImages;
+            hasUpdates = true;
+            
+            // Update session state's selectedImageOrder to match AWS order
+            if (finalSelectedImages.length > 0) {
+              const awsOrder = finalSelectedImages.map(item => item.instanceId);
+              const sessionState = currentState.sessionState;
+              batchedUpdates.sessionState = {
+                ...sessionState,
+                selectedImageOrder: awsOrder
+              };
+              console.log('✅ Updated session state selectedImageOrder to match AWS:', awsOrder.length);
+            }
           }
         }
       } else {
@@ -2964,7 +2984,6 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         console.log('🏷️ Instance metadata loaded from AWS');
         
         // Merge AWS metadata with local metadata, comparing timestamps
-        const currentState = get();
         const localInstanceMetadata = currentState.instanceMetadata;
         const mergedMetadata = { ...localInstanceMetadata };
         let hasNewerAWSData = false;
@@ -2997,8 +3016,12 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         }
         
         if (hasNewerAWSData) {
-          set({ instanceMetadata: mergedMetadata });
-          console.log('✅ Instance metadata merged with AWS data');
+          // Only update if data actually changed
+          if (JSON.stringify(mergedMetadata) !== JSON.stringify(currentState.instanceMetadata)) {
+            batchedUpdates.instanceMetadata = mergedMetadata;
+            hasUpdates = true;
+            console.log('✅ Instance metadata merged with AWS data');
+          }
         } else {
           console.log('✅ Instance metadata - local data is current, no merge needed');
         }
@@ -3056,24 +3079,28 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         
         console.log('✅ S3 images processed:', loadedImages.length);
         
-        // Set images in store
-        set({ images: loadedImages });
-        
-        // Cache to localStorage for faster future access
-        const keys = getProjectStorageKeys(userId, 'current');
-        localStorage.setItem(keys.images, JSON.stringify(loadedImages));
-        
-        // Also cache S3 file tracking for compatibility
-        const s3FileTracking = s3Files.map(file => ({
-          fileName: file.name.split('-').slice(1).join('-'),
-          s3Key: file.name,
-          s3Url: file.url,
-          uploadTime: parseInt(file.name.split('-')[0]),
-          userId: userId
-        }));
-        localStorage.setItem(`s3Files_${userId}`, JSON.stringify(s3FileTracking));
-        
-        console.log('💾 S3 images cached to localStorage');
+        // Only update if data actually changed
+        const currentImages = currentState.images;
+        if (JSON.stringify(loadedImages) !== JSON.stringify(currentImages)) {
+          batchedUpdates.images = loadedImages;
+          hasUpdates = true;
+          
+          // Cache to localStorage for faster future access
+          const keys = getProjectStorageKeys(userId, 'current');
+          localStorage.setItem(keys.images, JSON.stringify(loadedImages));
+          
+          // Also cache S3 file tracking for compatibility
+          const s3FileTracking = s3Files.map(file => ({
+            fileName: file.name.split('-').slice(1).join('-'),
+            s3Key: file.name,
+            s3Url: file.url,
+            uploadTime: parseInt(file.name.split('-')[0]),
+            userId: userId
+          }));
+          localStorage.setItem(`s3Files_${userId}`, JSON.stringify(s3FileTracking));
+          
+          console.log('💾 S3 images cached to localStorage');
+        }
       } else {
         console.log('⚠️ S3 listing failed or returned no files, falling back to database metadata');
         console.log('S3 result status:', s3FilesResult.status);
@@ -3181,14 +3208,18 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
               
               console.log('✅ Images loaded from database metadata (fallback):', loadedImages.length);
               
-              // Set images in store
-              set({ images: loadedImages });
-              
-              // Cache to localStorage for faster future access
-              const keys = getProjectStorageKeys(userId, 'current');
-              localStorage.setItem(keys.images, JSON.stringify(loadedImages));
-              
-              console.log('💾 Images cached to localStorage (fallback)');
+              // Only update if data actually changed
+              const currentImages = currentState.images;
+              if (JSON.stringify(loadedImages) !== JSON.stringify(currentImages)) {
+                batchedUpdates.images = loadedImages;
+                hasUpdates = true;
+                
+                // Cache to localStorage for faster future access
+                const keys = getProjectStorageKeys(userId, 'current');
+                localStorage.setItem(keys.images, JSON.stringify(loadedImages));
+                
+                console.log('💾 Images cached to localStorage (fallback)');
+              }
             } else {
               console.log('📁 No images found in database metadata either');
             }
@@ -3249,8 +3280,9 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             rebuiltState = applyOperation(rebuiltState, op, browserId);
           }
           
-          // Update state with rebuilt state (includes formData from operations)
-          set(rebuiltState);
+          // Merge rebuilt state into batched updates (includes formData from operations)
+          Object.assign(batchedUpdates, rebuiltState);
+          hasUpdates = true;
           
           // Save formData to localStorage if it was updated by operations
           if (formDataOperations.length > 0) {
@@ -3262,7 +3294,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           
           // Update version
           const newVersion = Math.max(...operations.map(op => op.timestamp));
-          set({ lastSyncedVersion: newVersion });
+          batchedUpdates.lastSyncedVersion = newVersion;
           
           // Save version to localStorage
           try {
@@ -3281,6 +3313,15 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       } catch (opError) {
         console.error('❌ [REFRESH] Error replaying operations:', opError);
         // Don't throw - continue loading other data
+      }
+      
+      // Apply all batched updates in a single set() call - prevents flicker from multiple re-renders
+      // Only update if there are actual changes (hasUpdates flag)
+      if (hasUpdates) {
+        console.log('📦 Applying batched AWS updates (single re-render):', Object.keys(batchedUpdates));
+        set(batchedUpdates);
+      } else {
+        console.log('✅ No state changes needed - data already up to date');
       }
       
       console.log('✅ AWS data load completed successfully');
