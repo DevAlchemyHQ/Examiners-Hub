@@ -5,7 +5,7 @@
 /* Prevent body and html scrolling */
 /* CRITICAL: Set dark background immediately to prevent white flicker on refresh */
 html {
-  background-color: #111827; /* gray-900 - matches dark theme */
+  background-color: #111827 !important; /* gray-900 - matches dark theme */
   color-scheme: dark;
 }
 
@@ -15,7 +15,17 @@ html, body {
   margin: 0;
   padding: 0;
   position: relative;
-  background-color: #111827; /* gray-900 - prevents white flash */
+  background-color: #111827 !important; /* gray-900 - prevents white flash */
+}
+
+/* CRITICAL: Disable all transitions and animations during page load to prevent movement */
+/* Only enable them after page is fully loaded */
+html:not(.loaded) *,
+html:not(.loaded) *::before,
+html:not(.loaded) *::after {
+  transition: none !important;
+  animation: none !important;
+  transform: none !important;
 }
 
 #root {

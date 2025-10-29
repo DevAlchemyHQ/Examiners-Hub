@@ -44,6 +44,17 @@ const MainApp = () => {
           
           console.log('🔄 Loading user data for authenticated user...');
           
+          // CRITICAL: Wait for page to be fully rendered before loading data
+          // This ensures no movement during refresh - data only appears after refresh completes
+          // Wait for next animation frame to ensure DOM is stable
+          await new Promise(resolve => {
+            requestAnimationFrame(() => {
+              requestAnimationFrame(() => {
+                resolve(undefined);
+              });
+            });
+          });
+          
           // INSTANT DISPLAY: Load localStorage first for immediate UI (no flicker)
           console.log('📱 Loading data from localStorage first (instant display, no flicker)...');
           await loadUserData();
@@ -54,6 +65,7 @@ const MainApp = () => {
           
           // BACKGROUND SYNC: Load from AWS in background (non-blocking)
           // This ensures we have latest data without blocking UI
+          // Only update if data actually changed (prevents unnecessary movement)
           console.log('☁️ Syncing with AWS in background (non-blocking)...');
           loadAllUserDataFromAWS().then(() => {
             console.log('✅ AWS sync completed in background - latest state restored');
