@@ -16,7 +16,17 @@ const AWS_CONFIG = {
 
 // Initialize AWS clients
 const dynamoClient = new DynamoDBClient(AWS_CONFIG);
-const docClient = DynamoDBDocumentClient.from(dynamoClient);
+// CRITICAL: Configure DynamoDB Document Client to remove undefined values
+// DynamoDB doesn't accept undefined values - they must be removed before sending
+const docClient = DynamoDBDocumentClient.from(dynamoClient, {
+  marshallOptions: {
+    removeUndefinedValues: true, // Remove undefined values (required for DynamoDB)
+    convertEmptyValues: false,
+  },
+  unmarshallOptions: {
+    wrapNumbers: false,
+  },
+});
 const s3Client = new S3Client(AWS_CONFIG);
 const cognitoClient = new CognitoIdentityProviderClient(AWS_CONFIG);
 
@@ -1546,12 +1556,36 @@ export class DatabaseService {
 
       // 1. Store operations in DynamoDB table: mvp-labeler-operations
       // Schema: user_id (partition), operation_id (sort), operation (JSON), timestamp
+      // CRITICAL: Remove undefined values from operation data before saving (DynamoDB doesn't accept undefined)
+      const cleanOperation = (op: any) => {
+        const cleaned: any = {
+          id: op.id,
+          type: op.type,
+          timestamp: op.timestamp,
+          browserId: op.browserId,
+        };
+        
+        // Only include optional fields if they are defined
+        if (op.instanceId !== undefined) cleaned.instanceId = op.instanceId;
+        if (op.imageId !== undefined) cleaned.imageId = op.imageId;
+        if (op.fileName !== undefined) cleaned.fileName = op.fileName;
+        if (op.data !== undefined && op.data !== null) {
+          // Clean data object - remove undefined fields
+          cleaned.data = {};
+          if (op.data.photoNumber !== undefined) cleaned.data.photoNumber = op.data.photoNumber;
+          if (op.data.description !== undefined) cleaned.data.description = op.data.description;
+          if (op.data.sortDirection !== undefined) cleaned.data.sortDirection = op.data.sortDirection;
+        }
+        
+        return cleaned;
+      };
+      
       const putRequests = operations.map((op) => ({
         PutRequest: {
           Item: {
             user_id: userId,
             operation_id: op.id, // Use operation.id as sort key
-            operation: op, // Store full operation object
+            operation: cleanOperation(op), // Store cleaned operation object (no undefined values)
             timestamp: op.timestamp,
             processed: false, // Will be marked true after applying to state
             created_at: new Date().toISOString(),
