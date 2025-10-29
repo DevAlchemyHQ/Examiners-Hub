@@ -39,16 +39,23 @@ export function applyOperation(
         const image = state.images.find((img) => img.id === op.imageId);
         const fileName = image?.fileName || image?.file?.name || op.fileName || 'unknown';
 
+        const newItem = {
+          id: op.imageId!,
+          instanceId: op.instanceId!,
+          fileName,
+        };
+
+        // Respect sort direction when adding:
+        // - Descending: add to START (new items appear first)
+        // - Ascending/No sort: add to END (new items appear last)
+        const sortDir = state.defectSortDirection;
+        const newSelectedImages = sortDir === 'desc' 
+          ? [newItem, ...state.selectedImages]
+          : [...state.selectedImages, newItem];
+
         return {
           ...state,
-          selectedImages: [
-            ...state.selectedImages,
-            {
-              id: op.imageId!,
-              instanceId: op.instanceId!,
-              fileName,
-            },
-          ],
+          selectedImages: newSelectedImages,
         };
       }
       return state;

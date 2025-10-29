@@ -1223,10 +1223,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       const image = state.images.find(img => img.id === id);
       const fileName = image?.fileName || image?.file?.name || 'unknown';
       
-      // Check if this image is already selected (to determine if this is an add or remove)
-      const existingSelection = state.selectedImages.find(item => item.id === id && item.instanceId === instanceId);
-      const isAdding = !existingSelection; // If not found, we're adding
-      
+      // Always add a new instance (allows selecting the same image multiple times)
       // Insert new image at correct position based on sort mode
       const newImageEntry = { id, instanceId, fileName };
       let newSelected: Array<{ id: string; instanceId: string; fileName?: string }>;
@@ -1250,142 +1247,136 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       console.log('🔧 toggleImageSelection - Total selected:', newSelected.length);
       console.log('🔧 toggleImageSelection - New array order:', newSelected.map(item => item.fileName));
       
-      // PHASE 1: OPERATION QUEUE - Create operation for this change
+      // PHASE 1: OPERATION QUEUE - Create ADD_SELECTION operation
       const browserId = getBrowserId();
       let operationQueue = [...state.operationQueue];
       
-      if (isAdding) {
-        // Create ADD_SELECTION operation
-        const operation: Operation = {
-          id: createOperationId(browserId),
-          type: 'ADD_SELECTION',
-          instanceId,
-          imageId: id,
-          timestamp: Date.now(),
-          browserId,
-          fileName,
-        };
-        operationQueue.push(operation);
-        console.log('📝 [OPERATION] Added ADD_SELECTION operation to queue:', operation.id);
-      } else {
-        // This should actually be handled by deletion logic, but for now we support it
-        // In practice, deletions happen via setSelectedImages with fewer items
+      // Create ADD_SELECTION operation
+      const operation: Operation = {
+        id: createOperationId(browserId),
+        type: 'ADD_SELECTION',
+        instanceId,
+        imageId: id,
+        timestamp: Date.now(),
+        browserId,
+        fileName,
+      };
+      operationQueue.push(operation);
+      console.log('📝 [OPERATION] Added ADD_SELECTION operation to queue:', operation.id);
+      
+      // Auto-save selections to localStorage immediately with filenames for cross-session matching (but not during clearing)
+      try {
+        // Check if project is being cleared
+        const projectStore = useProjectStore.getState();
+        if (!projectStore.isClearing) {
+          // Map to include fileName for each selected item
+          const selectedWithFilenames = newSelected.map(item => ({
+            id: item.id,
+            instanceId: item.instanceId,
+            fileName: item.fileName || 'unknown'
+          }));
+          const keys = getProjectStorageKeys(userId, 'current');
+          const projectId = generateStableProjectId(userId, 'current');
+          saveVersionedData(keys.selections, projectId, userId, selectedWithFilenames);
+          console.log('📱 Selected images saved to localStorage (versioned):', selectedWithFilenames);
+        } else {
+          console.log('⏸️ Skipping localStorage save during project clear');
+        }
+      } catch (error) {
+        console.error('❌ Error saving selected images to localStorage:', error);
       }
-        
-        // Auto-save selections to localStorage immediately with filenames for cross-session matching (but not during clearing)
+      
+      // DEBOUNCED save to AWS to prevent DynamoDB throttling
+      // Clear existing timeout
+      if (selectedImagesSaveTimeout) {
+        clearTimeout(selectedImagesSaveTimeout);
+      }
+      
+      // Set new timeout for debounced save
+      selectedImagesSaveTimeout = setTimeout(async () => {
         try {
           // Check if project is being cleared
           const projectStore = useProjectStore.getState();
-          if (!projectStore.isClearing) {
-            // Map to include fileName for each selected item
-            const selectedWithFilenames = newSelected.map(item => ({
-              id: item.id,
-              instanceId: item.instanceId,
-              fileName: item.fileName || 'unknown'
-            }));
-            const keys = getProjectStorageKeys(userId, 'current');
-            const projectId = generateStableProjectId(userId, 'current');
-            saveVersionedData(keys.selections, projectId, userId, selectedWithFilenames);
-            console.log('📱 Selected images saved to localStorage (versioned):', selectedWithFilenames);
+          if (projectStore.isClearing) {
+            console.log('⏸️ Skipping auto-save during project clear');
+            return;
+          }
+          
+          // Only save if we have actual selections
+          if (newSelected.length === 0) {
+            console.log('⏸️ No selections to save to AWS');
+            return;
+          }
+          
+          const storedUser = localStorage.getItem('user');
+          const user = storedUser ? JSON.parse(storedUser) : null;
+          
+          if (user?.email) {
+            const currentState = get();
+            
+            // PHASE 1: DUAL-WRITE - Send operations AND full state (backward compatible)
+            // Send operations first (new system)
+            if (currentState.operationQueue.length > 0) {
+              try {
+                console.log('📝 [OPERATION QUEUE] Sending operations to AWS:', currentState.operationQueue.length);
+                const result = await DatabaseService.saveOperations(user.email, currentState.operationQueue);
+                
+                // Clear queue and update version on success
+                set({ 
+                  operationQueue: [],
+                  lastSyncedVersion: result.lastVersion 
+                });
+                
+                // Save version to localStorage
+                try {
+                  const userId = getUserId();
+                  const keys = getProjectStorageKeys(userId, 'current');
+                  localStorage.setItem(`${keys.selections}-last-synced-version`, result.lastVersion.toString());
+                } catch (err) {
+                  console.warn('⚠️ Could not save last synced version to localStorage:', err);
+                }
+                
+                console.log('✅ [OPERATION QUEUE] Operations saved successfully, lastVersion:', result.lastVersion);
+              } catch (opError) {
+                console.error('❌ Error saving operations, keeping in queue for retry:', opError);
+                // Operations remain in queue - will retry on next save
+              }
+            }
+            
+            // Also send full state (legacy - for backward compatibility during migration)
+            console.log('💾 Debounced save - saving selected images to AWS (legacy) for user:', user.email);
+            
+            // Send complete instance information to AWS
+            const selectedWithInstanceIds = newSelected.map(item => {
+              const image = state.images.find(img => img.id === item.id);
+              return {
+                id: item.id, // Keep the original image ID
+                instanceId: item.instanceId, // Keep the instance ID
+                fileName: image?.fileName || image?.file?.name || 'unknown'
+              };
+            });
+            
+            console.log('📦 Data being sent to AWS (legacy):', selectedWithInstanceIds);
+            await DatabaseService.updateSelectedImages(user.email, selectedWithInstanceIds);
+            console.log('✅ Selected images auto-saved to AWS for user:', user.email);
           } else {
-            console.log('⏸️ Skipping localStorage save during project clear');
+            console.warn('⚠️ No user email found for AWS auto-save');
           }
         } catch (error) {
-          console.error('❌ Error saving selected images to localStorage:', error);
+          console.error('❌ Error auto-saving selected images to AWS:', error);
         }
+        selectedImagesSaveTimeout = null;
+      }, SELECTED_IMAGES_DEBOUNCE_MS);
+      
+      // Update session state with new selected image order
+      const selectedImageOrder = newSelected.map(item => item.instanceId);
+      get().updateSessionState({ selectedImageOrder });
         
-        // DEBOUNCED save to AWS to prevent DynamoDB throttling
-        // Clear existing timeout
-        if (selectedImagesSaveTimeout) {
-          clearTimeout(selectedImagesSaveTimeout);
-        }
-        
-        // Set new timeout for debounced save
-        selectedImagesSaveTimeout = setTimeout(async () => {
-          try {
-            // Check if project is being cleared
-            const projectStore = useProjectStore.getState();
-            if (projectStore.isClearing) {
-              console.log('⏸️ Skipping auto-save during project clear');
-              return;
-            }
-            
-            // Only save if we have actual selections
-            if (newSelected.length === 0) {
-              console.log('⏸️ No selections to save to AWS');
-              return;
-            }
-            
-            const storedUser = localStorage.getItem('user');
-            const user = storedUser ? JSON.parse(storedUser) : null;
-            
-            if (user?.email) {
-              const currentState = get();
-              
-              // PHASE 1: DUAL-WRITE - Send operations AND full state (backward compatible)
-              // Send operations first (new system)
-              if (currentState.operationQueue.length > 0) {
-                try {
-                  console.log('📝 [OPERATION QUEUE] Sending operations to AWS:', currentState.operationQueue.length);
-                  const result = await DatabaseService.saveOperations(user.email, currentState.operationQueue);
-                  
-                  // Clear queue and update version on success
-                  set({ 
-                    operationQueue: [],
-                    lastSyncedVersion: result.lastVersion 
-                  });
-                  
-                  // Save version to localStorage
-                  try {
-                    const userId = getUserId();
-                    const keys = getProjectStorageKeys(userId, 'current');
-                    const projectId = generateStableProjectId(userId, 'current');
-                    localStorage.setItem(`${keys.selections}-last-synced-version`, result.lastVersion.toString());
-                  } catch (err) {
-                    console.warn('⚠️ Could not save last synced version to localStorage:', err);
-                  }
-                  
-                  console.log('✅ [OPERATION QUEUE] Operations saved successfully, lastVersion:', result.lastVersion);
-                } catch (opError) {
-                  console.error('❌ Error saving operations, keeping in queue for retry:', opError);
-                  // Operations remain in queue - will retry on next save
-                }
-              }
-              
-              // Also send full state (legacy - for backward compatibility during migration)
-              console.log('💾 Debounced save - saving selected images to AWS (legacy) for user:', user.email);
-              
-              // Send complete instance information to AWS
-              const selectedWithInstanceIds = newSelected.map(item => {
-                const image = state.images.find(img => img.id === item.id);
-                return {
-                  id: item.id, // Keep the original image ID
-                  instanceId: item.instanceId, // Keep the instance ID
-                  fileName: image?.fileName || image?.file?.name || 'unknown'
-                };
-              });
-              
-              console.log('📦 Data being sent to AWS (legacy):', selectedWithInstanceIds);
-              await DatabaseService.updateSelectedImages(user.email, selectedWithInstanceIds);
-              console.log('✅ Selected images auto-saved to AWS for user:', user.email);
-            } else {
-              console.warn('⚠️ No user email found for AWS auto-save');
-            }
-          } catch (error) {
-            console.error('❌ Error auto-saving selected images to AWS:', error);
-          }
-          selectedImagesSaveTimeout = null;
-        }, SELECTED_IMAGES_DEBOUNCE_MS);
-        
-        // Update session state with new selected image order
-        const selectedImageOrder = newSelected.map(item => item.instanceId);
-        get().updateSessionState({ selectedImageOrder });
-        
-        // Return state with operation queue updated
-        return { 
-          selectedImages: newSelected,
-          operationQueue, // Include updated operation queue
-        };
+      // Return state with operation queue updated
+      return { 
+        selectedImages: newSelected,
+        operationQueue, // Include updated operation queue
+      };
       });
     },
 
