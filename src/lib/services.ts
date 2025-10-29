@@ -1392,129 +1392,96 @@ export class DatabaseService {
 
   static async updateSelectedImages(userId: string, selectedImages: any[]) {
     try {
-      // Clear existing selections first
+      // Load existing selections
       const scanCommand = new ScanCommand({
         TableName: 'mvp-labeler-selected-images',
         FilterExpression: 'user_id = :userId',
-        ExpressionAttributeValues: {
-          ':userId': userId
-        }
+        ExpressionAttributeValues: { ':userId': userId }
       });
-      
       const existingSelections = await docClient.send(scanCommand);
-      
-      if (existingSelections.Items && existingSelections.Items.length > 0) {
-        const deleteRequests = existingSelections.Items.map(item => ({
-          DeleteRequest: {
-            Key: {
-              user_id: item.user_id,
-              selection_id: item.selection_id
-            }
-          }
-        }));
-        
-        // Delete in batches of 25 (DynamoDB limit)
-        for (let i = 0; i < deleteRequests.length; i += 25) {
-          const batch = deleteRequests.slice(i, i + 25);
-          const batchDeleteCommand = new BatchWriteCommand({
-            RequestItems: {
-              'mvp-labeler-selected-images': batch
-            }
+
+      const existingByInstance = new Map<string, any>();
+      for (const item of (existingSelections.Items || [])) {
+        existingByInstance.set(String(item.instanceId || item.selection_id), item);
+      }
+
+      // Build desired set keyed by instanceId
+      const desiredByInstance = new Map<string, any>();
+      selectedImages.forEach((sel, index) => {
+        const selectionId = String(sel.instanceId || sel.id || `${Date.now()}-${index}`);
+        desiredByInstance.set(selectionId, {
+          user_id: userId,
+          selection_id: selectionId,
+          imageId: String(sel.id || ''),
+          instanceId: selectionId,
+          fileName: String(sel.fileName || 'unknown'),
+          created_at: new Date().toISOString()
+        });
+      });
+
+      // Compute diffs
+      const toDelete: any[] = [];
+      const toPut: any[] = [];
+
+      // Items to delete: in existing but not desired
+      for (const [instId, item] of existingByInstance.entries()) {
+        if (!desiredByInstance.has(instId)) {
+          toDelete.push({
+            DeleteRequest: { Key: { user_id: item.user_id, selection_id: item.selection_id } }
           });
-          await docClient.send(batchDeleteCommand);
         }
       }
-      
-      // Add new selections using batch operations
-      if (selectedImages.length > 0) {
-        // Validate and prepare items with proper error handling
-        const putRequests = selectedImages
-          .filter(selection => {
-            // Validate required fields
-            if (!selection.instanceId && !selection.id) {
-              console.warn('⚠️ Skipping selection without instanceId or id:', selection);
-              return false;
-            }
-            return true;
-          })
-          .map((selection, index) => {
-            // Ensure selection_id is always unique and valid
-            const selectionId = selection.instanceId || selection.id || `${Date.now()}-${index}`;
-            
-            // Ensure all required fields are present and valid
-            const item = {
-              user_id: userId,
-              selection_id: String(selectionId), // Ensure it's a string
-              imageId: String(selection.id || ''), // Ensure it's a string
-              instanceId: String(selection.instanceId || selection.id || ''), // Ensure it's a string
-              fileName: String(selection.fileName || 'unknown'), // Ensure it's a string
-              created_at: new Date().toISOString()
-            };
-            
-            // Validate item before adding
-            if (!item.selection_id || !item.imageId) {
-              console.error('❌ Invalid item data:', item);
-              throw new Error(`Invalid selection data: missing selection_id or imageId`);
-            }
-            
-            return {
-              PutRequest: {
-                Item: item
-              }
-            };
-          });
-        
-        if (putRequests.length === 0) {
-          console.warn('⚠️ No valid selections to save after filtering');
-          return;
+
+      // Items to put: in desired but not existing (or changed imageId/fileName)
+      for (const [instId, desired] of desiredByInstance.entries()) {
+        const existing = existingByInstance.get(instId);
+        if (!existing || existing.imageId !== desired.imageId || existing.fileName !== desired.fileName) {
+          toPut.push({ PutRequest: { Item: desired } });
         }
-        
-        console.log(`📦 Preparing to save ${putRequests.length} selected images to AWS`);
-        
-        // Add in batches of 25 (DynamoDB limit)
-        for (let i = 0; i < putRequests.length; i += 25) {
-          const batch = putRequests.slice(i, i + 25);
-          try {
-            const batchWriteCommand = new BatchWriteCommand({
-              RequestItems: {
-                'mvp-labeler-selected-images': batch
-              }
-            });
-            
-            console.log(`💾 Saving batch ${Math.floor(i / 25) + 1} (${batch.length} items)...`);
-            const result = await docClient.send(batchWriteCommand);
-            
-            // Handle unprocessed items (DynamoDB may not process all items in a batch)
-            if (result.UnprocessedItems && Object.keys(result.UnprocessedItems).length > 0) {
-              console.warn('⚠️ Unprocessed items detected, retrying...', result.UnprocessedItems);
-              // Retry unprocessed items after a short delay
-              await new Promise(resolve => setTimeout(resolve, 100));
-              const retryCommand = new BatchWriteCommand({
-                RequestItems: result.UnprocessedItems
+      }
+
+      console.log(`📦 updateSelectedImages diffs: put=${toPut.length}, delete=${toDelete.length}`);
+
+      // Helper: batch write with backoff and unprocessed retry
+      const sendBatches = async (requests: any[]) => {
+        for (let i = 0; i < requests.length; i += 25) {
+          const batch = requests.slice(i, i + 25);
+          let attempt = 0;
+          const maxAttempts = 5;
+          let delay = 200; // ms
+          // eslint-disable-next-line no-constant-condition
+          while (true) {
+            try {
+              const cmd = new BatchWriteCommand({
+                RequestItems: { 'mvp-labeler-selected-images': batch }
               });
-              await docClient.send(retryCommand);
-              console.log('✅ Retry completed for unprocessed items');
+              const res = await docClient.send(cmd);
+              if (res.UnprocessedItems && Object.keys(res.UnprocessedItems).length > 0) {
+                const retryItems = res.UnprocessedItems['mvp-labeler-selected-images'] || [];
+                if (retryItems.length === 0) break;
+                await new Promise(r => setTimeout(r, delay));
+                delay = Math.min(delay * 2, 2000);
+                // replace batch with unprocessed
+                batch.length = 0;
+                retryItems.forEach((ri: any) => batch.push(ri));
+                continue;
+              }
+              break; // success
+            } catch (e: any) {
+              attempt += 1;
+              const retriable = e?.name === 'ProvisionedThroughputExceededException' || e?.$metadata?.httpStatusCode === 400;
+              if (attempt >= maxAttempts || !retriable) throw e;
+              await new Promise(r => setTimeout(r, delay));
+              delay = Math.min(delay * 2, 2000);
             }
-            
-            console.log(`✅ Batch ${Math.floor(i / 25) + 1} saved successfully`);
-          } catch (batchError: any) {
-            console.error(`❌ Error saving batch ${Math.floor(i / 25) + 1}:`, batchError);
-            console.error('Batch data:', JSON.stringify(batch, null, 2));
-            // Log more details about the error
-            if (batchError.$metadata) {
-              console.error('Error metadata:', batchError.$metadata);
-            }
-            if (batchError.message) {
-              console.error('Error message:', batchError.message);
-            }
-            // Don't throw immediately - try to save remaining batches
-            // But log the error so we can investigate
-            throw batchError;
           }
         }
-        
-        console.log(`✅ Successfully saved ${putRequests.length} selected images to AWS`);
-      }
+      };
+
+      if (toDelete.length > 0) await sendBatches(toDelete);
+      if (toPut.length > 0) await sendBatches(toPut);
+
+      console.log('✅ updateSelectedImages completed');
     } catch (error) {
       console.error('Error updating selected images:', error);
       throw error;

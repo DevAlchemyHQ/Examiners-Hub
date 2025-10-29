@@ -119,6 +119,46 @@ class MinimalCrossBrowserSync {
           console.log('⚠️ Ignoring older form data update');
         }
       }
+      
+      if (type === 'sortPreferenceUpdate') {
+        console.log('🔄 Cross-tab sort preference update received:', data);
+        const currentState = useMetadataStore.getState();
+        const incomingTimestamp = data.timestamp || 0;
+        const lastSortChange = currentState.sessionState?.lastSortChangeTime || 0;
+        
+        // Only update if incoming data is newer (within last 30 seconds to avoid stale updates)
+        const now = Date.now();
+        const isRecent = (now - incomingTimestamp) < 30000; // 30 seconds
+        const isNewer = incomingTimestamp > lastSortChange;
+        
+        if (isRecent && isNewer) {
+          console.log('✅ Updating sort preferences from other tab/browser');
+          useMetadataStore.setState({
+            defectSortDirection: data.defectSortDirection ?? currentState.defectSortDirection,
+            sketchSortDirection: data.sketchSortDirection ?? currentState.sketchSortDirection,
+            sessionState: {
+              ...currentState.sessionState,
+              sortPreferences: {
+                defectSortDirection: data.defectSortDirection ?? currentState.defectSortDirection,
+                sketchSortDirection: data.sketchSortDirection ?? currentState.sketchSortDirection
+              },
+              lastSortChangeTime: incomingTimestamp
+            }
+          });
+          
+          // Show toast notification
+          if (typeof toast !== 'undefined') {
+            toast.success('Sort preferences synced from another browser');
+          }
+        } else {
+          console.log('⚠️ Ignoring sort preference update (stale or older):', { 
+            isRecent, 
+            isNewer, 
+            incomingTimestamp, 
+            lastSortChange 
+          });
+        }
+      }
     };
     
     // Listen to localStorage changes for same-browser sync
@@ -246,7 +286,7 @@ const INSTANCE_METADATA_DEBOUNCE_MS = 3000; // 3 seconds debounce for typing
 
 // Debouncing for selected images saves to prevent DynamoDB throttling
 let selectedImagesSaveTimeout: NodeJS.Timeout | null = null;
-const SELECTED_IMAGES_DEBOUNCE_MS = 2000; // 2 seconds debounce for selected images
+const SELECTED_IMAGES_DEBOUNCE_MS = 5000; // 5 seconds debounce for selected images (increased to prevent DynamoDB throughput errors)
 const DELETION_DEBOUNCE_MS = 500; // Short 500ms debounce for deletions (batches multiple deletions)
 
 // We need to separate the state interface from the actions
@@ -1444,22 +1484,8 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
               }
             }
             
-            // Also send full state (legacy - for backward compatibility during migration)
-            console.log('💾 Debounced save - saving selected images to AWS (legacy) for user:', user.email);
-              
-              // Send complete instance information to AWS
-              const selectedWithInstanceIds = newSelected.map(item => {
-                const image = state.images.find(img => img.id === item.id);
-                return {
-                  id: item.id, // Keep the original image ID
-                  instanceId: item.instanceId, // Keep the instance ID
-                  fileName: image?.fileName || image?.file?.name || 'unknown'
-                };
-              });
-              
-            console.log('📦 Data being sent to AWS (legacy):', selectedWithInstanceIds);
-              await DatabaseService.updateSelectedImages(user.email, selectedWithInstanceIds);
-              console.log('✅ Selected images auto-saved to AWS for user:', user.email);
+            // Legacy full-state save disabled to reduce write volume and avoid throttling
+            console.log('💾 Skipping legacy selected images save (operations cover persistence)');
             } else {
               console.warn('⚠️ No user email found for AWS auto-save');
             }
@@ -1833,6 +1859,19 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           console.error('❌ Error immediately saving sort preferences to AWS:', error);
         }
       }
+      
+      // BROADCAST: Send sort preference change to other tabs/browsers via BroadcastChannel
+      try {
+        const currentState = get();
+        minimalSync.broadcast('sortPreferenceUpdate', {
+          defectSortDirection: direction,
+          sketchSortDirection: currentState.sketchSortDirection,
+          timestamp: Date.now()
+        });
+        console.log('📡 Sort preferences broadcasted to other tabs/browsers');
+      } catch (broadcastError) {
+        console.warn('⚠️ Error broadcasting sort preferences:', broadcastError);
+      }
     }, 100);
   },
 
@@ -1936,6 +1975,19 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         } catch (error) {
           console.error('❌ Error immediately saving sort preferences to AWS:', error);
         }
+      }
+      
+      // BROADCAST: Send sort preference change to other tabs/browsers via BroadcastChannel (sketch)
+      try {
+        const currentState = get();
+        minimalSync.broadcast('sortPreferenceUpdate', {
+          defectSortDirection: currentState.defectSortDirection,
+          sketchSortDirection: direction,
+          timestamp: Date.now()
+        });
+        console.log('📡 Sort preferences broadcasted to other tabs/browsers (sketch)');
+      } catch (broadcastError) {
+        console.warn('⚠️ Error broadcasting sort preferences:', broadcastError);
       }
     }, 100);
   },

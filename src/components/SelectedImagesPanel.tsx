@@ -70,8 +70,7 @@ async function autoSaveDefectSet(formData: any, bulkDefects: any[], selectedImag
           id: img.id,
           fileName: img.fileName || img.file?.name || '',
           photoNumber: img.photoNumber,
-          description: img.description,
-          isSketch: img.isSketch
+          description: img.description
         })),
       // Add instance metadata for proper restoration
       instanceMetadata: instanceMetadata
@@ -219,36 +218,7 @@ async function deleteDefectSet(id: string) {
 
 type ViewMode = 'images' | 'bulk';
 
-const SortButton: React.FC<{
-  direction: 'asc' | 'desc' | null;
-  onChange: (direction: 'asc' | 'desc' | null) => void;
-}> = ({ direction, onChange }) => (
-  <button
-    onClick={() => onChange(
-      direction === null ? 'asc' : 
-      direction === 'asc' ? 'desc' : 
-      null
-    )}
-    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-colors ${
-      direction 
-        ? 'bg-indigo-500 text-white' 
-        : 'text-slate-600 hover:bg-slate-100 dark:text-gray-300 dark:hover:bg-gray-700'
-    }`}
-    title={direction === null ? 'Enable sorting' : 'Change sort order'}
-  >
-    <ArrowUpDown 
-      size={16} 
-      className={`transition-transform ${
-        direction === 'desc' ? 'rotate-180' : ''
-      }`}
-    />
-    {direction && (
-      <span className="text-sm">
-        {direction === 'asc' ? 'Lowest to Highest' : 'Highest to Lowest'}
-      </span>
-    )}
-  </button>
-);
+// Removed sketch SortButton - only defect sort is supported
 
 interface SelectedImagesPanelProps {
   onExpand: () => void;
@@ -283,9 +253,7 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
     updateInstanceMetadata,
     clearSelectedImages,
     defectSortDirection,
-    sketchSortDirection,
     setDefectSortDirection,
-    setSketchSortDirection,
     viewMode,
     setViewMode,
     bulkDefects,
@@ -538,8 +506,7 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
             id: img.id,
             fileName: img.fileName || img.file?.name || '',
             photoNumber: img.photoNumber,
-            description: img.description,
-            isSketch: img.isSketch
+            description: img.description
           })),
         // Add instance metadata for proper restoration
         instanceMetadata: instanceMetadata
@@ -719,7 +686,10 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
   };
 
   const sortImages = (images: ImageMetadata[], direction: 'asc' | 'desc' | null) => {
-    if (!direction) return images;
+    if (!direction) {
+      // NO SORTER: Maintain insertion order (items stay where they were added - at end)
+      return images;
+    }
 
     // Sort based on photo numbers with special handling for items without numbers
     return [...images].sort((a, b) => {
@@ -737,15 +707,18 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
       
       // If one has a number and one doesn't:
       // - In ASCENDING: items without numbers go to end (after numbered items)
-      // - In DESCENDING: items without numbers go to start (before numbered items)
+      // - In DESCENDING: items without numbers go to end (after numbered items - they stay together at end)
+      // CRITICAL FIX: When changing sorters, items without numbers should STAY AT END, not move to middle
       if (aNum === null && bNum !== null) {
         // 'a' has no number, 'b' has number
-        return direction === 'asc' ? 1 : -1;
+        // Always put items without numbers at the end (regardless of sort direction)
+        return 1;
       }
       
       if (aNum !== null && bNum === null) {
         // 'a' has number, 'b' has no number
-        return direction === 'asc' ? -1 : 1;
+        // Always put items without numbers at the end (regardless of sort direction)
+        return -1;
       }
       
       // Both have numbers, sort them numerically
@@ -757,19 +730,14 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
   };
 
   const defectImages = sortImages(
-    selectedImagesList.filter(img => !img.isSketch),
+    selectedImagesList,
     defectSortDirection
-  );
-
-  const sketchImages = sortImages(
-    selectedImagesList.filter(img => img.isSketch),
-    sketchSortDirection
   );
   
   // Debug logging to track sorting (use useEffect to avoid React render issues)
   useEffect(() => {
     if (defectImages.length > 0) {
-      const beforeSort = selectedImagesList.filter(img => !img.isSketch);
+      const beforeSort = selectedImagesList;
       console.log('🔍 [SORT] Before sort:', beforeSort.map(img => {
         const photoNum = getImageNumber(img);
         return `${img.fileName || 'no-name'}: ${photoNum || '#'}`;
@@ -783,8 +751,7 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
   }, [defectImages, defectSortDirection, selectedImagesList]);
 
   const renderDescriptionField = (img: ImageMetadata) => {
-    if (img.isSketch) return null;
-
+     
     const { isValid, hasForwardSlashes } = validateDescription(img.description || '');
 
     return (
@@ -946,9 +913,9 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
     
     // Check image instances
     if (viewMode === 'images' && selectedImages.length > 0) {
-      const missingPhotoNumbers = [];
-      const missingDescriptions = [];
-      const invalidDescriptions = [];
+      const missingPhotoNumbers: number[] = [];
+      const missingDescriptions: number[] = [];
+      const invalidDescriptions: { instance: number; invalidChars: string[] }[] = [];
       
       selectedImages.forEach((item, index) => {
         const instanceId = item.instanceId;
@@ -1250,66 +1217,6 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
                 minHeight: 'min-content'
               }}
             >
-              {/* Sketches Section */}
-              {sketchImages.length > 0 && (
-                <>
-                  <div className="col-span-full flex items-center justify-between py-2">
-                    <h4 className="text-sm font-medium text-slate-500 dark:text-gray-400">
-                      SKETCHES ({sketchImages.length})
-                    </h4>
-                    <div className="flex items-center gap-2">
-                      <SortButton
-                        direction={sketchSortDirection}
-                        onChange={setSketchSortDirection}
-                      />
-                    </div>
-                  </div>
-                  {sketchImages.map((img, index) => (
-                    <div key={img.instanceId || img.id} className={`relative flex flex-col bg-slate-50 dark:bg-gray-700 rounded-lg overflow-hidden group ${
-                      isTileIncomplete(img) ? 'bg-amber-50/30 dark:bg-amber-900/20' : ''
-                    }`}>
-                      <div className="aspect-square w-full">
-                        <img
-                          src={img.preview}
-                          alt={img.fileName || img.file?.name || 'Image'}
-                          className="w-full h-full object-cover cursor-pointer hover:opacity-95 transition-opacity select-none"
-                          onClick={(e) => handleImageEnlarge(index, e)}
-                          draggable="false"
-                          style={{ width: '100%', height: '100%' }}
-                        />
-                      </div>
-                      <button
-                        onClick={() => handleInstanceDeletion(img.instanceId)}
-                        className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-all duration-200 shadow-sm z-10 border border-white opacity-0 group-hover:opacity-100"
-                        style={{ transform: 'translate(0, 0)' }}
-                      >
-                        <X size={10} />
-                      </button>
-                      
-                      <div className="p-1.5">
-                        <div className="text-xs text-slate-500 dark:text-gray-400 truncate mb-1 min-h-[1rem]">
-                          {img.fileName || img.file?.name || 'Unknown file'}
-                        </div>
-                        <input
-                          type="number"
-                          value={getImageNumber(img)}
-                          onChange={(e) => {
-                            if (img.instanceId) {
-                              updateInstanceMetadata(img.instanceId, { photoNumber: e.target.value });
-                            } else {
-                              updateImageMetadata(img.id, { photoNumber: e.target.value });
-                            }
-                          }}
-                          className="w-full p-1 text-sm border rounded focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white dark:bg-gray-800 text-slate-900 dark:text-white border-slate-200 dark:border-gray-600"
-                          placeholder="Sketch #"
-                        />
-
-                      </div>
-                    </div>
-                  ))}
-                </>
-              )}
-
               {/* Defects Section */}
               {defectImages.length > 0 && (
                 <>
@@ -1333,7 +1240,7 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
                         />
                       </div>
                       <button
-                        onClick={() => handleInstanceDeletion(img.instanceId)}
+                        onClick={() => handleInstanceDeletion(img.instanceId as string)}
                         className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-all duration-200 shadow-sm z-10 border border-white opacity-0 group-hover:opacity-100"
                         style={{ transform: 'translate(0, 0)' }}
                       >
@@ -1360,7 +1267,7 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
                             />
                           </div>
 
-                          {!img.isSketch && (
+                          {
                             <div className="space-y-1">
                               <textarea
                                 value={getImageDescription(img)}
@@ -1400,7 +1307,7 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
                                 ) : null;
                               })()}
                             </div>
-                          )}
+                          }
                         </div>
                       </div>
                     </div>
