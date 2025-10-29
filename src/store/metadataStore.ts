@@ -2640,14 +2640,28 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         // ✅ CRITICAL: Check both root formData and sessionState.formData (fallback)
         // Priority: 1) project.formData (root level - most recent from forceAWSSave)
         //          2) project.sessionState.formData (fallback if root level missing)
-        const awsFormData = project.formData || project.sessionState?.formData || null;
+        // ✅ CRITICAL FIX: Check if formData exists AND has actual values
+        // Empty objects {} or {date:"", elr:"", structureNo:""} should be treated as null
+        const rootFormData = project.formData;
+        const sessionFormData = project.sessionState?.formData;
+        
+        // Check if formData has actual values (not just empty strings)
+        const rootHasValues = rootFormData && (!!rootFormData.elr?.trim() || !!rootFormData.structureNo?.trim());
+        const sessionHasValues = sessionFormData && (!!sessionFormData.elr?.trim() || !!sessionFormData.structureNo?.trim());
+        
+        // Use root if it has values, otherwise try sessionState, otherwise null
+        const awsFormData = rootHasValues ? rootFormData : (sessionHasValues ? sessionFormData : null);
         
         console.log('🔍 AWS formData check:', {
-          hasRootFormData: !!project.formData,
-          hasSessionFormData: !!project.sessionState?.formData,
-          rootFormData: project.formData,
-          sessionFormData: project.sessionState?.formData,
-          awsFormData
+          hasRootFormData: !!rootFormData,
+          hasSessionFormData: !!sessionFormData,
+          rootFormData: rootFormData,
+          sessionFormData: sessionFormData,
+          rootHasValues,
+          sessionHasValues,
+          awsFormData,
+          awsFormDataElr: awsFormData?.elr,
+          awsFormDataStructureNo: awsFormData?.structureNo
         });
         
         if (awsFormData) {
@@ -2736,13 +2750,20 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             console.log('✅ Local and AWS data match - using local');
           }
         } else {
-          // No formData in AWS, try localStorage
+          // No formData with values in AWS
+          console.log('⚠️ No formData with values found in AWS (both root and sessionState are empty or have no values)');
+          
+          // Try localStorage as fallback
           try {
             const keys = getProjectStorageKeys(userId, 'current');
             const localFormData = loadVersionedData(keys.formData);
-            if (localFormData) {
+            const localHasValues = localFormData && (!!localFormData.elr?.trim() || !!localFormData.structureNo?.trim());
+            
+            if (localFormData && localHasValues) {
               set({ formData: localFormData as FormData });
-              console.log('✅ Form data loaded from localStorage (no AWS data)');
+              console.log('✅ Form data loaded from localStorage (no AWS data with values)');
+            } else {
+              console.log('⚠️ No formData with values in localStorage either');
             }
           } catch (error) {
             console.warn('⚠️ Error loading formData from localStorage:', error);
