@@ -44,19 +44,10 @@ const MainApp = () => {
           
           console.log('🔄 Loading user data for authenticated user...');
           
-          // CRITICAL: Wait for page to be fully rendered before loading data
-          // This ensures no movement during refresh - data only appears after refresh completes
-          // Wait for next animation frame to ensure DOM is stable
-          await new Promise(resolve => {
-            requestAnimationFrame(() => {
-              requestAnimationFrame(() => {
-                resolve(undefined);
-              });
-            });
-          });
-          
           // INSTANT DISPLAY: Load localStorage first for immediate UI (no flicker)
-          console.log('📱 Loading data from localStorage first (instant display, no flicker)...');
+          // NOTE: Critical data (selectedImages, formData) already loaded synchronously in store initialization
+          // This just loads remaining data (images from S3, etc.)
+          console.log('📱 Loading remaining data from localStorage/S3 (no flicker - critical data already loaded)...');
           await loadUserData();
           console.log('✅ User data loaded from localStorage (instant display)');
           

@@ -246,6 +246,44 @@ const initialFormData: FormData = {
   date: '',
 };
 
+// CRITICAL: Load localStorage data SYNCHRONOUSLY before store initializes
+// This prevents the empty state (no images icon) from showing during refresh
+const getInitialStateFromLocalStorage = (): Partial<MetadataStateOnly> => {
+  try {
+    const storedUser = localStorage.getItem('user');
+    const user = storedUser ? JSON.parse(storedUser) : null;
+    const userId = user?.email || localStorage.getItem('userEmail') || 'anonymous';
+    
+    if (userId === 'anonymous') {
+      return {}; // Return empty - no data for anonymous users
+    }
+    
+    const projectKeys = getAllProjectStorageKeys(userId, 'current');
+    
+    // Load critical data synchronously (no async, no promises)
+    const formData = loadVersionedData(projectKeys.formData) || initialFormData;
+    const selectedImages = loadVersionedData(projectKeys.selections) || [];
+    const instanceMetadata = loadVersionedData(projectKeys.instanceMetadata) || {};
+    
+    console.log('⚡ [SYNC INIT] Loaded from localStorage:', {
+      formData: !!formData,
+      selectedImagesCount: selectedImages?.length || 0,
+      instanceMetadataCount: Object.keys(instanceMetadata || {}).length
+    });
+    
+    return {
+      formData: formData as FormData,
+      selectedImages: selectedImages as Array<{ id: string; instanceId: string; fileName?: string }>,
+      instanceMetadata: instanceMetadata as Record<string, { photoNumber?: string; description?: string; lastModified?: number }>
+    };
+  } catch (error) {
+    console.warn('⚠️ Error loading initial state from localStorage:', error);
+    return {};
+  }
+};
+
+const initialDataFromStorage = getInitialStateFromLocalStorage();
+
 // Add proper interfaces for deleted defects tracking
 interface DeletedDefect {
   defect: BulkDefect;
@@ -558,9 +596,11 @@ const migrateSelectedImageIds = (
 
 const initialState: MetadataStateOnly = {
   images: [],
-  selectedImages: [],
-      bulkSelectedImages: [],
-  formData: initialFormData,
+  // CRITICAL: Load selectedImages from localStorage synchronously to prevent empty state flicker
+  selectedImages: (initialDataFromStorage.selectedImages || []) as Array<{ id: string; instanceId: string; fileName?: string }>,
+  bulkSelectedImages: [],
+  // CRITICAL: Load formData from localStorage synchronously to prevent empty form flicker
+  formData: (initialDataFromStorage.formData || initialFormData) as FormData,
   defectSortDirection: null,
   sketchSortDirection: null,
   bulkDefects: [],
@@ -569,7 +609,8 @@ const initialState: MetadataStateOnly = {
   isLoading: false,
   isInitialized: false,
   isSortingEnabled: true,
-  instanceMetadata: {},
+  // CRITICAL: Load instanceMetadata from localStorage synchronously
+  instanceMetadata: (initialDataFromStorage.instanceMetadata || {}) as Record<string, { photoNumber?: string; description?: string; lastModified?: number }>,
   // Initialize session state
   sessionState: {
     lastActiveTab: 'images',
@@ -583,7 +624,8 @@ const initialState: MetadataStateOnly = {
       imageGrid: 0,
       selectedPanel: 0,
     },
-    formData: initialFormData, // Include formData in session state
+    // Use loaded formData if available
+    formData: (initialDataFromStorage.formData || initialFormData) as FormData,
   },
   // Operation Queue System (Phase 1)
   operationQueue: [],
