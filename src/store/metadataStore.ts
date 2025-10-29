@@ -366,7 +366,13 @@ const forceAWSSave = async (sessionState: any, fullFormData?: any) => {
       // ✅ Always send COMPLETE formData to prevent data loss
       const formDataToSave = fullFormData || sessionState.formData || {};
       
-      console.log('☁️ [IMMEDIATE] Saving complete formData:', formDataToSave);
+      console.log('☁️ [IMMEDIATE] Saving complete formData:', {
+        formDataToSave: JSON.stringify(formDataToSave),
+        elr: formDataToSave?.elr,
+        structureNo: formDataToSave?.structureNo,
+        date: formDataToSave?.date,
+        hasValues: !!(formDataToSave?.elr?.trim()) || !!(formDataToSave?.structureNo?.trim())
+      });
       
       await DatabaseService.updateProject(user.email, 'current', { 
         formData: formDataToSave, // ✅ Always send complete formData
@@ -2668,13 +2674,15 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           const awsHasValues = !!(awsFormData as any)?.elr?.trim() || !!(awsFormData as any)?.structureNo?.trim();
           
           console.log('🔍 Form data sync check:', {
-            localFormData,
-            awsFormData,
+            localFormData: JSON.stringify(localFormData),
+            awsFormData: JSON.stringify(awsFormData),
             localHasValues,
             awsHasValues,
             dataIsDifferent,
-            localStr: localDataStr.substring(0, 100),
-            awsStr: awsDataStr.substring(0, 100)
+            localElr: (localFormData as any)?.elr,
+            localStructureNo: (localFormData as any)?.structureNo,
+            awsElr: (awsFormData as any)?.elr,
+            awsStructureNo: (awsFormData as any)?.structureNo
           });
           
           // Use AWS data if:
