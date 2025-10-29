@@ -3280,9 +3280,26 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             rebuiltState = applyOperation(rebuiltState, op, browserId);
           }
           
-          // Merge rebuilt state into batched updates (includes formData from operations)
-          Object.assign(batchedUpdates, rebuiltState);
-          hasUpdates = true;
+          // Only merge changed fields from rebuilt state to prevent unnecessary re-renders
+          // Compare each field and only add to batchedUpdates if it actually changed
+          const fieldsToUpdate: (keyof MetadataStateOnly)[] = [
+            'formData', 
+            'selectedImages', 
+            'instanceMetadata', 
+            'defectSortDirection', 
+            'sketchSortDirection',
+            'sessionState'
+          ];
+          
+          for (const field of fieldsToUpdate) {
+            const rebuiltValue = rebuiltState[field];
+            const currentValue = currentState[field];
+            
+            if (JSON.stringify(rebuiltValue) !== JSON.stringify(currentValue)) {
+              (batchedUpdates as any)[field] = rebuiltValue;
+              hasUpdates = true;
+            }
+          }
           
           // Save formData to localStorage if it was updated by operations
           if (formDataOperations.length > 0) {
