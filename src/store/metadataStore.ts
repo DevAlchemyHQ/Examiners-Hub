@@ -2921,17 +2921,33 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             console.log('⚠️ Migration failed, preserving existing selections');
           }
         } else {
-          // AWS returned empty array - preserve local selections if they exist (don't clear)
-          const currentSelections = get().selectedImages;
-          if (currentSelections && currentSelections.length > 0) {
-            console.log('⚠️ AWS returned empty array - preserving local selections:', currentSelections.length);
-            // Keep existing selections - don't clear them
-            // This prevents losing selections on refresh if AWS hasn't synced yet
+          // AWS returned empty array - check localStorage directly (may have data even if store is empty)
+          const keys = getProjectStorageKeys(userId, 'current');
+          const localSelections = loadVersionedData(keys.selections);
+          const hasLocalSelections = localSelections && Array.isArray(localSelections) && localSelections.length > 0;
+          
+          if (hasLocalSelections) {
+            console.log('⚠️ AWS returned empty array - preserving localStorage selections:', localSelections.length);
+            // Restore selections from localStorage - AWS sync hasn't happened yet
+            const currentImages = get().images;
+            if (currentImages && currentImages.length > 0) {
+              const migratedSelections = migrateSelectedImageIds(localSelections as any[], currentImages);
+              if (migratedSelections.length > 0) {
+                set({ selectedImages: migratedSelections });
+                console.log('✅ Restored selections from localStorage:', migratedSelections.length);
+              } else {
+                console.log('⚠️ Migration failed, preserving original localStorage selections');
+                set({ selectedImages: localSelections as any[] });
+              }
+            } else {
+              // Images not loaded yet, preserve selections temporarily
+              set({ selectedImages: localSelections as any[] });
+              console.log('✅ Preserved localStorage selections (images loading):', localSelections.length);
+            }
           } else {
-            console.log('⚠️ AWS returned empty array and no local selections - clearing state');
+            console.log('⚠️ AWS returned empty array and no localStorage selections - clearing state');
             set({ selectedImages: [] });
-            // Clear from localStorage only if we have no local selections
-            const keys = getProjectStorageKeys(userId, 'current');
+            // Clear from localStorage only if we truly have no selections
             saveVersionedData(keys.selections, projectId, userId, []);
           }
         }
