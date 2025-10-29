@@ -1657,9 +1657,13 @@ export class DatabaseService {
       // Query operations table where timestamp > sinceVersion
       // Note: This requires a GSI on timestamp, or we use Scan with FilterExpression
       // For now, we'll use Scan with FilterExpression (less efficient but works without GSI)
+      // CRITICAL: 'timestamp' is a reserved keyword in DynamoDB, must use ExpressionAttributeNames
       const scanCommand = new ScanCommand({
         TableName: 'mvp-labeler-operations',
-        FilterExpression: 'user_id = :userId AND timestamp > :since',
+        FilterExpression: 'user_id = :userId AND #timestamp > :since',
+        ExpressionAttributeNames: {
+          '#timestamp': 'timestamp',
+        },
         ExpressionAttributeValues: {
           ':userId': userId,
           ':since': sinceVersion,
