@@ -612,14 +612,21 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             return;
           }
           
-          console.log('☁️ Force saving form data to AWS...');
+          console.log('☁️ [setFormData] Force saving form data to AWS...', {
+            newFormData: JSON.stringify(newFormData),
+            elr: newFormData.elr,
+            structureNo: newFormData.structureNo,
+            date: newFormData.date,
+            hasValues: !!(newFormData.elr?.trim()) || !!(newFormData.structureNo?.trim())
+          });
           
           // Use forceAWSSave for immediate sync with COMPLETE formData
           await forceAWSSave(updatedSessionState, newFormData);
           
-          console.log('✅ Form data force saved to AWS');
+          console.log('✅ [setFormData] Form data force saved to AWS successfully');
         } catch (error) {
-          console.error('❌ Error in form data force save:', error);
+          console.error('❌ [setFormData] Error in form data force save:', error);
+          console.error('❌ [setFormData] Error stack:', error instanceof Error ? error.stack : 'No stack trace');
           
           // Show toast notification for errors
           try {
@@ -2681,8 +2688,10 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             dataIsDifferent,
             localElr: (localFormData as any)?.elr,
             localStructureNo: (localFormData as any)?.structureNo,
+            localDate: (localFormData as any)?.date,
             awsElr: (awsFormData as any)?.elr,
-            awsStructureNo: (awsFormData as any)?.structureNo
+            awsStructureNo: (awsFormData as any)?.structureNo,
+            awsDate: (awsFormData as any)?.date
           });
           
           // Use AWS data if:
@@ -2691,13 +2700,27 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           const shouldUseAWS = (awsHasValues && (!localHasValues || dataIsDifferent)) || 
                                (!localHasValues && !awsHasValues && dataIsDifferent);
           
+          console.log('🔍 Form data sync decision:', {
+            shouldUseAWS,
+            reason: awsHasValues && !localHasValues 
+              ? 'AWS has values, local is empty' 
+              : awsHasValues && dataIsDifferent 
+              ? 'AWS has values and differs from local' 
+              : !localHasValues && !awsHasValues && dataIsDifferent
+              ? 'Both empty but different - using AWS for consistency'
+              : 'Keeping local (already matches or local has values)'
+          });
+          
           if (shouldUseAWS) {
             console.log('🔄 Loading AWS data for cross-browser sync', { 
               localHasValues,
               awsHasValues,
               dataIsDifferent,
-              local: localFormData,
-              aws: awsFormData
+              local: JSON.stringify(localFormData),
+              aws: JSON.stringify(awsFormData),
+              awsElr: (awsFormData as any)?.elr,
+              awsStructureNo: (awsFormData as any)?.structureNo,
+              awsDate: (awsFormData as any)?.date
             });
             set({ formData: awsFormData as FormData });
             
@@ -2705,7 +2728,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             const keys = getProjectStorageKeys(userId, 'current');
             const projectId = generateStableProjectId(userId, 'current');
             saveVersionedData(keys.formData, projectId, userId, awsFormData);
-            console.log('✅ Cross-browser sync complete - localStorage updated');
+            console.log('✅ Cross-browser sync complete - localStorage updated with AWS data');
           } else if (localHasValues && !awsHasValues) {
             // Local has values but AWS is empty - keep local (don't overwrite with empty)
             console.log('⏸️ Keeping local form data - AWS has empty values');
