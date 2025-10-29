@@ -2715,15 +2715,23 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           // 
           // Key difference from selected images: When both have values but differ, we use AWS (Browser C's changes win)
           // This ensures cross-browser sync works in both directions
+          // ✅ CRITICAL FIX: Simplify logic - if AWS has values AND differs, always use AWS
+          // This ensures Browser C's changes always sync to Browser A/B
           const shouldUseAWS = 
-            // Case 1: AWS has values, local is empty - use AWS
-            (awsHasValues && !localHasValues) ||
-            // Case 2: Both have values but AWS is different - use AWS (cross-browser sync)
-            (awsHasValues && localHasValues && dataIsDifferent) ||
-            // Case 3: AWS has values and differs from local (general case)
+            // Case 1: AWS has values and differs from local - ALWAYS use AWS (cross-browser sync)
             (awsHasValues && dataIsDifferent) ||
-            // Case 4: Both empty but different - use AWS for consistency
+            // Case 2: AWS has values, local is empty - use AWS
+            (awsHasValues && !localHasValues) ||
+            // Case 3: Both empty but different - use AWS for consistency
             (!localHasValues && !awsHasValues && dataIsDifferent);
+          
+          // Debug: Log each condition separately
+          console.log('🔍 Form data sync conditions:', {
+            condition1_awsHasValuesAndDiffers: awsHasValues && dataIsDifferent,
+            condition2_awsHasValuesLocalEmpty: awsHasValues && !localHasValues,
+            condition3_bothEmptyButDiffers: !localHasValues && !awsHasValues && dataIsDifferent,
+            finalDecision: shouldUseAWS
+          });
           
           console.log('🔍 Form data sync decision:', {
             shouldUseAWS,
