@@ -1276,29 +1276,29 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       };
       operationQueue.push(operation);
       console.log('📝 [OPERATION] Added ADD_SELECTION operation to queue:', operation.id);
-      
-      // Auto-save selections to localStorage immediately with filenames for cross-session matching (but not during clearing)
-      try {
-        // Check if project is being cleared
-        const projectStore = useProjectStore.getState();
-        if (!projectStore.isClearing) {
-          // Map to include fileName for each selected item
-          const selectedWithFilenames = newSelected.map(item => ({
-            id: item.id,
-            instanceId: item.instanceId,
-            fileName: item.fileName || 'unknown'
-          }));
-          const keys = getProjectStorageKeys(userId, 'current');
-          const projectId = generateStableProjectId(userId, 'current');
-          saveVersionedData(keys.selections, projectId, userId, selectedWithFilenames);
-          console.log('📱 Selected images saved to localStorage (versioned):', selectedWithFilenames);
-        } else {
-          console.log('⏸️ Skipping localStorage save during project clear');
+        
+        // Auto-save selections to localStorage immediately with filenames for cross-session matching (but not during clearing)
+        try {
+          // Check if project is being cleared
+          const projectStore = useProjectStore.getState();
+          if (!projectStore.isClearing) {
+            // Map to include fileName for each selected item
+            const selectedWithFilenames = newSelected.map(item => ({
+              id: item.id,
+              instanceId: item.instanceId,
+              fileName: item.fileName || 'unknown'
+            }));
+            const keys = getProjectStorageKeys(userId, 'current');
+            const projectId = generateStableProjectId(userId, 'current');
+            saveVersionedData(keys.selections, projectId, userId, selectedWithFilenames);
+            console.log('📱 Selected images saved to localStorage (versioned):', selectedWithFilenames);
+          } else {
+            console.log('⏸️ Skipping localStorage save during project clear');
+          }
+        } catch (error) {
+          console.error('❌ Error saving selected images to localStorage:', error);
         }
-      } catch (error) {
-        console.error('❌ Error saving selected images to localStorage:', error);
-      }
-      
+        
       // DEBOUNCED save to AWS to prevent DynamoDB throttling
       // Clear existing timeout
       if (selectedImagesSaveTimeout) {
@@ -1307,24 +1307,24 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       
       // Set new timeout for debounced save
       selectedImagesSaveTimeout = setTimeout(async () => {
-        try {
-          // Check if project is being cleared
-          const projectStore = useProjectStore.getState();
-          if (projectStore.isClearing) {
-            console.log('⏸️ Skipping auto-save during project clear');
-            return;
-          }
-          
-          // Only save if we have actual selections
-          if (newSelected.length === 0) {
-            console.log('⏸️ No selections to save to AWS');
-            return;
-          }
-          
-          const storedUser = localStorage.getItem('user');
-          const user = storedUser ? JSON.parse(storedUser) : null;
-          
-          if (user?.email) {
+          try {
+            // Check if project is being cleared
+            const projectStore = useProjectStore.getState();
+            if (projectStore.isClearing) {
+              console.log('⏸️ Skipping auto-save during project clear');
+              return;
+            }
+            
+            // Only save if we have actual selections
+            if (newSelected.length === 0) {
+              console.log('⏸️ No selections to save to AWS');
+              return;
+            }
+            
+            const storedUser = localStorage.getItem('user');
+            const user = storedUser ? JSON.parse(storedUser) : null;
+            
+            if (user?.email) {
             const currentState = get();
             
             // PHASE 1: DUAL-WRITE - Send operations AND full state (backward compatible)
@@ -1358,32 +1358,32 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             
             // Also send full state (legacy - for backward compatibility during migration)
             console.log('💾 Debounced save - saving selected images to AWS (legacy) for user:', user.email);
-            
-            // Send complete instance information to AWS
-            const selectedWithInstanceIds = newSelected.map(item => {
-              const image = state.images.find(img => img.id === item.id);
-              return {
-                id: item.id, // Keep the original image ID
-                instanceId: item.instanceId, // Keep the instance ID
-                fileName: image?.fileName || image?.file?.name || 'unknown'
-              };
-            });
-            
+              
+              // Send complete instance information to AWS
+              const selectedWithInstanceIds = newSelected.map(item => {
+                const image = state.images.find(img => img.id === item.id);
+                return {
+                  id: item.id, // Keep the original image ID
+                  instanceId: item.instanceId, // Keep the instance ID
+                  fileName: image?.fileName || image?.file?.name || 'unknown'
+                };
+              });
+              
             console.log('📦 Data being sent to AWS (legacy):', selectedWithInstanceIds);
-            await DatabaseService.updateSelectedImages(user.email, selectedWithInstanceIds);
-            console.log('✅ Selected images auto-saved to AWS for user:', user.email);
-          } else {
-            console.warn('⚠️ No user email found for AWS auto-save');
+              await DatabaseService.updateSelectedImages(user.email, selectedWithInstanceIds);
+              console.log('✅ Selected images auto-saved to AWS for user:', user.email);
+            } else {
+              console.warn('⚠️ No user email found for AWS auto-save');
+            }
+          } catch (error) {
+            console.error('❌ Error auto-saving selected images to AWS:', error);
           }
-        } catch (error) {
-          console.error('❌ Error auto-saving selected images to AWS:', error);
-        }
         selectedImagesSaveTimeout = null;
       }, SELECTED_IMAGES_DEBOUNCE_MS);
-      
-      // Update session state with new selected image order
-      const selectedImageOrder = newSelected.map(item => item.instanceId);
-      get().updateSessionState({ selectedImageOrder });
+        
+        // Update session state with new selected image order
+        const selectedImageOrder = newSelected.map(item => item.instanceId);
+        get().updateSessionState({ selectedImageOrder });
         
       // Return state with operation queue updated
       return { 
@@ -2708,21 +2708,34 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             awsDate: (awsFormData as any)?.date
           });
           
-          // Use AWS data if:
-          // 1. AWS has values AND (local is empty OR AWS is different), OR
-          // 2. Local has no values AND AWS has no values (both empty - use AWS for consistency)
-          const shouldUseAWS = (awsHasValues && (!localHasValues || dataIsDifferent)) || 
-                               (!localHasValues && !awsHasValues && dataIsDifferent);
+          // ✅ CRITICAL: Use AWS data if:
+          // 1. AWS has values AND (local is empty OR AWS is different) - ALWAYS sync when AWS has values and differs
+          // 2. Both have values but AWS is different - AWS wins (cross-browser sync takes precedence)
+          // 3. Local has no values AND AWS has no values (both empty but different - use AWS for consistency)
+          // 
+          // Key difference from selected images: When both have values but differ, we use AWS (Browser C's changes win)
+          // This ensures cross-browser sync works in both directions
+          const shouldUseAWS = 
+            // Case 1: AWS has values, local is empty - use AWS
+            (awsHasValues && !localHasValues) ||
+            // Case 2: Both have values but AWS is different - use AWS (cross-browser sync)
+            (awsHasValues && localHasValues && dataIsDifferent) ||
+            // Case 3: AWS has values and differs from local (general case)
+            (awsHasValues && dataIsDifferent) ||
+            // Case 4: Both empty but different - use AWS for consistency
+            (!localHasValues && !awsHasValues && dataIsDifferent);
           
           console.log('🔍 Form data sync decision:', {
             shouldUseAWS,
             reason: awsHasValues && !localHasValues 
               ? 'AWS has values, local is empty' 
-              : awsHasValues && dataIsDifferent 
-              ? 'AWS has values and differs from local' 
+              : awsHasValues && localHasValues && dataIsDifferent
+              ? 'Both have values but AWS differs - using AWS (cross-browser sync)' 
+              : awsHasValues && dataIsDifferent
+              ? 'AWS has values and differs from local'
               : !localHasValues && !awsHasValues && dataIsDifferent
               ? 'Both empty but different - using AWS for consistency'
-              : 'Keeping local (already matches or local has values)'
+              : 'Keeping local (already matches AWS)'
           });
           
           if (shouldUseAWS) {
