@@ -2156,8 +2156,8 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         return;
       }
       
-      // Set loading state
-      set({ isLoading: true });
+      // Don't set loading state - we want instant display from localStorage (no flicker)
+      // set({ isLoading: true });
       
       // Get user from localStorage
       const user = currentUser;

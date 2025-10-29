@@ -15,7 +15,13 @@ const MainApp = () => {
   const { isAuthenticated } = useAuthStore();
   const { loadUserData, loadAllUserDataFromAWS, startPolling } = useMetadataStore();
 
-  const [isInitialized, setIsInitialized] = useState(false);
+  // Initialize immediately if authenticated - no loading screen to prevent flicker
+  // Data loads from localStorage first (instant), then AWS syncs in background
+  const [isInitialized, setIsInitialized] = useState(() => {
+    // If authenticated, show UI immediately (data will load async but UI won't block)
+    // localStorage data will appear instantly via loadUserData
+    return isAuthenticated === true;
+  });
 
   // Load user data when authenticated (no duplicate auth check - handled by App.tsx)
   useEffect(() => {
@@ -38,42 +44,38 @@ const MainApp = () => {
           
           console.log('🔄 Loading user data for authenticated user...');
           
-          // AWS-FIRST APPROACH: Load from AWS immediately to get latest data (same as refresh)
-          // This ensures login shows the same latest state as refresh would
-          console.log('☁️ Immediately loading latest data from AWS (same as refresh)...');
-          try {
-            await loadAllUserDataFromAWS();
-            console.log('✅ AWS data loaded - latest state restored');
-          } catch (err) {
-            console.error('⚠️ AWS load failed, falling back to localStorage:', err);
-            // Fallback to localStorage if AWS fails
-            console.log('📱 Loading data from localStorage as fallback...');
-            await loadUserData();
-            console.log('✅ User data loaded from localStorage (fallback)');
-          }
+          // INSTANT DISPLAY: Load localStorage first for immediate UI (no flicker)
+          console.log('📱 Loading data from localStorage first (instant display, no flicker)...');
+          await loadUserData();
+          console.log('✅ User data loaded from localStorage (instant display)');
+          
+          // Mark as initialized immediately (UI already showing data)
+          setIsInitialized(true);
+          
+          // BACKGROUND SYNC: Load from AWS in background (non-blocking)
+          // This ensures we have latest data without blocking UI
+          console.log('☁️ Syncing with AWS in background (non-blocking)...');
+          loadAllUserDataFromAWS().then(() => {
+            console.log('✅ AWS sync completed in background - latest state restored');
+          }).catch((err) => {
+            console.error('⚠️ AWS sync failed (using local data):', err);
+          });
           
           // Start polling for cross-browser sync
           console.log('🔄 Starting polling for cross-browser sync...');
           startPolling();
         } catch (error) {
-          console.error('❌ Error loading user data from AWS:', error);
-          
-          // If AWS fails, try localStorage as fallback
-          try {
-            console.log('📱 Falling back to localStorage...');
-            await loadUserData();
-            console.log('✅ User data loaded from localStorage fallback');
-          } catch (fallbackError) {
-            console.error('❌ Fallback to localStorage also failed:', fallbackError);
-          }
-        } finally {
-          setIsInitialized(true);
+          console.error('❌ Error loading user data:', error);
+          setIsInitialized(true); // Still show UI even if load fails
         }
       };
       
       loadData();
+    } else {
+      // If not authenticated, still mark as initialized (to show login screen)
+      setIsInitialized(true);
     }
-  }, [isAuthenticated, loadUserData, loadAllUserDataFromAWS]);
+  }, [isAuthenticated, loadUserData, loadAllUserDataFromAWS, startPolling]);
 
   // Periodic session state saving to both localStorage and AWS
   useEffect(() => {
@@ -140,18 +142,19 @@ const MainApp = () => {
     }
   };
 
-  // Show loading only if we haven't initialized yet (first time check)
-  if (!isInitialized) {
+  // Show login if not authenticated (only show if auth check complete)
+  // No loading screen - auth initializes from localStorage immediately
+  if (isAuthenticated === false) {
+    return <LoginScreen />;
+  }
+
+  // Show loading only if auth is still being checked (should be rare)
+  if (isAuthenticated === null && !isInitialized) {
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center">
         <div className="text-white text-lg">Loading...</div>
       </div>
     );
-  }
-
-  // Show login if not authenticated
-  if (!isAuthenticated) {
-    return <LoginScreen />;
   }
 
   // Show app if authenticated

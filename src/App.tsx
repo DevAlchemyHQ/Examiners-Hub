@@ -80,6 +80,7 @@ function App() {
         console.log('Initializing app...');
         
         // ONLY check authentication - don't load data yet
+        // Auth is already initialized from localStorage, this just verifies with AWS
         await checkAuth();
         
         console.log('✅ App initialization complete');
@@ -92,13 +93,17 @@ function App() {
     initializeApp();
   }, [checkAuth]);
 
+  // Don't show login screen during auth check - auth initializes from localStorage immediately
+  // isAuthenticated should never be null after initial render due to localStorage initialization
+  const showLogin = isAuthenticated === false; // Only show login if explicitly false
+
   return (
     <ErrorBoundary>
       <Router>
         <div className="App">
           <Toaster position="top-right" />
           <Routes>
-            <Route path="/" element={isAuthenticated ? <MainApp /> : <LoginScreen />} />
+            <Route path="/" element={showLogin ? <LoginScreen /> : <MainApp />} />
             <Route path="/login" element={<LoginScreen />} />
             <Route path="/app/*" element={<MainApp />} />
             <Route path="/dashboard" element={<MainApp />} />

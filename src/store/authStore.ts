@@ -28,9 +28,28 @@ interface AuthState {
   clearApplicationData: () => Promise<void>;
 }
 
+// Initialize auth from localStorage synchronously to prevent login screen flash
+const getInitialAuthState = () => {
+  try {
+    const storedAuth = localStorage.getItem('isAuthenticated');
+    const storedUser = localStorage.getItem('user');
+    
+    if (storedAuth === 'true' && storedUser) {
+      const user = JSON.parse(storedUser);
+      return { isAuthenticated: true, user };
+    }
+    return { isAuthenticated: false, user: null };
+  } catch (error) {
+    console.error('Error reading auth from localStorage:', error);
+    return { isAuthenticated: false, user: null };
+  }
+};
+
+const initialAuthState = getInitialAuthState();
+
 export const useAuthStore = create<AuthState>((set, get) => ({
-  isAuthenticated: null, // Start as null (loading)
-  user: null, // Start with no user
+  isAuthenticated: initialAuthState.isAuthenticated, // Initialize from localStorage immediately
+  user: initialAuthState.user, // Initialize from localStorage immediately
   isLoading: false,
   
   setAuth: (isAuthenticated) => {
