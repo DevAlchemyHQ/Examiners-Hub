@@ -3060,6 +3060,74 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         }
       }
       
+      // PHASE 1: OPERATION QUEUE - Replay operations on refresh
+      // Fetch operations since last sync and apply them to rebuild state
+      try {
+        const currentState = get();
+        const lastSyncedVersion = currentState.lastSyncedVersion || 0;
+        
+        // Try to get last synced version from localStorage if not in state
+        let effectiveLastSyncedVersion = lastSyncedVersion;
+        if (effectiveLastSyncedVersion === 0) {
+          try {
+            const keys = getProjectStorageKeys(userId, 'current');
+            const savedVersion = localStorage.getItem(`${keys.selections}-last-synced-version`);
+            if (savedVersion) {
+              effectiveLastSyncedVersion = parseInt(savedVersion, 10);
+              console.log('📥 [REFRESH] Loaded last synced version from localStorage:', effectiveLastSyncedVersion);
+            }
+          } catch (err) {
+            console.warn('⚠️ Could not load last synced version from localStorage:', err);
+          }
+        }
+        
+        console.log('📥 [REFRESH] Fetching operations since version:', effectiveLastSyncedVersion);
+        
+        const operations = await DatabaseService.getOperationsSince(userId, effectiveLastSyncedVersion);
+        
+        if (operations && operations.length > 0) {
+          console.log(`📥 [REFRESH] Found ${operations.length} operations to replay`);
+          console.log('📥 [REFRESH] Operations:', operations.map(op => ({ type: op.type, instanceId: op.instanceId, timestamp: op.timestamp })));
+          
+          // Apply operations to rebuild state
+          const browserId = getBrowserId();
+          let rebuiltState = get(); // Get current state after all AWS data loaded
+          
+          console.log('📥 [REFRESH] Current state before replay:', {
+            selectedImages: rebuiltState.selectedImages.length,
+            instanceMetadata: Object.keys(rebuiltState.instanceMetadata).length,
+            defectSortDirection: rebuiltState.defectSortDirection,
+          });
+          
+          for (const op of operations) {
+            rebuiltState = applyOperation(rebuiltState, op, browserId);
+          }
+          
+          // Update state with rebuilt state
+          set(rebuiltState);
+          
+          // Update version
+          const newVersion = Math.max(...operations.map(op => op.timestamp));
+          set({ lastSyncedVersion: newVersion });
+          
+          // Save version to localStorage
+          try {
+            const keys = getProjectStorageKeys(userId, 'current');
+            localStorage.setItem(`${keys.selections}-last-synced-version`, newVersion.toString());
+            console.log(`✅ [REFRESH] Replayed ${operations.length} operations, version: ${newVersion}`);
+            console.log(`✅ [REFRESH] Updated selected images count: ${rebuiltState.selectedImages.length}`);
+            console.log(`✅ [REFRESH] Updated instance metadata count: ${Object.keys(rebuiltState.instanceMetadata).length}`);
+          } catch (err) {
+            console.warn('⚠️ Could not save last synced version:', err);
+          }
+        } else {
+          console.log('⏸️ [REFRESH] No operations to replay');
+        }
+      } catch (opError) {
+        console.error('❌ [REFRESH] Error replaying operations:', opError);
+        // Don't throw - continue loading other data
+      }
+      
       console.log('✅ AWS data load completed successfully');
       
     } catch (error) {
