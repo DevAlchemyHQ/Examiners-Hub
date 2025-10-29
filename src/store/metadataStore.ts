@@ -558,11 +558,9 @@ const migrateSelectedImageIds = (
 
 const initialState: MetadataStateOnly = {
   images: [],
-  // CRITICAL: Load selectedImages from localStorage synchronously to prevent empty state flicker
-  selectedImages: (initialDataFromStorage.selectedImages || []) as Array<{ id: string; instanceId: string; fileName?: string }>,
+  selectedImages: [],
   bulkSelectedImages: [],
-  // CRITICAL: Load formData from localStorage synchronously to prevent empty form flicker
-  formData: (initialDataFromStorage.formData || initialFormData) as FormData,
+  formData: initialFormData,
   defectSortDirection: null,
   sketchSortDirection: null,
   bulkDefects: [],
@@ -571,8 +569,7 @@ const initialState: MetadataStateOnly = {
   isLoading: false,
   isInitialized: false,
   isSortingEnabled: true,
-  // CRITICAL: Load instanceMetadata from localStorage synchronously
-  instanceMetadata: (initialDataFromStorage.instanceMetadata || {}) as Record<string, { photoNumber?: string; description?: string; lastModified?: number }>,
+  instanceMetadata: {},
   // Initialize session state
   sessionState: {
     lastActiveTab: 'images',
@@ -586,8 +583,7 @@ const initialState: MetadataStateOnly = {
       imageGrid: 0,
       selectedPanel: 0,
     },
-    // Use loaded formData if available
-    formData: (initialDataFromStorage.formData || initialFormData) as FormData,
+    formData: initialFormData, // Include formData in session state
   },
   // Operation Queue System (Phase 1)
   operationQueue: [],
