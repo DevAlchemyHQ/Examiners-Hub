@@ -265,16 +265,19 @@ const getInitialStateFromLocalStorage = (): Partial<MetadataStateOnly> => {
     const selectedImages = loadVersionedData(projectKeys.selections) || [];
     const instanceMetadata = loadVersionedData(projectKeys.instanceMetadata) || {};
     
+    const selectedImagesArray = Array.isArray(selectedImages) ? selectedImages : [];
+    const instanceMetadataObj = instanceMetadata && typeof instanceMetadata === 'object' ? instanceMetadata : {};
+    
     console.log('⚡ [SYNC INIT] Loaded from localStorage:', {
       formData: !!formData,
-      selectedImagesCount: selectedImages?.length || 0,
-      instanceMetadataCount: Object.keys(instanceMetadata || {}).length
+      selectedImagesCount: selectedImagesArray.length,
+      instanceMetadataCount: Object.keys(instanceMetadataObj).length
     });
     
     return {
       formData: formData as FormData,
-      selectedImages: selectedImages as Array<{ id: string; instanceId: string; fileName?: string }>,
-      instanceMetadata: instanceMetadata as Record<string, { photoNumber?: string; description?: string; lastModified?: number }>
+      selectedImages: selectedImagesArray as Array<{ id: string; instanceId: string; fileName?: string }>,
+      instanceMetadata: instanceMetadataObj as Record<string, { photoNumber?: string; description?: string; lastModified?: number }>
     };
   } catch (error) {
     console.warn('⚠️ Error loading initial state from localStorage:', error);
