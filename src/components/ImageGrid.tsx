@@ -318,30 +318,19 @@ export const ImageGrid: React.FC = () => {
       </div>
 
       <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent hover:scrollbar-thumb-slate-400 dark:hover:scrollbar-thumb-gray-500" style={{ maxHeight: 'calc(100vh - 200px)' }}>
-        {/* CRITICAL: Always render container structure - prevent any conditional rendering during refresh */}
-        {/* If selectedImages exist, render ImageGridItem immediately (may be empty but container stays) */}
-        {/* Only show empty state if BOTH are empty AND we've confirmed there's truly no data */}
-        <div 
-          className="p-2"
-          style={{
-            minHeight: images.length > 0 || selectedImages.length > 0 ? 'min-content' : '400px',
-            contain: 'layout style paint',
-            visibility: 'visible' // Ensure container is always visible, prevent flicker
-          }}
-        >
-          {/* Render ImageGridItem if we have ANY data (images or selectedImages) - prevents flicker */}
-          {(images.length > 0 || selectedImages.length > 0) ? (
+        {images.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full text-slate-500 dark:text-gray-400 p-8">
+            <div className="text-6xl mb-4">📷</div>
+            <p className="text-lg font-medium mb-2">No images uploaded yet</p>
+            <p className="text-sm text-center">
+              Upload some images to get started with your project
+            </p>
+          </div>
+        ) : (
+          <div className="p-2">
             <ImageGridItem images={images} gridWidth={gridWidth} />
-          ) : (
-            <div className="flex flex-col items-center justify-center h-full text-slate-500 dark:text-gray-400 p-8">
-              <div className="text-6xl mb-4">📷</div>
-              <p className="text-lg font-medium mb-2">No images uploaded yet</p>
-              <p className="text-sm text-center">
-                Upload some images to get started with your project
-              </p>
-            </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Clear Project Confirmation Modal */}

@@ -968,8 +968,7 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
     return errors.length > 0 ? errors.join('; ') : 'All validations complete';
   };
 
-  // CRITICAL: Don't show empty state if selectedImages exist - they load before images from S3
-  // This prevents flicker where selectedImages are loaded from localStorage but images array is still empty
+  // Simple empty state check - matches working commit 278db7e
   if (images.length === 0 && selectedImages.length === 0) {
     return (
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm h-[calc(100vh-120px)] flex items-center justify-center p-8 text-slate-400 dark:text-gray-500">
@@ -1227,16 +1226,13 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
                 gridAutoRows: 'auto',
                 columnGap: '4px',
                 rowGap: '4px',
-                // CRITICAL: Reserve exact space immediately to prevent layout shift during refresh
-                // Calculate based on selectedImages count (available synchronously) not defectImages (computed)
-                minHeight: selectedImages.length > 0 ? `${Math.ceil(selectedImages.length / gridWidth) * 220}px` : '0px',
-                contain: 'layout style paint'
+                minHeight: 'min-content'
               }}
             >
               {/* Defects Section */}
-              {/* CRITICAL: Always render grid items - only hide content to prevent layout shift */}
-              {defectImages.length > 0 ? (
-                defectImages.map((img, index) => {
+              {defectImages.length > 0 && (
+                <>
+                  {defectImages.map((img, index) => {
                     // CRITICAL: Use stable key based on instanceId to prevent DOM reordering and layout shift
                     // This ensures smooth rendering without page bobbing
                     const stableKey = `defect-${img.instanceId || img.id}`;
@@ -1244,25 +1240,15 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
                     return (
                     <div key={stableKey} className={`relative bg-white dark:bg-gray-800 rounded-lg border overflow-hidden shadow-sm group ${
                       isTileIncomplete(img) ? 'bg-amber-50/30 dark:bg-amber-900/20' : 'border-gray-200 dark:border-gray-700'
-                    }`} style={{
-                      // Prevent layout shift - reserve exact space immediately
-                      minHeight: '120px',
-                      height: 'auto'
-                    }}>
+                    }`}>
                       <div style={{ aspectRatio: '1/1', height: '120px', minHeight: '120px', maxHeight: '120px', width: '100%' }}>
                         <img
                           src={img.preview}
                           alt={img.fileName || img.file?.name || 'Image'}
-                          className="w-full h-full object-cover cursor-pointer select-none"
-                          style={{
-                            width: '100%',
-                            height: '100%',
-                            // Disable transitions during initial mount to prevent movement
-                            transition: isInitialMount.current ? 'none' : 'opacity 0.2s',
-                          }}
+                          className="w-full h-full object-cover cursor-pointer hover:opacity-95 transition-opacity select-none"
                           onClick={(e) => handleImageEnlarge(index, e)}
                           draggable="false"
-                          loading="eager"
+                          style={{ width: '100%', height: '100%' }}
                         />
                       </div>
                       <button
@@ -1338,8 +1324,9 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
                       </div>
                     </div>
                     );
-                  })
-              ) : null}
+                  })}
+                </>
+              )}
             </div>
           </div>
         )}
