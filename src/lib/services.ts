@@ -1479,7 +1479,19 @@ export class DatabaseService {
       };
 
       if (toDelete.length > 0) await sendBatches(toDelete);
-      if (toPut.length > 0) await sendBatches(toPut);
+      if (toPut.length > 0) {
+        // De-duplicate PutRequests by composite key (user_id + selection_id)
+        const uniqueMap = new Map<string, any>();
+        for (const req of toPut) {
+          const item = req?.PutRequest?.Item;
+          if (!item) continue;
+          const key = `${item.user_id}#${item.selection_id}`;
+          if (!uniqueMap.has(key)) uniqueMap.set(key, req);
+        }
+        const uniquePuts = Array.from(uniqueMap.values());
+        console.log(`📦 updateSelectedImages unique puts: ${uniquePuts.length} (from ${toPut.length})`);
+        await sendBatches(uniquePuts);
+      }
 
       console.log('✅ updateSelectedImages completed');
     } catch (error) {

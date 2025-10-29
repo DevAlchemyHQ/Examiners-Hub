@@ -38,20 +38,18 @@ const MainApp = () => {
           
           console.log('🔄 Loading user data for authenticated user...');
           
-          // LOCALSTORAGE-FIRST APPROACH: Load immediately from localStorage, then sync with AWS
-          console.log('📱 Loading data from localStorage first (instant display)...');
-          await loadUserData();
-          
-          console.log('✅ User data loaded from localStorage (instant display)');
-          
-          // CRITICAL: On page load/refresh, immediately sync with AWS to get latest data
-          // This prevents showing stale data after refresh and ensures cross-browser consistency
-          console.log('☁️ Immediately syncing with AWS for fresh data on page load...');
+          // AWS-FIRST APPROACH: Load from AWS immediately to get latest data (same as refresh)
+          // This ensures login shows the same latest state as refresh would
+          console.log('☁️ Immediately loading latest data from AWS (same as refresh)...');
           try {
             await loadAllUserDataFromAWS();
-            console.log('✅ AWS sync completed - fresh data loaded');
+            console.log('✅ AWS data loaded - latest state restored');
           } catch (err) {
-            console.error('⚠️ AWS sync failed (using local data):', err);
+            console.error('⚠️ AWS load failed, falling back to localStorage:', err);
+            // Fallback to localStorage if AWS fails
+            console.log('📱 Loading data from localStorage as fallback...');
+            await loadUserData();
+            console.log('✅ User data loaded from localStorage (fallback)');
           }
           
           // Start polling for cross-browser sync

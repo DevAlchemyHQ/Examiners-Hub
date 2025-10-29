@@ -2897,8 +2897,9 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         const selectedImages = selectedImagesResult.value;
         console.log('📸 Selected images loaded from AWS:', selectedImages.length);
         
-        // Only process if we actually have selections from AWS
-        if (selectedImages.length > 0) {
+        // CRITICAL: Always use AWS data if available (don't preserve old localStorage if AWS has data)
+        // AWS is the source of truth for latest state, especially after login/refresh
+        if (selectedImages && selectedImages.length > 0) {
           // Migrate selected image IDs to match current S3 image IDs
           const currentImages = get().images;
           const migratedSelections = migrateSelectedImageIds(selectedImages, currentImages);
@@ -2906,7 +2907,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           // Only update if migration succeeded
           if (migratedSelections.length > 0) {
             set({ selectedImages: migratedSelections });
-            console.log('✅ Selected images loaded and migrated from AWS:', migratedSelections.length);
+            console.log('✅ Selected images loaded and migrated from AWS (overriding localStorage):', migratedSelections.length);
             
             // Update session state's selectedImageOrder to match AWS order
             const awsOrder = migratedSelections.map(item => item.instanceId);
@@ -2920,10 +2921,19 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             console.log('⚠️ Migration failed, preserving existing selections');
           }
         } else {
-          console.log('⚠️ AWS returned empty array - preserving existing localStorage selections');
+          // AWS returned empty array - clear local selections to match AWS state
+          console.log('⚠️ AWS returned empty array - clearing local selections to match AWS state');
+          set({ selectedImages: [] });
+          
+          // Clear from localStorage too
+          const keys = getProjectStorageKeys(userId, 'current');
+          saveVersionedData(keys.selections, projectId, userId, []);
         }
       } else {
-        console.log('⚠️ No selected images found in AWS - preserving existing localStorage selections');
+        // Failed to load from AWS - log error but don't change state (might be network issue)
+        const error = selectedImagesResult.status === 'rejected' ? selectedImagesResult.reason : null;
+        console.log('⚠️ No selected images found in AWS:', error?.message || 'No error');
+        // Don't clear local selections if AWS load fails - might be temporary network issue
       }
       
       // Process instance metadata
