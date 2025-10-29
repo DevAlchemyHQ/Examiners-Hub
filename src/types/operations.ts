@@ -16,7 +16,8 @@ export interface Operation {
     | "ADD_SELECTION"
     | "DELETE_SELECTION"
     | "UPDATE_METADATA"
-    | "SORT_CHANGE";
+    | "SORT_CHANGE"
+    | "UPDATE_FORMDATA";
   
   /** Instance ID for DELETE and UPDATE operations */
   instanceId?: string;
@@ -32,6 +33,10 @@ export interface Operation {
     description?: string;
     /** Sort direction (for SORT_CHANGE) */
     sortDirection?: "asc" | "desc" | null;
+    /** FormData fields (for UPDATE_FORMDATA) */
+    elr?: string;
+    structureNo?: string;
+    date?: string;
   };
   
   /** Timestamp when operation occurred (milliseconds since epoch) */

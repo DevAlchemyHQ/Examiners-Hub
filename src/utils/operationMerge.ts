@@ -110,6 +110,27 @@ export function applyOperation(
       }
       return state;
 
+    case 'UPDATE_FORMDATA':
+      // Merge formData fields - last operation wins
+      // This ensures Browser C's changes always sync to Browser A/B on refresh
+      const currentFormData = state.formData || {};
+      const newFormData = {
+        ...currentFormData,
+        ...op.data, // { elr, structureNo, date } - overwrite with latest
+      };
+      
+      console.log('🔄 [OPERATION] Applying UPDATE_FORMDATA:', {
+        operationData: op.data,
+        currentFormData,
+        newFormData,
+        timestamp: op.timestamp
+      });
+      
+      return {
+        ...state,
+        formData: newFormData as any,
+      };
+
     default:
       console.warn('⚠️ Unknown operation type:', (op as any).type);
       return state;

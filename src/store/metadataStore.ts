@@ -591,6 +591,31 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         lastActiveTime: timestamp
       };
       
+      // ✅ OPERATION QUEUE: Create UPDATE_FORMDATA operation (like selected images)
+      const browserId = getBrowserId();
+      let operationQueue = [...state.operationQueue];
+      
+      const operation: Operation = {
+        id: createOperationId(browserId),
+        type: 'UPDATE_FORMDATA',
+        data: processedData, // { elr, structureNo, date }
+        timestamp: Date.now(),
+        browserId,
+      };
+      
+      operationQueue.push(operation);
+      console.log('📝 [OPERATION] Added UPDATE_FORMDATA operation to queue:', operation.id, processedData);
+      
+      // Save operation queue to localStorage immediately
+      try {
+        const keys = getProjectStorageKeys(userId, 'current');
+        const projectId = generateStableProjectId(userId, 'current');
+        saveVersionedData(`${keys.selections}-operation-queue`, projectId, userId, operationQueue);
+        console.log('📱 Operation queue saved to localStorage');
+      } catch (error) {
+        console.error('❌ Error saving operation queue to localStorage:', error);
+      }
+      
       // Broadcast form data changes to other tabs using minimal sync
       try {
         minimalSync.broadcast('formDataUpdate', { 
@@ -602,7 +627,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         console.error('❌ Error broadcasting form data:', error);
       }
       
-      // Use forceAWSSave for immediate AWS syncing instead of smartAutoSave
+      // ✅ DUAL-WRITE: Send operations AND legacy save (for backward compatibility)
       (async () => {
         try {
           // Check if project is being cleared
@@ -612,20 +637,49 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             return;
           }
           
-          console.log('☁️ [setFormData] Force saving form data to AWS...', {
-            newFormData: JSON.stringify(newFormData),
-            elr: newFormData.elr,
-            structureNo: newFormData.structureNo,
-            date: newFormData.date,
-            hasValues: !!(newFormData.elr?.trim()) || !!(newFormData.structureNo?.trim())
-          });
+          const storedUser = localStorage.getItem('user');
+          const user = storedUser ? JSON.parse(storedUser) : null;
           
-          // Use forceAWSSave for immediate sync with COMPLETE formData
-          await forceAWSSave(updatedSessionState, newFormData);
-          
-          console.log('✅ [setFormData] Form data force saved to AWS successfully');
+          if (user?.email) {
+            const currentState = get();
+            
+            // PHASE 1: Send operations first (new system)
+            if (currentState.operationQueue.length > 0) {
+              try {
+                console.log('📝 [OPERATION QUEUE] Sending operations to AWS:', currentState.operationQueue.length);
+                const { DatabaseService } = await import('../lib/services');
+                const result = await DatabaseService.saveOperations(user.email, currentState.operationQueue);
+                
+                // Clear queue and update version on success
+                set({ 
+                  operationQueue: [],
+                  lastSyncedVersion: result.lastVersion 
+                });
+                
+                // Save version to localStorage
+                try {
+                  const keys = getProjectStorageKeys(userId, 'current');
+                  localStorage.setItem(`${keys.selections}-last-synced-version`, result.lastVersion.toString());
+                } catch (err) {
+                  console.warn('⚠️ Could not save last synced version to localStorage:', err);
+                }
+                
+                console.log('✅ [OPERATION QUEUE] Operations saved successfully, lastVersion:', result.lastVersion);
+              } catch (opError) {
+                console.error('❌ Error saving operations, keeping in queue for retry:', opError);
+                // Operations remain in queue - will retry on next save
+              }
+            }
+            
+            // Also send legacy save (for backward compatibility during migration)
+            console.log('💾 [LEGACY] Saving formData to AWS (backward compatibility)');
+            await forceAWSSave(updatedSessionState, newFormData);
+            console.log('✅ [LEGACY] Form data force saved to AWS successfully');
+          } else {
+            console.warn('⚠️ No user email found for AWS save');
+          }
         } catch (error) {
-          console.error('❌ [setFormData] Error in form data force save:', error);
+          console.error('❌ [setFormData] Error in AWS save:', error);
           console.error('❌ [setFormData] Error stack:', error instanceof Error ? error.stack : 'No stack trace');
           
           // Show toast notification for errors
@@ -642,7 +696,8 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       return { 
         ...state, 
         formData: newFormData,
-        sessionState: updatedSessionState
+        sessionState: updatedSessionState,
+        operationQueue, // Include updated operation queue
       };
     });
   },
@@ -2636,158 +2691,28 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           hasSortPreferences: !!project.sortPreferences
         });
         
-        // Update form data if available (only if it's newer than current state)
-        // ✅ CRITICAL: Check both root formData and sessionState.formData (fallback)
-        // Priority: 1) project.formData (root level - most recent from forceAWSSave)
-        //          2) project.sessionState.formData (fallback if root level missing)
-        // ✅ CRITICAL FIX: Check if formData exists AND has actual values
-        // Empty objects {} or {date:"", elr:"", structureNo:""} should be treated as null
+        // ✅ OPERATION QUEUE: FormData sync is now handled by operation replay
+        // Operations will be replayed later in this function - they handle sync reliably
+        // This section is just for initial fallback (backward compatibility)
+        // 
+        // Note: Operation replay happens after this section, so formData will be synced via operations
+        // This fallback is only used if no operations exist yet (first time sync)
         const rootFormData = project.formData;
         const sessionFormData = project.sessionState?.formData;
-        
-        // Check if formData has actual values (not just empty strings)
-        const rootHasValues = rootFormData && (!!rootFormData.elr?.trim() || !!rootFormData.structureNo?.trim());
-        const sessionHasValues = sessionFormData && (!!sessionFormData.elr?.trim() || !!sessionFormData.structureNo?.trim());
-        
-        // Use root if it has values, otherwise try sessionState, otherwise null
-        const awsFormData = rootHasValues ? rootFormData : (sessionHasValues ? sessionFormData : null);
-        
-        console.log('🔍 AWS formData check:', {
-          hasRootFormData: !!rootFormData,
-          hasSessionFormData: !!sessionFormData,
-          rootFormData: rootFormData,
-          sessionFormData: sessionFormData,
-          rootHasValues,
-          sessionHasValues,
-          awsFormData,
-          awsFormDataElr: awsFormData?.elr,
-          awsFormDataStructureNo: awsFormData?.structureNo
-        });
+        const awsFormData = rootFormData || sessionFormData || null;
         
         if (awsFormData) {
-          const currentState = get();
-          const currentSessionState = currentState.sessionState;
-          const awsLastActiveTime = project.sessionState?.lastActiveTime || 0;
-          const localLastActiveTime = currentSessionState?.lastActiveTime || 0;
-          
-          console.log('🔄 AWS vs Local timestamp check:', {
-            aws: awsLastActiveTime,
-            local: localLastActiveTime,
-            awsIsNewer: awsLastActiveTime > localLastActiveTime
-          });
-          
-          // For cross-browser sync: Use AWS data if it's different from local
-          // Load local data first to compare
-          let localFormData = null;
-          try {
-            const keys = getProjectStorageKeys(userId, 'current');
-            localFormData = loadVersionedData(keys.formData);
-          } catch (error) {
-            console.warn('⚠️ Could not load local formData:', error);
-          }
-          
-          const localDataStr = JSON.stringify(localFormData || {});
-          const awsDataStr = JSON.stringify(awsFormData);
-          const dataIsDifferent = localDataStr !== awsDataStr;
-          
-          // Check if formData has actual values (not just empty strings)
-          const localHasValues = !!(localFormData as any)?.elr?.trim() || !!(localFormData as any)?.structureNo?.trim();
-          const awsHasValues = !!(awsFormData as any)?.elr?.trim() || !!(awsFormData as any)?.structureNo?.trim();
-          
-          console.log('🔍 Form data sync check:', {
-            localFormData: JSON.stringify(localFormData),
-            awsFormData: JSON.stringify(awsFormData),
-            localHasValues,
-            awsHasValues,
-            dataIsDifferent,
-            localElr: (localFormData as any)?.elr,
-            localStructureNo: (localFormData as any)?.structureNo,
-            localDate: (localFormData as any)?.date,
-            awsElr: (awsFormData as any)?.elr,
-            awsStructureNo: (awsFormData as any)?.structureNo,
-            awsDate: (awsFormData as any)?.date
-          });
-          
-          // ✅ CRITICAL: Use AWS data if:
-          // 1. AWS has values AND (local is empty OR AWS is different) - ALWAYS sync when AWS has values and differs
-          // 2. Both have values but AWS is different - AWS wins (cross-browser sync takes precedence)
-          // 3. Local has no values AND AWS has no values (both empty but different - use AWS for consistency)
-          // 
-          // Key difference from selected images: When both have values but differ, we use AWS (Browser C's changes win)
-          // This ensures cross-browser sync works in both directions
-          // ✅ CRITICAL FIX: Simplify logic - if AWS has values AND differs, always use AWS
-          // This ensures Browser C's changes always sync to Browser A/B
-          const shouldUseAWS = 
-            // Case 1: AWS has values and differs from local - ALWAYS use AWS (cross-browser sync)
-            (awsHasValues && dataIsDifferent) ||
-            // Case 2: AWS has values, local is empty - use AWS
-            (awsHasValues && !localHasValues) ||
-            // Case 3: Both empty but different - use AWS for consistency
-            (!localHasValues && !awsHasValues && dataIsDifferent);
-          
-          // Debug: Log each condition separately
-          console.log('🔍 Form data sync conditions:', {
-            condition1_awsHasValuesAndDiffers: awsHasValues && dataIsDifferent,
-            condition2_awsHasValuesLocalEmpty: awsHasValues && !localHasValues,
-            condition3_bothEmptyButDiffers: !localHasValues && !awsHasValues && dataIsDifferent,
-            finalDecision: shouldUseAWS
-          });
-          
-          console.log('🔍 Form data sync decision:', {
-            shouldUseAWS,
-            reason: awsHasValues && !localHasValues 
-              ? 'AWS has values, local is empty' 
-              : awsHasValues && localHasValues && dataIsDifferent
-              ? 'Both have values but AWS differs - using AWS (cross-browser sync)' 
-              : awsHasValues && dataIsDifferent
-              ? 'AWS has values and differs from local'
-              : !localHasValues && !awsHasValues && dataIsDifferent
-              ? 'Both empty but different - using AWS for consistency'
-              : 'Keeping local (already matches AWS)'
-          });
-          
-          if (shouldUseAWS) {
-            console.log('🔄 Loading AWS data for cross-browser sync', { 
-              localHasValues,
-              awsHasValues,
-              dataIsDifferent,
-              local: JSON.stringify(localFormData),
-              aws: JSON.stringify(awsFormData),
-              awsElr: (awsFormData as any)?.elr,
-              awsStructureNo: (awsFormData as any)?.structureNo,
-              awsDate: (awsFormData as any)?.date
-            });
-            set({ formData: awsFormData as FormData });
-            
-            // Update localStorage to match AWS
-            const keys = getProjectStorageKeys(userId, 'current');
-            const projectId = generateStableProjectId(userId, 'current');
-            saveVersionedData(keys.formData, projectId, userId, awsFormData);
-            console.log('✅ Cross-browser sync complete - localStorage updated with AWS data');
-          } else if (localHasValues && !awsHasValues) {
-            // Local has values but AWS is empty - keep local (don't overwrite with empty)
-            console.log('⏸️ Keeping local form data - AWS has empty values');
-          } else {
-            console.log('✅ Local and AWS data match - using local');
-          }
-        } else {
-          // No formData with values in AWS
-          console.log('⚠️ No formData with values found in AWS (both root and sessionState are empty or have no values)');
-          
-          // Try localStorage as fallback
-          try {
-            const keys = getProjectStorageKeys(userId, 'current');
-            const localFormData = loadVersionedData(keys.formData);
-            const localHasValues = localFormData && (!!localFormData.elr?.trim() || !!localFormData.structureNo?.trim());
-            
-            if (localFormData && localHasValues) {
-              set({ formData: localFormData as FormData });
-              console.log('✅ Form data loaded from localStorage (no AWS data with values)');
-            } else {
-              console.log('⚠️ No formData with values in localStorage either');
+          const rootHasValues = !!awsFormData.elr?.trim() || !!awsFormData.structureNo?.trim();
+          if (rootHasValues) {
+            console.log('📋 [FALLBACK] Loading formData from AWS (will be overridden by operations if available):', awsFormData);
+            // Only set if no operations will replay (check happens in operation replay section)
+            const currentState = get();
+            if (currentState.lastSyncedVersion === 0) {
+              set({ formData: awsFormData as FormData });
+              const keys = getProjectStorageKeys(userId, 'current');
+              const projectId = generateStableProjectId(userId, 'current');
+              saveVersionedData(keys.formData, projectId, userId, awsFormData);
             }
-          } catch (error) {
-            console.warn('⚠️ Error loading formData from localStorage:', error);
           }
         }
         
@@ -3195,14 +3120,28 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             selectedImages: rebuiltState.selectedImages.length,
             instanceMetadata: Object.keys(rebuiltState.instanceMetadata).length,
             defectSortDirection: rebuiltState.defectSortDirection,
+            formData: rebuiltState.formData,
           });
+          
+          // ✅ APPLY OPERATIONS (includes UPDATE_FORMDATA)
+          // Operations are applied in chronological order - last operation wins
+          const formDataOperations = operations.filter(op => op.type === 'UPDATE_FORMDATA');
+          console.log(`📝 [REFRESH] Found ${formDataOperations.length} UPDATE_FORMDATA operations to apply`);
           
           for (const op of operations) {
             rebuiltState = applyOperation(rebuiltState, op, browserId);
           }
           
-          // Update state with rebuilt state
+          // Update state with rebuilt state (includes formData from operations)
           set(rebuiltState);
+          
+          // Save formData to localStorage if it was updated by operations
+          if (formDataOperations.length > 0) {
+            const keys = getProjectStorageKeys(userId, 'current');
+            const projectId = generateStableProjectId(userId, 'current');
+            saveVersionedData(keys.formData, projectId, userId, rebuiltState.formData);
+            console.log('✅ [REFRESH] FormData synced via operations:', rebuiltState.formData);
+          }
           
           // Update version
           const newVersion = Math.max(...operations.map(op => op.timestamp));
@@ -3215,6 +3154,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             console.log(`✅ [REFRESH] Replayed ${operations.length} operations, version: ${newVersion}`);
             console.log(`✅ [REFRESH] Updated selected images count: ${rebuiltState.selectedImages.length}`);
             console.log(`✅ [REFRESH] Updated instance metadata count: ${Object.keys(rebuiltState.instanceMetadata).length}`);
+            console.log(`✅ [REFRESH] Updated formData:`, rebuiltState.formData);
           } catch (err) {
             console.warn('⚠️ Could not save last synced version:', err);
           }

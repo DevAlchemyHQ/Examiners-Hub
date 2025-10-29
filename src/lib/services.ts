@@ -1581,6 +1581,10 @@ export class DatabaseService {
           if (op.data.photoNumber !== undefined) cleaned.data.photoNumber = op.data.photoNumber;
           if (op.data.description !== undefined) cleaned.data.description = op.data.description;
           if (op.data.sortDirection !== undefined) cleaned.data.sortDirection = op.data.sortDirection;
+          // FormData fields
+          if (op.data.elr !== undefined) cleaned.data.elr = op.data.elr;
+          if (op.data.structureNo !== undefined) cleaned.data.structureNo = op.data.structureNo;
+          if (op.data.date !== undefined) cleaned.data.date = op.data.date;
         }
         
         return cleaned;
@@ -1630,19 +1634,21 @@ export class DatabaseService {
         }
       }
 
-      // 2. Apply operations to current selected images state
+      // 2. Apply operations to current state
       // Get current state from database
       const currentSelected = await this.getSelectedImages(userId);
       const currentProject = await this.getProject(userId, 'current');
       const currentInstanceMetadata = await this.getInstanceMetadata(userId);
       const currentSortPreferences = currentProject.project?.sortPreferences || {};
+      const currentFormData = currentProject.project?.formData || {};
       
       // Apply operations in order (this is simplified - in production we'd use a more robust state machine)
-      // For now, we'll update the selected-images table directly based on operations
+      // For now, we'll update the tables directly based on operations
       let updatedSelected = [...currentSelected];
-      
       let updatedInstanceMetadata = currentInstanceMetadata || {};
       let updatedDefectSortDirection = currentSortPreferences.defectSortDirection || null;
+      let updatedFormData = { ...currentFormData };
+      let formDataChanged = false;
       
       for (const op of operations) {
         if (op.type === 'ADD_SELECTION') {
@@ -1672,6 +1678,24 @@ export class DatabaseService {
           if (op.data?.sortDirection !== undefined) {
             updatedDefectSortDirection = op.data.sortDirection;
           }
+        } else if (op.type === 'UPDATE_FORMDATA') {
+          // ✅ UPDATE_FORMDATA: Merge formData fields - last operation wins
+          if (op.data) {
+            const oldFormData = JSON.stringify(updatedFormData);
+            updatedFormData = {
+              ...updatedFormData,
+              ...op.data, // { elr, structureNo, date } - overwrite with latest
+            };
+            const newFormDataStr = JSON.stringify(updatedFormData);
+            if (oldFormData !== newFormDataStr) {
+              formDataChanged = true;
+              console.log('📝 [OPERATION QUEUE] FormData updated:', {
+                old: currentFormData,
+                new: updatedFormData,
+                operationData: op.data
+              });
+            }
+          }
         }
       }
 
@@ -1681,7 +1705,8 @@ export class DatabaseService {
         JSON.stringify(updatedSelected.map(i => i.instanceId).sort()) !== 
         JSON.stringify(currentSelected.map(i => i.instanceId).sort()) ||
         JSON.stringify(updatedInstanceMetadata) !== JSON.stringify(currentInstanceMetadata || {}) ||
-        updatedDefectSortDirection !== currentSortPreferences.defectSortDirection;
+        updatedDefectSortDirection !== currentSortPreferences.defectSortDirection ||
+        formDataChanged;
       
       if (stateChanged) {
         console.log('📝 [OPERATION QUEUE] Applying operations to state...');
@@ -1706,6 +1731,14 @@ export class DatabaseService {
               sketchSortDirection: currentSortPreferences.sketchSortDirection || null,
             }
           });
+        }
+        
+        // ✅ Save formData if changed
+        if (formDataChanged) {
+          await this.updateProject(userId, 'current', {
+            formData: updatedFormData
+          });
+          console.log('✅ [OPERATION QUEUE] FormData saved to AWS:', updatedFormData);
         }
         
         console.log(`✅ [OPERATION QUEUE] Applied ${operations.length} operations to state`);
