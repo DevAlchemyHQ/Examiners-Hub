@@ -107,9 +107,14 @@ const MainApp = () => {
     }
   }, [isAuthenticated]);
 
-  // Don't render anything until everything is loaded - clean refresh (matches working commit 278db7e)
+  // Show dark background while loading - prevents blank page flicker
+  // This ensures no white flash - page stays dark until data loads
   if (!isInitialized) {
-    return null;
+    return (
+      <div className="min-h-screen bg-gray-900" style={{ backgroundColor: '#111827' }}>
+        {/* Dark background - no content until loaded */}
+      </div>
+    );
   }
 
   // Show login if not authenticated
