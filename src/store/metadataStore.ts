@@ -996,6 +996,9 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       // Get existing metadata for this instance
       const existingMetadata = state.instanceMetadata[instanceId] || {};
       
+      // Detect if description is being deleted (set to empty string)
+      const isDescriptionDeletion = metadata.description === '' && existingMetadata.description && existingMetadata.description !== '';
+      
       // Merge with new metadata, preserving existing values, and add timestamp
       const now = Date.now();
       const updatedInstanceMetadata = {
@@ -1007,7 +1010,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         }
       };
       
-      console.log('📝 Instance metadata updated:', { instanceId, metadata, timestamp: now });
+      console.log('📝 Instance metadata updated:', { instanceId, metadata, timestamp: now, isDescriptionDeletion });
       
       // Save to localStorage using versioned format for consistency (instant local save)
       const userId = getUserId();
@@ -1017,28 +1020,54 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       saveVersionedData(localStorageKey, projectId, userId, updatedInstanceMetadata);
       console.log('💾 Instance metadata saved to localStorage (instant)');
       
-      // DEBOUNCED AWS save - wait 3 seconds after user stops typing
-      // Clear existing timeout
-      if (instanceMetadataSaveTimeout) {
-        clearTimeout(instanceMetadataSaveTimeout);
-      }
-      
-      // Set new timeout for debounced save
-      instanceMetadataSaveTimeout = setTimeout(async () => {
-        try {
-          console.log('💾 Debounced save - saving instance metadata to AWS');
-          const storedUser = localStorage.getItem('user');
-          const user = storedUser ? JSON.parse(storedUser) : null;
-          
-          if (user?.email) {
-            await DatabaseService.saveInstanceMetadata(user.email, updatedInstanceMetadata);
-            console.log('✅ Instance metadata saved to AWS (debounced)');
-          }
-        } catch (error) {
-          console.error('❌ Error saving instance metadata to AWS (debounced):', error);
+      // CRITICAL: If description is being deleted, save IMMEDIATELY to prevent polling from reverting it
+      // For other changes, use debounced save to prevent DynamoDB throttling
+      if (isDescriptionDeletion) {
+        // Clear any pending debounced save
+        if (instanceMetadataSaveTimeout) {
+          clearTimeout(instanceMetadataSaveTimeout);
+          instanceMetadataSaveTimeout = null;
         }
-        instanceMetadataSaveTimeout = null;
-      }, INSTANCE_METADATA_DEBOUNCE_MS);
+        
+        // Immediate save for deletions
+        (async () => {
+          try {
+            console.log('🚨 IMMEDIATE save (description deletion detected) - saving instance metadata to AWS');
+            const storedUser = localStorage.getItem('user');
+            const user = storedUser ? JSON.parse(storedUser) : null;
+            
+            if (user?.email) {
+              await DatabaseService.saveInstanceMetadata(user.email, updatedInstanceMetadata);
+              console.log('✅ Instance metadata IMMEDIATELY saved to AWS after description deletion');
+            }
+          } catch (error) {
+            console.error('❌ Error immediately saving instance metadata to AWS:', error);
+          }
+        })();
+      } else {
+        // DEBOUNCED AWS save - wait 3 seconds after user stops typing
+        // Clear existing timeout
+        if (instanceMetadataSaveTimeout) {
+          clearTimeout(instanceMetadataSaveTimeout);
+        }
+        
+        // Set new timeout for debounced save
+        instanceMetadataSaveTimeout = setTimeout(async () => {
+          try {
+            console.log('💾 Debounced save - saving instance metadata to AWS');
+            const storedUser = localStorage.getItem('user');
+            const user = storedUser ? JSON.parse(storedUser) : null;
+            
+            if (user?.email) {
+              await DatabaseService.saveInstanceMetadata(user.email, updatedInstanceMetadata);
+              console.log('✅ Instance metadata saved to AWS (debounced)');
+            }
+          } catch (error) {
+            console.error('❌ Error saving instance metadata to AWS (debounced):', error);
+          }
+          instanceMetadataSaveTimeout = null;
+        }, INSTANCE_METADATA_DEBOUNCE_MS);
+      }
       
       return {
         ...state,
@@ -1194,6 +1223,9 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
 
   setSelectedImages: (selectedImages) => {
     set((state) => {
+      // Detect if this is a deletion (fewer items than before)
+      const isDeletion = selectedImages.length < state.selectedImages.length;
+      
       // Auto-save to localStorage immediately (but not during clearing)
       try {
         // Check if project is being cleared
@@ -1228,44 +1260,86 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         console.error('❌ Error saving selected images to localStorage:', error);
       }
       
-      // DEBOUNCED save to AWS to prevent DynamoDB throttling
-      // Clear existing timeout
-      if (selectedImagesSaveTimeout) {
-        clearTimeout(selectedImagesSaveTimeout);
-      }
-      
-      // Set new timeout for debounced save
-      selectedImagesSaveTimeout = setTimeout(async () => {
-        try {
-          // Check if project is being cleared
-          const projectStore = useProjectStore.getState();
-          if (projectStore.isClearing) {
-            console.log('⏸️ Skipping auto-save during project clear');
-            return;
-          }
-          
-          const storedUser = localStorage.getItem('user');
-          const user = storedUser ? JSON.parse(storedUser) : null;
-          
-          if (user?.email) {
-            console.log('💾 Debounced save - saving selected images to AWS for user:', user.email);
-            // Send complete instance information to AWS
-            const selectedWithInstanceIds = selectedImages.map(item => {
-              const image = state.images.find(img => img.id === item.id);
-              return {
-                id: item.id, // Keep the original image ID
-                instanceId: item.instanceId, // Keep the instance ID
-                fileName: image?.fileName || image?.file?.name || 'unknown'
-              };
-            });
-            await DatabaseService.updateSelectedImages(user.email, selectedWithInstanceIds);
-            console.log('✅ Selected images auto-saved to AWS for user:', user.email);
-          }
-        } catch (error) {
-          console.error('❌ Error auto-saving selected images to AWS:', error);
+      // CRITICAL: If deletion occurred, save IMMEDIATELY to prevent polling from reverting it
+      // For additions, use debounced save to prevent DynamoDB throttling
+      if (isDeletion) {
+        // Clear any pending debounced save
+        if (selectedImagesSaveTimeout) {
+          clearTimeout(selectedImagesSaveTimeout);
+          selectedImagesSaveTimeout = null;
         }
-        selectedImagesSaveTimeout = null;
-      }, SELECTED_IMAGES_DEBOUNCE_MS);
+        
+        // Immediate save for deletions
+        (async () => {
+          try {
+            // Check if project is being cleared
+            const projectStore = useProjectStore.getState();
+            if (projectStore.isClearing) {
+              console.log('⏸️ Skipping immediate save during project clear');
+              return;
+            }
+            
+            const storedUser = localStorage.getItem('user');
+            const user = storedUser ? JSON.parse(storedUser) : null;
+            
+            if (user?.email) {
+              console.log('🚨 IMMEDIATE save (deletion detected) - saving selected images to AWS for user:', user.email);
+              // Send complete instance information to AWS
+              const selectedWithInstanceIds = selectedImages.map(item => {
+                const image = state.images.find(img => img.id === item.id);
+                return {
+                  id: item.id, // Keep the original image ID
+                  instanceId: item.instanceId, // Keep the instance ID
+                  fileName: image?.fileName || image?.file?.name || 'unknown'
+                };
+              });
+              await DatabaseService.updateSelectedImages(user.email, selectedWithInstanceIds);
+              console.log('✅ Selected images IMMEDIATELY saved to AWS after deletion');
+            }
+          } catch (error) {
+            console.error('❌ Error immediately saving selected images to AWS:', error);
+          }
+        })();
+      } else {
+        // DEBOUNCED save for additions/changes to prevent DynamoDB throttling
+        // Clear existing timeout
+        if (selectedImagesSaveTimeout) {
+          clearTimeout(selectedImagesSaveTimeout);
+        }
+        
+        // Set new timeout for debounced save
+        selectedImagesSaveTimeout = setTimeout(async () => {
+          try {
+            // Check if project is being cleared
+            const projectStore = useProjectStore.getState();
+            if (projectStore.isClearing) {
+              console.log('⏸️ Skipping auto-save during project clear');
+              return;
+            }
+            
+            const storedUser = localStorage.getItem('user');
+            const user = storedUser ? JSON.parse(storedUser) : null;
+            
+            if (user?.email) {
+              console.log('💾 Debounced save - saving selected images to AWS for user:', user.email);
+              // Send complete instance information to AWS
+              const selectedWithInstanceIds = selectedImages.map(item => {
+                const image = state.images.find(img => img.id === item.id);
+                return {
+                  id: item.id, // Keep the original image ID
+                  instanceId: item.instanceId, // Keep the instance ID
+                  fileName: image?.fileName || image?.file?.name || 'unknown'
+                };
+              });
+              await DatabaseService.updateSelectedImages(user.email, selectedWithInstanceIds);
+              console.log('✅ Selected images auto-saved to AWS for user:', user.email);
+            }
+          } catch (error) {
+            console.error('❌ Error auto-saving selected images to AWS:', error);
+          }
+          selectedImagesSaveTimeout = null;
+        }, SELECTED_IMAGES_DEBOUNCE_MS);
+      }
       
       // Update session state with new selected image order
       const selectedImageOrder = selectedImages.map(item => item.instanceId);
@@ -2829,9 +2903,17 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
                   deletedOnAWS: deletedOnAWS.length
                 });
                 
-                // CRITICAL: Don't sync if local has MORE items than AWS - user just added something locally
-                if (currentState.selectedImages.length > selectedImages.length && newFromAWS.length === 0) {
+                // CRITICAL: Protect local changes from being overwritten by polling
+                // 1. If local has MORE items than AWS AND no new items from AWS → user just added locally, skip sync
+                // 2. If local has FEWER items than AWS → user just deleted locally, skip sync (wait for immediate save to propagate to AWS)
+                const localCount = currentState.selectedImages.length;
+                const awsCount = selectedImages.length;
+                
+                if (localCount > awsCount && newFromAWS.length === 0) {
                   console.log('⏸️ [POLLING] Local has more items than AWS and no new items from AWS - user just added locally, skipping sync');
+                  skipAllSync = true;
+                } else if (localCount < awsCount) {
+                  console.log('⏸️ [POLLING] Local has fewer items than AWS - user just deleted locally, skipping sync to prevent reversion');
                   skipAllSync = true;
                 } else if (currentState.selectedImages.length === 0 && selectedImages.length === 0) {
                   console.log('⏸️ [POLLING] Both local and AWS are empty - nothing to sync');

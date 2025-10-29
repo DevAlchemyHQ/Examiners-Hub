@@ -44,11 +44,15 @@ const MainApp = () => {
           
           console.log('✅ User data loaded from localStorage (instant display)');
           
-          // Now sync with AWS in the background
-          console.log('☁️ Syncing with AWS in background...');
-          loadAllUserDataFromAWS().catch(err => {
+          // CRITICAL: On page load/refresh, immediately sync with AWS to get latest data
+          // This prevents showing stale data after refresh and ensures cross-browser consistency
+          console.log('☁️ Immediately syncing with AWS for fresh data on page load...');
+          try {
+            await loadAllUserDataFromAWS();
+            console.log('✅ AWS sync completed - fresh data loaded');
+          } catch (err) {
             console.error('⚠️ AWS sync failed (using local data):', err);
-          });
+          }
           
           // Start polling for cross-browser sync
           console.log('🔄 Starting polling for cross-browser sync...');
