@@ -660,8 +660,21 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             if (currentState.operationQueue.length > 0) {
               try {
                 console.log('📝 [OPERATION QUEUE] Sending operations to AWS:', currentState.operationQueue.length);
+                console.log('📝 [OPERATION QUEUE] Operations being sent:', currentState.operationQueue.map(op => ({
+                  type: op.type,
+                  timestamp: op.timestamp,
+                  data: op.data,
+                  id: op.id
+                })));
+                
                 const { DatabaseService } = await import('../lib/services');
                 const result = await DatabaseService.saveOperations(user.email, currentState.operationQueue);
+                
+                console.log('📝 [OPERATION QUEUE] Save result:', {
+                  lastVersion: result.lastVersion,
+                  processedCount: result.processedCount,
+                  success: result.success
+                });
                 
                 // Clear queue and update version on success
                 set({ 
@@ -673,6 +686,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
                 try {
                   const keys = getProjectStorageKeys(userId, 'current');
                   localStorage.setItem(`${keys.selections}-last-synced-version`, result.lastVersion.toString());
+                  console.log('💾 [OPERATION QUEUE] Saved lastSyncedVersion to localStorage:', result.lastVersion);
                 } catch (err) {
                   console.warn('⚠️ Could not save last synced version to localStorage:', err);
                 }
@@ -680,8 +694,11 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
                 console.log('✅ [OPERATION QUEUE] Operations saved successfully, lastVersion:', result.lastVersion);
               } catch (opError) {
                 console.error('❌ Error saving operations, keeping in queue for retry:', opError);
+                console.error('❌ Operation queue that failed:', currentState.operationQueue);
                 // Operations remain in queue - will retry on next save
               }
+            } else {
+              console.log('⏸️ [OPERATION QUEUE] No operations in queue to send');
             }
             
             // Also send legacy save (for backward compatibility during migration)

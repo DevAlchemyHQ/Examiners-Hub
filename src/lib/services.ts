@@ -1792,11 +1792,36 @@ export class DatabaseService {
       });
 
       const result = await docClient.send(scanCommand);
+      
+      console.log(`🔍 [OPERATION QUEUE] Scan result:`, {
+        itemsCount: result.Items?.length || 0,
+        scannedCount: result.ScannedCount,
+        items: result.Items?.map(item => ({
+          operationType: item.operation?.type,
+          operationTimestamp: item.operation?.timestamp,
+          tableTimestamp: item.timestamp,
+          userId: item.user_id
+        })) || []
+      });
+      
       const operations = (result.Items || [])
         .map(item => item.operation)
+        .filter(op => op && op.timestamp) // Filter out invalid operations
         .sort((a, b) => a.timestamp - b.timestamp); // Sort by timestamp ascending
       
       console.log(`✅ [OPERATION QUEUE] Found ${operations.length} operations since version ${sinceVersion}`);
+      if (operations.length > 0) {
+        console.log('📋 [OPERATION QUEUE] Operations found:', operations.map(op => ({
+          type: op.type,
+          timestamp: op.timestamp,
+          id: op.id,
+          dataPreview: op.type === 'UPDATE_FORMDATA' ? {
+            elr: op.data?.elr,
+            structureNo: op.data?.structureNo,
+            date: op.data?.date
+          } : op.data
+        })));
+      }
       
       return operations;
     } catch (error) {
