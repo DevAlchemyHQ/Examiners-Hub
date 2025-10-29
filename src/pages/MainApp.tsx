@@ -44,6 +44,16 @@ const MainApp = () => {
           
           console.log('🔄 Loading user data for authenticated user...');
           
+          // CRITICAL: Wait for next frame to ensure DOM is stable before loading data
+          // This prevents any layout shifts or movements during refresh
+          await new Promise(resolve => {
+            requestAnimationFrame(() => {
+              requestAnimationFrame(() => {
+                resolve(undefined);
+              });
+            });
+          });
+          
           // INSTANT DISPLAY: Load localStorage first for immediate UI (no flicker)
           // NOTE: Critical data (selectedImages, formData) already loaded synchronously in store initialization
           // This just loads remaining data (images from S3, etc.)
@@ -57,12 +67,15 @@ const MainApp = () => {
           // BACKGROUND SYNC: Load from AWS in background (non-blocking)
           // This ensures we have latest data without blocking UI
           // Only update if data actually changed (prevents unnecessary movement)
-          console.log('☁️ Syncing with AWS in background (non-blocking)...');
-          loadAllUserDataFromAWS().then(() => {
-            console.log('✅ AWS sync completed in background - latest state restored');
-          }).catch((err) => {
-            console.error('⚠️ AWS sync failed (using local data):', err);
-          });
+          // CRITICAL: Delay AWS sync to ensure page is fully stable first
+          setTimeout(() => {
+            console.log('☁️ Syncing with AWS in background (non-blocking)...');
+            loadAllUserDataFromAWS().then(() => {
+              console.log('✅ AWS sync completed in background - latest state restored');
+            }).catch((err) => {
+              console.error('⚠️ AWS sync failed (using local data):', err);
+            });
+          }, 500); // Small delay to ensure page is fully rendered
           
           // Start polling for cross-browser sync
           console.log('🔄 Starting polling for cross-browser sync...');
