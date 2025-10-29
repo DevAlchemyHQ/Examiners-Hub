@@ -1591,12 +1591,18 @@ export class DatabaseService {
       }
 
       // 2. Apply operations to current selected images state
-      // Get current state
+      // Get current state from database
       const currentSelected = await this.getSelectedImages(userId);
+      const currentProject = await this.getProject(userId, 'current');
+      const currentInstanceMetadata = await this.getInstanceMetadata(userId);
+      const currentSortPreferences = currentProject.project?.sortPreferences || {};
       
       // Apply operations in order (this is simplified - in production we'd use a more robust state machine)
       // For now, we'll update the selected-images table directly based on operations
       let updatedSelected = [...currentSelected];
+      
+      let updatedInstanceMetadata = currentInstanceMetadata || {};
+      let updatedDefectSortDirection = currentSortPreferences.defectSortDirection || null;
       
       for (const op of operations) {
         if (op.type === 'ADD_SELECTION') {
@@ -1611,15 +1617,57 @@ export class DatabaseService {
         } else if (op.type === 'DELETE_SELECTION') {
           // Remove if present
           updatedSelected = updatedSelected.filter(item => item.instanceId !== op.instanceId);
+        } else if (op.type === 'UPDATE_METADATA') {
+          // Update instance metadata
+          if (op.instanceId && op.data) {
+            updatedInstanceMetadata[op.instanceId] = {
+              ...updatedInstanceMetadata[op.instanceId],
+              photoNumber: op.data.photoNumber !== undefined ? op.data.photoNumber : updatedInstanceMetadata[op.instanceId]?.photoNumber,
+              description: op.data.description !== undefined ? op.data.description : updatedInstanceMetadata[op.instanceId]?.description,
+              lastModified: op.timestamp,
+            };
+          }
+        } else if (op.type === 'SORT_CHANGE') {
+          // Update sort direction
+          if (op.data?.sortDirection !== undefined) {
+            updatedDefectSortDirection = op.data.sortDirection;
+          }
         }
       }
 
-      // 3. Save updated state (using existing updateSelectedImages)
-      if (updatedSelected.length !== currentSelected.length || 
-          JSON.stringify(updatedSelected.map(i => i.instanceId).sort()) !== 
-          JSON.stringify(currentSelected.map(i => i.instanceId).sort())) {
+      // 3. Save updated state (using existing methods)
+      const stateChanged = 
+        updatedSelected.length !== currentSelected.length || 
+        JSON.stringify(updatedSelected.map(i => i.instanceId).sort()) !== 
+        JSON.stringify(currentSelected.map(i => i.instanceId).sort()) ||
+        JSON.stringify(updatedInstanceMetadata) !== JSON.stringify(currentInstanceMetadata || {}) ||
+        updatedDefectSortDirection !== currentSortPreferences.defectSortDirection;
+      
+      if (stateChanged) {
         console.log('📝 [OPERATION QUEUE] Applying operations to state...');
-        await this.updateSelectedImages(userId, updatedSelected);
+        
+        // Save selected images if changed
+        if (updatedSelected.length !== currentSelected.length || 
+            JSON.stringify(updatedSelected.map(i => i.instanceId).sort()) !== 
+            JSON.stringify(currentSelected.map(i => i.instanceId).sort())) {
+          await this.updateSelectedImages(userId, updatedSelected);
+        }
+        
+        // Save instance metadata if changed
+        if (JSON.stringify(updatedInstanceMetadata) !== JSON.stringify(currentInstanceMetadata || {})) {
+          await this.saveInstanceMetadata(userId, updatedInstanceMetadata);
+        }
+        
+        // Save sort preferences if changed
+        if (updatedDefectSortDirection !== currentSortPreferences.defectSortDirection) {
+          await this.updateProject(userId, 'current', {
+            sortPreferences: {
+              defectSortDirection: updatedDefectSortDirection,
+              sketchSortDirection: currentSortPreferences.sketchSortDirection || null,
+            }
+          });
+        }
+        
         console.log(`✅ [OPERATION QUEUE] Applied ${operations.length} operations to state`);
       }
 

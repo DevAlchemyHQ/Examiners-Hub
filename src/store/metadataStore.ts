@@ -1012,6 +1012,25 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       // Detect if description is being deleted (set to empty string)
       const isDescriptionDeletion = metadata.description === '' && existingMetadata.description && existingMetadata.description !== '';
       
+      // PHASE 1: OPERATION QUEUE - Create UPDATE_METADATA operation
+      const browserId = getBrowserId();
+      let operationQueue = [...state.operationQueue];
+      
+      // Create UPDATE_METADATA operation
+      const operation: Operation = {
+        id: createOperationId(browserId),
+        type: 'UPDATE_METADATA',
+        instanceId,
+        timestamp: Date.now(),
+        browserId,
+        data: {
+          photoNumber: metadata.photoNumber !== undefined ? metadata.photoNumber : existingMetadata.photoNumber,
+          description: metadata.description !== undefined ? metadata.description : existingMetadata.description,
+        },
+      };
+      operationQueue.push(operation);
+      console.log('📝 [OPERATION] Added UPDATE_METADATA operation to queue:', operation.id, { instanceId, metadata });
+      
       // Merge with new metadata, preserving existing values, and add timestamp
       const now = Date.now();
       const updatedInstanceMetadata = {
@@ -1033,9 +1052,19 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       saveVersionedData(localStorageKey, projectId, userId, updatedInstanceMetadata);
       console.log('💾 Instance metadata saved to localStorage (instant)');
       
-      // CRITICAL: If description is being deleted, use SHORT debounce (500ms) to batch multiple deletions
-      // while still being fast enough to prevent polling from reverting changes
-      // For other changes, use longer debounce (3s) to prevent DynamoDB throttling
+      // Save operation queue to localStorage for persistence across refreshes
+      try {
+        const userId = getUserId();
+        const keys = getProjectStorageKeys(userId, 'current');
+        const projectId = generateStableProjectId(userId, 'current');
+        saveVersionedData(`${keys.selections}-operation-queue`, projectId, userId, operationQueue);
+        console.log('📱 Operation queue saved to localStorage (UPDATE_METADATA):', operationQueue.length, 'operations');
+      } catch (error) {
+        console.error('❌ Error saving operation queue to localStorage:', error);
+      }
+      
+      // PHASE 1: DUAL-WRITE - Send operations AND legacy save (backward compatible)
+      // Use debounced save for operations (same timing as before)
       if (isDescriptionDeletion) {
         // Clear any pending debounced save
         if (instanceMetadataSaveTimeout) {
@@ -1045,17 +1074,50 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         // Short debounce for deletions - batches multiple description deletions but saves quickly
         instanceMetadataSaveTimeout = setTimeout(async () => {
           try {
-            // Get current state (may have more deletions in the batch)
+            // Get current state (may have more operations in the batch)
             const currentState = get();
             
-            console.log('🚨 FAST save (description deletion detected, batched) - saving instance metadata to AWS');
+            // PHASE 1: Save operations to AWS
+            if (currentState.operationQueue.length > 0) {
+              const storedUser = localStorage.getItem('user');
+              const user = storedUser ? JSON.parse(storedUser) : null;
+              
+              if (user?.email) {
+                try {
+                  console.log('📝 [OPERATION QUEUE] FAST save - sending UPDATE_METADATA operations to AWS:', currentState.operationQueue.length);
+                  const result = await DatabaseService.saveOperations(user.email, currentState.operationQueue);
+                  
+                  // Clear queue and update version on success
+                  set({ 
+                    operationQueue: [],
+                    lastSyncedVersion: result.lastVersion 
+                  });
+                  
+                  // Save version to localStorage
+                  try {
+                    const userId = getUserId();
+                    const keys = getProjectStorageKeys(userId, 'current');
+                    localStorage.setItem(`${keys.selections}-last-synced-version`, result.lastVersion.toString());
+                  } catch (err) {
+                    console.warn('⚠️ Could not save last synced version:', err);
+                  }
+                  
+                  console.log('✅ [OPERATION QUEUE] Operations saved (batched metadata deletions), lastVersion:', result.lastVersion);
+                } catch (opError) {
+                  console.error('❌ Error saving operations, keeping in queue for retry:', opError);
+                  // Operations remain in queue - will retry on next save
+                }
+              }
+            }
+            
+            // LEGACY: Also save via legacy method (backward compatible)
+            console.log('🚨 FAST save (description deletion detected, batched) - saving instance metadata to AWS (legacy)');
             const storedUser = localStorage.getItem('user');
             const user = storedUser ? JSON.parse(storedUser) : null;
             
             if (user?.email) {
-              // Use current state to catch batched deletions
               await DatabaseService.saveInstanceMetadata(user.email, currentState.instanceMetadata);
-              console.log('✅ Instance metadata saved to AWS (batched description deletions)');
+              console.log('✅ Instance metadata saved to AWS (batched description deletions, legacy)');
             }
           } catch (error) {
             console.error('❌ Error saving instance metadata to AWS (deletion batch):', error);
@@ -1063,33 +1125,71 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           instanceMetadataSaveTimeout = null;
         }, DELETION_DEBOUNCE_MS);
       } else {
-        // DEBOUNCED AWS save - wait 3 seconds after user stops typing
-        // Clear existing timeout
-        if (instanceMetadataSaveTimeout) {
-          clearTimeout(instanceMetadataSaveTimeout);
-        }
-        
-        // Set new timeout for debounced save
-        instanceMetadataSaveTimeout = setTimeout(async () => {
-          try {
-            console.log('💾 Debounced save - saving instance metadata to AWS');
-            const storedUser = localStorage.getItem('user');
-            const user = storedUser ? JSON.parse(storedUser) : null;
+      // DEBOUNCED AWS save - wait 3 seconds after user stops typing
+      // Clear existing timeout
+      if (instanceMetadataSaveTimeout) {
+        clearTimeout(instanceMetadataSaveTimeout);
+      }
+      
+      // Set new timeout for debounced save
+      instanceMetadataSaveTimeout = setTimeout(async () => {
+        try {
+            // Get current state
+            const currentState = get();
             
-            if (user?.email) {
-              await DatabaseService.saveInstanceMetadata(user.email, updatedInstanceMetadata);
-              console.log('✅ Instance metadata saved to AWS (debounced)');
+            // PHASE 1: Save operations to AWS
+            if (currentState.operationQueue.length > 0) {
+              const storedUser = localStorage.getItem('user');
+              const user = storedUser ? JSON.parse(storedUser) : null;
+              
+              if (user?.email) {
+                try {
+                  console.log('📝 [OPERATION QUEUE] Sending UPDATE_METADATA operations to AWS:', currentState.operationQueue.length);
+                  const result = await DatabaseService.saveOperations(user.email, currentState.operationQueue);
+                  
+                  // Clear queue and update version on success
+                  set({ 
+                    operationQueue: [],
+                    lastSyncedVersion: result.lastVersion 
+                  });
+                  
+                  // Save version to localStorage
+                  try {
+                    const userId = getUserId();
+                    const keys = getProjectStorageKeys(userId, 'current');
+                    localStorage.setItem(`${keys.selections}-last-synced-version`, result.lastVersion.toString());
+                  } catch (err) {
+                    console.warn('⚠️ Could not save last synced version:', err);
+                  }
+                  
+                  console.log('✅ [OPERATION QUEUE] Operations saved successfully (UPDATE_METADATA), lastVersion:', result.lastVersion);
+                } catch (opError) {
+                  console.error('❌ Error saving operations, keeping in queue for retry:', opError);
+                  // Operations remain in queue - will retry on next save
+                }
+              }
             }
-          } catch (error) {
-            console.error('❌ Error saving instance metadata to AWS (debounced):', error);
+            
+            // LEGACY: Also save via legacy method (backward compatible)
+            console.log('💾 Debounced save - saving instance metadata to AWS (legacy)');
+          const storedUser = localStorage.getItem('user');
+          const user = storedUser ? JSON.parse(storedUser) : null;
+          
+          if (user?.email) {
+            await DatabaseService.saveInstanceMetadata(user.email, updatedInstanceMetadata);
+              console.log('✅ Instance metadata saved to AWS (debounced, legacy)');
           }
-          instanceMetadataSaveTimeout = null;
-        }, INSTANCE_METADATA_DEBOUNCE_MS);
+        } catch (error) {
+          console.error('❌ Error saving instance metadata to AWS (debounced):', error);
+        }
+        instanceMetadataSaveTimeout = null;
+      }, INSTANCE_METADATA_DEBOUNCE_MS);
       }
       
       return {
         ...state,
-        instanceMetadata: updatedInstanceMetadata
+        instanceMetadata: updatedInstanceMetadata,
+        operationQueue, // Include updated operation queue
       };
     });
   },
@@ -1478,34 +1578,34 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         
         // Set new timeout for debounced save
         selectedImagesSaveTimeout = setTimeout(async () => {
-          try {
-            // Check if project is being cleared
-            const projectStore = useProjectStore.getState();
-            if (projectStore.isClearing) {
-              console.log('⏸️ Skipping auto-save during project clear');
-              return;
-            }
-            
-            const storedUser = localStorage.getItem('user');
-            const user = storedUser ? JSON.parse(storedUser) : null;
-            
-            if (user?.email) {
-              console.log('💾 Debounced save - saving selected images to AWS for user:', user.email);
-              // Send complete instance information to AWS
-              const selectedWithInstanceIds = selectedImages.map(item => {
-                const image = state.images.find(img => img.id === item.id);
-                return {
-                  id: item.id, // Keep the original image ID
-                  instanceId: item.instanceId, // Keep the instance ID
-                  fileName: image?.fileName || image?.file?.name || 'unknown'
-                };
-              });
-              await DatabaseService.updateSelectedImages(user.email, selectedWithInstanceIds);
-              console.log('✅ Selected images auto-saved to AWS for user:', user.email);
-            }
-          } catch (error) {
-            console.error('❌ Error auto-saving selected images to AWS:', error);
+        try {
+          // Check if project is being cleared
+          const projectStore = useProjectStore.getState();
+          if (projectStore.isClearing) {
+            console.log('⏸️ Skipping auto-save during project clear');
+            return;
           }
+          
+          const storedUser = localStorage.getItem('user');
+          const user = storedUser ? JSON.parse(storedUser) : null;
+          
+          if (user?.email) {
+              console.log('💾 Debounced save - saving selected images to AWS for user:', user.email);
+            // Send complete instance information to AWS
+            const selectedWithInstanceIds = selectedImages.map(item => {
+              const image = state.images.find(img => img.id === item.id);
+              return {
+                id: item.id, // Keep the original image ID
+                instanceId: item.instanceId, // Keep the instance ID
+                fileName: image?.fileName || image?.file?.name || 'unknown'
+              };
+            });
+            await DatabaseService.updateSelectedImages(user.email, selectedWithInstanceIds);
+            console.log('✅ Selected images auto-saved to AWS for user:', user.email);
+          }
+        } catch (error) {
+            console.error('❌ Error auto-saving selected images to AWS:', error);
+        }
           selectedImagesSaveTimeout = null;
         }, SELECTED_IMAGES_DEBOUNCE_MS);
       }
@@ -1541,7 +1641,41 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
   },
 
   setDefectSortDirection: (direction) => {
-    set({ defectSortDirection: direction });
+    set((state) => {
+      // PHASE 1: OPERATION QUEUE - Create SORT_CHANGE operation
+      const browserId = getBrowserId();
+      let operationQueue = [...state.operationQueue];
+      
+      // Create SORT_CHANGE operation
+      const operation: Operation = {
+        id: createOperationId(browserId),
+        type: 'SORT_CHANGE',
+        timestamp: Date.now(),
+        browserId,
+        data: {
+          sortDirection: direction,
+        },
+      };
+      operationQueue.push(operation);
+      console.log('📝 [OPERATION] Added SORT_CHANGE operation to queue:', operation.id, { direction });
+      
+      // Save operation queue to localStorage
+      try {
+        const userId = getUserId();
+        const keys = getProjectStorageKeys(userId, 'current');
+        const projectId = generateStableProjectId(userId, 'current');
+        saveVersionedData(`${keys.selections}-operation-queue`, projectId, userId, operationQueue);
+        console.log('📱 Operation queue saved to localStorage (SORT_CHANGE):', operationQueue.length, 'operations');
+      } catch (error) {
+        console.error('❌ Error saving operation queue to localStorage:', error);
+      }
+      
+      // Update state
+      return {
+        defectSortDirection: direction,
+        operationQueue,
+      };
+    });
     
     // Save sort preferences to session state and AWS
     setTimeout(async () => {
@@ -1553,29 +1687,56 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         },
         // Update selectedImageOrder to current state (images stay as-is, just sort them visually)
         selectedImageOrder: state.selectedImages.map(item => item.instanceId),
-        // Record timestamp to prevent polling from reverting recent changes
+        // Record timestamp (for future use if polling re-enabled)
         lastSortChangeTime: Date.now()
       });
       
-      // CRITICAL: Immediately save sort preferences to AWS for cross-browser sync
+      // PHASE 1: DUAL-WRITE - Send operations AND legacy save
       const { DatabaseService } = await import('../lib/services');
       const storedUser = localStorage.getItem('user');
       const user = storedUser ? JSON.parse(storedUser) : null;
       
       if (user?.email) {
-        const userId = getUserId();
         const currentState = get();
         
+        // PHASE 1: Save operations to AWS (immediate - sort changes should sync fast)
+        if (currentState.operationQueue.length > 0) {
+          try {
+            console.log('📝 [OPERATION QUEUE] Immediately saving SORT_CHANGE operation to AWS');
+            const result = await DatabaseService.saveOperations(user.email, currentState.operationQueue);
+            
+            // Clear queue and update version on success
+            set({ 
+              operationQueue: [],
+              lastSyncedVersion: result.lastVersion 
+            });
+            
+            // Save version to localStorage
+            try {
+              const userId = getUserId();
+              const keys = getProjectStorageKeys(userId, 'current');
+              localStorage.setItem(`${keys.selections}-last-synced-version`, result.lastVersion.toString());
+            } catch (err) {
+              console.warn('⚠️ Could not save last synced version:', err);
+            }
+            
+            console.log('✅ [OPERATION QUEUE] SORT_CHANGE operation saved, lastVersion:', result.lastVersion);
+          } catch (opError) {
+            console.error('❌ Error saving operations, keeping in queue for retry:', opError);
+            // Operations remain in queue - will retry on next save
+          }
+        }
+        
+        // LEGACY: Also save via legacy method (backward compatible)
         try {
-          console.log('💾 Immediately saving sort preferences to AWS for cross-browser sync');
-          // IMPORTANT: Save sortPreferences at ROOT level, not inside sessionState
+          console.log('💾 Immediately saving sort preferences to AWS for cross-browser sync (legacy)');
           await DatabaseService.updateProject(user.email, 'current', {
             sortPreferences: {
               defectSortDirection: direction,
               sketchSortDirection: currentState.sketchSortDirection
             }
           });
-          console.log('✅ Sort preferences immediately saved to AWS');
+          console.log('✅ Sort preferences immediately saved to AWS (legacy)');
         } catch (error) {
           console.error('❌ Error immediately saving sort preferences to AWS:', error);
         }
@@ -1584,7 +1745,41 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
   },
 
   setSketchSortDirection: (direction) => {
-    set({ sketchSortDirection: direction });
+    set((state) => {
+      // PHASE 1: OPERATION QUEUE - Create SORT_CHANGE operation
+      const browserId = getBrowserId();
+      let operationQueue = [...state.operationQueue];
+      
+      // Create SORT_CHANGE operation (note: sketch sort doesn't affect selected images, but we track it)
+      const operation: Operation = {
+        id: createOperationId(browserId),
+        type: 'SORT_CHANGE',
+        timestamp: Date.now(),
+        browserId,
+        data: {
+          sortDirection: direction,
+        },
+      };
+      operationQueue.push(operation);
+      console.log('📝 [OPERATION] Added SORT_CHANGE operation to queue (sketch):', operation.id, { direction });
+      
+      // Save operation queue to localStorage
+      try {
+        const userId = getUserId();
+        const keys = getProjectStorageKeys(userId, 'current');
+        const projectId = generateStableProjectId(userId, 'current');
+        saveVersionedData(`${keys.selections}-operation-queue`, projectId, userId, operationQueue);
+        console.log('📱 Operation queue saved to localStorage (SORT_CHANGE sketch):', operationQueue.length, 'operations');
+      } catch (error) {
+        console.error('❌ Error saving operation queue to localStorage:', error);
+      }
+      
+      // Update state
+      return {
+        sketchSortDirection: direction,
+        operationQueue,
+      };
+    });
     
     // Save sort preferences to session state and AWS
     setTimeout(async () => {
@@ -1596,29 +1791,56 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         },
         // Update selectedImageOrder to current state (images stay as-is, just sort them visually)
         selectedImageOrder: state.selectedImages.map(item => item.instanceId),
-        // Record timestamp to prevent polling from reverting recent changes
+        // Record timestamp (for future use if polling re-enabled)
         lastSortChangeTime: Date.now()
       });
       
-      // CRITICAL: Immediately save sort preferences to AWS for cross-browser sync
+      // PHASE 1: DUAL-WRITE - Send operations AND legacy save
       const { DatabaseService } = await import('../lib/services');
       const storedUser = localStorage.getItem('user');
       const user = storedUser ? JSON.parse(storedUser) : null;
       
       if (user?.email) {
-        const userId = getUserId();
         const currentState = get();
         
+        // PHASE 1: Save operations to AWS (immediate - sort changes should sync fast)
+        if (currentState.operationQueue.length > 0) {
+          try {
+            console.log('📝 [OPERATION QUEUE] Immediately saving SORT_CHANGE operation to AWS (sketch)');
+            const result = await DatabaseService.saveOperations(user.email, currentState.operationQueue);
+            
+            // Clear queue and update version on success
+            set({ 
+              operationQueue: [],
+              lastSyncedVersion: result.lastVersion 
+            });
+            
+            // Save version to localStorage
+            try {
+              const userId = getUserId();
+              const keys = getProjectStorageKeys(userId, 'current');
+              localStorage.setItem(`${keys.selections}-last-synced-version`, result.lastVersion.toString());
+            } catch (err) {
+              console.warn('⚠️ Could not save last synced version:', err);
+            }
+            
+            console.log('✅ [OPERATION QUEUE] SORT_CHANGE operation saved (sketch), lastVersion:', result.lastVersion);
+          } catch (opError) {
+            console.error('❌ Error saving operations, keeping in queue for retry:', opError);
+            // Operations remain in queue - will retry on next save
+          }
+        }
+        
+        // LEGACY: Also save via legacy method (backward compatible)
         try {
-          console.log('💾 Immediately saving sort preferences to AWS for cross-browser sync');
-          // IMPORTANT: Save sortPreferences at ROOT level, not inside sessionState
+          console.log('💾 Immediately saving sort preferences to AWS for cross-browser sync (legacy)');
           await DatabaseService.updateProject(user.email, 'current', {
             sortPreferences: {
               defectSortDirection: currentState.defectSortDirection,
-              sketchSortDirection: direction
-            }
-          });
-          console.log('✅ Sort preferences immediately saved to AWS');
+          sketchSortDirection: direction
+        }
+      });
+          console.log('✅ Sort preferences immediately saved to AWS (legacy)');
         } catch (error) {
           console.error('❌ Error immediately saving sort preferences to AWS:', error);
         }
@@ -2496,7 +2718,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           const { defectSortDirection, sketchSortDirection } = project.sortPreferences;
           // Only update if sort preferences are not null (preserve user's explicit choice)
           if (defectSortDirection !== null || sketchSortDirection !== null) {
-            set({ defectSortDirection, sketchSortDirection });
+          set({ defectSortDirection, sketchSortDirection });
             console.log('✅ Sort preferences loaded from AWS:', { defectSortDirection, sketchSortDirection });
             
             // CRITICAL: Update session state with these sort preferences so they persist
@@ -3022,9 +3244,13 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
   },
 
   startPolling: () => {
-    // Poll AWS every 10 seconds to check for newer data and operations
-    console.log('🔄 Starting polling for AWS form data and operations sync (every 10 seconds)...');
+    // REFRESH-ONLY MODE: Polling disabled for cost optimization
+    // All sync happens on page refresh via loadUserData and loadAllUserDataFromAWS
+    console.log('🔄 Polling disabled - using refresh-only sync mode');
+    console.log('📝 All changes sync on page refresh (lower AWS costs)');
+    return; // Exit early - no polling interval
     
+    // Legacy polling code (disabled):
     const pollInterval = setInterval(async () => {
       try {
         const userId = getUserId();
@@ -3154,7 +3380,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
                       // Sorted mode: Use AWS order directly for cross-browser sync
                       console.log('✅ [POLLING] Using AWS order for cross-browser sync (sorted mode):', migratedSelections.map(item => `${item.fileName}(${item.instanceId})`));
                       console.log('✅ [POLLING] Current sort direction:', currentState.defectSortDirection);
-                      updates.selectedImages = migratedSelections;
+                    updates.selectedImages = migratedSelections;
                       
                       // Store the order update for later (after set completes)
                       const awsOrder = migratedSelections.map(item => item.instanceId);
@@ -4108,31 +4334,31 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             console.log('⏸️ No-sort mode: Skipping order restoration to preserve insertion order');
           } else {
             // Sorted mode: Restore order from session state
-            console.log('🔄 Restoring selected images order from session state:', sessionState.selectedImageOrder);
+          console.log('🔄 Restoring selected images order from session state:', sessionState.selectedImageOrder);
+          
+          const currentSelectedImages = currentState.selectedImages;
+          console.log('🔄 Current selectedImages before restoration:', currentSelectedImages);
+          
+          if (currentSelectedImages && currentSelectedImages.length > 0) {
+            // Create a map for quick lookup
+            const selectedImageMap = new Map(currentSelectedImages.map(item => [item.instanceId, item]));
+            console.log('🔄 SelectedImageMap keys:', Array.from(selectedImageMap.keys()));
             
-            const currentSelectedImages = currentState.selectedImages;
-            console.log('🔄 Current selectedImages before restoration:', currentSelectedImages);
+            // Reorder selected images according to saved order
+            const reorderedSelectedImages = sessionState.selectedImageOrder
+              .map(instanceId => selectedImageMap.get(instanceId))
+              .filter(Boolean) as Array<{ id: string; instanceId: string }>;
             
-            if (currentSelectedImages && currentSelectedImages.length > 0) {
-              // Create a map for quick lookup
-              const selectedImageMap = new Map(currentSelectedImages.map(item => [item.instanceId, item]));
-              console.log('🔄 SelectedImageMap keys:', Array.from(selectedImageMap.keys()));
-              
-              // Reorder selected images according to saved order
-              const reorderedSelectedImages = sessionState.selectedImageOrder
-                .map(instanceId => selectedImageMap.get(instanceId))
-                .filter(Boolean) as Array<{ id: string; instanceId: string }>;
-              
-              // Add any selected images not in the saved order at the end
-              const remainingSelectedImages = currentSelectedImages.filter(item => 
-                !sessionState.selectedImageOrder.includes(item.instanceId)
-              );
-              
-              const finalSelectedImages = [...reorderedSelectedImages, ...remainingSelectedImages];
-              set({ selectedImages: finalSelectedImages });
-              console.log('✅ Selected images order restored:', finalSelectedImages.length);
-            } else {
-              console.log('⚠️ No current selectedImages to restore order for');
+            // Add any selected images not in the saved order at the end
+            const remainingSelectedImages = currentSelectedImages.filter(item => 
+              !sessionState.selectedImageOrder.includes(item.instanceId)
+            );
+            
+            const finalSelectedImages = [...reorderedSelectedImages, ...remainingSelectedImages];
+            set({ selectedImages: finalSelectedImages });
+            console.log('✅ Selected images order restored:', finalSelectedImages.length);
+          } else {
+            console.log('⚠️ No current selectedImages to restore order for');
             }
           }
         } else {

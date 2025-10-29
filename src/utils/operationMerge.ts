@@ -94,10 +94,14 @@ export function applyOperation(
       };
 
     case 'SORT_CHANGE':
-      return {
-        ...state,
-        defectSortDirection: op.data?.sortDirection as 'asc' | 'desc' | null || state.defectSortDirection,
-      };
+      const sortDir = op.data?.sortDirection as 'asc' | 'desc' | null;
+      if (sortDir !== undefined && sortDir !== null) {
+        return {
+          ...state,
+          defectSortDirection: sortDir,
+        };
+      }
+      return state;
 
     default:
       console.warn('⚠️ Unknown operation type:', (op as any).type);
