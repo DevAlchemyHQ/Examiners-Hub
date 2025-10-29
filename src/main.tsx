@@ -14,10 +14,5 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   </React.StrictMode>,
 )
 
-// Enable transitions after React has rendered (prevents movement during refresh)
-// Wait for next frame to ensure DOM is ready
-requestAnimationFrame(() => {
-  requestAnimationFrame(() => {
-    document.documentElement.classList.add('loaded');
-  });
-});
+// DON'T add 'loaded' class here - it's too early and causes flicker
+// MainApp will add it after data is fully loaded (isInitialized = true)

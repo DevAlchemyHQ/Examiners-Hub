@@ -54,6 +54,11 @@ const MainApp = () => {
           // Data already loaded from localStorage above, so user sees something
         } finally {
           setIsInitialized(true);
+          // Enable transitions ONLY after data is fully loaded (prevents flicker during refresh)
+          // Add small delay to ensure all components have finished rendering
+          setTimeout(() => {
+            document.documentElement.classList.add('loaded');
+          }, 100);
         }
       };
       
@@ -61,6 +66,10 @@ const MainApp = () => {
     } else {
       // If not authenticated, mark as initialized immediately (to show login screen)
       setIsInitialized(true);
+      // Enable transitions immediately for login screen (no data to load)
+      requestAnimationFrame(() => {
+        document.documentElement.classList.add('loaded');
+      });
     }
   }, [isAuthenticated, loadUserData, loadAllUserDataFromAWS]);
 
