@@ -3,12 +3,19 @@
 @tailwind utilities;
 
 /* Prevent body and html scrolling */
+/* CRITICAL: Set dark background immediately to prevent white flicker on refresh */
+html {
+  background-color: #111827; /* gray-900 - matches dark theme */
+  color-scheme: dark;
+}
+
 html, body {
   height: 100%;
   overflow: hidden;
   margin: 0;
   padding: 0;
   position: relative;
+  background-color: #111827; /* gray-900 - prevents white flash */
 }
 
 #root {

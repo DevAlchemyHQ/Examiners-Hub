@@ -1,6 +1,14 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" style="background-color: #111827; color-scheme: dark;">
   <head>
+    <!-- CRITICAL: Inline style prevents white flicker before CSS loads -->
+    <style>
+      html, body { 
+        background-color: #111827 !important; /* gray-900 */
+        margin: 0;
+        padding: 0;
+      }
+    </style>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -21,8 +29,8 @@
       gtag('config', 'G-ZGN0X8XSJ0');
     </script>
   </head>
-  <body>
-    <div id="root"></div>
+  <body style="background-color: #111827; margin: 0; padding: 0;">
+    <div id="root" style="background-color: #111827; min-height: 100vh;"></div>
     <script type="module" src="/src/main.tsx"></script>
     
     <!-- Service Worker Registration -->
