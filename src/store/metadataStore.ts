@@ -2823,25 +2823,36 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           }
         }
         
-        // Update sort preferences if available
+        // Update sort preferences if available - only if actually different
         if (project.sortPreferences) {
           const { defectSortDirection, sketchSortDirection } = project.sortPreferences;
           // Only update if sort preferences are not null (preserve user's explicit choice)
           if (defectSortDirection !== null || sketchSortDirection !== null) {
-            batchedUpdates.defectSortDirection = defectSortDirection;
-            batchedUpdates.sketchSortDirection = sketchSortDirection;
-            hasUpdates = true;
-            console.log('✅ Sort preferences loaded from AWS:', { defectSortDirection, sketchSortDirection });
+            // Only update if values actually changed (prevents unnecessary re-sorting/flicker)
+            const currentDefectSort = currentState.defectSortDirection;
+            const currentSketchSort = currentState.sketchSortDirection;
             
-            // CRITICAL: Update session state with these sort preferences so they persist
-            const keys = getProjectStorageKeys(userId, 'current');
-            const currentSessionState = currentState.sessionState;
-            const updatedSessionState = {
-              ...currentSessionState,
-              sortPreferences: { defectSortDirection, sketchSortDirection }
-            };
-            localStorage.setItem(`${keys.formData}-session-state`, JSON.stringify(updatedSessionState));
-            console.log('💾 Updated session state with AWS sort preferences');
+            if (defectSortDirection !== currentDefectSort || sketchSortDirection !== currentSketchSort) {
+              batchedUpdates.defectSortDirection = defectSortDirection;
+              batchedUpdates.sketchSortDirection = sketchSortDirection;
+              hasUpdates = true;
+              console.log('✅ Sort preferences loaded from AWS (changed):', { 
+                from: { defectSortDirection: currentDefectSort, sketchSortDirection: currentSketchSort },
+                to: { defectSortDirection, sketchSortDirection }
+              });
+              
+              // CRITICAL: Update session state with these sort preferences so they persist
+              const keys = getProjectStorageKeys(userId, 'current');
+              const currentSessionState = currentState.sessionState;
+              const updatedSessionState = {
+                ...currentSessionState,
+                sortPreferences: { defectSortDirection, sketchSortDirection }
+              };
+              localStorage.setItem(`${keys.formData}-session-state`, JSON.stringify(updatedSessionState));
+              console.log('💾 Updated session state with AWS sort preferences');
+            } else {
+              console.log('✅ Sort preferences unchanged, skipping update to prevent flicker:', { defectSortDirection, sketchSortDirection });
+            }
           } else {
             console.log('⚠️ AWS sort preferences are null, preserving local state');
           }
