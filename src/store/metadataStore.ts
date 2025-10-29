@@ -592,19 +592,32 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       };
       
       // ✅ OPERATION QUEUE: Create UPDATE_FORMDATA operation (like selected images)
+      // CRITICAL: Send COMPLETE formData in operation, not just changed fields
+      // This ensures Browser A gets { elr, structureNo, date } even if Browser C only changed elr
       const browserId = getBrowserId();
       let operationQueue = [...state.operationQueue];
       
       const operation: Operation = {
         id: createOperationId(browserId),
         type: 'UPDATE_FORMDATA',
-        data: processedData, // { elr, structureNo, date }
+        data: newFormData, // ✅ COMPLETE formData after merge: { elr, structureNo, date }
         timestamp: Date.now(),
         browserId,
       };
       
+      console.log('📝 [OPERATION] UPDATE_FORMDATA operation data (complete):', {
+        operationData: operation.data,
+        hasElr: !!operation.data?.elr,
+        hasStructureNo: !!operation.data?.structureNo,
+        hasDate: !!operation.data?.date,
+        elrValue: operation.data?.elr,
+        structureNoValue: operation.data?.structureNo,
+        dateValue: operation.data?.date,
+        completeFormData: newFormData
+      });
+      
       operationQueue.push(operation);
-      console.log('📝 [OPERATION] Added UPDATE_FORMDATA operation to queue:', operation.id, processedData);
+      console.log('📝 [OPERATION] Added UPDATE_FORMDATA operation to queue:', operation.id, newFormData);
       
       // Save operation queue to localStorage immediately
       try {
@@ -2709,7 +2722,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             const currentState = get();
             if (currentState.lastSyncedVersion === 0) {
               set({ formData: awsFormData as FormData });
-              const keys = getProjectStorageKeys(userId, 'current');
+            const keys = getProjectStorageKeys(userId, 'current');
               const projectId = generateStableProjectId(userId, 'current');
               saveVersionedData(keys.formData, projectId, userId, awsFormData);
             }

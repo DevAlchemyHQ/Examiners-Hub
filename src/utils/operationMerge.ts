@@ -111,24 +111,24 @@ export function applyOperation(
       return state;
 
     case 'UPDATE_FORMDATA':
-      // Merge formData fields - last operation wins
-      // This ensures Browser C's changes always sync to Browser A/B on refresh
-      const currentFormData = state.formData || {};
-      const newFormData = {
-        ...currentFormData,
-        ...op.data, // { elr, structureNo, date } - overwrite with latest
-      };
+      // ✅ CRITICAL: Operation contains COMPLETE formData (not just changed fields)
+      // Simply use it directly - no merging needed (operation already has all fields)
+      // This ensures Browser A gets complete { elr, structureNo, date } from Browser C
+      const operationFormData = op.data || {};
       
-      console.log('🔄 [OPERATION] Applying UPDATE_FORMDATA:', {
-        operationData: op.data,
-        currentFormData,
-        newFormData,
+      console.log('🔄 [OPERATION] Applying UPDATE_FORMDATA (complete formData):', {
+        operationData: operationFormData,
+        operationElr: operationFormData.elr,
+        operationStructureNo: operationFormData.structureNo,
+        operationDate: operationFormData.date,
+        currentFormData: state.formData,
         timestamp: op.timestamp
       });
       
+      // ✅ Use operation data directly (it's already complete)
       return {
         ...state,
-        formData: newFormData as any,
+        formData: operationFormData as any,
       };
 
     default:
