@@ -243,6 +243,7 @@ const INSTANCE_METADATA_DEBOUNCE_MS = 3000; // 3 seconds debounce for typing
 // Debouncing for selected images saves to prevent DynamoDB throttling
 let selectedImagesSaveTimeout: NodeJS.Timeout | null = null;
 const SELECTED_IMAGES_DEBOUNCE_MS = 2000; // 2 seconds debounce for selected images
+const DELETION_DEBOUNCE_MS = 500; // Short 500ms debounce for deletions (batches multiple deletions)
 
 // We need to separate the state interface from the actions
 interface MetadataStateOnly {
@@ -1020,30 +1021,35 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       saveVersionedData(localStorageKey, projectId, userId, updatedInstanceMetadata);
       console.log('💾 Instance metadata saved to localStorage (instant)');
       
-      // CRITICAL: If description is being deleted, save IMMEDIATELY to prevent polling from reverting it
-      // For other changes, use debounced save to prevent DynamoDB throttling
+      // CRITICAL: If description is being deleted, use SHORT debounce (500ms) to batch multiple deletions
+      // while still being fast enough to prevent polling from reverting changes
+      // For other changes, use longer debounce (3s) to prevent DynamoDB throttling
       if (isDescriptionDeletion) {
         // Clear any pending debounced save
         if (instanceMetadataSaveTimeout) {
           clearTimeout(instanceMetadataSaveTimeout);
-          instanceMetadataSaveTimeout = null;
         }
         
-        // Immediate save for deletions
-        (async () => {
+        // Short debounce for deletions - batches multiple description deletions but saves quickly
+        instanceMetadataSaveTimeout = setTimeout(async () => {
           try {
-            console.log('🚨 IMMEDIATE save (description deletion detected) - saving instance metadata to AWS');
+            // Get current state (may have more deletions in the batch)
+            const currentState = get();
+            
+            console.log('🚨 FAST save (description deletion detected, batched) - saving instance metadata to AWS');
             const storedUser = localStorage.getItem('user');
             const user = storedUser ? JSON.parse(storedUser) : null;
             
             if (user?.email) {
-              await DatabaseService.saveInstanceMetadata(user.email, updatedInstanceMetadata);
-              console.log('✅ Instance metadata IMMEDIATELY saved to AWS after description deletion');
+              // Use current state to catch batched deletions
+              await DatabaseService.saveInstanceMetadata(user.email, currentState.instanceMetadata);
+              console.log('✅ Instance metadata saved to AWS (batched description deletions)');
             }
           } catch (error) {
-            console.error('❌ Error immediately saving instance metadata to AWS:', error);
+            console.error('❌ Error saving instance metadata to AWS (deletion batch):', error);
           }
-        })();
+          instanceMetadataSaveTimeout = null;
+        }, DELETION_DEBOUNCE_MS);
       } else {
         // DEBOUNCED AWS save - wait 3 seconds after user stops typing
         // Clear existing timeout
@@ -1260,33 +1266,37 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         console.error('❌ Error saving selected images to localStorage:', error);
       }
       
-      // CRITICAL: If deletion occurred, save IMMEDIATELY to prevent polling from reverting it
-      // For additions, use debounced save to prevent DynamoDB throttling
+      // CRITICAL: If deletion occurred, use SHORT debounce (500ms) to batch multiple deletions
+      // while still being fast enough to prevent polling from reverting changes
+      // For additions, use longer debounce (2s) to prevent DynamoDB throttling
       if (isDeletion) {
         // Clear any pending debounced save
         if (selectedImagesSaveTimeout) {
           clearTimeout(selectedImagesSaveTimeout);
-          selectedImagesSaveTimeout = null;
         }
         
-        // Immediate save for deletions
-        (async () => {
+        // Short debounce for deletions - batches multiple deletions but saves quickly
+        selectedImagesSaveTimeout = setTimeout(async () => {
           try {
             // Check if project is being cleared
             const projectStore = useProjectStore.getState();
             if (projectStore.isClearing) {
-              console.log('⏸️ Skipping immediate save during project clear');
+              console.log('⏸️ Skipping deletion save during project clear');
               return;
             }
+            
+            // Get current state (may have more deletions in the batch)
+            const currentState = get();
+            const currentSelected = currentState.selectedImages;
             
             const storedUser = localStorage.getItem('user');
             const user = storedUser ? JSON.parse(storedUser) : null;
             
             if (user?.email) {
-              console.log('🚨 IMMEDIATE save (deletion detected) - saving selected images to AWS for user:', user.email);
-              // Send complete instance information to AWS
-              const selectedWithInstanceIds = selectedImages.map(item => {
-                const image = state.images.find(img => img.id === item.id);
+              console.log('🚨 FAST save (deletion detected, batched) - saving selected images to AWS for user:', user.email);
+              // Send complete instance information to AWS (use current state to catch batched deletions)
+              const selectedWithInstanceIds = currentSelected.map(item => {
+                const image = currentState.images.find(img => img.id === item.id);
                 return {
                   id: item.id, // Keep the original image ID
                   instanceId: item.instanceId, // Keep the instance ID
@@ -1294,12 +1304,13 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
                 };
               });
               await DatabaseService.updateSelectedImages(user.email, selectedWithInstanceIds);
-              console.log('✅ Selected images IMMEDIATELY saved to AWS after deletion');
+              console.log('✅ Selected images saved to AWS (batched deletions):', selectedWithInstanceIds.length);
             }
           } catch (error) {
-            console.error('❌ Error immediately saving selected images to AWS:', error);
+            console.error('❌ Error saving selected images to AWS (deletion batch):', error);
           }
-        })();
+          selectedImagesSaveTimeout = null;
+        }, DELETION_DEBOUNCE_MS);
       } else {
         // DEBOUNCED save for additions/changes to prevent DynamoDB throttling
         // Clear existing timeout
