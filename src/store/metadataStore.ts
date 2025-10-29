@@ -2921,13 +2921,19 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             console.log('⚠️ Migration failed, preserving existing selections');
           }
         } else {
-          // AWS returned empty array - clear local selections to match AWS state
-          console.log('⚠️ AWS returned empty array - clearing local selections to match AWS state');
-          set({ selectedImages: [] });
-          
-          // Clear from localStorage too
-          const keys = getProjectStorageKeys(userId, 'current');
-          saveVersionedData(keys.selections, projectId, userId, []);
+          // AWS returned empty array - preserve local selections if they exist (don't clear)
+          const currentSelections = get().selectedImages;
+          if (currentSelections && currentSelections.length > 0) {
+            console.log('⚠️ AWS returned empty array - preserving local selections:', currentSelections.length);
+            // Keep existing selections - don't clear them
+            // This prevents losing selections on refresh if AWS hasn't synced yet
+          } else {
+            console.log('⚠️ AWS returned empty array and no local selections - clearing state');
+            set({ selectedImages: [] });
+            // Clear from localStorage only if we have no local selections
+            const keys = getProjectStorageKeys(userId, 'current');
+            saveVersionedData(keys.selections, projectId, userId, []);
+          }
         }
       } else {
         // Failed to load from AWS - log error but don't change state (might be network issue)

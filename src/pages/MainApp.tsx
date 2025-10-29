@@ -107,14 +107,10 @@ const MainApp = () => {
     }
   }, [isAuthenticated]);
 
-  // Show dark background while loading - prevents blank page flicker
-  // This ensures no white flash - page stays dark until data loads
+  // Show nothing while loading - App.tsx already handles dark background
+  // This prevents blank page flicker - page stays dark via App.tsx styling
   if (!isInitialized) {
-    return (
-      <div className="min-h-screen bg-gray-900" style={{ backgroundColor: '#111827' }}>
-        {/* Dark background - no content until loaded */}
-      </div>
-    );
+    return null; // App.tsx has dark background styling, so no need to render div
   }
 
   // Show login if not authenticated
