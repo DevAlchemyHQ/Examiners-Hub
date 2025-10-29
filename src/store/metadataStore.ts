@@ -2813,38 +2813,65 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
               let skipAllSync = false;
               
               if (selectedImages && selectedImages.length > 0) {
-                // CRITICAL FIX: Compare local vs AWS to detect if user deleted items locally
-                // Don't restore items from AWS that don't exist in local state
+                // CRITICAL FIX: Compare local vs AWS to detect changes
                 const localInstanceIds = new Set(currentState.selectedImages.map(item => item.instanceId));
                 const awsInstanceIds = new Set(selectedImages.map(item => item.instanceId));
                 
-                // Check if user deleted anything locally
-                const deletedLocally = [...awsInstanceIds].filter(id => !localInstanceIds.has(id));
+                // Find items in AWS that aren't in local (new from other browser)
+                const newFromAWS = [...awsInstanceIds].filter(id => !localInstanceIds.has(id));
+                // Find items in local that aren't in AWS (possibly deleted on other browser)
+                const deletedOnAWS = [...localInstanceIds].filter(id => !awsInstanceIds.has(id));
                 
-                // CRITICAL: Don't sync if local has MORE items than AWS - user just added something
-                if (currentState.selectedImages.length > selectedImages.length) {
-                  console.log('⏸️ [POLLING] Local has more items than AWS - user just added, skipping ALL syncs to prevent overwrite');
+                console.log('🔍 [POLLING] Selection comparison:', {
+                  localCount: currentState.selectedImages.length,
+                  awsCount: selectedImages.length,
+                  newFromAWS: newFromAWS.length,
+                  deletedOnAWS: deletedOnAWS.length
+                });
+                
+                // CRITICAL: Don't sync if local has MORE items than AWS - user just added something locally
+                if (currentState.selectedImages.length > selectedImages.length && newFromAWS.length === 0) {
+                  console.log('⏸️ [POLLING] Local has more items than AWS and no new items from AWS - user just added locally, skipping sync');
                   skipAllSync = true;
-                } else if (deletedLocally.length > 0) {
-                  console.log('⏸️ [POLLING] User deleted items locally, not restoring from AWS:', deletedLocally);
-                } else if (currentState.selectedImages.length === 0) {
-                  console.log('⏸️ [POLLING] Skipping AWS sync - local state is empty (user deleted all)');
+                } else if (currentState.selectedImages.length === 0 && selectedImages.length === 0) {
+                  console.log('⏸️ [POLLING] Both local and AWS are empty - nothing to sync');
                 } else {
                   // Migrate selected images to match current image IDs
                   console.log('🔄 [POLLING] AWS returned selected images in this order:', selectedImages.map(item => `${item.fileName || 'no-name'}(${item.instanceId})`));
                   const migratedSelections = migrateSelectedImageIds(selectedImages, currentState.images);
                   if (migratedSelections.length > 0) {
-                    // CRITICAL FIX: Use AWS order directly for cross-browser sync
-                    // AWS order is the source of truth for other browsers
-                    // Don't try to reorder based on local session state - that would break cross-browser sync
-                    console.log('✅ [POLLING] Using AWS order for cross-browser sync:', migratedSelections.map(item => `${item.fileName}(${item.instanceId})`));
-                    console.log('✅ [POLLING] Current sort direction:', currentState.defectSortDirection);
-                    updates.selectedImages = migratedSelections;
-                    
-                    // Store the order update for later (after set completes)
-                    const awsOrder = migratedSelections.map(item => item.instanceId);
-                    updates._updateSessionOrder = awsOrder;
-                    console.log('✅ [POLLING] Will update session state with AWS order:', awsOrder.length);
+                    // CRITICAL FIX: In no-sort mode, preserve local insertion order
+                    // In sorted modes (asc/desc), use AWS order for cross-browser sync
+                    if (currentState.defectSortDirection === null) {
+                      // No-sort mode: Preserve local order, only add missing items from AWS
+                      console.log('⏸️ [POLLING] No-sort mode detected - preserving local insertion order');
+                      const localInstanceIds = new Set(currentState.selectedImages.map(item => item.instanceId));
+                      const awsInstanceIds = new Set(migratedSelections.map(item => item.instanceId));
+                      
+                      // Find items in AWS that aren't in local (new from other browser)
+                      const newFromAWS = migratedSelections.filter(item => !localInstanceIds.has(item.instanceId));
+                      
+                      if (newFromAWS.length > 0) {
+                        // Add new items to the end (preserving no-sort insertion behavior)
+                        updates.selectedImages = [...currentState.selectedImages, ...newFromAWS];
+                        const newOrder = updates.selectedImages.map(item => item.instanceId);
+                        updates._updateSessionOrder = newOrder;
+                        console.log('✅ [POLLING] No-sort: Added', newFromAWS.length, 'new items from AWS to end:', newFromAWS.map(item => item.fileName));
+                      } else {
+                        // No new items, keep local order
+                        console.log('✅ [POLLING] No-sort: No new items from AWS, preserving local order');
+                      }
+                    } else {
+                      // Sorted mode: Use AWS order directly for cross-browser sync
+                      console.log('✅ [POLLING] Using AWS order for cross-browser sync (sorted mode):', migratedSelections.map(item => `${item.fileName}(${item.instanceId})`));
+                      console.log('✅ [POLLING] Current sort direction:', currentState.defectSortDirection);
+                      updates.selectedImages = migratedSelections;
+                      
+                      // Store the order update for later (after set completes)
+                      const awsOrder = migratedSelections.map(item => item.instanceId);
+                      updates._updateSessionOrder = awsOrder;
+                      console.log('✅ [POLLING] Will update session state with AWS order:', awsOrder.length);
+                    }
                   }
                 }
               }
