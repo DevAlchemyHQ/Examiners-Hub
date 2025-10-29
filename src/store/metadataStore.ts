@@ -2649,14 +2649,21 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           const localDataStr = JSON.stringify(localFormData || {});
           const awsDataStr = JSON.stringify(project.formData);
           const dataIsDifferent = localDataStr !== awsDataStr;
-          const localIsEmpty = !(localFormData as any)?.elr && !(localFormData as any)?.structureNo;
+          
+          // Check if formData has actual values (not just empty strings)
+          const localHasValues = !!(localFormData as any)?.elr?.trim() || !!(localFormData as any)?.structureNo?.trim();
+          const awsHasValues = !!project.formData?.elr?.trim() || !!project.formData?.structureNo?.trim();
           
           // Use AWS data if:
-          // 1. Local is empty, OR
-          // 2. Data is different (cross-browser sync)
-          if (localIsEmpty || dataIsDifferent) {
+          // 1. AWS has values AND (local is empty OR AWS is different), OR
+          // 2. Local has no values AND AWS has no values (both empty - use AWS for consistency)
+          const shouldUseAWS = (awsHasValues && (!localHasValues || dataIsDifferent)) || 
+                               (!localHasValues && !awsHasValues && dataIsDifferent);
+          
+          if (shouldUseAWS) {
             console.log('🔄 Loading AWS data for cross-browser sync', { 
-              localIsEmpty, 
+              localHasValues,
+              awsHasValues,
               dataIsDifferent,
               local: localFormData,
               aws: project.formData
@@ -2667,6 +2674,9 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             const keys = getProjectStorageKeys(userId, 'current');
             localStorage.setItem(keys.formData, JSON.stringify(project.formData));
             console.log('✅ Cross-browser sync complete - localStorage updated');
+          } else if (localHasValues && !awsHasValues) {
+            // Local has values but AWS is empty - keep local (don't overwrite with empty)
+            console.log('⏸️ Keeping local form data - AWS has empty values');
           } else {
             console.log('✅ Local and AWS data match - using local');
           }
