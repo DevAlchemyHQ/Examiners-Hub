@@ -957,7 +957,9 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
     return errors.length > 0 ? errors.join('; ') : 'All validations complete';
   };
 
-  if (images.length === 0) {
+  // CRITICAL: Don't show empty state if selectedImages exist - they load before images from S3
+  // This prevents flicker where selectedImages are loaded from localStorage but images array is still empty
+  if (images.length === 0 && selectedImages.length === 0) {
     return (
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm h-[calc(100vh-120px)] flex items-center justify-center p-8 text-slate-400 dark:text-gray-500">
         No images uploaded
