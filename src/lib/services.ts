@@ -1679,20 +1679,21 @@ export class DatabaseService {
             updatedDefectSortDirection = op.data.sortDirection;
           }
         } else if (op.type === 'UPDATE_FORMDATA') {
-          // ✅ UPDATE_FORMDATA: Merge formData fields - last operation wins
+          // ✅ UPDATE_FORMDATA: Operation contains COMPLETE formData - use directly
+          // No merging needed - operation already has all fields ({ elr, structureNo, date })
           if (op.data) {
-            const oldFormData = JSON.stringify(updatedFormData);
-            updatedFormData = {
-              ...updatedFormData,
-              ...op.data, // { elr, structureNo, date } - overwrite with latest
-            };
+            const oldFormDataStr = JSON.stringify(updatedFormData);
+            updatedFormData = op.data; // ✅ Direct assignment (complete formData)
             const newFormDataStr = JSON.stringify(updatedFormData);
-            if (oldFormData !== newFormDataStr) {
+            if (oldFormDataStr !== newFormDataStr) {
               formDataChanged = true;
-              console.log('📝 [OPERATION QUEUE] FormData updated:', {
+              console.log('📝 [OPERATION QUEUE] FormData updated (complete):', {
                 old: currentFormData,
                 new: updatedFormData,
-                operationData: op.data
+                operationData: op.data,
+                elr: updatedFormData.elr,
+                structureNo: updatedFormData.structureNo,
+                date: updatedFormData.date
               });
             }
           }
