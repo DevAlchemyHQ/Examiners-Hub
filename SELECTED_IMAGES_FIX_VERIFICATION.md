@@ -9,9 +9,11 @@
 ## Issues Fixed
 
 ### Issue 1: Polling Overwriting New Additions ✅ FIXED
+
 **Problem**: When adding an image in descending mode, polling would sync the old AWS data (4 items) and overwrite the local state (5 items), causing the new image to disappear.
 
 **Fix Applied**:
+
 - Added `skipAllSync` flag when local has more items than AWS
 - Skips syncing selected images AND metadata when user just added something
 - Prevents localStorage from being overwritten with old data
@@ -20,10 +22,12 @@
 
 ---
 
-### Issue 2: updateSessionState Overriding Explicit Order ✅ FIXED  
+### Issue 2: updateSessionState Overriding Explicit Order ✅ FIXED
+
 **Problem**: When `toggleImageSelection` explicitly passes `selectedImageOrder`, `updateSessionState` was overriding it with the current state.
 
 **Fix Applied**:
+
 - Changed from unconditional override to conditional: `updates.selectedImageOrder || state.selectedImages...`
 - Now respects explicitly passed `selectedImageOrder` from `toggleImageSelection`
 
@@ -32,9 +36,11 @@
 ---
 
 ### Issue 3: Empty Array Blocking AWS Fallback ✅ FIXED (Earlier)
+
 **Problem**: When localStorage had empty array `[]`, it was truthy so code returned it without trying AWS.
 
 **Fix Applied**:
+
 - Check for `length > 0` instead of just truthy value
 - Now properly falls back to AWS when localStorage is empty
 
@@ -48,6 +54,7 @@
 **Environment**: Live deployment at https://main.d32is7ul5okd2c.amplifyapp.com
 
 **Test Steps**:
+
 1. ✅ Logged in with timndg@gmail.com
 2. ✅ Switched to Images mode
 3. ✅ Confirmed descending sort mode (images shown with numbers 5, 3, 2, 1)
@@ -57,6 +64,7 @@
 7. ✅ Confirmed image stayed at position 0 (did NOT move)
 
 **Console Logs from Test**:
+
 ```
 🔧 toggleImageSelection - Current defectSortDirection: desc
 🔧 toggleImageSelection (descending) - Added to start: {id: 'img_35f7d584', instanceId: 'img_295b9775', fileName: 'PB080001 copy.JPG'}
@@ -64,6 +72,7 @@
 ```
 
 **After 6+ seconds**:
+
 ```
 🔄 Starting ID migration for 5 selected images
 ```
@@ -79,12 +88,14 @@
 ### Descending Mode (defectSortDirection = 'desc')
 
 **New image WITHOUT photo number**:
+
 1. Appears at START of list (position 0) ✓
-2. Stays at START ✓  
+2. Stays at START ✓
 3. Does NOT move to second position ✓
 4. Persists across browsers ✓
 
 **Images WITH photo numbers**:
+
 - Sorted by photo number in DESCENDING order (5, 3, 2, 1...)
 - Images without numbers stay in their insertion position
 
@@ -93,6 +104,7 @@
 ## Technical Details
 
 ### Fix 1: Polling Skip Logic (lines 2669-2755)
+
 ```typescript
 let skipAllSync = false;
 
@@ -113,11 +125,13 @@ if (!skipAllSync && selectedImages... ) {  // ← NEW guard
 ```
 
 **How it works**:
+
 - When local has MORE items than AWS → user just added something
 - Skip ALL polling (images + metadata) to protect local changes
 - Wait for AWS to catch up before syncing
 
 ### Fix 2: Respect Explicit Order (lines 3529-3530)
+
 ```typescript
 const autoUpdates = {
   ...updates,
@@ -128,6 +142,7 @@ const autoUpdates = {
 ```
 
 **How it works**:
+
 - If caller explicitly provides `selectedImageOrder`, use it
 - Otherwise, use current state
 - Prevents overriding the order set by `toggleImageSelection`
@@ -137,11 +152,13 @@ const autoUpdates = {
 ## Cross-Browser Persistence
 
 ### Before Fix:
+
 ❌ Empty array in localStorage blocked AWS fallback  
 ❌ Polling overwrote newly added images  
 ❌ Multiple refreshes needed to see selections
 
 ### After Fix:
+
 ✅ Falls back to AWS when localStorage is empty  
 ✅ Polling skips when local has more items  
 ✅ Selections appear on first page load
@@ -157,7 +174,7 @@ const autoUpdates = {
 3. ✅ Empty arrays properly trigger AWS fallback
 
 **Browser testing confirms**:
+
 - New images appear at start in descending mode
 - Images stay stable and don't move/reorder
 - Cross-browser sync works on first load
-

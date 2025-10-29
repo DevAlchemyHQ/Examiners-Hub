@@ -2849,17 +2849,21 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
                       const awsInstanceIds = new Set(migratedSelections.map(item => item.instanceId));
                       
                       // Find items in AWS that aren't in local (new from other browser)
-                      const newFromAWS = migratedSelections.filter(item => !localInstanceIds.has(item.instanceId));
+                      const newFromAWS = migratedSelections.filter((item: { instanceId: string }) => !localInstanceIds.has(item.instanceId));
                       
                       if (newFromAWS.length > 0) {
-                        // Add new items to the end (preserving no-sort insertion behavior)
+                        // Add new items from AWS to the end (preserving no-sort insertion behavior)
+                        // Keep all local items in their current order (user's local state takes precedence)
                         updates.selectedImages = [...currentState.selectedImages, ...newFromAWS];
-                        const newOrder = updates.selectedImages.map(item => item.instanceId);
+                        const newOrder = updates.selectedImages.map((item: { instanceId: string }) => item.instanceId);
                         updates._updateSessionOrder = newOrder;
                         console.log('✅ [POLLING] No-sort: Added', newFromAWS.length, 'new items from AWS to end:', newFromAWS.map(item => item.fileName));
                       } else {
-                        // No new items, keep local order
-                        console.log('✅ [POLLING] No-sort: No new items from AWS, preserving local order');
+                        // No new items from AWS, preserve local order exactly as is
+                        // Do NOT update anything - not even session state order
+                        console.log('✅ [POLLING] No-sort: No new items from AWS, preserving local order - no updates needed');
+                        // Explicitly set a flag to NOT update session state order in no-sort mode when there are no changes
+                        updates._skipSessionOrderUpdate = true;
                       }
                     } else {
                       // Sorted mode: Use AWS order directly for cross-browser sync
@@ -2999,16 +3003,20 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
               }
               
               if (Object.keys(updates).length > 0) {
-                // Extract the session order update before set
+                // Extract the session order update and skip flag before set
                 const updateSessionOrder = (updates as any)._updateSessionOrder;
+                const skipSessionOrderUpdate = (updates as any)._skipSessionOrderUpdate;
                 delete (updates as any)._updateSessionOrder;
+                delete (updates as any)._skipSessionOrderUpdate;
                 
                 set(updates);
                 
-                // Update session state after set completes
-                if (updateSessionOrder) {
+                // Update session state after set completes (only if not skipped)
+                if (updateSessionOrder && !skipSessionOrderUpdate) {
                   get().updateSessionState({ selectedImageOrder: updateSessionOrder });
                   console.log('✅ [POLLING] Updated session state selectedImageOrder to match AWS:', updateSessionOrder.length);
+                } else if (skipSessionOrderUpdate) {
+                  console.log('⏸️ [POLLING] Skipping session state order update - preserving local order in no-sort mode');
                 }
                 
                 // Also update localStorage using versioned format
@@ -3751,33 +3759,42 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           // This will be handled by loadBulkData which checks session state
         }
         
-        // Restore selected images order if available
+        // Restore selected images order if available (but NOT in no-sort mode)
+        // In no-sort mode, preserve current insertion order, don't restore from saved state
         if (sessionState.selectedImageOrder && sessionState.selectedImageOrder.length > 0) {
-          console.log('🔄 Restoring selected images order from session state:', sessionState.selectedImageOrder);
+          const currentSortMode = currentState.defectSortDirection;
           
-          const currentSelectedImages = currentState.selectedImages;
-          console.log('🔄 Current selectedImages before restoration:', currentSelectedImages);
-          
-          if (currentSelectedImages && currentSelectedImages.length > 0) {
-            // Create a map for quick lookup
-            const selectedImageMap = new Map(currentSelectedImages.map(item => [item.instanceId, item]));
-            console.log('🔄 SelectedImageMap keys:', Array.from(selectedImageMap.keys()));
-            
-            // Reorder selected images according to saved order
-            const reorderedSelectedImages = sessionState.selectedImageOrder
-              .map(instanceId => selectedImageMap.get(instanceId))
-              .filter(Boolean) as Array<{ id: string; instanceId: string }>;
-            
-            // Add any selected images not in the saved order at the end
-            const remainingSelectedImages = currentSelectedImages.filter(item => 
-              !sessionState.selectedImageOrder.includes(item.instanceId)
-            );
-            
-            const finalSelectedImages = [...reorderedSelectedImages, ...remainingSelectedImages];
-            set({ selectedImages: finalSelectedImages });
-            console.log('✅ Selected images order restored:', finalSelectedImages.length);
+          if (currentSortMode === null) {
+            // No-sort mode: Don't restore order, preserve current insertion order
+            console.log('⏸️ No-sort mode: Skipping order restoration to preserve insertion order');
           } else {
-            console.log('⚠️ No current selectedImages to restore order for');
+            // Sorted mode: Restore order from session state
+            console.log('🔄 Restoring selected images order from session state:', sessionState.selectedImageOrder);
+            
+            const currentSelectedImages = currentState.selectedImages;
+            console.log('🔄 Current selectedImages before restoration:', currentSelectedImages);
+            
+            if (currentSelectedImages && currentSelectedImages.length > 0) {
+              // Create a map for quick lookup
+              const selectedImageMap = new Map(currentSelectedImages.map(item => [item.instanceId, item]));
+              console.log('🔄 SelectedImageMap keys:', Array.from(selectedImageMap.keys()));
+              
+              // Reorder selected images according to saved order
+              const reorderedSelectedImages = sessionState.selectedImageOrder
+                .map(instanceId => selectedImageMap.get(instanceId))
+                .filter(Boolean) as Array<{ id: string; instanceId: string }>;
+              
+              // Add any selected images not in the saved order at the end
+              const remainingSelectedImages = currentSelectedImages.filter(item => 
+                !sessionState.selectedImageOrder.includes(item.instanceId)
+              );
+              
+              const finalSelectedImages = [...reorderedSelectedImages, ...remainingSelectedImages];
+              set({ selectedImages: finalSelectedImages });
+              console.log('✅ Selected images order restored:', finalSelectedImages.length);
+            } else {
+              console.log('⚠️ No current selectedImages to restore order for');
+            }
           }
         } else {
           console.log('⚠️ No selectedImageOrder in session state');

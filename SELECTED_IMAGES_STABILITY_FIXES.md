@@ -9,12 +9,15 @@
 ## Issues Fixed
 
 ### Issue 1: Newly Added Images Disappearing
+
 **Symptom**: When adding a new image in descending order, it would:
+
 1. Appear at the start for a few seconds ✓
-2. Move to the end ❌  
+2. Move to the end ❌
 3. Then disappear completely ❌
 
 ### Issue 2: Multiple Refreshes Required for Cross-Browser Sync
+
 **Symptom**: Selected images would take 2-3 page refreshes to appear in a new browser
 
 ---
@@ -25,6 +28,7 @@
 
 **The Problem:**
 When a user selects a new image:
+
 1. Local state updates: 4 images → 5 images
 2. Polling runs every 5 seconds
 3. Polling checks AWS, finds only 4 images (AWS hasn't updated yet)
@@ -32,6 +36,7 @@ When a user selects a new image:
 5. New image disappears
 
 **From console logs:**
+
 ```
 🔧 toggleImageSelection - Total selected: 5
 🔄 [POLLING] Syncing selected images and metadata from AWS...
@@ -40,11 +45,15 @@ When a user selects a new image:
 ```
 
 **Why it happened:**
+
 ```typescript
 // OLD CODE (lines 2660-2680)
 if (selectedImages && selectedImages.length > 0) {
-  const migratedSelections = migrateSelectedImageIds(selectedImages, currentState.images);
-  updates.selectedImages = migratedSelections;  // ❌ Overwrites local additions
+  const migratedSelections = migrateSelectedImageIds(
+    selectedImages,
+    currentState.images
+  );
+  updates.selectedImages = migratedSelections; // ❌ Overwrites local additions
 }
 ```
 
@@ -52,6 +61,7 @@ if (selectedImages && selectedImages.length > 0) {
 
 **The Problem:**
 When localStorage had an empty array `[]`:
+
 1. `loadUserData()` loads from localStorage first
 2. Checks: `if (savedSelections)` → **TRUE** (empty array is truthy!)
 3. Returns empty array immediately
@@ -59,6 +69,7 @@ When localStorage had an empty array `[]`:
 5. User sees 0 images until `loadAllUserDataFromAWS` completes later
 
 **From console logs:**
+
 ```
 🔍 DEBUG: savedSelections from loadVersionedData: []
 🔍 DEBUG: savedSelections type: object
@@ -67,10 +78,12 @@ When localStorage had an empty array `[]`:
 ```
 
 **Why it happened:**
+
 ```typescript
 // OLD CODE (line 1618)
-if (savedSelections) {  // ❌ Empty array [] is truthy in JavaScript!
-  return savedSelections;  // Returns [] and never tries AWS
+if (savedSelections) {
+  // ❌ Empty array [] is truthy in JavaScript!
+  return savedSelections; // Returns [] and never tries AWS
 }
 ```
 
@@ -83,21 +96,28 @@ if (savedSelections) {  // ❌ Empty array [] is truthy in JavaScript!
 **File**: `src/store/metadataStore.ts` (lines 2670-2671)
 
 **Before:**
+
 ```typescript
 if (selectedImages && selectedImages.length > 0) {
-  const migratedSelections = migrateSelectedImageIds(selectedImages, currentState.images);
+  const migratedSelections = migrateSelectedImageIds(
+    selectedImages,
+    currentState.images
+  );
   updates.selectedImages = migratedSelections;
 }
 ```
 
 **After:**
+
 ```typescript
 if (selectedImages && selectedImages.length > 0) {
   // ... local/AWS comparison code ...
-  
+
   // CRITICAL: Don't sync if local has MORE items than AWS - user just added something
   if (currentState.selectedImages.length > selectedImages.length) {
-    console.log('⏸️ [POLLING] Local has more items than AWS - user just added, skipping sync to prevent overwrite');
+    console.log(
+      "⏸️ [POLLING] Local has more items than AWS - user just added, skipping sync to prevent overwrite"
+    );
   } else {
     // Safe to sync
     updates.selectedImages = migratedSelections;
@@ -106,6 +126,7 @@ if (selectedImages && selectedImages.length > 0) {
 ```
 
 **How it works:**
+
 - Compares local count vs AWS count
 - If local has MORE → user just added something, skip sync
 - If local has SAME or LESS → safe to sync from AWS
@@ -120,33 +141,49 @@ if (selectedImages && selectedImages.length > 0) {
 **File**: `src/store/metadataStore.ts` (lines 1618-1635)
 
 **Before:**
+
 ```typescript
-if (savedSelections) {  // Empty array is truthy!
-  console.log('🔍 DEBUG: savedSelections has data, length:', savedSelections.length);
-  return savedSelections;  // ❌ Returns [] and skips AWS
+if (savedSelections) {
+  // Empty array is truthy!
+  console.log(
+    "🔍 DEBUG: savedSelections has data, length:",
+    savedSelections.length
+  );
+  return savedSelections; // ❌ Returns [] and skips AWS
 }
 ```
 
 **After:**
+
 ```typescript
 // CRITICAL FIX: Check for non-empty array, not just truthy value
 // Empty array [] is truthy but has length 0, so we should try AWS
-if (savedSelections && Array.isArray(savedSelections) && savedSelections.length > 0) {
-  console.log('🔍 DEBUG: savedSelections has data, length:', savedSelections.length);
+if (
+  savedSelections &&
+  Array.isArray(savedSelections) &&
+  savedSelections.length > 0
+) {
+  console.log(
+    "🔍 DEBUG: savedSelections has data, length:",
+    savedSelections.length
+  );
   return savedSelections;
 }
 
-console.log('⚠️ No savedSelections found or empty array in localStorage, trying AWS...');
-if (userId !== 'anonymous') {
+console.log(
+  "⚠️ No savedSelections found or empty array in localStorage, trying AWS..."
+);
+if (userId !== "anonymous") {
   const awsSelections = await DatabaseService.getSelectedImages(userId);
   if (awsSelections && awsSelections.length > 0) {
-    console.log('✅ Loaded selected images from AWS:', awsSelections.length);
-    return awsSelections;  // ✅ Now tries AWS when localStorage is empty
+    console.log("✅ Loaded selected images from AWS:", awsSelections.length);
+    return awsSelections; // ✅ Now tries AWS when localStorage is empty
   }
 }
 ```
 
 **How it works:**
+
 - Checks: array exists AND is array AND has length > 0
 - If localStorage has empty array → tries AWS
 - If localStorage has data → uses localStorage (faster)
@@ -164,21 +201,28 @@ if (userId !== 'anonymous') {
 Applied same fix for instance metadata (it's an object, not an array):
 
 **Before:**
+
 ```typescript
-if (savedInstanceMetadata) {  // Empty object is truthy!
+if (savedInstanceMetadata) {
+  // Empty object is truthy!
   return savedInstanceMetadata;
 }
 ```
 
 **After:**
+
 ```typescript
 // Check for non-empty object
-if (savedInstanceMetadata && typeof savedInstanceMetadata === 'object' && Object.keys(savedInstanceMetadata).length > 0) {
+if (
+  savedInstanceMetadata &&
+  typeof savedInstanceMetadata === "object" &&
+  Object.keys(savedInstanceMetadata).length > 0
+) {
   return savedInstanceMetadata;
 }
 
 // Try AWS if no localStorage data or empty object
-if (userId !== 'anonymous') {
+if (userId !== "anonymous") {
   const awsInstanceMetadata = await DatabaseService.getInstanceMetadata(userId);
   if (awsInstanceMetadata && Object.keys(awsInstanceMetadata).length > 0) {
     return awsInstanceMetadata;
@@ -196,6 +240,7 @@ if (userId !== 'anonymous') {
 ### Adding New Image in Descending Order
 
 **Before:**
+
 ```
 1. Select image → appears at start ✓
 2. Polling runs → image moves to end ❌
@@ -203,6 +248,7 @@ if (userId !== 'anonymous') {
 ```
 
 **After:**
+
 ```
 1. Select image → appears at start ✓
 2. Polling runs → skips sync (local has more than AWS) ✓
@@ -212,6 +258,7 @@ if (userId !== 'anonymous') {
 ### Cross-Browser Sync
 
 **Before:**
+
 ```
 Browser B: Refresh → sees 0 images ❌
 Refresh again → sees 0 images ❌
@@ -219,6 +266,7 @@ Refresh again → sees 4 images ✓ (takes 3 refreshes)
 ```
 
 **After:**
+
 ```
 Browser B: Refresh → sees 4 images ✓ (first try!)
 ```
@@ -226,6 +274,7 @@ Browser B: Refresh → sees 4 images ✓ (first try!)
 ### Empty localStorage Scenarios
 
 **Before:**
+
 ```
 localStorage: []  // Empty array
 if (savedSelections) → TRUE (empty is truthy!)
@@ -234,6 +283,7 @@ Result: User sees 0 images until AWS completes
 ```
 
 **After:**
+
 ```
 localStorage: []  // Empty array
 if (savedSelections.length > 0) → FALSE
@@ -260,21 +310,23 @@ Result: User sees data from AWS immediately
 
 ```javascript
 // Empty array is truthy!
-console.log(!![]);  // true
-console.log([].length);  // 0
+console.log(!![]); // true
+console.log([].length); // 0
 
 // Empty object is truthy!
-console.log(!!{});  // true
-console.log(Object.keys({}).length);  // 0
+console.log(!!{}); // true
+console.log(Object.keys({}).length); // 0
 ```
 
 **Solution:**
 Always check length for arrays:
+
 ```typescript
 if (array && array.length > 0)
 ```
 
 Always check keys for objects:
+
 ```typescript
 if (obj && Object.keys(obj).length > 0)
 ```
@@ -284,6 +336,7 @@ if (obj && Object.keys(obj).length > 0)
 Polling runs every **5 seconds** to sync cross-browser changes. The fix ensures local additions are preserved for at least 5 seconds before AWS can catch up.
 
 **Flow:**
+
 1. User adds image at 0s → local: 5 images
 2. AWS still has 4 images (not updated yet)
 3. Polling at 5s → sees local has more → skips sync ✓
@@ -304,6 +357,7 @@ Polling runs every **5 seconds** to sync cross-browser changes. The fix ensures 
 ## Deployment Status
 
 **Commits Deployed:**
+
 - `5a2c6ab`: Fix polling to prevent overwriting when local has more selected images than AWS
 - `33df59b`: Fix loadUserData to fallback to AWS when localStorage has empty arrays/objects
 
@@ -315,10 +369,10 @@ Polling runs every **5 seconds** to sync cross-browser changes. The fix ensures 
 ## Summary
 
 These fixes ensure:
+
 1. ✅ Newly added images stay stable and don't disappear
 2. ✅ Selected images appear immediately across browsers (no multiple refreshes needed)
 3. ✅ Proper fallback to AWS when localStorage has empty data
 4. ✅ Polling doesn't overwrite local additions
 
 The selected images now work stably just like the main images grid.
-
