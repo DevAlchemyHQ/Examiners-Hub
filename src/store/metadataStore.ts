@@ -4523,54 +4523,48 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       if (sessionState) {
         console.log('📋 Using session state:', sessionState);
         
-        // Update the session state
-        set({ sessionState });
+        // BATCH ALL UPDATES: Collect all state changes and apply in a single set() call
+        // This prevents flicker from multiple re-renders during session restore
+        const currentState = get();
+        const batchedRestoreUpdates: Partial<MetadataStateOnly> = {
+          sessionState // Always update session state
+        };
         
-          // Restore sort preferences from session state
+        // Restore sort preferences from session state
         if (sessionState.sortPreferences) {
           const { defectSortDirection, sketchSortDirection } = sessionState.sortPreferences;
-          // Only update if sort preferences are not null
-          if (defectSortDirection !== null || sketchSortDirection !== null) {
-            set({ defectSortDirection, sketchSortDirection });
+          // Only update if sort preferences are not null AND actually different
+          if ((defectSortDirection !== null || sketchSortDirection !== null) &&
+              (defectSortDirection !== currentState.defectSortDirection || 
+               sketchSortDirection !== currentState.sketchSortDirection)) {
+            batchedRestoreUpdates.defectSortDirection = defectSortDirection;
+            batchedRestoreUpdates.sketchSortDirection = sketchSortDirection;
             console.log('🔄 Restored sort preferences from session state:', {
               defectSortDirection,
               sketchSortDirection
             });
           } else {
-            console.log('⚠️ Session state sort preferences are null, preserving local state');
+            console.log('✅ Sort preferences unchanged, skipping update to prevent flicker');
           }
         } else {
           console.log('⚠️ No sortPreferences found in session state');
           console.log('📋 Available session state keys:', Object.keys(sessionState));
         }
         
-        // Restore view mode
-        if (sessionState.lastActiveTab) {
+        // Restore view mode - only if different
+        if (sessionState.lastActiveTab && sessionState.lastActiveTab !== currentState.viewMode) {
           console.log('🎯 RESTORING VIEW MODE:', {
-            from: get().viewMode,
+            from: currentState.viewMode,
             to: sessionState.lastActiveTab
           });
-          set({ viewMode: sessionState.lastActiveTab });
-          
-          // Verify the restore worked
-          const currentViewMode = get().viewMode;
-          console.log('✅ View mode restored to:', sessionState.lastActiveTab);
-          console.log('🔍 Current viewMode after restore:', currentViewMode);
-          
-          if (currentViewMode !== sessionState.lastActiveTab) {
-            console.error('❌ VIEW MODE RESTORE FAILED!', {
-              expected: sessionState.lastActiveTab,
-              actual: currentViewMode
-            });
-          }
-        } else {
+          batchedRestoreUpdates.viewMode = sessionState.lastActiveTab;
+          console.log('✅ View mode will be restored to:', sessionState.lastActiveTab);
+        } else if (!sessionState.lastActiveTab) {
           console.log('⚠️ No lastActiveTab found in session state');
         }
         
         // Restore formData from session state with merging logic
         // Merge to preserve existing date, elr, and structureNo fields
-        const currentState = get();
-        
         if (sessionState.formData) {
           console.log('📋 Session state form data:', sessionState.formData);
           console.log('📋 Current form data:', currentState.formData);
@@ -4603,17 +4597,15 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             }
           });
           
-          set({ formData: mergedFormData });
-          console.log('✅ Form data merged and restored:', mergedFormData);
+          // Only update if formData actually changed
+          if (JSON.stringify(mergedFormData) !== JSON.stringify(currentState.formData)) {
+            batchedRestoreUpdates.formData = mergedFormData;
+            console.log('✅ Form data merged and restored:', mergedFormData);
+          } else {
+            console.log('✅ Form data unchanged, skipping update to prevent flicker');
+          }
         } else {
           console.log('⚠️ No form data available in session state');
-        }
-        
-        // Restore bulk defects order if available and no bulk defects are currently loaded
-        if (sessionState.bulkDefectOrder && sessionState.bulkDefectOrder.length > 0 && 
-            (!currentState.bulkDefects || currentState.bulkDefects.length === 0)) {
-          console.log('🔄 Attempting to restore bulk defects from session state...');
-          // This will be handled by loadBulkData which checks session state
         }
         
         // Restore selected images order if available (but NOT in no-sort mode)
@@ -4626,31 +4618,38 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             console.log('⏸️ No-sort mode: Skipping order restoration to preserve insertion order');
           } else {
             // Sorted mode: Restore order from session state
-          console.log('🔄 Restoring selected images order from session state:', sessionState.selectedImageOrder);
-          
-          const currentSelectedImages = currentState.selectedImages;
-          console.log('🔄 Current selectedImages before restoration:', currentSelectedImages);
-          
-          if (currentSelectedImages && currentSelectedImages.length > 0) {
-            // Create a map for quick lookup
-            const selectedImageMap = new Map(currentSelectedImages.map(item => [item.instanceId, item]));
-            console.log('🔄 SelectedImageMap keys:', Array.from(selectedImageMap.keys()));
+            console.log('🔄 Restoring selected images order from session state:', sessionState.selectedImageOrder);
             
-            // Reorder selected images according to saved order
-            const reorderedSelectedImages = sessionState.selectedImageOrder
-              .map(instanceId => selectedImageMap.get(instanceId))
-              .filter(Boolean) as Array<{ id: string; instanceId: string }>;
+            const currentSelectedImages = currentState.selectedImages;
+            console.log('🔄 Current selectedImages before restoration:', currentSelectedImages);
             
-            // Add any selected images not in the saved order at the end
-            const remainingSelectedImages = currentSelectedImages.filter(item => 
-              !sessionState.selectedImageOrder.includes(item.instanceId)
-            );
-            
-            const finalSelectedImages = [...reorderedSelectedImages, ...remainingSelectedImages];
-            set({ selectedImages: finalSelectedImages });
-            console.log('✅ Selected images order restored:', finalSelectedImages.length);
-          } else {
-            console.log('⚠️ No current selectedImages to restore order for');
+            if (currentSelectedImages && currentSelectedImages.length > 0) {
+              // Create a map for quick lookup
+              const selectedImageMap = new Map(currentSelectedImages.map(item => [item.instanceId, item]));
+              console.log('🔄 SelectedImageMap keys:', Array.from(selectedImageMap.keys()));
+              
+              // Reorder selected images according to saved order
+              const reorderedSelectedImages = sessionState.selectedImageOrder
+                .map(instanceId => selectedImageMap.get(instanceId))
+                .filter(Boolean) as Array<{ id: string; instanceId: string }>;
+              
+              // Add any selected images not in the saved order at the end
+              const remainingSelectedImages = currentSelectedImages.filter(item => 
+                !sessionState.selectedImageOrder.includes(item.instanceId)
+              );
+              
+              const finalSelectedImages = [...reorderedSelectedImages, ...remainingSelectedImages];
+              
+              // Only update if order actually changed
+              if (JSON.stringify(finalSelectedImages.map(i => i.instanceId)) !== 
+                  JSON.stringify(currentSelectedImages.map(i => i.instanceId))) {
+                batchedRestoreUpdates.selectedImages = finalSelectedImages;
+                console.log('✅ Selected images order restored:', finalSelectedImages.length);
+              } else {
+                console.log('✅ Selected images order unchanged, skipping update to prevent flicker');
+              }
+            } else {
+              console.log('⚠️ No current selectedImages to restore order for');
             }
           }
         } else {
@@ -4677,9 +4676,26 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             );
             
             const finalImages = [...reorderedImages, ...remainingImages];
-            set({ images: finalImages });
-            console.log('✅ Image order restored:', finalImages.length);
+            
+            // Only update if order actually changed
+            if (JSON.stringify(finalImages.map(i => i.id)) !== JSON.stringify(currentImages.map(i => i.id))) {
+              batchedRestoreUpdates.images = finalImages;
+              console.log('✅ Image order restored:', finalImages.length);
+            } else {
+              console.log('✅ Image order unchanged, skipping update to prevent flicker');
+            }
           }
+        }
+        
+        // Apply all batched updates in a single set() call - prevents flicker
+        const updateKeys = Object.keys(batchedRestoreUpdates).filter(k => k !== 'sessionState');
+        if (updateKeys.length > 0) {
+          console.log('📦 Applying batched session restore updates (single re-render):', updateKeys);
+          set(batchedRestoreUpdates);
+        } else {
+          // Session state update only (no other changes)
+          set(batchedRestoreUpdates);
+          console.log('✅ Session state updated (no other changes needed)');
         }
         
         return sessionState;
