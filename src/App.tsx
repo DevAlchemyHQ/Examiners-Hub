@@ -100,7 +100,7 @@ function App() {
   return (
     <ErrorBoundary>
       <Router>
-        <div className="App">
+        <div className="App" style={{ backgroundColor: '#111827', minHeight: '100vh' }}>
           <Toaster position="top-right" />
           <Routes>
             <Route path="/" element={showLogin ? <LoginScreen /> : <MainApp />} />
