@@ -4497,7 +4497,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             const { DatabaseService } = await import('../lib/services');
             const result = await DatabaseService.getProject(user.email, 'current');
             
-            if (result.project?.sessionState) {
+              if (result.project?.sessionState) {
               sessionState = result.project.sessionState;
               console.log('📋 Loaded session state from AWS:', sessionState);
               
@@ -4505,11 +4505,10 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
               localStorage.setItem(`${keys.formData}-session-state`, JSON.stringify(sessionState));
               console.log('💾 Cached session state to localStorage');
               
-              // Also restore sort preferences if available
+              // Sort preferences will be restored via batched restoreSessionState below
+              // Don't call set() here to prevent duplicate updates
               if (result.project.sortPreferences) {
-                const { defectSortDirection, sketchSortDirection } = result.project.sortPreferences;
-                set({ defectSortDirection, sketchSortDirection });
-                console.log('🔄 Restored sort preferences from AWS');
+                console.log('📋 Sort preferences available in AWS, will be restored via session state');
               }
             } else {
               console.log('⚠️ No session state found in AWS');
@@ -4688,15 +4687,14 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         }
         
         // Apply all batched updates in a single set() call - prevents flicker
+        // Always call set() even if only sessionState changed (it's still an update)
         const updateKeys = Object.keys(batchedRestoreUpdates).filter(k => k !== 'sessionState');
         if (updateKeys.length > 0) {
           console.log('📦 Applying batched session restore updates (single re-render):', updateKeys);
-          set(batchedRestoreUpdates);
         } else {
-          // Session state update only (no other changes)
-          set(batchedRestoreUpdates);
-          console.log('✅ Session state updated (no other changes needed)');
+          console.log('✅ Session state updated (no other state changes needed)');
         }
+        set(batchedRestoreUpdates);
         
         return sessionState;
       }
