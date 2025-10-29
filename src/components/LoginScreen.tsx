@@ -222,7 +222,7 @@ export const LoginScreen: React.FC = () => {
 
   if (mode === 'verify-signup' || mode === 'verify-reset') {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 to-gray-800 p-6">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 to-gray-800 p-6" style={{ backgroundColor: '#111827' }}>
         <div className="bg-gray-800/90 p-8 rounded-2xl shadow-xl w-full max-w-md border border-gray-700 backdrop-blur-lg">
           <OTPVerification
             email={email}
@@ -237,7 +237,7 @@ export const LoginScreen: React.FC = () => {
 
   if (mode === 'email-verification') {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 to-gray-800 p-6">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 to-gray-800 p-6" style={{ backgroundColor: '#111827' }}>
         <div className="bg-gray-800/90 p-8 rounded-2xl shadow-xl w-full max-w-md border border-gray-700 backdrop-blur-lg">
           <EmailVerification
             email={email}
@@ -258,7 +258,7 @@ export const LoginScreen: React.FC = () => {
 
   if (mode === 'forgot-password') {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 to-gray-800 p-6">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 to-gray-800 p-6" style={{ backgroundColor: '#111827' }}>
       <div className="bg-gray-800/90 p-8 rounded-2xl shadow-xl w-full max-w-md border border-gray-700 backdrop-blur-lg">
           <ForgotPassword
             onBack={() => setMode('signin')}

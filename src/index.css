@@ -32,6 +32,7 @@ html:not(.loaded) *::after {
   height: 100vh;
   overflow: hidden;
   position: relative;
+  background-color: #111827 !important; /* Ensure dark background always */
 }
 
 /* Ensure no page-level scrolling */
