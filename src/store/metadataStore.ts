@@ -2624,7 +2624,20 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         });
         
         // Update form data if available (only if it's newer than current state)
-        if (project.formData) {
+        // ✅ CRITICAL: Check both root formData and sessionState.formData (fallback)
+        // Priority: 1) project.formData (root level - most recent from forceAWSSave)
+        //          2) project.sessionState.formData (fallback if root level missing)
+        const awsFormData = project.formData || project.sessionState?.formData || null;
+        
+        console.log('🔍 AWS formData check:', {
+          hasRootFormData: !!project.formData,
+          hasSessionFormData: !!project.sessionState?.formData,
+          rootFormData: project.formData,
+          sessionFormData: project.sessionState?.formData,
+          awsFormData
+        });
+        
+        if (awsFormData) {
           const currentState = get();
           const currentSessionState = currentState.sessionState;
           const awsLastActiveTime = project.sessionState?.lastActiveTime || 0;
@@ -2647,12 +2660,22 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           }
           
           const localDataStr = JSON.stringify(localFormData || {});
-          const awsDataStr = JSON.stringify(project.formData);
+          const awsDataStr = JSON.stringify(awsFormData);
           const dataIsDifferent = localDataStr !== awsDataStr;
           
           // Check if formData has actual values (not just empty strings)
           const localHasValues = !!(localFormData as any)?.elr?.trim() || !!(localFormData as any)?.structureNo?.trim();
-          const awsHasValues = !!project.formData?.elr?.trim() || !!project.formData?.structureNo?.trim();
+          const awsHasValues = !!(awsFormData as any)?.elr?.trim() || !!(awsFormData as any)?.structureNo?.trim();
+          
+          console.log('🔍 Form data sync check:', {
+            localFormData,
+            awsFormData,
+            localHasValues,
+            awsHasValues,
+            dataIsDifferent,
+            localStr: localDataStr.substring(0, 100),
+            awsStr: awsDataStr.substring(0, 100)
+          });
           
           // Use AWS data if:
           // 1. AWS has values AND (local is empty OR AWS is different), OR
@@ -2666,13 +2689,14 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
               awsHasValues,
               dataIsDifferent,
               local: localFormData,
-              aws: project.formData
+              aws: awsFormData
             });
-            set({ formData: project.formData as FormData });
+            set({ formData: awsFormData as FormData });
             
             // Update localStorage to match AWS
             const keys = getProjectStorageKeys(userId, 'current');
-            localStorage.setItem(keys.formData, JSON.stringify(project.formData));
+            const projectId = generateStableProjectId(userId, 'current');
+            saveVersionedData(keys.formData, projectId, userId, awsFormData);
             console.log('✅ Cross-browser sync complete - localStorage updated');
           } else if (localHasValues && !awsHasValues) {
             // Local has values but AWS is empty - keep local (don't overwrite with empty)
