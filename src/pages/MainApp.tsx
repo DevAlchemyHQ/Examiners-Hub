@@ -38,23 +38,20 @@ const MainApp = () => {
           
           console.log('🔄 Loading user data for authenticated user...');
           
-          // CLOUD-FIRST APPROACH: Load from AWS first for true cross-browser consistency
-          // This matches the working commit 278db7e - simple and stable
-          console.log('☁️ Loading data from AWS (Cloud-First)...');
+          // LOCAL-FIRST FOR INSTANT DISPLAY: Load localStorage first (instant), then sync AWS (latest)
+          // This prevents empty state flicker and preserves selections if AWS hasn't synced
+          console.log('📱 Loading data from localStorage first (instant display)...');
+          await loadUserData();
+          console.log('✅ User data loaded from localStorage (instant display)');
+          
+          // THEN SYNC AWS: Load from AWS to get latest cross-browser data
+          // AWS will only overwrite if it has data, preserving localStorage if AWS is empty
+          console.log('☁️ Syncing with AWS for latest data...');
           await loadAllUserDataFromAWS();
-          
-          console.log('✅ User data loaded successfully from AWS (Cloud-First)');
+          console.log('✅ AWS sync completed (latest data)');
         } catch (error) {
-          console.error('❌ Error loading user data from AWS:', error);
-          
-          // If AWS fails, try localStorage as fallback
-          try {
-            console.log('📱 Falling back to localStorage...');
-            await loadUserData();
-            console.log('✅ User data loaded from localStorage fallback');
-          } catch (fallbackError) {
-            console.error('❌ Fallback to localStorage also failed:', fallbackError);
-          }
+          console.error('❌ Error loading user data:', error);
+          // Data already loaded from localStorage above, so user sees something
         } finally {
           setIsInitialized(true);
         }
