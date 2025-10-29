@@ -1411,29 +1411,93 @@ export class DatabaseService {
       
       // Add new selections using batch operations
       if (selectedImages.length > 0) {
-        const putRequests = selectedImages.map((selection, index) => ({
-          PutRequest: {
-            Item: {
-              user_id: userId,
-              selection_id: selection.instanceId || selection.id || `${Date.now()}-${index}`,
-              imageId: selection.id,
-              instanceId: selection.instanceId || selection.id,
-              fileName: selection.fileName || 'unknown',
-              created_at: new Date().toISOString()
+        // Validate and prepare items with proper error handling
+        const putRequests = selectedImages
+          .filter(selection => {
+            // Validate required fields
+            if (!selection.instanceId && !selection.id) {
+              console.warn('⚠️ Skipping selection without instanceId or id:', selection);
+              return false;
             }
-          }
-        }));
+            return true;
+          })
+          .map((selection, index) => {
+            // Ensure selection_id is always unique and valid
+            const selectionId = selection.instanceId || selection.id || `${Date.now()}-${index}`;
+            
+            // Ensure all required fields are present and valid
+            const item = {
+              user_id: userId,
+              selection_id: String(selectionId), // Ensure it's a string
+              imageId: String(selection.id || ''), // Ensure it's a string
+              instanceId: String(selection.instanceId || selection.id || ''), // Ensure it's a string
+              fileName: String(selection.fileName || 'unknown'), // Ensure it's a string
+              created_at: new Date().toISOString()
+            };
+            
+            // Validate item before adding
+            if (!item.selection_id || !item.imageId) {
+              console.error('❌ Invalid item data:', item);
+              throw new Error(`Invalid selection data: missing selection_id or imageId`);
+            }
+            
+            return {
+              PutRequest: {
+                Item: item
+              }
+            };
+          });
+        
+        if (putRequests.length === 0) {
+          console.warn('⚠️ No valid selections to save after filtering');
+          return;
+        }
+        
+        console.log(`📦 Preparing to save ${putRequests.length} selected images to AWS`);
         
         // Add in batches of 25 (DynamoDB limit)
         for (let i = 0; i < putRequests.length; i += 25) {
           const batch = putRequests.slice(i, i + 25);
-          const batchWriteCommand = new BatchWriteCommand({
-            RequestItems: {
-              'mvp-labeler-selected-images': batch
+          try {
+            const batchWriteCommand = new BatchWriteCommand({
+              RequestItems: {
+                'mvp-labeler-selected-images': batch
+              }
+            });
+            
+            console.log(`💾 Saving batch ${Math.floor(i / 25) + 1} (${batch.length} items)...`);
+            const result = await docClient.send(batchWriteCommand);
+            
+            // Handle unprocessed items (DynamoDB may not process all items in a batch)
+            if (result.UnprocessedItems && Object.keys(result.UnprocessedItems).length > 0) {
+              console.warn('⚠️ Unprocessed items detected, retrying...', result.UnprocessedItems);
+              // Retry unprocessed items after a short delay
+              await new Promise(resolve => setTimeout(resolve, 100));
+              const retryCommand = new BatchWriteCommand({
+                RequestItems: result.UnprocessedItems
+              });
+              await docClient.send(retryCommand);
+              console.log('✅ Retry completed for unprocessed items');
             }
-          });
-          await docClient.send(batchWriteCommand);
+            
+            console.log(`✅ Batch ${Math.floor(i / 25) + 1} saved successfully`);
+          } catch (batchError: any) {
+            console.error(`❌ Error saving batch ${Math.floor(i / 25) + 1}:`, batchError);
+            console.error('Batch data:', JSON.stringify(batch, null, 2));
+            // Log more details about the error
+            if (batchError.$metadata) {
+              console.error('Error metadata:', batchError.$metadata);
+            }
+            if (batchError.message) {
+              console.error('Error message:', batchError.message);
+            }
+            // Don't throw immediately - try to save remaining batches
+            // But log the error so we can investigate
+            throw batchError;
+          }
         }
+        
+        console.log(`✅ Successfully saved ${putRequests.length} selected images to AWS`);
       }
     } catch (error) {
       console.error('Error updating selected images:', error);
