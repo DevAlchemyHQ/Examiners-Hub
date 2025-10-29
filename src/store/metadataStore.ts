@@ -246,47 +246,6 @@ const initialFormData: FormData = {
   date: '',
 };
 
-// CRITICAL: Load localStorage data SYNCHRONOUSLY before store initializes
-// This prevents the empty state (no images icon) from showing during refresh
-const getInitialStateFromLocalStorage = (): Partial<MetadataStateOnly> => {
-  try {
-    const storedUser = localStorage.getItem('user');
-    const user = storedUser ? JSON.parse(storedUser) : null;
-    const userId = user?.email || localStorage.getItem('userEmail') || 'anonymous';
-    
-    if (userId === 'anonymous') {
-      return {}; // Return empty - no data for anonymous users
-    }
-    
-    const projectKeys = getAllProjectStorageKeys(userId, 'current');
-    
-    // Load critical data synchronously (no async, no promises)
-    const formData = loadVersionedData(projectKeys.formData) || initialFormData;
-    const selectedImages = loadVersionedData(projectKeys.selections) || [];
-    const instanceMetadata = loadVersionedData(projectKeys.instanceMetadata) || {};
-    
-    const selectedImagesArray = Array.isArray(selectedImages) ? selectedImages : [];
-    const instanceMetadataObj = instanceMetadata && typeof instanceMetadata === 'object' ? instanceMetadata : {};
-    
-    console.log('⚡ [SYNC INIT] Loaded from localStorage:', {
-      formData: !!formData,
-      selectedImagesCount: selectedImagesArray.length,
-      instanceMetadataCount: Object.keys(instanceMetadataObj).length
-    });
-    
-    return {
-      formData: formData as FormData,
-      selectedImages: selectedImagesArray as Array<{ id: string; instanceId: string; fileName?: string }>,
-      instanceMetadata: instanceMetadataObj as Record<string, { photoNumber?: string; description?: string; lastModified?: number }>
-    };
-  } catch (error) {
-    console.warn('⚠️ Error loading initial state from localStorage:', error);
-    return {};
-  }
-};
-
-const initialDataFromStorage = getInitialStateFromLocalStorage();
-
 // Add proper interfaces for deleted defects tracking
 interface DeletedDefect {
   defect: BulkDefect;
