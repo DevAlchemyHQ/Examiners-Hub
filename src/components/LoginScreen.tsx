@@ -32,7 +32,7 @@ export const LoginScreen: React.FC = () => {
   // Check if user is already authenticated and redirect to main app
   useEffect(() => {
     if (isAuthenticated) {
-      navigate('/app');
+      navigate('/');
     }
   }, [isAuthenticated, navigate]);
 
@@ -92,7 +92,7 @@ export const LoginScreen: React.FC = () => {
             setAuth(true);
             
             // Navigate immediately
-            navigate('/app');
+            navigate('/');
           } else {
             // Display the specific error message from AWS
             const errorMessage = signinResult.error?.message || 'Invalid email or password';
