@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { StorageService, DatabaseService } from '../lib/services';
-import { ImageMetadata, FormData, BulkDefect } from '../types';
+import { ImageMetadata, FormData, BulkDefect, DataSource, LoadContext, SyncState } from '../types';
 import { Operation, OperationQueue } from '../types/operations';
 import { createZipFile } from '../utils/zipUtils';
 import { nanoid } from 'nanoid';
@@ -289,6 +289,26 @@ let selectedImagesSaveTimeout: NodeJS.Timeout | null = null;
 const SELECTED_IMAGES_DEBOUNCE_MS = 5000; // 5 seconds debounce for selected images (increased to prevent DynamoDB throughput errors)
 const DELETION_DEBOUNCE_MS = 500; // Short 500ms debounce for deletions (batches multiple deletions)
 
+// Source tracking metadata - tracks origin of data for sync decisions
+interface DataSourceMetadata {
+  formData: {
+    source: DataSource;
+    timestamp: number;
+    lastSyncedAt: number;
+    syncVersion: number;
+  };
+  selectedImages: {
+    source: DataSource;
+    timestamp: number;
+    lastSyncedAt: number;
+  };
+  bulkDefects: {
+    source: DataSource;
+    timestamp: number;
+    lastSyncedAt: number;
+  };
+}
+
 // We need to separate the state interface from the actions
 interface MetadataStateOnly {
   images: ImageMetadata[];
@@ -313,6 +333,12 @@ interface MetadataStateOnly {
   operationQueue: Operation[];
   // Last synced version (timestamp of last operation processed)
   lastSyncedVersion: number;
+  // Source tracking for sync-aware updates (NEW)
+  dataSourceMetadata: DataSourceMetadata;
+  // Load context for phase-aware sync logic (NEW)
+  loadContext: LoadContext;
+  // Sync state tracking (NEW)
+  syncState: SyncState;
 }
 
 // Combine state and actions
@@ -418,6 +444,21 @@ const forceAWSSave = async (sessionState: any, fullFormData?: any) => {
         formData: formDataToSave, // ✅ Always send complete formData
         sessionState: sessionState
       });
+      
+      // Update source metadata after successful AWS save
+      const currentState = useMetadataStore.getState();
+      useMetadataStore.setState({
+        dataSourceMetadata: {
+          ...currentState.dataSourceMetadata,
+          formData: {
+            source: 'aws',
+            timestamp: sessionState.lastActiveTime || Date.now(),
+            lastSyncedAt: Date.now(),
+            syncVersion: currentState.dataSourceMetadata.formData.syncVersion + 1,
+          },
+        },
+      });
+      
       console.log('✅ [IMMEDIATE] Session state forced to AWS successfully with complete formData');
     }
   } catch (error) {
@@ -588,6 +629,37 @@ const initialState: MetadataStateOnly = {
   // Operation Queue System (Phase 1)
   operationQueue: [],
   lastSyncedVersion: 0,
+  // Source tracking metadata (NEW)
+  dataSourceMetadata: {
+    formData: {
+      source: 'localStorage',
+      timestamp: 0,
+      lastSyncedAt: 0,
+      syncVersion: 0,
+    },
+    selectedImages: {
+      source: 'localStorage',
+      timestamp: 0,
+      lastSyncedAt: 0,
+    },
+    bulkDefects: {
+      source: 'localStorage',
+      timestamp: 0,
+      lastSyncedAt: 0,
+    },
+  },
+  // Load context (NEW)
+  loadContext: {
+    phase: 'initial-load',
+    source: 'localStorage',
+    isFirstRender: true,
+  },
+  // Sync state (NEW)
+  syncState: {
+    lastSyncAttempt: 0,
+    lastSuccessfulSync: 0,
+    syncInProgress: false,
+  },
 };
 
 export const useMetadataStore = create<MetadataState>((set, get) => ({
@@ -624,6 +696,18 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       const timestamp = generateTimestamp({ formData: newFormData, projectId });
       
       console.log('🕐 Generated timestamp for form data:', timestamp);
+      
+      // Update source metadata - user edit means 'local-edit' source
+      const now = Date.now();
+      const updatedDataSourceMetadata = {
+        ...state.dataSourceMetadata,
+        formData: {
+          source: 'local-edit' as DataSource,
+          timestamp: now,
+          lastSyncedAt: state.dataSourceMetadata.formData.lastSyncedAt,
+          syncVersion: state.dataSourceMetadata.formData.syncVersion,
+        },
+      };
       
       const updatedSessionState = {
         ...state.sessionState,
@@ -771,6 +855,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         formData: newFormData,
         sessionState: updatedSessionState,
         operationQueue, // Include updated operation queue
+        dataSourceMetadata: updatedDataSourceMetadata, // Update source tracking
       };
     });
   },
@@ -2455,8 +2540,33 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         updates.instanceMetadata = instanceMetadataResult.value;
       }
       
-      // Single state update to prevent flickering
-      set(updates);
+      // Update source metadata for loaded data
+      const now = Date.now();
+      const currentState = get();
+      const loadedSourceMetadata: DataSourceMetadata = {
+        formData: {
+          source: formDataResult.status === 'fulfilled' && formDataResult.value ? 'localStorage' : currentState.dataSourceMetadata.formData.source,
+          timestamp: formDataResult.status === 'fulfilled' && formDataResult.value ? now : currentState.dataSourceMetadata.formData.timestamp,
+          lastSyncedAt: currentState.dataSourceMetadata.formData.lastSyncedAt,
+          syncVersion: currentState.dataSourceMetadata.formData.syncVersion,
+        },
+        selectedImages: {
+          source: selectionsResult.status === 'fulfilled' && selectionsResult.value && Array.isArray(selectionsResult.value) && selectionsResult.value.length > 0 ? 'localStorage' : currentState.dataSourceMetadata.selectedImages.source,
+          timestamp: selectionsResult.status === 'fulfilled' && selectionsResult.value && Array.isArray(selectionsResult.value) && selectionsResult.value.length > 0 ? now : currentState.dataSourceMetadata.selectedImages.timestamp,
+          lastSyncedAt: currentState.dataSourceMetadata.selectedImages.lastSyncedAt,
+        },
+        bulkDefects: {
+          source: bulkDataResult.status === 'fulfilled' && bulkDataResult.value && Array.isArray(bulkDataResult.value) && bulkDataResult.value.length > 0 ? 'localStorage' : currentState.dataSourceMetadata.bulkDefects.source,
+          timestamp: bulkDataResult.status === 'fulfilled' && bulkDataResult.value && Array.isArray(bulkDataResult.value) && bulkDataResult.value.length > 0 ? now : currentState.dataSourceMetadata.bulkDefects.timestamp,
+          lastSyncedAt: currentState.dataSourceMetadata.bulkDefects.lastSyncedAt,
+        },
+      };
+      
+      // Single state update to prevent flickering (includes source metadata)
+      set({
+        ...updates,
+        dataSourceMetadata: loadedSourceMetadata,
+      });
       
       // Restore session state after data is loaded
       await get().restoreSessionState();
@@ -2782,24 +2892,73 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           hasSortPreferences: !!project.sortPreferences
         });
         
-        // ✅ OPERATION QUEUE: FormData sync is now handled by operation replay
+        // ✅ SOURCE-AWARE SYNC: FormData sync based on source tracking, not content comparison
         // Operations will be replayed later in this function - they handle sync reliably
-        // This section is just for initial fallback (backward compatibility)
-        // 
-        // Note: Operation replay happens after this section, so formData will be synced via operations
-        // This fallback is only used if no operations exist yet (first time sync)
+        // This section handles source-aware sync for initial loads and cross-browser scenarios
         const rootFormData = project.formData;
         const sessionFormData = project.sessionState?.formData;
         const awsFormData = rootFormData || sessionFormData || null;
         
         if (awsFormData) {
-          const rootHasValues = !!awsFormData.elr?.trim() || !!awsFormData.structureNo?.trim();
-          if (rootHasValues && currentState.lastSyncedVersion === 0) {
-            console.log('📋 [FALLBACK] Loading formData from AWS (will be overridden by operations if available):', awsFormData);
+          const localFormDataMeta = currentState.dataSourceMetadata.formData;
+          const loadContext = currentState.loadContext;
+          
+          // Source-aware sync decision logic
+          const shouldSyncFormData = (() => {
+            // Rule 1: Different sources = cross-browser sync (always sync)
+            if (localFormDataMeta.source === 'localStorage' && loadContext.phase === 'sync') {
+              console.log('🔄 [SOURCE-AWARE] Cross-browser sync: localStorage -> AWS');
+              return true;
+            }
+            
+            // Rule 2: AWS is newer timestamp
+            const awsTimestamp = project.sessionState?.lastActiveTime || Date.now();
+            if (awsTimestamp > localFormDataMeta.lastSyncedAt) {
+              console.log('🔄 [SOURCE-AWARE] AWS data is newer');
+              return true;
+            }
+            
+            // Rule 3: Local data is stale (older than 5 seconds) and AWS has data
+            const localAge = Date.now() - localFormDataMeta.timestamp;
+            const STALE_THRESHOLD = 5000;
+            if (localAge > STALE_THRESHOLD && localFormDataMeta.source === 'localStorage') {
+              console.log('🔄 [SOURCE-AWARE] Local data is stale, syncing from AWS');
+              return true;
+            }
+            
+            // Rule 4: Initial load fallback (if no operations exist)
+            if (loadContext.phase === 'initial-load' && currentState.lastSyncedVersion === 0) {
+              const rootHasValues = !!awsFormData.elr?.trim() || !!awsFormData.structureNo?.trim();
+              if (rootHasValues) {
+                console.log('📋 [SOURCE-AWARE] Initial load fallback - AWS has data');
+                return true;
+              }
+            }
+            
+            return false;
+          })();
+          
+          if (shouldSyncFormData) {
+            console.log('✅ [SOURCE-AWARE] Syncing formData from AWS:', awsFormData);
             batchedUpdates.formData = awsFormData as FormData;
             hasUpdates = true;
+            
+            // Update source metadata
+            const now = Date.now();
+            batchedUpdates.dataSourceMetadata = {
+              ...currentState.dataSourceMetadata,
+              formData: {
+                source: 'aws',
+                timestamp: project.sessionState?.lastActiveTime || now,
+                lastSyncedAt: now,
+                syncVersion: localFormDataMeta.syncVersion + 1,
+              },
+            };
+            
             const keys = getProjectStorageKeys(userId, 'current');
             saveVersionedData(keys.formData, projectId, userId, awsFormData);
+          } else {
+            console.log('⏸️ [SOURCE-AWARE] Skipping formData sync - local data is current');
           }
         }
         

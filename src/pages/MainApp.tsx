@@ -38,17 +38,50 @@ const MainApp = () => {
           
           console.log('🔄 Loading user data for authenticated user...');
           
+          // PHASE 1: Initial Load - Set context for localStorage-first loading
+          const { useMetadataStore } = await import('../store/metadataStore');
+          useMetadataStore.setState({
+            loadContext: {
+              phase: 'initial-load',
+              source: 'localStorage',
+              isFirstRender: true,
+            },
+          });
+          
           // LOCAL-FIRST FOR INSTANT DISPLAY: Load localStorage first (instant), then sync AWS (latest)
           // This prevents empty state flicker and preserves selections if AWS hasn't synced
           console.log('📱 Loading data from localStorage first (instant display)...');
           await loadUserData();
           console.log('✅ User data loaded from localStorage (instant display)');
           
+          // PHASE 2: Background Sync - Set context for AWS sync
+          useMetadataStore.setState({
+            loadContext: {
+              phase: 'sync',
+              source: 'aws',
+              isFirstRender: false,
+            },
+            syncState: {
+              syncInProgress: true,
+              lastSyncAttempt: Date.now(),
+              lastSuccessfulSync: useMetadataStore.getState().syncState.lastSuccessfulSync,
+            },
+          });
+          
           // THEN SYNC AWS: Load from AWS to get latest cross-browser data
           // AWS will only overwrite if it has data, preserving localStorage if AWS is empty
           console.log('☁️ Syncing with AWS for latest data...');
           await loadAllUserDataFromAWS();
           console.log('✅ AWS sync completed (latest data)');
+          
+          // Update sync state after completion
+          useMetadataStore.setState({
+            syncState: {
+              syncInProgress: false,
+              lastSyncAttempt: Date.now(),
+              lastSuccessfulSync: Date.now(),
+            },
+          });
         } catch (error) {
           console.error('❌ Error loading user data:', error);
           // Data already loaded from localStorage above, so user sees something

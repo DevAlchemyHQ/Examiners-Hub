@@ -22,6 +22,29 @@ export interface FormData {
   date: string;
 }
 
+// Source tracking types for sync-aware updates
+export type DataSource = 'localStorage' | 'aws' | 'local-edit' | 'operation';
+
+export interface FormDataWithSource {
+  data: FormData;
+  source: DataSource;
+  timestamp: number;
+  syncVersion: number;
+  lastSyncedAt: number;
+}
+
+export interface LoadContext {
+  phase: 'initial-load' | 'sync' | 'operation-replay';
+  source: DataSource;
+  isFirstRender: boolean;
+}
+
+export interface SyncState {
+  lastSyncAttempt: number;
+  lastSuccessfulSync: number;
+  syncInProgress: boolean;
+}
+
 export interface BulkDefect {
   id?: string;
   photoNumber: string;
