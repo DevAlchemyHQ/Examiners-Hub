@@ -453,11 +453,9 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
         
         newDefects = [...currentDefects, newDefect];
         
-        // If sorting is enabled, apply it when adding to bottom
-        if (defectSortDirection) {
-          return reorderAndRenumberDefects(newDefects, defectSortDirection);
-        }
-        
+        // When adding to bottom, don't apply sorting - keep it at the bottom
+        // Sorting should only be applied when explicitly toggling the sort button
+        // This prevents flickering and ensures new tiles appear at the bottom
         return newDefects;
       }
     });
