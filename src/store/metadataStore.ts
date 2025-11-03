@@ -2274,10 +2274,19 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         // If we have loaded images, try to migrate the selections
         if (imagesResult.status === 'fulfilled' && imagesResult.value && imagesResult.value.length > 0) {
           const migratedSelections = migrateSelectedImageIds(selectionsResult.value, imagesResult.value || []);
+          const migrationRate = selectionsResult.value.length > 0 ? (migratedSelections.length / selectionsResult.value.length) : 1;
           
-          if (migratedSelections.length > 0) {
+          // If migration success rate is too low (< 50%), the selections likely reference old files
+          // Clear them to prevent stale selections from appearing
+          if (migrationRate < 0.5 && selectionsResult.value.length > 0) {
+            console.log('⚠️ Low migration success rate (' + Math.round(migrationRate * 100) + '%) - clearing stale selections that reference old files');
+            updates.selectedImages = [];
+            // Clear localStorage to remove stale selections
+            const keys = getProjectStorageKeys(userId, 'current');
+            saveVersionedData(keys.selections, projectId, userId, []);
+          } else if (migratedSelections.length > 0) {
             updates.selectedImages = migratedSelections;
-            console.log('✅ Migrated selections applied:', migratedSelections.length);
+            console.log('✅ Migrated selections applied:', migratedSelections.length, '(' + Math.round(migrationRate * 100) + '% success rate)');
           } else {
             console.log('⚠️ Migration returned empty array');
             // Even if migration failed, try to use the original data if images haven't loaded yet
