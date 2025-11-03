@@ -483,7 +483,7 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
                 const sortedDefects = [...currentDefects].sort((a, b) => {
                   const aNum = parseInt(a.photoNumber) || 0;
                   const bNum = parseInt(b.photoNumber) || 0;
-                  return aNum - bNum;
+                  return wasSorting === 'asc' ? aNum - bNum : bNum - aNum;
                 });
                 return sortedDefects.map((defect, idx) => ({
                   ...defect,
@@ -495,7 +495,7 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
               return [...currentDefects].sort((a, b) => {
                 const aNum = parseInt(a.photoNumber) || 0;
                 const bNum = parseInt(b.photoNumber) || 0;
-                return aNum - bNum;
+                return wasSorting === 'asc' ? aNum - bNum : bNum - aNum;
               });
             });
           }, 100);
