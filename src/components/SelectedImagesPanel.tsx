@@ -421,7 +421,7 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
     trackUserAction('toggle_sorting', 'sort_enabled', newDirection ? 1 : 0);
     
     // Always apply sorting when toggling (tiles will move)
-    // Don't renumber - preserve photo numbers so tiles actually move visually in DOM
+    // Sort AND renumber - tiles will move because array order changes, then renumber to match new positions
     const validDefects = bulkDefects.filter(defect => defect.id && defect.id.trim());
     const sortedDefects = [...validDefects].sort((a, b) => {
       const aNum = parseInt(a.photoNumber) || 0;
@@ -429,8 +429,12 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
       // Apply sort direction
       return newDirection === 'asc' ? aNum - bNum : bNum - aNum;
     });
-    // Return sorted array without renumbering - this ensures tiles physically move
-    setBulkDefects(sortedDefects);
+    // Renumber starting from 1 (preserves sorted order so tiles move visually)
+    const renumberedDefects = sortedDefects.map((defect, idx) => ({
+      ...defect,
+      photoNumber: String(idx + 1)
+    }));
+    setBulkDefects(renumberedDefects);
   };
 
   // Auto-sort function that can be called when new defects are added

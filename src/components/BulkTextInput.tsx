@@ -962,9 +962,9 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
     
     // Immediately apply sorting when toggling (tiles will move)
     // Use functional update to ensure we have latest state
-    // Don't renumber when toggling - preserve photo numbers so tiles actually move visually
+    // Sort AND renumber - tiles will move because array order changes, then renumber to match new positions
     setBulkDefects(defects => {
-      const sorted = reorderAndRenumberDefects(defects, newDirection, false); // false = don't renumber, preserve original numbers
+      const sorted = reorderAndRenumberDefects(defects, newDirection, true); // true = renumber after sorting
       console.log('🔄 [SORT] Applied sorting:', newDirection, '- defects before:', defects.length, '- after:', sorted.length);
       console.log('🔄 [SORT] First 3 defects before:', defects.slice(0, 3).map(d => ({ id: d.id, num: d.photoNumber, desc: d.description })));
       console.log('🔄 [SORT] First 3 defects after:', sorted.slice(0, 3).map(d => ({ id: d.id, num: d.photoNumber, desc: d.description })));
