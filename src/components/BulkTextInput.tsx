@@ -417,12 +417,26 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
         newDefects = [...currentDefects, newDefect];
       }
 
-      // If sorting is enabled, apply it (tiles will move)
+      // If sorting is enabled, apply it immediately (tiles will move)
+      // Don't use setTimeout - apply sorting right away to avoid flickering
       if (defectSortDirection) {
-        // Use setTimeout to ensure state update completes first
+        // Apply sorting immediately to the new defects array
+        const sorted = reorderAndRenumberDefects(newDefects, defectSortDirection);
+        console.log('➕ [ADD] Added defect at index', afterIndex, 'with sorting', defectSortDirection);
+        
+        // Use setTimeout only to ensure state update completes, but return sorted result immediately
         setTimeout(() => {
-          setBulkDefects(current => reorderAndRenumberDefects(current, defectSortDirection));
-        }, 100);
+          setBulkDefects(current => {
+            // Double-check current direction hasn't changed
+            const currentDirection = useMetadataStore.getState().defectSortDirection;
+            if (currentDirection === defectSortDirection) {
+              return reorderAndRenumberDefects(current, currentDirection);
+            }
+            return current;
+          });
+        }, 50);
+        
+        return sorted;
       }
 
       return newDefects;
@@ -914,10 +928,16 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
     const currentDirection = defectSortDirection || 'asc';
     const newDirection = currentDirection === 'asc' ? 'desc' : 'asc';
     
+    // Update direction first
     setDefectSortDirection(newDirection);
     
-    // Always apply sorting when toggling (tiles will move)
-    setBulkDefects(defects => reorderAndRenumberDefects(defects, newDirection));
+    // Immediately apply sorting when toggling (tiles will move)
+    // Use functional update to ensure we have latest state
+    setBulkDefects(defects => {
+      const sorted = reorderAndRenumberDefects(defects, newDirection);
+      console.log('🔄 [SORT] Toggled to', newDirection, 'from', currentDirection, '- defects:', sorted.length);
+      return sorted;
+    });
   };
 
   const formatFileSize = (bytes: number): string => {
@@ -1104,14 +1124,34 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
   }, [bulkDefects, images]);
 
   // Handle auto-sorting with debouncing to prevent conflicts
+  // Only apply when defects are added/removed, not when sort direction changes (toggleSorting handles that)
+  // This prevents conflicts where toggleSorting and useEffect both try to sort
   useEffect(() => {
-    if (defectSortDirection && bulkDefects.length > 0) {
+    // Get current direction from store to avoid stale closure
+    const currentDirection = useMetadataStore.getState().defectSortDirection;
+    
+    if (currentDirection && bulkDefects.length > 0) {
       const timeoutId = setTimeout(() => {
         setBulkDefects(prev => {
           // Only apply auto-sorting if it's still enabled
-          const currentDirection = useMetadataStore.getState().defectSortDirection;
-          if (currentDirection) {
-            return reorderAndRenumberDefects(prev, currentDirection);
+          const latestDirection = useMetadataStore.getState().defectSortDirection;
+          if (latestDirection) {
+            // Check if defects are already sorted to avoid unnecessary re-sorting
+            const isAlreadySorted = prev.every((defect, idx) => {
+              if (idx === 0) return true;
+              const num = parseInt(defect.photoNumber) || 0;
+              const prevNum = parseInt(prev[idx - 1].photoNumber) || 0;
+              if (latestDirection === 'asc') {
+                return num >= prevNum;
+              } else {
+                return num <= prevNum;
+              }
+            });
+            
+            if (!isAlreadySorted) {
+              console.log('🔄 [AUTO-SORT] Applying', latestDirection, 'sort - defects:', prev.length);
+              return reorderAndRenumberDefects(prev, latestDirection);
+            }
           }
           return prev;
         });
@@ -1119,7 +1159,7 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
 
       return () => clearTimeout(timeoutId);
     }
-  }, [defectSortDirection, bulkDefects.length]);
+  }, [bulkDefects.length]); // Only trigger on length change, not direction change
 
   // Clear bulk data for new project
   const handleNewProject = () => {
