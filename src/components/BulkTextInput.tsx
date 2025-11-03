@@ -824,11 +824,14 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
   };
 
   const toggleSorting = () => {
-    setIsSortingEnabled(!isSortingEnabled);
-    if (!isSortingEnabled) {
+    const newSortingState = !isSortingEnabled;
+    setIsSortingEnabled(newSortingState);
+    
+    if (newSortingState) {
       // When enabling auto-sort, reorder and renumber all defects
       setBulkDefects(defects => reorderAndRenumberDefects(defects));
     }
+    // When disabling, just disable - defects keep their current order
   };
 
   const formatFileSize = (bytes: number): string => {

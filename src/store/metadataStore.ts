@@ -246,6 +246,7 @@ const INSTANCE_METADATA_DEBOUNCE_MS = 3000; // 3 seconds debounce for typing
 
 // Debouncing for selected images saves to prevent DynamoDB throttling
 let selectedImagesSaveTimeout: NodeJS.Timeout | null = null;
+let bulkDefectsSaveTimeout: NodeJS.Timeout | null = null;
 const SELECTED_IMAGES_DEBOUNCE_MS = 2000; // 2 seconds debounce for selected images
 const DELETION_DEBOUNCE_MS = 500; // Short 500ms debounce for deletions (batches multiple deletions)
 
@@ -1856,8 +1857,14 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         console.error('Error saving bulk defects to localStorage:', error);
       }
       
-      // Auto-save to AWS immediately for cross-browser consistency
-      (async () => {
+      // Auto-save to AWS with debouncing to prevent race conditions
+      // Clear existing timeout
+      if (bulkDefectsSaveTimeout) {
+        clearTimeout(bulkDefectsSaveTimeout);
+      }
+      
+      // Set new timeout for debounced save
+      bulkDefectsSaveTimeout = setTimeout(async () => {
         try {
           // Check if project is being cleared
           const projectStore = useProjectStore.getState();
@@ -1869,10 +1876,14 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           const user = storedUser ? JSON.parse(storedUser) : null;
           
           if (user?.email) {
-            console.log('🔄 Auto-save triggered for bulk defects:', newBulkDefects);
-            const result = await DatabaseService.updateBulkDefects(user.email, newBulkDefects);
+            // Get the latest state in case it changed during debounce
+            const latestState = get();
+            const latestDefects = latestState.bulkDefects;
+            
+            console.log('🔄 Debounced auto-save triggered for bulk defects:', latestDefects.length);
+            const result = await DatabaseService.updateBulkDefects(user.email, latestDefects);
             if (result.success) {
-              console.log('✅ Manual save: Bulk defects saved to AWS for user:', user.email);
+              console.log('✅ Bulk defects saved to AWS for user:', user.email);
             } else {
               console.error('❌ Failed to save bulk defects to AWS:', result.error);
             }
@@ -1880,7 +1891,8 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         } catch (error) {
           console.error('Error auto-saving bulk defects:', error);
         }
-      })();
+        bulkDefectsSaveTimeout = null;
+      }, 2000); // 2 second debounce - same as selected images
       
       // Update session state with new defect order
       const defectOrder = newBulkDefects.map(defect => defect.id || defect.photoNumber);

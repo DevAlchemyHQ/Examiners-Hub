@@ -417,8 +417,8 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
     const newSorting = !isSortingEnabled;
     setIsSortingEnabled(newSorting);
     trackUserAction('toggle_sorting', 'sort_enabled', newSorting ? 1 : 0);
-    if (!newSorting) {
-      // Reorder defects when sorting is enabled
+    if (newSorting) {
+      // When enabling sorting, reorder defects
       const reorderedDefects = [...bulkDefects].sort((a, b) => {
         const aNum = parseInt(a.photoNumber) || 0;
         const bNum = parseInt(b.photoNumber) || 0;
@@ -426,6 +426,7 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
       });
       setBulkDefects(reorderedDefects);
     }
+    // When disabling, defects keep their current order
   };
 
   // Auto-sort function that can be called when new defects are added

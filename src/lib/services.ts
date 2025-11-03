@@ -1256,9 +1256,9 @@ export class DatabaseService {
   static async updateBulkDefects(userId: string, defects: any[]) {
     try {
       console.log('🗄️ AWS DynamoDB updateBulkDefects:', userId);
-      console.log('📊 Defects to save:', defects);
+      console.log('📊 Defects to save:', defects.length);
       
-      // First, get existing defects to delete them
+      // Get existing defects to merge changes (avoid DELETE ALL race condition)
       const queryCommand = new QueryCommand({
         TableName: 'mvp-labeler-bulk-defects',
         KeyConditionExpression: 'user_id = :userId',
@@ -1268,12 +1268,62 @@ export class DatabaseService {
       });
       
       console.log('🔍 Querying existing defects...');
-      const existingDefects = await docClient.send(queryCommand);
-      console.log('📊 Existing defects found:', existingDefects.Items?.length || 0);
+      const existingResult = await docClient.send(queryCommand);
+      const existingDefects = existingResult.Items || [];
+      console.log('📊 Existing defects found:', existingDefects.length);
       
-      // Delete existing defects using batch operations
-      if (existingDefects.Items && existingDefects.Items.length > 0) {
-        const deleteRequests = existingDefects.Items.map(item => ({
+      // Create maps for efficient lookup
+      const existingDefectMap = new Map(
+        existingDefects.map(item => [item.defect_id, item])
+      );
+      const localDefectMap = new Map(
+        defects.map(defect => {
+          const defectId = defect.id || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+          return [defectId, defect];
+        })
+      );
+      
+      // Identify what to add, update, and delete
+      const toAdd: any[] = [];
+      const toUpdate: any[] = [];
+      const toDelete: any[] = [];
+      
+      // Find defects to add or update
+      for (const [defectId, defect] of localDefectMap) {
+        const existing = existingDefectMap.get(defectId);
+        if (!existing) {
+          // New defect - add it
+          toAdd.push(defect);
+        } else {
+          // Existing defect - check if it changed
+          const hasChanged = 
+            existing.photoNumber !== (defect.photoNumber || '') ||
+            existing.description !== (defect.description || '') ||
+            existing.selectedFile !== (defect.selectedFile || '');
+          
+          if (hasChanged) {
+            toUpdate.push(defect);
+          }
+        }
+      }
+      
+      // Find defects to delete (in AWS but not in local)
+      for (const [defectId, existing] of existingDefectMap) {
+        if (!localDefectMap.has(defectId)) {
+          toDelete.push(existing);
+        }
+      }
+      
+      console.log('📊 Merge analysis:', {
+        toAdd: toAdd.length,
+        toUpdate: toUpdate.length,
+        toDelete: toDelete.length
+      });
+      
+      // Process deletions
+      if (toDelete.length > 0) {
+        console.log('🗑️ Deleting removed defects...');
+        const deleteRequests = toDelete.map(item => ({
           DeleteRequest: {
             Key: {
               user_id: item.user_id,
@@ -1282,8 +1332,6 @@ export class DatabaseService {
           }
         }));
         
-        console.log('🗑️ Deleting existing defects...');
-        // DynamoDB batch operations are limited to 25 items
         const batchSize = 25;
         for (let i = 0; i < deleteRequests.length; i += batchSize) {
           const batch = deleteRequests.slice(i, i + batchSize);
@@ -1293,20 +1341,18 @@ export class DatabaseService {
             }
           });
           
-          console.log(`🗑️ Deleting batch ${Math.floor(i / batchSize) + 1}...`);
-          const deleteResult = await docClient.send(batchDeleteCommand);
-          console.log('🗑️ Delete result:', deleteResult);
+          await docClient.send(batchDeleteCommand);
         }
         
-        console.log(`🗑️ Deleted ${existingDefects.Items.length} existing defects`);
+        console.log(`🗑️ Deleted ${toDelete.length} defects`);
       }
       
-      // Add new defects using batch operations
-      if (defects.length > 0) {
-        console.log('➕ Adding new defects...');
-        const putRequests = defects.map(defect => {
+      // Process adds and updates (using PutRequest which upserts)
+      const allUpdates = [...toAdd, ...toUpdate];
+      if (allUpdates.length > 0) {
+        console.log('➕ Adding/updating defects...');
+        const putRequests = allUpdates.map(defect => {
           const defectId = defect.id || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-          console.log(`➕ Processing defect:`, { defectId, defect });
           
           return {
             PutRequest: {
@@ -1317,15 +1363,13 @@ export class DatabaseService {
                 description: defect.description || '',
                 selectedFile: defect.selectedFile || '',
                 severity: defect.severity || 'medium',
-                created_at: new Date().toISOString()
+                created_at: existingDefectMap.get(defectId)?.created_at || new Date().toISOString(),
+                updated_at: new Date().toISOString()
               }
             }
           };
         });
         
-        console.log('📊 Put requests prepared:', putRequests.length);
-        
-        // DynamoDB batch operations are limited to 25 items
         const batchSize = 25;
         for (let i = 0; i < putRequests.length; i += batchSize) {
           const batch = putRequests.slice(i, i + batchSize);
@@ -1335,14 +1379,14 @@ export class DatabaseService {
             }
           });
           
-          console.log(`➕ Adding batch ${Math.floor(i / batchSize) + 1}...`);
-          const putResult = await docClient.send(batchPutCommand);
-          console.log('➕ Put result:', putResult);
+          await docClient.send(batchPutCommand);
         }
         
-        console.log(`✅ Added ${defects.length} new defects`);
-      } else {
-        console.log('⚠️ No defects to add');
+        console.log(`✅ Added/updated ${allUpdates.length} defects`);
+      }
+      
+      if (toAdd.length === 0 && toUpdate.length === 0 && toDelete.length === 0) {
+        console.log('✅ No changes detected - AWS already in sync');
       }
       
       return { success: true, error: null };
