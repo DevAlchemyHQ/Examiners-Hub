@@ -92,8 +92,8 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
     formData,
     deletedDefects,
     setDeletedDefects,
-    isSortingEnabled,
-    setIsSortingEnabled,
+    defectSortDirection,
+    setDefectSortDirection,
     viewMode,
     setViewMode
   } = useMetadataStore();
@@ -317,9 +317,9 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
     });
   };
 
-  const reorderAndRenumberDefects = (defects: BulkDefect[]) => {
-    // Only renumber if auto-sorting is enabled and there are actual defects
-    if (!isSortingEnabled || defects.length === 0) {
+  const reorderAndRenumberDefects = (defects: BulkDefect[], sortDirection: 'asc' | 'desc' | null = defectSortDirection) => {
+    // Only renumber if sorting is enabled and there are actual defects
+    if (!sortDirection || defects.length === 0) {
       return defects;
     }
     
@@ -331,7 +331,8 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
       // Extract numeric part from photo number (e.g., "4" from "4" or "4a")
       const aNum = parseInt(a.photoNumber) || 0;
       const bNum = parseInt(b.photoNumber) || 0;
-      return aNum - bNum;
+      // Apply sort direction
+      return sortDirection === 'asc' ? aNum - bNum : bNum - aNum;
     });
     
     // Then renumber them starting from 1
@@ -345,9 +346,9 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
     const { active, over } = event;
 
     if (over && active.id !== over.id) {
-      // Temporarily disable auto-sorting during drag
-      const wasAutoSorting = isSortingEnabled;
-      setIsSortingEnabled(false);
+      // Temporarily disable sorting during drag
+      const wasSorting = defectSortDirection;
+      setDefectSortDirection(null);
       
       setBulkDefects((items) => {
         const oldIndex = items.findIndex((item) => item.id === active.id);
@@ -360,27 +361,37 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
         
         const reorderedItems = arrayMove(items, oldIndex, newIndex);
         
+        // Renumber defects based on new position (1, 2, 3...)
+        const renumberedItems = reorderedItems.map((defect, idx) => ({
+          ...defect,
+          photoNumber: String(idx + 1)
+        }));
+        
         // Update session state to preserve bulk defect order
         setTimeout(() => {
           updateSessionState({ 
-            bulkDefectOrder: reorderedItems.map(defect => defect.id).filter(Boolean)
+            bulkDefectOrder: renumberedItems.map(defect => defect.id).filter(Boolean)
           });
         }, 100);
         
-        // Re-enable auto-sorting after a delay if it was enabled
-        if (wasAutoSorting) {
-          setTimeout(() => setIsSortingEnabled(true), 500);
+        // Re-enable sorting after a delay if it was enabled
+        if (wasSorting) {
+          setTimeout(() => {
+            setDefectSortDirection(wasSorting);
+            // Re-apply sorting after re-enabling
+            setBulkDefects(current => reorderAndRenumberDefects(current, wasSorting));
+          }, 500);
         }
         
-        return reorderedItems;
+        return renumberedItems;
       });
     }
   };
 
   const addNewDefect = (afterIndex?: number) => {
-    // Temporarily disable auto-sorting during addition
-    const wasAutoSorting = isSortingEnabled;
-    setIsSortingEnabled(false);
+    // Temporarily disable sorting during addition
+    const wasSorting = defectSortDirection;
+    setDefectSortDirection(null);
     
     setBulkDefects(currentDefects => {
       const newDefect = {
@@ -400,13 +411,12 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
         newDefects = [...currentDefects, newDefect];
       }
 
-      // Re-enable auto-sorting after a delay if it was enabled
-      // This will trigger the useEffect that applies sorting
-      if (wasAutoSorting) {
+      // Re-enable sorting after a delay if it was enabled
+      if (wasSorting) {
         setTimeout(() => {
-          setIsSortingEnabled(true);
+          setDefectSortDirection(wasSorting);
           // Apply sorting after enabling
-          setBulkDefects(current => reorderAndRenumberDefects(current));
+          setBulkDefects(current => reorderAndRenumberDefects(current, wasSorting));
         }, 100);
       }
 
@@ -440,7 +450,7 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
       defect: { ...defect },
       originalIndex: bulkDefects.findIndex(d => d.id === defectId),
       deletedAt: new Date(),
-      wasAutoSorted: isSortingEnabled,
+      wasAutoSorted: defectSortDirection !== null,
       originalPhotoNumber: defect.photoNumber
     };
     
@@ -458,7 +468,16 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
     setBulkDefects((items) => {
       const filteredItems = items.filter((item) => item.id !== defectId);
       console.log('✅ Defect deleted, remaining items:', filteredItems.length);
-      return isSortingEnabled ? reorderAndRenumberDefects(filteredItems) : filteredItems;
+      // Renumber based on position if sorting is disabled, or re-sort if enabled
+      if (defectSortDirection) {
+        return reorderAndRenumberDefects(filteredItems, defectSortDirection);
+      } else {
+        // Just renumber based on position (1, 2, 3...)
+        return filteredItems.map((item, idx) => ({
+          ...item,
+          photoNumber: String(idx + 1)
+        }));
+      }
     });
   };
 
@@ -467,9 +486,9 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
       const lastDeleted = deletedDefects[deletedDefects.length - 1];
       setDeletedDefects(prev => prev.slice(0, -1));
       
-      // Temporarily disable auto-sorting during undo
-      const wasAutoSorting = isSortingEnabled;
-      setIsSortingEnabled(false);
+      // Temporarily disable sorting during undo
+      const wasSorting = defectSortDirection;
+      setDefectSortDirection(null);
       
       setBulkDefects(prev => {
         // Add the deleted defect back at its original position with original photo number
@@ -480,10 +499,10 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
         };
         newDefects.splice(lastDeleted.originalIndex, 0, restoredDefect);
         
-        // If auto-sorting was enabled, re-enable it after a delay
-        if (wasAutoSorting) {
+        // If sorting was enabled, re-enable it after a delay
+        if (wasSorting) {
           setTimeout(() => {
-            setIsSortingEnabled(true);
+            setDefectSortDirection(wasSorting);
             // Only re-sort and renumber if the restored defect doesn't have a valid photo number
             setBulkDefects(currentDefects => {
               const hasInvalidPhotoNumbers = currentDefects.some(defect => 
@@ -491,14 +510,19 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
               );
               
               if (hasInvalidPhotoNumbers) {
-                const sortedDefects = reorderDefects(currentDefects);
-                return reorderAndRenumberDefects(sortedDefects);
+                return reorderAndRenumberDefects(currentDefects, wasSorting);
               }
               
               // Just sort without renumbering to preserve existing photo numbers
-              return reorderDefects(currentDefects);
+              return reorderAndRenumberDefects(currentDefects, wasSorting);
             });
           }, 100);
+        } else {
+          // If sorting was disabled, just renumber based on position
+          return newDefects.map((defect, idx) => ({
+            ...defect,
+            photoNumber: String(idx + 1)
+          }));
         }
         
         return newDefects;
@@ -635,9 +659,9 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
           const updated = [...prev, ...newDefects];
           
           // If sorting is enabled, apply it after adding
-          if (isSortingEnabled) {
+          if (defectSortDirection) {
             setTimeout(() => {
-              setBulkDefects(current => reorderAndRenumberDefects(current));
+              setBulkDefects(current => reorderAndRenumberDefects(current, defectSortDirection));
             }, 100);
           }
           
@@ -686,10 +710,10 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
         const updated = [...prev, ...newDefects];
         
         // If sorting is enabled, apply it after adding
-        if (isSortingEnabled) {
+        if (defectSortDirection) {
           // Use setTimeout to ensure state update completes first
           setTimeout(() => {
-            setBulkDefects(current => reorderAndRenumberDefects(current));
+            setBulkDefects(current => reorderAndRenumberDefects(current, defectSortDirection));
           }, 100);
         }
         
@@ -739,9 +763,9 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
         const updated = [...prev, ...newDefects];
         
         // If sorting is enabled, apply it after adding
-        if (isSortingEnabled) {
+        if (defectSortDirection) {
           setTimeout(() => {
-            setBulkDefects(current => reorderAndRenumberDefects(current));
+            setBulkDefects(current => reorderAndRenumberDefects(current, defectSortDirection));
           }, 100);
         }
         
@@ -786,9 +810,9 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
   };
 
   const handleFileSelect = (photoNumber: string, fileName: string) => {
-    // Temporarily disable auto-sorting during file selection
-    const wasAutoSorting = isSortingEnabled;
-    setIsSortingEnabled(false);
+    // Temporarily disable sorting during file selection
+    const wasSorting = defectSortDirection;
+    setDefectSortDirection(null);
 
     setBulkDefects((items) => {
       // Get the current defect and its previously selected file
@@ -814,9 +838,13 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
         item.photoNumber === photoNumber ? { ...item, selectedFile: fileName } : item
       );
 
-      // Re-enable auto-sorting after a delay if it was enabled
-      if (wasAutoSorting) {
-        setTimeout(() => setIsSortingEnabled(true), 100);
+      // Re-enable sorting after a delay if it was enabled
+      if (wasSorting) {
+        setTimeout(() => {
+          setDefectSortDirection(wasSorting);
+          // Re-apply sorting
+          setBulkDefects(current => reorderAndRenumberDefects(current, wasSorting));
+        }, 100);
       }
 
       return updated;
@@ -846,10 +874,10 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
         return;
       }
 
-      // Temporarily disable auto-sorting during photo number change
-      const wasAutoSorting = isSortingEnabled;
-      setIsSortingEnabled(false);
-
+      // Temporarily disable sorting during photo number change
+      const wasSorting = defectSortDirection;
+      setDefectSortDirection(null);
+      
       setBulkDefects(prevDefects => {
         // Update the photo number
         const updatedDefects = prevDefects.map(defect => 
@@ -858,9 +886,13 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
             : defect
         );
 
-        // Re-enable auto-sorting after a delay if it was enabled
-        if (wasAutoSorting) {
-          setTimeout(() => setIsSortingEnabled(true), 100);
+        // Re-enable sorting after a delay if it was enabled
+        if (wasSorting) {
+          setTimeout(() => {
+            setDefectSortDirection(wasSorting);
+            // Re-apply sorting after re-enabling
+            setBulkDefects(current => reorderAndRenumberDefects(current, wasSorting));
+          }, 100);
         }
 
         return updatedDefects;
@@ -872,14 +904,18 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
   };
 
   const toggleSorting = () => {
-    const newSortingState = !isSortingEnabled;
-    setIsSortingEnabled(newSortingState);
+    // Cycle through: null -> 'asc' -> 'desc' -> null (same as selected images)
+    const newDirection = defectSortDirection === null ? 'asc' : 
+                         defectSortDirection === 'asc' ? 'desc' : 
+                         null;
     
-    if (newSortingState) {
-      // When enabling auto-sort, reorder and renumber all defects
-      setBulkDefects(defects => reorderAndRenumberDefects(defects));
+    setDefectSortDirection(newDirection);
+    
+    if (newDirection) {
+      // When enabling sorting, reorder and renumber all defects
+      setBulkDefects(defects => reorderAndRenumberDefects(defects, newDirection));
     }
-    // When disabling, just disable - defects keep their current order
+    // When disabling (null), defects keep their current order
   };
 
   const formatFileSize = (bytes: number): string => {
@@ -1067,12 +1103,13 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
 
   // Handle auto-sorting with debouncing to prevent conflicts
   useEffect(() => {
-    if (isSortingEnabled && bulkDefects.length > 0) {
+    if (defectSortDirection && bulkDefects.length > 0) {
       const timeoutId = setTimeout(() => {
         setBulkDefects(prev => {
           // Only apply auto-sorting if it's still enabled
-          if (isSortingEnabled) {
-            return reorderAndRenumberDefects(prev);
+          const currentDirection = useMetadataStore.getState().defectSortDirection;
+          if (currentDirection) {
+            return reorderAndRenumberDefects(prev, currentDirection);
           }
           return prev;
         });
@@ -1080,7 +1117,7 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
 
       return () => clearTimeout(timeoutId);
     }
-  }, [isSortingEnabled, bulkDefects.length]);
+  }, [defectSortDirection, bulkDefects.length]);
 
   // Clear bulk data for new project
   const handleNewProject = () => {
@@ -1557,9 +1594,9 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
                       onDragEnd={(event) => {
                         const { active, over } = event;
                         if (over && active.id !== over.id) {
-                          // Temporarily disable auto-sorting during drag
-                          const wasAutoSorting = isSortingEnabled;
-                          setIsSortingEnabled(false);
+                          // Temporarily disable sorting during drag
+                          const wasSorting = defectSortDirection;
+                          setDefectSortDirection(null);
                           
                           // Find the defects being reordered by ID
                           const activeId = active.id.toString().split('-')[0];
@@ -1577,12 +1614,29 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
                               
                               const reorderedItems = arrayMove(prev, oldIndex, newIndex);
                               
-                              // Re-enable auto-sorting after a delay if it was enabled
-                              if (wasAutoSorting) {
-                                setTimeout(() => setIsSortingEnabled(true), 500);
+                              // Renumber defects based on new position (1, 2, 3...)
+                              const renumberedItems = reorderedItems.map((defect, idx) => ({
+                                ...defect,
+                                photoNumber: String(idx + 1)
+                              }));
+                              
+                              // Update session state to preserve bulk defect order
+                              setTimeout(() => {
+                                updateSessionState({ 
+                                  bulkDefectOrder: renumberedItems.map(defect => defect.id).filter(Boolean)
+                                });
+                              }, 100);
+                              
+                              // Re-enable sorting after a delay if it was enabled
+                              if (wasSorting) {
+                                setTimeout(() => {
+                                  setDefectSortDirection(wasSorting);
+                                  // Re-apply sorting after re-enabling
+                                  setBulkDefects(current => reorderAndRenumberDefects(current, wasSorting));
+                                }, 500);
                               }
                               
-                              return reorderedItems;
+                              return renumberedItems;
                             });
                           }
                         }

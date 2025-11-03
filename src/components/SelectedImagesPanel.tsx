@@ -294,8 +294,6 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
     setSelectedImages,
     deletedDefects,
     setDeletedDefects,
-    isSortingEnabled,
-    setIsSortingEnabled,
     instanceMetadata
   } = useMetadataStore();
   
@@ -412,19 +410,25 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
     toast.success('All bulk defects deleted');
   };
 
-  // Sort bulk defects - use the same logic as BulkTextInput
+  // Sort bulk defects - use same pattern as selected images (asc/desc/null)
   const toggleSorting = () => {
-    const newSorting = !isSortingEnabled;
-    setIsSortingEnabled(newSorting);
-    trackUserAction('toggle_sorting', 'sort_enabled', newSorting ? 1 : 0);
-    if (newSorting) {
+    // Cycle through: null -> 'asc' -> 'desc' -> null (same as selected images)
+    const newDirection = defectSortDirection === null ? 'asc' : 
+                         defectSortDirection === 'asc' ? 'desc' : 
+                         null;
+    
+    setDefectSortDirection(newDirection);
+    trackUserAction('toggle_sorting', 'sort_enabled', newDirection ? 1 : 0);
+    
+    if (newDirection) {
       // When enabling sorting, reorder and renumber defects
       // Filter valid defects, sort by photo number, then renumber
       const validDefects = bulkDefects.filter(defect => defect.id && defect.id.trim());
       const sortedDefects = [...validDefects].sort((a, b) => {
         const aNum = parseInt(a.photoNumber) || 0;
         const bNum = parseInt(b.photoNumber) || 0;
-        return aNum - bNum;
+        // Apply sort direction
+        return newDirection === 'asc' ? aNum - bNum : bNum - aNum;
       });
       // Renumber starting from 1
       const renumberedDefects = sortedDefects.map((defect, idx) => ({
@@ -433,12 +437,12 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
       }));
       setBulkDefects(renumberedDefects);
     }
-    // When disabling, defects keep their current order
+    // When disabling (null), defects keep their current order
   };
 
   // Auto-sort function that can be called when new defects are added
   const autoSortDefects = (defects: any[]) => {
-    if (!isSortingEnabled) return defects;
+    if (!defectSortDirection) return defects;
     
     return [...defects].sort((a, b) => {
       const aNum = parseInt(a.photoNumber) || 0;
@@ -453,9 +457,9 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
       const lastDeleted = deletedDefects[deletedDefects.length - 1];
       setDeletedDefects(prev => prev.slice(0, -1));
       
-      // Temporarily disable auto-sorting during undo
-      const wasAutoSorting = isSortingEnabled;
-      setIsSortingEnabled(false);
+      // Temporarily disable sorting during undo
+      const wasSorting = defectSortDirection;
+      setDefectSortDirection(null);
       
       setBulkDefects(prev => {
         // Add the deleted defect back with original photo number
@@ -465,10 +469,10 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
         };
         const newDefects = [...prev, restoredDefect];
         
-        // If auto-sorting was enabled, re-enable it after a delay
-        if (wasAutoSorting) {
+        // If sorting was enabled, re-enable it after a delay
+        if (wasSorting) {
           setTimeout(() => {
-            setIsSortingEnabled(true);
+            setDefectSortDirection(wasSorting);
             // Only re-sort and renumber if the restored defect doesn't have a valid photo number
             setBulkDefects(currentDefects => {
               const hasInvalidPhotoNumbers = currentDefects.some(defect => 
@@ -1058,18 +1062,18 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1">
               <button
-                title={`Sort: ${viewMode === 'bulk' ? (isSortingEnabled ? 'Enabled' : 'Disabled') : (defectSortDirection === 'asc' ? 'Ascending' : defectSortDirection === 'desc' ? 'Descending' : 'Disabled')}`}
+                title={`Sort: ${viewMode === 'bulk' ? (defectSortDirection === 'asc' ? 'Ascending' : defectSortDirection === 'desc' ? 'Descending' : 'Disabled') : (defectSortDirection === 'asc' ? 'Ascending' : defectSortDirection === 'desc' ? 'Descending' : 'Disabled')}`}
                 className={`p-1 rounded transition-colors flex items-center gap-1 ${
-                  viewMode === 'bulk' && isSortingEnabled
-                    ? 'bg-slate-200 dark:bg-gray-600 text-slate-700 dark:text-gray-300'
+                  viewMode === 'bulk' && defectSortDirection
+                    ? 'bg-indigo-500 text-white'
                     : viewMode === 'images' && defectSortDirection
                       ? 'bg-indigo-500 text-white'
                       : 'text-slate-500 dark:text-gray-300 hover:bg-slate-100 dark:hover:bg-gray-700'
                 }`}
                 onClick={viewMode === 'bulk' ? toggleSorting : handleSortImages}
               >
-                <ArrowUpDown size={16} className={viewMode === 'images' && defectSortDirection === 'desc' ? 'rotate-180' : ''} />
-                {viewMode === 'images' && defectSortDirection && (
+                <ArrowUpDown size={16} className={(defectSortDirection === 'desc') ? 'rotate-180' : ''} />
+                {defectSortDirection && (
                   <span className="text-xs font-medium">
                     {defectSortDirection === 'asc' ? '↑' : '↓'}
                   </span>
@@ -1168,18 +1172,18 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
             )}
             <div className="flex items-center gap-2 ml-2">
               <button
-                title={`Sort: ${viewMode === 'bulk' ? (isSortingEnabled ? 'Enabled' : 'Disabled') : (defectSortDirection === 'asc' ? 'Ascending' : defectSortDirection === 'desc' ? 'Descending' : 'Disabled')}`}
+                title={`Sort: ${viewMode === 'bulk' ? (defectSortDirection === 'asc' ? 'Ascending' : defectSortDirection === 'desc' ? 'Descending' : 'Disabled') : (defectSortDirection === 'asc' ? 'Ascending' : defectSortDirection === 'desc' ? 'Descending' : 'Disabled')}`}
                 className={`p-2 rounded transition-colors flex items-center gap-1 ${
-                  viewMode === 'bulk' && isSortingEnabled
-                    ? 'bg-slate-200 dark:bg-gray-600 text-slate-700 dark:text-gray-300'
+                  viewMode === 'bulk' && defectSortDirection
+                    ? 'bg-indigo-500 text-white'
                     : viewMode === 'images' && defectSortDirection
                       ? 'bg-indigo-500 text-white'
                       : 'text-slate-500 dark:text-gray-300 hover:bg-slate-100 dark:hover:bg-gray-700'
                 }`}
                 onClick={viewMode === 'bulk' ? toggleSorting : handleSortImages}
               >
-                <ArrowUpDown size={20} className={viewMode === 'images' && defectSortDirection === 'desc' ? 'rotate-180' : ''} />
-                {viewMode === 'images' && defectSortDirection && (
+                <ArrowUpDown size={20} className={(defectSortDirection === 'desc') ? 'rotate-180' : ''} />
+                {defectSortDirection && (
                   <span className="text-xs font-medium">
                     {defectSortDirection === 'asc' ? '↑' : '↓'}
                   </span>
