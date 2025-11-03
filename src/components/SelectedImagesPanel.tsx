@@ -412,19 +412,26 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
     toast.success('All bulk defects deleted');
   };
 
-  // Sort bulk defects
+  // Sort bulk defects - use the same logic as BulkTextInput
   const toggleSorting = () => {
     const newSorting = !isSortingEnabled;
     setIsSortingEnabled(newSorting);
     trackUserAction('toggle_sorting', 'sort_enabled', newSorting ? 1 : 0);
     if (newSorting) {
-      // When enabling sorting, reorder defects
-      const reorderedDefects = [...bulkDefects].sort((a, b) => {
+      // When enabling sorting, reorder and renumber defects
+      // Filter valid defects, sort by photo number, then renumber
+      const validDefects = bulkDefects.filter(defect => defect.id && defect.id.trim());
+      const sortedDefects = [...validDefects].sort((a, b) => {
         const aNum = parseInt(a.photoNumber) || 0;
         const bNum = parseInt(b.photoNumber) || 0;
         return aNum - bNum;
       });
-      setBulkDefects(reorderedDefects);
+      // Renumber starting from 1
+      const renumberedDefects = sortedDefects.map((defect, idx) => ({
+        ...defect,
+        photoNumber: String(idx + 1)
+      }));
+      setBulkDefects(renumberedDefects);
     }
     // When disabling, defects keep their current order
   };

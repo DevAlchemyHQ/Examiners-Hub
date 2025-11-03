@@ -2762,20 +2762,48 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         console.log('⚠️ No project data found in AWS');
       }
       
-      // Process bulk defects
+      // Process bulk defects with merge strategy to prevent overwriting local changes
       if (bulkDefectsResult.status === 'fulfilled' && bulkDefectsResult.value.defects) {
-        const defects = bulkDefectsResult.value.defects;
-        console.log('📦 Bulk defects loaded from AWS:', defects.length);
+        const awsDefects = bulkDefectsResult.value.defects;
+        const currentState = get();
+        const localDefects = currentState.bulkDefects || [];
+        
+        console.log('📦 Bulk defects loaded from AWS:', awsDefects.length);
+        console.log('📦 Local bulk defects:', localDefects.length);
+        
+        // Merge strategy: Combine local and AWS defects, prefer local if IDs match
+        // This prevents local changes from being overwritten by AWS data
+        const localDefectMap = new Map(localDefects.map(d => [d.id, d]));
+        const awsDefectMap = new Map(awsDefects.map(d => [d.id, d]));
+        
+        // Start with local defects (they take priority)
+        const mergedDefects = new Map<string, BulkDefect>();
+        
+        // Add all local defects first
+        localDefects.forEach(defect => {
+          if (defect.id) {
+            mergedDefects.set(defect.id, defect);
+          }
+        });
+        
+        // Add AWS defects that aren't in local (new from other browser)
+        awsDefects.forEach(defect => {
+          if (defect.id && !mergedDefects.has(defect.id)) {
+            mergedDefects.set(defect.id, defect);
+          }
+        });
+        
+        const finalDefects = Array.from(mergedDefects.values());
+        console.log('📦 Merged bulk defects:', finalDefects.length, '(local:', localDefects.length, '+ new from AWS:', finalDefects.length - localDefects.length, ')');
         
         // Restore order from session state if available
-        const currentState = get();
         const sessionState = currentState.sessionState;
         
         if (sessionState.bulkDefectOrder && sessionState.bulkDefectOrder.length > 0) {
           console.log('🔄 Restoring bulk defect order from session state');
           
           // Create a map for quick lookup
-          const defectMap = new Map<string, BulkDefect>(defects.map(defect => [defect.id || defect.photoNumber, defect]));
+          const defectMap = new Map<string, BulkDefect>(finalDefects.map(defect => [defect.id || defect.photoNumber, defect]));
           
           // Reorder defects according to saved order
           const reorderedDefects = sessionState.bulkDefectOrder
@@ -2783,22 +2811,22 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             .filter(Boolean) as BulkDefect[];
           
           // Add any defects not in the saved order at the end
-          const remainingDefects = defects.filter(defect => 
+          const remainingDefects = finalDefects.filter(defect => 
             !sessionState.bulkDefectOrder.includes(defect.id || defect.photoNumber)
           );
           
-          const finalDefects = [...reorderedDefects, ...remainingDefects];
+          const orderedDefects = [...reorderedDefects, ...remainingDefects];
+          set({ bulkDefects: orderedDefects });
+          
+          // Cache to localStorage for faster future access
+          const keys = getProjectStorageKeys(userId, 'current');
+          localStorage.setItem(keys.bulkData, JSON.stringify(orderedDefects));
+        } else {
           set({ bulkDefects: finalDefects });
           
           // Cache to localStorage for faster future access
           const keys = getProjectStorageKeys(userId, 'current');
           localStorage.setItem(keys.bulkData, JSON.stringify(finalDefects));
-        } else {
-          set({ bulkDefects: defects });
-          
-          // Cache to localStorage for faster future access
-          const keys = getProjectStorageKeys(userId, 'current');
-          localStorage.setItem(keys.bulkData, JSON.stringify(defects));
         }
         
         console.log('✅ Bulk defects loaded and cached from AWS');

@@ -1228,10 +1228,10 @@ export class DatabaseService {
       
       // Transform DynamoDB items back to the expected format
       const transformedDefects = (result.Items || []).map(item => ({
-        id: item.defect_id,
+        id: item.defect_id || item.defect_id, // Ensure ID is always present
         photoNumber: item.photoNumber || '',
         description: item.description || '',
-        selectedFile: item.selectedFile || null,
+        selectedFile: item.selectedFile || '', // Normalize: null/undefined -> empty string
         severity: item.severity || 'medium',
         created_at: item.created_at
       }));
@@ -1296,10 +1296,14 @@ export class DatabaseService {
           toAdd.push(defect);
         } else {
           // Existing defect - check if it changed
+          // Normalize selectedFile: null/undefined/empty all treated as empty string
+          const existingFile = existing.selectedFile || '';
+          const defectFile = defect.selectedFile || '';
+          
           const hasChanged = 
             existing.photoNumber !== (defect.photoNumber || '') ||
             existing.description !== (defect.description || '') ||
-            existing.selectedFile !== (defect.selectedFile || '');
+            existingFile !== defectFile;
           
           if (hasChanged) {
             toUpdate.push(defect);
@@ -1317,7 +1321,11 @@ export class DatabaseService {
       console.log('📊 Merge analysis:', {
         toAdd: toAdd.length,
         toUpdate: toUpdate.length,
-        toDelete: toDelete.length
+        toDelete: toDelete.length,
+        existingDefects: existingDefectMap.size,
+        localDefects: localDefectMap.size,
+        toAddIds: toAdd.map(d => d.id).slice(0, 5), // First 5 IDs for debugging
+        existingIds: Array.from(existingDefectMap.keys()).slice(0, 5) // First 5 IDs for debugging
       });
       
       // Process deletions

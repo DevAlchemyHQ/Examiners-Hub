@@ -401,8 +401,13 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
       }
 
       // Re-enable auto-sorting after a delay if it was enabled
+      // This will trigger the useEffect that applies sorting
       if (wasAutoSorting) {
-        setTimeout(() => setIsSortingEnabled(true), 100);
+        setTimeout(() => {
+          setIsSortingEnabled(true);
+          // Apply sorting after enabling
+          setBulkDefects(current => reorderAndRenumberDefects(current));
+        }, 100);
       }
 
       return newDefects;
@@ -626,7 +631,18 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
         }
 
         // Add defects and select corresponding images
-        setBulkDefects(prev => [...prev, ...newDefects]);
+        setBulkDefects(prev => {
+          const updated = [...prev, ...newDefects];
+          
+          // If sorting is enabled, apply it after adding
+          if (isSortingEnabled) {
+            setTimeout(() => {
+              setBulkDefects(current => reorderAndRenumberDefects(current));
+            }, 100);
+          }
+          
+          return updated;
+        });
         
         // Select corresponding images
         newDefects.forEach(defect => {
@@ -666,7 +682,19 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
       });
 
       console.log('📋 New defects to add from simple format:', newDefects.map(d => ({ photoNumber: d.photoNumber, description: d.description })));
-      setBulkDefects(prev => [...prev, ...newDefects]);
+      setBulkDefects(prev => {
+        const updated = [...prev, ...newDefects];
+        
+        // If sorting is enabled, apply it after adding
+        if (isSortingEnabled) {
+          // Use setTimeout to ensure state update completes first
+          setTimeout(() => {
+            setBulkDefects(current => reorderAndRenumberDefects(current));
+          }, 100);
+        }
+        
+        return updated;
+      });
       setBulkText('');
       setShowBulkPasteState(false);
       toast.success(`Added ${newDefects.length} defects from text!`);
@@ -707,7 +735,18 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
       }
 
       // Add defects and select corresponding images
-      setBulkDefects(prev => [...prev, ...newDefects]);
+      setBulkDefects(prev => {
+        const updated = [...prev, ...newDefects];
+        
+        // If sorting is enabled, apply it after adding
+        if (isSortingEnabled) {
+          setTimeout(() => {
+            setBulkDefects(current => reorderAndRenumberDefects(current));
+          }, 100);
+        }
+        
+        return updated;
+      });
       
       // Select the images for the imported defects
       newDefects.forEach(defect => {
