@@ -2798,7 +2798,9 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         
         // Check if local data is stale (has significantly more selections than AWS)
         // This indicates old cleared selections are still in localStorage
-        const localIsStale = localCount > awsCount && (localCount - awsCount) > 5;
+        // Only consider stale if AWS has SOME data (not empty) and local has way more
+        // Empty AWS = user cleared selections (not stale data)
+        const localIsStale = awsCount > 0 && localCount > awsCount && (localCount - awsCount) > 5;
         
         // Only process if we actually have selections from AWS
         if (selectedImages.length > 0) {
@@ -2850,19 +2852,15 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             console.log('⚠️ Migration failed, preserving existing selections (local: ' + localCount + ', AWS: ' + awsCount + ')');
           }
         } else {
-          // AWS returned empty array - check if local is stale
-          if (localIsStale) {
-            console.log('⚠️ AWS returned empty array but local has stale data (local: ' + localCount + ') - clearing stale selections');
-            // Clear stale local selections
-            const clearedSelections: Array<{ id: string; instanceId: string; fileName?: string }> = [];
-            set({ selectedImages: clearedSelections });
-            get().updateSessionState({ selectedImageOrder: [] });
-            const keys = getProjectStorageKeys(userId, 'current');
-            saveVersionedData(keys.selections, projectId, userId, clearedSelections);
-            console.log('✅ Cleared stale local selections');
-          } else {
-            console.log('⚠️ AWS returned empty array - preserving existing localStorage selections');
-          }
+          // AWS returned empty array - this means user cleared selections on another browser
+          // Always sync empty array to match AWS state (cross-browser sync)
+          console.log('⚠️ AWS returned empty array - user cleared selections on another browser, syncing clear to this browser');
+          const clearedSelections: Array<{ id: string; instanceId: string; fileName?: string }> = [];
+          set({ selectedImages: clearedSelections });
+          get().updateSessionState({ selectedImageOrder: [] });
+          const keys = getProjectStorageKeys(userId, 'current');
+          saveVersionedData(keys.selections, projectId, userId, clearedSelections);
+          console.log('✅ Cleared selections to match AWS state (cross-browser sync)');
         }
       } else {
         console.log('⚠️ No selected images found in AWS - preserving existing localStorage selections');
