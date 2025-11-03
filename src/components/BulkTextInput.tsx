@@ -317,8 +317,8 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
     });
   };
 
-  const reorderAndRenumberDefects = (defects: BulkDefect[], sortDirection: 'asc' | 'desc' | null = defectSortDirection) => {
-    // Only renumber if sorting is enabled and there are actual defects
+  const reorderAndRenumberDefects = (defects: BulkDefect[], sortDirection: 'asc' | 'desc' | null = defectSortDirection, shouldRenumber: boolean = true) => {
+    // Only sort if sorting is enabled and there are actual defects
     if (!sortDirection || defects.length === 0) {
       return defects;
     }
@@ -326,8 +326,8 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
     // Filter out any defects without valid IDs to prevent phantom defects
     const validDefects = defects.filter(defect => defect.id && defect.id.trim());
     
-    // First, sort defects by photo number (extract numeric part for sorting)
-    // This changes the array order, so tiles will move visually
+    // Sort defects by photo number (extract numeric part for sorting)
+    // This changes the array order, so tiles will move visually in the DOM
     const sortedDefects = [...validDefects].sort((a, b) => {
       // Extract numeric part from photo number (e.g., "4" from "4" or "4a")
       const aNum = parseInt(a.photoNumber) || 0;
@@ -336,12 +336,18 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
       return sortDirection === 'asc' ? aNum - bNum : bNum - aNum;
     });
     
-    // Then renumber them starting from 1 (preserves sorted order)
-    // This ensures tiles are in the correct visual order
-    return sortedDefects.map((defect, idx) => ({
-      ...defect,
-      photoNumber: String(idx + 1)
-    }));
+    // Only renumber if requested (e.g., when adding new defects, not when just toggling sort)
+    if (shouldRenumber) {
+      // Renumber them starting from 1 (preserves sorted order visually)
+      return sortedDefects.map((defect, idx) => ({
+        ...defect,
+        photoNumber: String(idx + 1)
+      }));
+    }
+    
+    // Return sorted defects with original photo numbers preserved
+    // This ensures tiles physically move in the DOM when sorting
+    return sortedDefects;
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -956,11 +962,12 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
     
     // Immediately apply sorting when toggling (tiles will move)
     // Use functional update to ensure we have latest state
+    // Don't renumber when toggling - preserve photo numbers so tiles actually move visually
     setBulkDefects(defects => {
-      const sorted = reorderAndRenumberDefects(defects, newDirection);
+      const sorted = reorderAndRenumberDefects(defects, newDirection, false); // false = don't renumber, preserve original numbers
       console.log('🔄 [SORT] Applied sorting:', newDirection, '- defects before:', defects.length, '- after:', sorted.length);
-      console.log('🔄 [SORT] First 3 defects before:', defects.slice(0, 3).map(d => ({ id: d.id, num: d.photoNumber })));
-      console.log('🔄 [SORT] First 3 defects after:', sorted.slice(0, 3).map(d => ({ id: d.id, num: d.photoNumber })));
+      console.log('🔄 [SORT] First 3 defects before:', defects.slice(0, 3).map(d => ({ id: d.id, num: d.photoNumber, desc: d.description })));
+      console.log('🔄 [SORT] First 3 defects after:', sorted.slice(0, 3).map(d => ({ id: d.id, num: d.photoNumber, desc: d.description })));
       return sorted;
     });
   };
