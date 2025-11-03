@@ -3019,14 +3019,26 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           const currentState = get();
           const clearedSessionState = {
             ...currentState.sessionState,
-            imageOrder: []
+            imageOrder: [],
+            lastActiveTime: Date.now() // Update timestamp so this clears syncs to other browsers
           };
-          get().updateSessionState({ imageOrder: [] });
+          get().updateSessionState({ imageOrder: [], lastActiveTime: clearedSessionState.lastActiveTime });
           
           // Clear localStorage
           const keys = getProjectStorageKeys(userId, 'current');
           localStorage.setItem(keys.images, JSON.stringify([]));
           localStorage.setItem(`${keys.formData}-session-state`, JSON.stringify(clearedSessionState));
+          
+          // Save cleared state to AWS so it syncs to other browsers
+          try {
+            await DatabaseService.updateProject(userId, 'current', {
+              sessionState: clearedSessionState
+            });
+            console.log('✅ Saved cleared imageOrder to AWS for cross-browser sync');
+          } catch (error) {
+            console.error('⚠️ Failed to save cleared imageOrder to AWS:', error);
+          }
+          
           console.log('✅ Cleared stale imageOrder - S3 bucket is empty');
           return; // Exit early - no need to process broken database entries
         }
