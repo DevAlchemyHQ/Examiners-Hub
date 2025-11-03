@@ -2796,11 +2796,21 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         const localCount = localSelections.length;
         const awsCount = selectedImages.length;
         
-        // Check if local data is stale (has significantly more selections than AWS)
-        // This indicates old cleared selections are still in localStorage
-        // Only consider stale if AWS has SOME data (not empty) and local has way more
-        // Empty AWS = user cleared selections (not stale data)
-        const localIsStale = awsCount > 0 && localCount > awsCount && (localCount - awsCount) > 5;
+        // Get session state timestamps to determine which is newer
+        const localSessionState = currentState.sessionState;
+        const localLastActiveTime = localSessionState?.lastActiveTime || 0;
+        // Get project from projectResult for timestamp comparison
+        const awsProject = projectResult.status === 'fulfilled' && projectResult.value?.project ? projectResult.value.project : null;
+        const awsLastActiveTime = awsProject?.sessionState?.lastActiveTime || 0;
+        const now = Date.now();
+        const localAge = now - localLastActiveTime;
+        const STALE_THRESHOLD = 30000; // 30 seconds - if local is older than this, consider stale
+        
+        // Check if local data is stale:
+        // 1. Has significantly more selections than AWS (old cleared data)
+        // 2. OR local session is old (>30 seconds) and AWS has same/more selections (local might be stale)
+        const localIsStale = (awsCount > 0 && localCount > awsCount && (localCount - awsCount) > 5) ||
+                             (localAge > STALE_THRESHOLD && awsCount >= localCount && awsLastActiveTime > localLastActiveTime);
         
         // Only process if we actually have selections from AWS
         if (selectedImages.length > 0) {
@@ -2808,12 +2818,16 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           const currentImages = get().images;
           const migratedSelections = migrateSelectedImageIds(selectedImages, currentImages);
           
+          // Check if AWS data is actually newer or if local is stale
+          const awsIsNewer = awsLastActiveTime > localLastActiveTime;
+          const shouldUseAWS = awsIsNewer || localIsStale;
+          
           // Use AWS data if:
-          // 1. Migration succeeded (has items)
+          // 1. Migration succeeded (has items) AND (AWS is newer OR local is stale)
           // 2. OR local data is stale (has many more items) - prefer AWS even if migration partially failed
-          if (migratedSelections.length > 0) {
+          if (migratedSelections.length > 0 && shouldUseAWS) {
             set({ selectedImages: migratedSelections });
-            console.log('✅ Selected images loaded and migrated from AWS:', migratedSelections.length);
+            console.log('✅ Selected images loaded and migrated from AWS:', migratedSelections.length, '(AWS newer:', awsIsNewer, ', local stale:', localIsStale, ')');
             
             // Update session state's selectedImageOrder to match AWS order
             const awsOrder = migratedSelections.map(item => item.instanceId);
@@ -2823,6 +2837,9 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             // Cache to localStorage for faster future access (using versioned format)
             const keys = getProjectStorageKeys(userId, 'current');
             saveVersionedData(keys.selections, projectId, userId, migratedSelections);
+          } else if (migratedSelections.length > 0 && !shouldUseAWS) {
+            // Migration succeeded but local is newer and not stale - preserve local
+            console.log('⏸️ AWS selections migrated but local is newer and not stale - preserving local selections (local:', localCount, ', AWS:', awsCount, ', local age:', Math.round(localAge/1000), 's)');
           } else if (localIsStale) {
             // Migration failed but local is stale (has many old selections)
             // This means AWS selections can't be matched to current S3 images
