@@ -354,7 +354,7 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
         // Update session state to preserve bulk defect order
         setTimeout(() => {
           updateSessionState({ 
-            bulkDefectOrder: reorderedItems.map(defect => defect.id || defect.photoNumber)
+            bulkDefectOrder: reorderedItems.map(defect => defect.id).filter(Boolean)
           });
         }, 100);
         
@@ -1185,12 +1185,17 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
         defectsWithDescriptions: bulkDefects.filter(d => d.description && d.description.trim()).length
       });
       
-      // Validate data integrity
-      const invalidDefects = bulkDefects.filter(d => !d.id);
-      if (invalidDefects.length > 0) {
-        console.warn('⚠️ Found defects without IDs:', invalidDefects.length);
-        // Clean up invalid defects
-        cleanupInvalidDefects();
+      // Validate data integrity - ensure all defects have IDs
+      const defectsWithoutIds = bulkDefects.filter(d => !d.id);
+      if (defectsWithoutIds.length > 0) {
+        console.warn('⚠️ Found defects without IDs:', defectsWithoutIds.length);
+        // Assign IDs to defects that don't have them
+        setBulkDefects(prev => prev.map(defect => {
+          if (!defect.id) {
+            return { ...defect, id: nanoid() };
+          }
+          return defect;
+        }));
       }
       
       const duplicateIds = bulkDefects.filter((d, index) => 
@@ -1341,7 +1346,7 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
     if (bulkDefects.length > 0) {
       const { updateSessionState } = useMetadataStore.getState();
       updateSessionState({
-        bulkDefectOrder: bulkDefects.map(defect => defect.id || defect.photoNumber).filter(Boolean)
+        bulkDefectOrder: bulkDefects.map(defect => defect.id).filter(Boolean)
       });
     }
   }, [bulkDefects]);
@@ -1432,16 +1437,30 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
                     <div className="space-y-2">
                       {bulkDefects.map((defect, index) => (
                         <DefectTile
-                          key={defect.id}
+                          key={defect.id || `defect-${index}`}
                           id={defect.id || `defect-${index}`}
                           photoNumber={defect.photoNumber}
                           description={defect.description}
                           selectedFile={defect.selectedFile || ''}
                           availableFiles={images.filter(img => !img.isSketch).map((img) => (img.fileName || img.file?.name || ''))}
-                          onDelete={() => enhancedDeleteDefect(defect.id || defect.photoNumber)}
+                          onDelete={() => {
+                            // Use defect.id directly - should always exist due to useEffect fix above
+                            if (defect.id) {
+                              enhancedDeleteDefect(defect.id);
+                            } else {
+                              console.error('❌ Cannot delete defect without ID - this should not happen:', defect);
+                            }
+                          }}
                           onDescriptionChange={(value) => updateDefectDescription(defect.photoNumber, value)}
                           onFileChange={(fileName) => handleFileSelect(defect.photoNumber, fileName)}
-                          onPhotoNumberChange={(oldNumber, newNumber) => handlePhotoNumberChange(defect.id || defect.photoNumber, oldNumber, newNumber)}
+                          onPhotoNumberChange={(oldNumber, newNumber) => {
+                            // Use defect.id directly - should always exist due to useEffect fix above
+                            if (defect.id) {
+                              handlePhotoNumberChange(defect.id, oldNumber, newNumber);
+                            } else {
+                              console.error('❌ Cannot update defect without ID - this should not happen:', defect);
+                            }
+                          }}
                           onQuickAdd={() => addNewDefect(index)}
                           isExpanded={isExpanded}
                           showImages={showImages}
@@ -1580,7 +1599,13 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
                                     <input
                                       type="text"
                                       value={defect.photoNumber}
-                                      onChange={(e) => handlePhotoNumberChange(defect.id || defect.photoNumber, defect.photoNumber, e.target.value)}
+                                      onChange={(e) => {
+                                        if (defect.id) {
+                                          handlePhotoNumberChange(defect.id, defect.photoNumber, e.target.value);
+                                        } else {
+                                          console.error('❌ Cannot update defect without ID - this should not happen:', defect);
+                                        }
+                                      }}
                                       className={`w-full p-2 text-sm border rounded-lg focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 
                                         bg-white/50 dark:bg-gray-800/50 text-slate-900 dark:text-white text-center
                                         ${!/^\d+[a-zA-Z]*$/.test(defect.photoNumber) && defect.photoNumber ? 'border-red-300 dark:border-red-600' : 
