@@ -392,54 +392,62 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
 
   const addNewDefect = (afterIndex?: number) => {
     setBulkDefects(currentDefects => {
-      // Calculate next photo number (highest number + 1)
-      const maxPhotoNumber = currentDefects.reduce((max, defect) => {
-        const num = parseInt(defect.photoNumber) || 0;
-        return num > max ? num : max;
-      }, 0);
-      
-      const nextPhotoNumber = String(maxPhotoNumber + 1);
-      
-      const newDefect = {
-        id: nanoid(),
-        photoNumber: nextPhotoNumber, // Assign next number
-        description: '',
-        selectedFile: ''
-      };
-
       let newDefects;
+      
       if (afterIndex !== undefined) {
-        // Insert after the specified index
+        // Insert after the specified index - NEW BEHAVIOR: insert in place and renumber
+        const insertIndex = afterIndex + 1;
+        const currentPhotoNumber = parseInt(currentDefects[afterIndex]?.photoNumber) || 0;
+        const nextPhotoNumber = String(currentPhotoNumber + 1);
+        
+        const newDefect = {
+          id: nanoid(),
+          photoNumber: nextPhotoNumber, // Assign next number after the one we're inserting after
+          description: '',
+          selectedFile: ''
+        };
+        
         newDefects = [...currentDefects];
-        newDefects.splice(afterIndex + 1, 0, newDefect);
+        newDefects.splice(insertIndex, 0, newDefect);
+        
+        // Renumber all defects after the inserted one (increment their numbers by 1)
+        for (let i = insertIndex + 1; i < newDefects.length; i++) {
+          const currentNum = parseInt(newDefects[i].photoNumber) || 0;
+          newDefects[i] = {
+            ...newDefects[i],
+            photoNumber: String(currentNum + 1)
+          };
+        }
+        
+        console.log('➕ [ADD] Inserted defect at index', insertIndex, 'with number', nextPhotoNumber);
+        
+        // DO NOT apply sorting when inserting in the middle - keep the tile where it was inserted
+        return newDefects;
       } else {
         // Always add to the bottom (end of array)
+        const maxPhotoNumber = currentDefects.reduce((max, defect) => {
+          const num = parseInt(defect.photoNumber) || 0;
+          return num > max ? num : max;
+        }, 0);
+        
+        const nextPhotoNumber = String(maxPhotoNumber + 1);
+        
+        const newDefect = {
+          id: nanoid(),
+          photoNumber: nextPhotoNumber,
+          description: '',
+          selectedFile: ''
+        };
+        
         newDefects = [...currentDefects, newDefect];
-      }
-
-      // If sorting is enabled, apply it immediately (tiles will move)
-      // Don't use setTimeout - apply sorting right away to avoid flickering
-      if (defectSortDirection) {
-        // Apply sorting immediately to the new defects array
-        const sorted = reorderAndRenumberDefects(newDefects, defectSortDirection);
-        console.log('➕ [ADD] Added defect at index', afterIndex, 'with sorting', defectSortDirection);
         
-        // Use setTimeout only to ensure state update completes, but return sorted result immediately
-        setTimeout(() => {
-          setBulkDefects(current => {
-            // Double-check current direction hasn't changed
-            const currentDirection = useMetadataStore.getState().defectSortDirection;
-            if (currentDirection === defectSortDirection) {
-              return reorderAndRenumberDefects(current, currentDirection);
-            }
-            return current;
-          });
-        }, 50);
+        // If sorting is enabled, apply it when adding to bottom
+        if (defectSortDirection) {
+          return reorderAndRenumberDefects(newDefects, defectSortDirection);
+        }
         
-        return sorted;
+        return newDefects;
       }
-
-      return newDefects;
     });
     
     // Track the addition
