@@ -326,7 +326,16 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
     // Filter out any defects without valid IDs to prevent phantom defects
     const validDefects = defects.filter(defect => defect.id && defect.id.trim());
     
-    return validDefects.map((defect, idx) => ({
+    // First, sort defects by photo number (extract numeric part for sorting)
+    const sortedDefects = [...validDefects].sort((a, b) => {
+      // Extract numeric part from photo number (e.g., "4" from "4" or "4a")
+      const aNum = parseInt(a.photoNumber) || 0;
+      const bNum = parseInt(b.photoNumber) || 0;
+      return aNum - bNum;
+    });
+    
+    // Then renumber them starting from 1
+    return sortedDefects.map((defect, idx) => ({
       ...defect,
       photoNumber: String(idx + 1)
     }));
