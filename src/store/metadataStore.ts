@@ -516,7 +516,7 @@ const initialState: MetadataStateOnly = {
   selectedImages: [],
       bulkSelectedImages: [],
   formData: initialFormData,
-  defectSortDirection: null,
+  defectSortDirection: 'asc' as 'asc' | 'desc', // Default to ascending for bulk defects
   sketchSortDirection: null,
   bulkDefects: [],
   deletedDefects: [],

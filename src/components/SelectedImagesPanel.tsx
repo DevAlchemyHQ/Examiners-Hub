@@ -410,34 +410,30 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
     toast.success('All bulk defects deleted');
   };
 
-  // Sort bulk defects - use same pattern as selected images (asc/desc/null)
+  // Sort bulk defects - toggle between asc/desc only
   const toggleSorting = () => {
-    // Cycle through: null -> 'asc' -> 'desc' -> null (same as selected images)
-    const newDirection = defectSortDirection === null ? 'asc' : 
-                         defectSortDirection === 'asc' ? 'desc' : 
-                         null;
+    // Toggle between 'asc' and 'desc' only (no null state)
+    // If null, default to 'asc'
+    const currentDirection = defectSortDirection || 'asc';
+    const newDirection = currentDirection === 'asc' ? 'desc' : 'asc';
     
     setDefectSortDirection(newDirection);
     trackUserAction('toggle_sorting', 'sort_enabled', newDirection ? 1 : 0);
     
-    if (newDirection) {
-      // When enabling sorting, reorder and renumber defects
-      // Filter valid defects, sort by photo number, then renumber
-      const validDefects = bulkDefects.filter(defect => defect.id && defect.id.trim());
-      const sortedDefects = [...validDefects].sort((a, b) => {
-        const aNum = parseInt(a.photoNumber) || 0;
-        const bNum = parseInt(b.photoNumber) || 0;
-        // Apply sort direction
-        return newDirection === 'asc' ? aNum - bNum : bNum - aNum;
-      });
-      // Renumber starting from 1
-      const renumberedDefects = sortedDefects.map((defect, idx) => ({
-        ...defect,
-        photoNumber: String(idx + 1)
-      }));
-      setBulkDefects(renumberedDefects);
-    }
-    // When disabling (null), defects keep their current order
+    // Always apply sorting when toggling (tiles will move)
+    const validDefects = bulkDefects.filter(defect => defect.id && defect.id.trim());
+    const sortedDefects = [...validDefects].sort((a, b) => {
+      const aNum = parseInt(a.photoNumber) || 0;
+      const bNum = parseInt(b.photoNumber) || 0;
+      // Apply sort direction
+      return newDirection === 'asc' ? aNum - bNum : bNum - aNum;
+    });
+    // Renumber starting from 1 (preserves sorted order so tiles move)
+    const renumberedDefects = sortedDefects.map((defect, idx) => ({
+      ...defect,
+      photoNumber: String(idx + 1)
+    }));
+    setBulkDefects(renumberedDefects);
   };
 
   // Auto-sort function that can be called when new defects are added

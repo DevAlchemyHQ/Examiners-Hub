@@ -327,6 +327,7 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
     const validDefects = defects.filter(defect => defect.id && defect.id.trim());
     
     // First, sort defects by photo number (extract numeric part for sorting)
+    // This changes the array order, so tiles will move visually
     const sortedDefects = [...validDefects].sort((a, b) => {
       // Extract numeric part from photo number (e.g., "4" from "4" or "4a")
       const aNum = parseInt(a.photoNumber) || 0;
@@ -335,7 +336,8 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
       return sortDirection === 'asc' ? aNum - bNum : bNum - aNum;
     });
     
-    // Then renumber them starting from 1
+    // Then renumber them starting from 1 (preserves sorted order)
+    // This ensures tiles are in the correct visual order
     return sortedDefects.map((defect, idx) => ({
       ...defect,
       photoNumber: String(idx + 1)
@@ -389,14 +391,18 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
   };
 
   const addNewDefect = (afterIndex?: number) => {
-    // Temporarily disable sorting during addition
-    const wasSorting = defectSortDirection;
-    setDefectSortDirection(null);
-    
     setBulkDefects(currentDefects => {
+      // Calculate next photo number (highest number + 1)
+      const maxPhotoNumber = currentDefects.reduce((max, defect) => {
+        const num = parseInt(defect.photoNumber) || 0;
+        return num > max ? num : max;
+      }, 0);
+      
+      const nextPhotoNumber = String(maxPhotoNumber + 1);
+      
       const newDefect = {
         id: nanoid(),
-        photoNumber: '', // Will be assigned based on sorting
+        photoNumber: nextPhotoNumber, // Assign next number
         description: '',
         selectedFile: ''
       };
@@ -407,16 +413,15 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
         newDefects = [...currentDefects];
         newDefects.splice(afterIndex + 1, 0, newDefect);
       } else {
-        // Add to the end
+        // Always add to the bottom (end of array)
         newDefects = [...currentDefects, newDefect];
       }
 
-      // Re-enable sorting after a delay if it was enabled
-      if (wasSorting) {
+      // If sorting is enabled, apply it (tiles will move)
+      if (defectSortDirection) {
+        // Use setTimeout to ensure state update completes first
         setTimeout(() => {
-          setDefectSortDirection(wasSorting);
-          // Apply sorting after enabling
-          setBulkDefects(current => reorderAndRenumberDefects(current, wasSorting));
+          setBulkDefects(current => reorderAndRenumberDefects(current, defectSortDirection));
         }, 100);
       }
 
@@ -904,18 +909,15 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
   };
 
   const toggleSorting = () => {
-    // Cycle through: null -> 'asc' -> 'desc' -> null (same as selected images)
-    const newDirection = defectSortDirection === null ? 'asc' : 
-                         defectSortDirection === 'asc' ? 'desc' : 
-                         null;
+    // Toggle between 'asc' and 'desc' only (no null state)
+    // If null, default to 'asc'
+    const currentDirection = defectSortDirection || 'asc';
+    const newDirection = currentDirection === 'asc' ? 'desc' : 'asc';
     
     setDefectSortDirection(newDirection);
     
-    if (newDirection) {
-      // When enabling sorting, reorder and renumber all defects
-      setBulkDefects(defects => reorderAndRenumberDefects(defects, newDirection));
-    }
-    // When disabling (null), defects keep their current order
+    // Always apply sorting when toggling (tiles will move)
+    setBulkDefects(defects => reorderAndRenumberDefects(defects, newDirection));
   };
 
   const formatFileSize = (bytes: number): string => {
