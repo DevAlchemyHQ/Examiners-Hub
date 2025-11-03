@@ -3006,6 +3006,31 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           console.log('S3 rejection reason:', s3FilesResult.reason);
         }
         
+        // If S3 is empty, clear stale imageOrder from database to prevent broken image loading
+        if (s3FilesResult.status === 'fulfilled' && 
+            s3FilesResult.value && 
+            (!s3FilesResult.value.files || s3FilesResult.value.files.length === 0)) {
+          console.log('⚠️ S3 bucket is empty - clearing stale imageOrder to prevent broken image loading');
+          
+          // Clear images and imageOrder
+          set({ images: [] });
+          
+          // Update session state to clear imageOrder
+          const currentState = get();
+          const clearedSessionState = {
+            ...currentState.sessionState,
+            imageOrder: []
+          };
+          get().updateSessionState({ imageOrder: [] });
+          
+          // Clear localStorage
+          const keys = getProjectStorageKeys(userId, 'current');
+          localStorage.setItem(keys.images, JSON.stringify([]));
+          localStorage.setItem(`${keys.formData}-session-state`, JSON.stringify(clearedSessionState));
+          console.log('✅ Cleared stale imageOrder - S3 bucket is empty');
+          return; // Exit early - no need to process broken database entries
+        }
+        
         // Fallback: Load images from database metadata (project data)
         try {
           if (projectResult.status === 'fulfilled' && projectResult.value.project) {
