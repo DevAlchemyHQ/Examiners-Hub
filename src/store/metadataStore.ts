@@ -2790,13 +2790,25 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         const selectedImages = selectedImagesResult.value;
         console.log('📸 Selected images loaded from AWS:', selectedImages.length);
         
+        // Get current local state for comparison
+        const currentState = get();
+        const localSelections = currentState.selectedImages || [];
+        const localCount = localSelections.length;
+        const awsCount = selectedImages.length;
+        
+        // Check if local data is stale (has significantly more selections than AWS)
+        // This indicates old cleared selections are still in localStorage
+        const localIsStale = localCount > awsCount && (localCount - awsCount) > 5;
+        
         // Only process if we actually have selections from AWS
         if (selectedImages.length > 0) {
           // Migrate selected image IDs to match current S3 image IDs
           const currentImages = get().images;
           const migratedSelections = migrateSelectedImageIds(selectedImages, currentImages);
           
-          // Only update if migration succeeded
+          // Use AWS data if:
+          // 1. Migration succeeded (has items)
+          // 2. OR local data is stale (has many more items) - prefer AWS even if migration partially failed
           if (migratedSelections.length > 0) {
             set({ selectedImages: migratedSelections });
             console.log('✅ Selected images loaded and migrated from AWS:', migratedSelections.length);
@@ -2809,11 +2821,48 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             // Cache to localStorage for faster future access (using versioned format)
             const keys = getProjectStorageKeys(userId, 'current');
             saveVersionedData(keys.selections, projectId, userId, migratedSelections);
+          } else if (localIsStale) {
+            // Migration failed but local is stale (has many old selections)
+            // This means AWS selections can't be matched to current S3 images
+            // Clear local stale data - AWS has authoritative state even if migration failed
+            console.log('⚠️ Migration failed but local data is stale (local: ' + localCount + ', AWS: ' + awsCount + ')');
+            console.log('🔄 AWS has ' + awsCount + ' selections but migration failed - clearing stale local data');
+            
+            // Clear stale local selections since AWS is the source of truth
+            const clearedSelections: Array<{ id: string; instanceId: string; fileName?: string }> = [];
+            set({ selectedImages: clearedSelections });
+            
+            // Update session state
+            get().updateSessionState({ selectedImageOrder: [] });
+            
+            // Clear localStorage to remove stale data
+            const keys = getProjectStorageKeys(userId, 'current');
+            saveVersionedData(keys.selections, projectId, userId, clearedSelections);
+            console.log('✅ Cleared stale local selections - user may need to re-select images');
           } else {
-            console.log('⚠️ Migration failed, preserving existing selections');
+            // Migration failed but local doesn't appear stale
+            // Check if AWS has fewer selections (might indicate selections were cleared)
+            if (awsCount < localCount && awsCount > 0) {
+              // AWS has some selections but fewer than local - prefer AWS if migration works
+              console.log('⚠️ Migration failed but AWS has fewer selections (local: ' + localCount + ', AWS: ' + awsCount + ') - AWS might be more current');
+              // Still preserve local for now to avoid data loss, but log the situation
+            }
+            console.log('⚠️ Migration failed, preserving existing selections (local: ' + localCount + ', AWS: ' + awsCount + ')');
           }
         } else {
-          console.log('⚠️ AWS returned empty array - preserving existing localStorage selections');
+          // AWS returned empty array - check if local is stale
+          if (localIsStale) {
+            console.log('⚠️ AWS returned empty array but local has stale data (local: ' + localCount + ') - clearing stale selections');
+            // Clear stale local selections
+            const clearedSelections: Array<{ id: string; instanceId: string; fileName?: string }> = [];
+            set({ selectedImages: clearedSelections });
+            get().updateSessionState({ selectedImageOrder: [] });
+            const keys = getProjectStorageKeys(userId, 'current');
+            saveVersionedData(keys.selections, projectId, userId, clearedSelections);
+            console.log('✅ Cleared stale local selections');
+          } else {
+            console.log('⚠️ AWS returned empty array - preserving existing localStorage selections');
+          }
         }
       } else {
         console.log('⚠️ No selected images found in AWS - preserving existing localStorage selections');
