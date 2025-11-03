@@ -2818,16 +2818,37 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           const currentImages = get().images;
           const migratedSelections = migrateSelectedImageIds(selectedImages, currentImages);
           
+          // Also migrate local selections to check their validity
+          const migratedLocalSelections = localCount > 0 ? migrateSelectedImageIds(localSelections, currentImages) : [];
+          const localMigrationRate = localCount > 0 ? (migratedLocalSelections.length / localCount) : 1;
+          const awsMigrationRate = awsCount > 0 ? (migratedSelections.length / awsCount) : 0;
+          
+          // Check if local selections are stale (low migration success rate indicates they reference old files)
+          // If local migration rate is < 50% and AWS migration rate is higher, local is stale
+          const localSelectionsAreStale = localMigrationRate < 0.5 && awsMigrationRate > localMigrationRate;
+          
           // Check if AWS data is actually newer or if local is stale
           const awsIsNewer = awsLastActiveTime > localLastActiveTime;
-          const shouldUseAWS = awsIsNewer || localIsStale;
+          const shouldUseAWS = awsIsNewer || localIsStale || localSelectionsAreStale;
+          
+          console.log('🔍 Selection sync decision:', {
+            localCount,
+            awsCount,
+            localMigrated: migratedLocalSelections.length,
+            awsMigrated: migratedSelections.length,
+            localMigrationRate: Math.round(localMigrationRate * 100) + '%',
+            awsMigrationRate: Math.round(awsMigrationRate * 100) + '%',
+            localSelectionsAreStale,
+            awsIsNewer,
+            shouldUseAWS
+          });
           
           // Use AWS data if:
-          // 1. Migration succeeded (has items) AND (AWS is newer OR local is stale)
+          // 1. Migration succeeded (has items) AND (AWS is newer OR local is stale OR local selections are stale)
           // 2. OR local data is stale (has many more items) - prefer AWS even if migration partially failed
           if (migratedSelections.length > 0 && shouldUseAWS) {
             set({ selectedImages: migratedSelections });
-            console.log('✅ Selected images loaded and migrated from AWS:', migratedSelections.length, '(AWS newer:', awsIsNewer, ', local stale:', localIsStale, ')');
+            console.log('✅ Selected images loaded and migrated from AWS:', migratedSelections.length, '(AWS newer:', awsIsNewer, ', local stale:', localIsStale, ', local selections stale:', localSelectionsAreStale, ')');
             
             // Update session state's selectedImageOrder to match AWS order
             const awsOrder = migratedSelections.map(item => item.instanceId);
@@ -2840,7 +2861,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           } else if (migratedSelections.length > 0 && !shouldUseAWS) {
             // Migration succeeded but local is newer and not stale - preserve local
             console.log('⏸️ AWS selections migrated but local is newer and not stale - preserving local selections (local:', localCount, ', AWS:', awsCount, ', local age:', Math.round(localAge/1000), 's)');
-          } else if (localIsStale) {
+          } else if (localIsStale || localSelectionsAreStale) {
             // Migration failed but local is stale (has many old selections)
             // This means AWS selections can't be matched to current S3 images
             // Clear local stale data - AWS has authoritative state even if migration failed
