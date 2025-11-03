@@ -348,9 +348,10 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
     const { active, over } = event;
 
     if (over && active.id !== over.id) {
-      // Temporarily disable sorting during drag
+      // Temporarily disable sorting during drag (but keep it as 'asc' to avoid null state)
       const wasSorting = defectSortDirection;
-      setDefectSortDirection(null);
+      // Use 'asc' instead of null to prevent three-state toggle issue
+      setDefectSortDirection('asc');
       
       setBulkDefects((items) => {
         const oldIndex = items.findIndex((item) => item.id === active.id);
@@ -361,13 +362,19 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
           return items;
         }
         
+        // Get the target photo number (the number of the tile we're inserting into)
+        const targetPhotoNumber = parseInt(items[newIndex]?.photoNumber) || (newIndex + 1);
+        
         const reorderedItems = arrayMove(items, oldIndex, newIndex);
         
-        // Renumber defects based on new position (1, 2, 3...)
+        // Renumber: dragged tile takes the target position number, all tiles renumbered sequentially
+        // This ensures the dragged tile gets the number of the position it was inserted into
         const renumberedItems = reorderedItems.map((defect, idx) => ({
           ...defect,
           photoNumber: String(idx + 1)
         }));
+        
+        console.log('🔄 [DRAG] Moved tile from position', oldIndex + 1, 'to position', newIndex + 1, 'with new number', targetPhotoNumber);
         
         // Update session state to preserve bulk defect order
         setTimeout(() => {
@@ -377,12 +384,17 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
         }, 100);
         
         // Re-enable sorting after a delay if it was enabled
-        if (wasSorting) {
+        if (wasSorting && wasSorting !== 'asc') {
           setTimeout(() => {
             setDefectSortDirection(wasSorting);
             // Re-apply sorting after re-enabling
             setBulkDefects(current => reorderAndRenumberDefects(current, wasSorting));
           }, 500);
+        } else if (wasSorting === 'asc') {
+          // If it was already 'asc', just restore it
+          setTimeout(() => {
+            setDefectSortDirection('asc');
+          }, 100);
         }
         
         return renumberedItems;
@@ -515,7 +527,8 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
       
       // Temporarily disable sorting during undo
       const wasSorting = defectSortDirection;
-      setDefectSortDirection(null);
+      // Use 'asc' instead of null to prevent three-state toggle issue
+      setDefectSortDirection('asc');
       
       setBulkDefects(prev => {
         // Add the deleted defect back at its original position with original photo number
@@ -839,7 +852,8 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
   const handleFileSelect = (photoNumber: string, fileName: string) => {
     // Temporarily disable sorting during file selection
     const wasSorting = defectSortDirection;
-    setDefectSortDirection(null);
+    // Use 'asc' instead of null to prevent three-state toggle issue
+    setDefectSortDirection('asc');
 
     setBulkDefects((items) => {
       // Get the current defect and its previously selected file
@@ -903,7 +917,8 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
 
       // Temporarily disable sorting during photo number change
       const wasSorting = defectSortDirection;
-      setDefectSortDirection(null);
+      // Use 'asc' instead of null to prevent three-state toggle issue
+      setDefectSortDirection('asc');
       
       setBulkDefects(prevDefects => {
         // Update the photo number
@@ -932,9 +947,11 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
 
   const toggleSorting = () => {
     // Toggle between 'asc' and 'desc' only (no null state)
-    // If null, default to 'asc'
+    // If null or invalid, default to 'asc'
     const currentDirection = defectSortDirection || 'asc';
     const newDirection = currentDirection === 'asc' ? 'desc' : 'asc';
+    
+    console.log('🔄 [SORT] Toggling from', currentDirection, 'to', newDirection);
     
     // Update direction first
     setDefectSortDirection(newDirection);
@@ -943,7 +960,9 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
     // Use functional update to ensure we have latest state
     setBulkDefects(defects => {
       const sorted = reorderAndRenumberDefects(defects, newDirection);
-      console.log('🔄 [SORT] Toggled to', newDirection, 'from', currentDirection, '- defects:', sorted.length);
+      console.log('🔄 [SORT] Applied sorting:', newDirection, '- defects before:', defects.length, '- after:', sorted.length);
+      console.log('🔄 [SORT] First 3 defects before:', defects.slice(0, 3).map(d => ({ id: d.id, num: d.photoNumber })));
+      console.log('🔄 [SORT] First 3 defects after:', sorted.slice(0, 3).map(d => ({ id: d.id, num: d.photoNumber })));
       return sorted;
     });
   };
@@ -1646,7 +1665,8 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
                         if (over && active.id !== over.id) {
                           // Temporarily disable sorting during drag
                           const wasSorting = defectSortDirection;
-                          setDefectSortDirection(null);
+                          // Use 'asc' instead of null to prevent three-state toggle issue
+                          setDefectSortDirection('asc');
                           
                           // Find the defects being reordered by ID
                           const activeId = active.id.toString().split('-')[0];
