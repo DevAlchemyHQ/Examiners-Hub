@@ -3020,30 +3020,57 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
               
               for (const imageId of sessionState.imageOrder) {
                 try {
-                  // Extract timestamp from image ID (format: img--timestamp)
-                  const timestamp = parseInt(imageId.split('--')[1]);
+                  // Extract timestamp from image ID (format: img--timestamp or img_timestamp)
+                  let timestamp: number | null = null;
+                  
+                  // Try format: img--timestamp
+                  if (imageId.includes('--')) {
+                    timestamp = parseInt(imageId.split('--')[1]);
+                  } 
+                  // Try format: img_timestamp (newer format)
+                  else if (imageId.includes('_')) {
+                    const parts = imageId.split('_');
+                    if (parts.length > 1) {
+                      // Skip the first part (prefix like 'img') and try to parse the rest
+                      timestamp = parseInt(parts[parts.length - 1], 16); // Try hex first (for IDs like img_35f7d584)
+                      // If that fails or is too large, try decimal
+                      if (isNaN(timestamp) || timestamp > Date.now()) {
+                        timestamp = parseInt(parts[parts.length - 1]);
+                      }
+                    }
+                  }
+                  
+                  // Validate timestamp - must be a valid number and reasonable (not NaN, not too old/new)
+                  if (isNaN(timestamp!) || timestamp! <= 0 || timestamp! > Date.now() || timestamp! < 1000000000000) {
+                    console.log(`⚠️ Skipping invalid image ID (cannot extract valid timestamp): ${imageId}`);
+                    continue; // Skip this image
+                  }
                   
                   // Try to find the actual S3 filename by checking localStorage first
                   const s3FilesKey = `s3Files_${userId}`;
                   const s3FilesData = localStorage.getItem(s3FilesKey);
                   let actualFileName = `image_${timestamp}.jpg`; // fallback
                   let actualS3Key = `users/${userId}/images/${timestamp}-${actualFileName}`;
+                  let foundValidFile = false;
                   
                   if (s3FilesData) {
                     try {
                       const s3Files = JSON.parse(s3FilesData);
                       const matchingFile = s3Files.find((file: any) => 
-                        file.uploadTime === timestamp || file.s3Key.includes(timestamp.toString())
+                        timestamp !== null && (file.uploadTime === timestamp || file.s3Key.includes(timestamp.toString()))
                       );
                       if (matchingFile) {
                         actualFileName = matchingFile.fileName;
                         actualS3Key = matchingFile.s3Key;
+                        foundValidFile = true;
                       }
                     } catch (parseError) {
                       console.log('⚠️ Error parsing S3 files from localStorage:', parseError);
                     }
-                  } else {
-                    // If no localStorage data, try to populate it with known images
+                  }
+                  
+                  // If we still don't have a valid file, try known images list
+                  if (!foundValidFile) {
                     console.log('⚠️ No S3 files data in localStorage, attempting to populate...');
                     const knownImages = [
                       { timestamp: 1761220848685, fileName: 'test3.jpg' },
@@ -3066,10 +3093,17 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
                     if (knownImage) {
                       actualFileName = knownImage.fileName;
                       actualS3Key = `users/${userId}/images/${timestamp}-${actualFileName}`;
+                      foundValidFile = true;
                       console.log(`✅ Found known image: ${actualFileName}`);
                     } else {
                       console.log(`❌ No known image found for timestamp ${timestamp}`);
                     }
+                  }
+                  
+                  // Skip broken entries - if we couldn't find a valid filename, don't create a broken image entry
+                  if (!foundValidFile) {
+                    console.log(`⚠️ Skipping broken image entry ${imageId} - no valid filename found (timestamp: ${timestamp})`);
+                    continue;
                   }
                   
                   // Generate S3 URL based on the actual S3 key
@@ -3088,7 +3122,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
                     preview: s3Url,
                     s3Key: actualS3Key,
                     s3Url: s3Url,
-                    uploadTime: timestamp,
+                    uploadTime: timestamp!,
                     isSketch: actualFileName.toLowerCase().includes('sketch'),
                     description: metadata.description || '',
                     photoNumber: metadata.photoNumber || '',
