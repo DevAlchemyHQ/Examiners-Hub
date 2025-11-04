@@ -134,38 +134,67 @@ export const BulkTextInput = forwardRef<BulkTextInputRef, { isExpanded?: boolean
   // Use a ref to track the last restored value to prevent loops
   const lastRestoredRef = useRef<string | null>(null);
   const hasRestoredOnMountRef = useRef(false);
+  const currentBulkTextRef = useRef(bulkText);
   
-  // Restore on mount and when sessionState loads
+  // Keep ref in sync with state
   useEffect(() => {
-    // Restore bulkText from session state if it exists
-    // This ensures we restore on mount AND when sessionState is loaded from AWS
+    currentBulkTextRef.current = bulkText;
+  }, [bulkText]);
+  
+  // Restore on mount - check immediately
+  useEffect(() => {
     const sessionBulkText = sessionState?.bulkText;
+    const currentText = currentBulkTextRef.current;
+    
+    console.log('🔄 [MOUNT] Checking sessionState for bulkText restoration:', {
+      hasSessionState: !!sessionState,
+      bulkTextExists: sessionBulkText !== undefined && sessionBulkText !== null && sessionBulkText !== '',
+      bulkTextLength: sessionBulkText?.length || 0,
+      currentBulkTextLength: currentText?.length || 0,
+      lastRestoredLength: lastRestoredRef.current?.length || null
+    });
     
     if (sessionBulkText !== undefined && sessionBulkText !== null && sessionBulkText !== '') {
-      // Only restore if:
-      // 1. Current bulkText is empty (to avoid overwriting user's current work)
-      // 2. We haven't restored this exact value before (to prevent infinite loops)
-      if ((!bulkText || bulkText.trim() === '') && lastRestoredRef.current !== sessionBulkText) {
-        console.log('📝 Restoring bulkText from session state:', {
-          length: sessionBulkText.length,
-          currentBulkText: bulkText ? bulkText.length : 0,
-          lastRestored: lastRestoredRef.current ? lastRestoredRef.current.length : null,
-          isInitialMount: !hasRestoredOnMountRef.current
-        });
+      if ((!currentText || currentText.trim() === '') && lastRestoredRef.current !== sessionBulkText) {
+        console.log('📝 [MOUNT] Restoring bulkText from session state:', sessionBulkText.length, 'characters');
         setBulkText(sessionBulkText);
         lastRestoredRef.current = sessionBulkText;
         hasRestoredOnMountRef.current = true;
-        console.log('✅ Restored bulkText from session state:', sessionBulkText.length, 'characters');
       }
-    } else if (!hasRestoredOnMountRef.current) {
-      // On initial mount, if bulkText is not in sessionState, mark as checked
+    } else {
       hasRestoredOnMountRef.current = true;
-      console.log('⚠️ bulkText not available in sessionState on mount:', {
-        bulkText: sessionBulkText,
-        currentBulkText: bulkText ? bulkText.length : 0
-      });
     }
-  }, [sessionState?.bulkText]); // React to sessionState.bulkText changes (includes mount and async loads)
+  }, []); // Run once on mount
+  
+  // Restore when sessionState changes (async load from AWS/localStorage)
+  useEffect(() => {
+    const sessionBulkText = sessionState?.bulkText;
+    const currentText = currentBulkTextRef.current;
+    
+    // Skip if we've already restored this value
+    if (lastRestoredRef.current === sessionBulkText) {
+      return;
+    }
+    
+    console.log('🔄 [SESSION STATE CHANGE] Checking for bulkText restoration:', {
+      hasSessionState: !!sessionState,
+      bulkTextExists: sessionBulkText !== undefined && sessionBulkText !== null && sessionBulkText !== '',
+      bulkTextLength: sessionBulkText?.length || 0,
+      currentBulkTextLength: currentText?.length || 0,
+      lastRestoredLength: lastRestoredRef.current?.length || null
+    });
+    
+    if (sessionBulkText !== undefined && sessionBulkText !== null && sessionBulkText !== '') {
+      // Only restore if current bulkText is empty (to avoid overwriting user's current work)
+      if (!currentText || currentText.trim() === '') {
+        console.log('📝 [SESSION STATE CHANGE] Restoring bulkText from session state:', sessionBulkText.length, 'characters');
+        setBulkText(sessionBulkText);
+        lastRestoredRef.current = sessionBulkText;
+      } else {
+        console.log('⏸️ [SESSION STATE CHANGE] Skipping restoration - bulkText already has content');
+      }
+    }
+  }, [sessionState]); // Watch entire sessionState object to catch async loads
 
   // Save bulkText to session state for persistence (reduced debounce for faster saves)
   useEffect(() => {
