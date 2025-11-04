@@ -1001,7 +1001,7 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
                         : 'text-slate-300 dark:text-gray-600 cursor-not-allowed')
                 }`}
                 onClick={viewMode === 'bulk' ? undoDelete : handleUndoImages}
-                disabled={viewMode === 'bulk' ? (!deletedDefects || deletedDefects.length === 0) : !canUndoImages}
+                disabled={viewMode === 'bulk' ? (!bulkTextInputRef.current?.canUndo() || !bulkTextInputRef.current) : !canUndoImages}
               >
                 <Undo size={16} />
               </button>
@@ -1112,7 +1112,7 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
                         : 'text-slate-300 dark:text-gray-600 cursor-not-allowed')
                 }`}
                 onClick={viewMode === 'bulk' ? undoDelete : handleUndoImages}
-                disabled={viewMode === 'bulk' ? (!deletedDefects || deletedDefects.length === 0) : !canUndoImages}
+                disabled={viewMode === 'bulk' ? (!bulkTextInputRef.current?.canUndo() || !bulkTextInputRef.current) : !canUndoImages}
               >
                 <Undo size={20} />
               </button>

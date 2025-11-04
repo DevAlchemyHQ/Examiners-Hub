@@ -83,6 +83,7 @@ export let isUndoingGlobal = false;
 export interface BulkTextInputRef {
   undoDelete: () => void;
   deleteAll: () => void;
+  canUndo: () => boolean; // Check if undo is available
 }
 
 export const BulkTextInput = forwardRef<BulkTextInputRef, { isExpanded?: boolean; setShowBulkPaste?: (show: boolean) => void; showBulkPaste?: boolean }>(({ isExpanded = false, setShowBulkPaste, showBulkPaste: parentShowBulkPaste }, ref) => {
@@ -128,25 +129,9 @@ export const BulkTextInput = forwardRef<BulkTextInputRef, { isExpanded?: boolean
   // Get the actual show state from parent or local
   const actualShowBulkPaste = setShowBulkPaste ? false : showBulkPaste;
 
-  // Session state management for UI persistence
+  // Restore bulkText from session state for persistence
   useEffect(() => {
-    const { sessionState, updateSessionState } = useMetadataStore.getState();
-    
-    // Restore UI state from session
-    if (sessionState.uiState) {
-      if (sessionState.uiState.showBulkPaste !== undefined) {
-        setShowBulkPasteLocal(sessionState.uiState.showBulkPaste);
-      }
-      if (sessionState.uiState.showImages !== undefined) {
-        setShowImages(sessionState.uiState.showImages);
-      }
-      if (sessionState.uiState.showDefectImport !== undefined) {
-        setShowDefectImport(sessionState.uiState.showDefectImport);
-      }
-      if (sessionState.uiState.enlargedImage !== undefined) {
-        setEnlargedImage(sessionState.uiState.enlargedImage);
-      }
-    }
+    const { sessionState } = useMetadataStore.getState();
     
     // Restore bulkText from session state for persistence
     if (sessionState.bulkText !== undefined) {
@@ -155,20 +140,7 @@ export const BulkTextInput = forwardRef<BulkTextInputRef, { isExpanded?: boolean
     }
   }, []);
 
-  // Save UI state to session when it changes
-  useEffect(() => {
-    const { updateSessionState } = useMetadataStore.getState();
-    updateSessionState({
-      uiState: {
-        showBulkPaste: showBulkPasteState,
-        showImages,
-        showDefectImport,
-        enlargedImage,
-      }
-    });
-  }, [showBulkPasteState, showImages, showDefectImport, enlargedImage]);
-
-  // Save bulkText to session state for persistence (debounced)
+  // Save bulkText to session state for persistence (reduced debounce for faster saves)
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       const { updateSessionState } = useMetadataStore.getState();
@@ -176,9 +148,19 @@ export const BulkTextInput = forwardRef<BulkTextInputRef, { isExpanded?: boolean
         bulkText: bulkText
       });
       console.log('💾 Saved bulkText to session state:', bulkText.length, 'characters');
-    }, 500); // Debounce to avoid excessive saves during typing
+    }, 200); // Reduced from 500ms to 200ms for faster persistence
     
-    return () => clearTimeout(timeoutId);
+    return () => {
+      clearTimeout(timeoutId);
+      // Save immediately on unmount to ensure persistence even if user refreshes quickly
+      if (bulkText) {
+        const { updateSessionState } = useMetadataStore.getState();
+        updateSessionState({
+          bulkText: bulkText
+        });
+        console.log('💾 Saved bulkText on unmount:', bulkText.length, 'characters');
+      }
+    };
   }, [bulkText]);
 
   // Load bulk data on component mount
@@ -633,13 +615,19 @@ export const BulkTextInput = forwardRef<BulkTextInputRef, { isExpanded?: boolean
     isUndoing.current = isUndoingGlobal;
   }, []);
 
+  // Check if undo is available
+  const canUndo = () => {
+    return deletedDefects.length > 0;
+  };
+
   // Expose methods via ref for parent component (SelectedImagesPanel) to call
   // Note: We intentionally don't include all dependencies to avoid recreating the ref on every change
   // The functions are stable and use the latest state via closures
   useImperativeHandle(ref, () => ({
     undoDelete,
-    deleteAll
-  }), []);
+    deleteAll,
+    canUndo
+  }), [deletedDefects.length]); // Include deletedDefects.length to update when it changes
   
   const safeStateUpdate = (updateFn: () => void) => {
     if (isUpdating.current) {
@@ -1545,15 +1533,7 @@ export const BulkTextInput = forwardRef<BulkTextInputRef, { isExpanded?: boolean
     }
   }, [bulkDefects]);
 
-  // Auto-save session state when bulk selected images change
-  useEffect(() => {
-    if (bulkSelectedImages.length > 0) {
-      const { updateSessionState } = useMetadataStore.getState();
-      updateSessionState({
-        bulkSelectedImages: bulkSelectedImages
-      });
-    }
-  }, [bulkSelectedImages]);
+  // Note: bulkSelectedImages is not part of SessionState, so we don't save it here
 
   return (
     <ErrorBoundary>
@@ -1581,6 +1561,14 @@ export const BulkTextInput = forwardRef<BulkTextInputRef, { isExpanded?: boolean
                 value={bulkText}
                 placeholder="Paste multiple defect descriptions here, one per line..."
                 onChange={(e) => setBulkText(e.target.value)}
+                onBlur={() => {
+                  // Save immediately on blur to ensure persistence
+                  const { updateSessionState } = useMetadataStore.getState();
+                  updateSessionState({
+                    bulkText: bulkText
+                  });
+                  console.log('💾 Saved bulkText on blur:', bulkText.length, 'characters');
+                }}
                 className={`w-full min-h-[96px] p-3 text-sm border rounded-xl focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 bg-white/80 dark:bg-gray-800/80 text-slate-900 dark:text-white resize-y ${
                   bulkText.includes('/') ? 'border-amber-300 dark:border-amber-600' : 'border-slate-200/50 dark:border-gray-700/50'
                 }`}
@@ -1729,8 +1717,9 @@ export const BulkTextInput = forwardRef<BulkTextInputRef, { isExpanded?: boolean
                               
                               // Update session state to preserve bulk defect order
                               setTimeout(() => {
+                                const { updateSessionState } = useMetadataStore.getState();
                                 updateSessionState({ 
-                                  bulkDefectOrder: renumberedItems.map(defect => defect.id).filter(Boolean)
+                                  bulkDefectOrder: renumberedItems.map(defect => defect.id).filter(Boolean) as string[]
                                 });
                               }, 100);
                               
