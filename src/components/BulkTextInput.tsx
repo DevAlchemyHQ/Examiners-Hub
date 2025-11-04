@@ -690,47 +690,82 @@ export const BulkTextInput = forwardRef<BulkTextInputRef, { isExpanded?: boolean
         }
         
         // CRITICAL: Save immediately to AWS for cross-browser sync
-        // Save after a short delay to ensure state is updated, but get latest state from store
-        setTimeout(() => {
+        // Save the defects directly to avoid race conditions with store state
+        setTimeout(async () => {
           console.log('🔄 [UNDO] Clearing undo flag and saving');
           isUndoing.current = false;
           isUndoingGlobal = false;
           
-          // Get the latest state from store (not closure variable) to ensure we have the restored defect
-          const { saveBulkData, updateSessionState, bulkDefects: currentDefects } = useMetadataStore.getState();
+          // Get user and save directly using the renumberedDefects to ensure we have the exact restored defect
+          const { updateSessionState, saveBulkData } = useMetadataStore.getState();
           
-          // Verify the restored defect is in the current state
+          // Get userId from store or localStorage
+          let userId: string | null = null;
+          const storedUser = localStorage.getItem('user');
+          if (storedUser) {
+            try {
+              const user = JSON.parse(storedUser);
+              userId = user?.email || null;
+            } catch (e) {
+              console.error('❌ [UNDO] Error parsing user from localStorage:', e);
+            }
+          }
+          
+          if (!userId || userId === 'anonymous') {
+            console.warn('⚠️ [UNDO] No user ID available, skipping AWS save');
+            return;
+          }
+          
+          // Get the latest state from store to verify
+          const { bulkDefects: currentDefects } = useMetadataStore.getState();
           const restoredDefectId = lastDeleted.defect.id;
           const hasRestoredDefect = currentDefects.some(d => d.id === restoredDefectId);
+          
           console.log('🔄 [UNDO] Verifying restored defect:', {
             restoredDefectId,
             hasRestoredDefect,
             currentDefectCount: currentDefects.length,
-            currentDefectIds: currentDefects.map(d => d.id).slice(0, 5)
+            renumberedCount: renumberedDefects.length,
+            currentDefectIds: currentDefects.map(d => d.id).slice(0, 5),
+            renumberedIds: renumberedDefects.map(d => d.id).slice(0, 5)
           });
           
-          if (!hasRestoredDefect) {
-            console.error('❌ [UNDO] Restored defect not found in current state!', {
-              lookingFor: restoredDefectId,
-              availableIds: currentDefects.map(d => d.id)
-            });
-          }
-          
-          const order = currentDefects.map(defect => defect.id).filter(Boolean) as string[];
+          // Update session state order
+          const order = renumberedDefects.map(defect => defect.id).filter(Boolean) as string[];
           updateSessionState({ 
             bulkDefectOrder: order
           });
           
-          // Force immediate save to AWS - this ensures the restored defect is persisted
-          saveBulkData().catch(error => {
-            console.error('❌ Error saving bulk defects after undo:', error);
-          });
-          console.log('💾 [UNDO] Saved bulk defects immediately for cross-browser sync:', {
-            defectCount: currentDefects.length,
-            restoredDefectId,
-            orderLength: order.length
-          });
-        }, 300); // Reduced delay - we want to save quickly after restore
+          // CRITICAL: Save defects directly to AWS using the renumberedDefects array
+          // This ensures we save the exact defects we restored, not relying on store state timing
+          try {
+            const { DatabaseService } = await import('../lib/services');
+            console.log('💾 [UNDO] Saving restored defects directly to AWS:', {
+              defectCount: renumberedDefects.length,
+              restoredDefectId,
+              userId
+            });
+            
+            const result = await DatabaseService.updateBulkDefects(userId, renumberedDefects);
+            if (result.success) {
+              console.log('✅ [UNDO] Restored defects saved to AWS successfully for cross-browser sync:', {
+                defectCount: renumberedDefects.length,
+                restoredDefectId,
+                orderLength: order.length
+              });
+            } else {
+              console.error('❌ [UNDO] Failed to save restored defects to AWS:', result.error);
+              // Fallback: try using saveBulkData
+              await saveBulkData();
+            }
+          } catch (error) {
+            console.error('❌ [UNDO] Error saving restored defects directly to AWS:', error);
+            // Fallback: try using saveBulkData
+            saveBulkData().catch(err => {
+              console.error('❌ [UNDO] Fallback saveBulkData also failed:', err);
+            });
+          }
+        }, 500); // Increased delay to ensure state is fully updated
         
         return renumberedDefects;
       });
