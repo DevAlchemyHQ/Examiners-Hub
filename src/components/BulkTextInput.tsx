@@ -131,21 +131,23 @@ export const BulkTextInput = forwardRef<BulkTextInputRef, { isExpanded?: boolean
   const actualShowBulkPaste = setShowBulkPaste ? false : showBulkPaste;
 
   // Restore bulkText from session state for persistence (reactive to sessionState changes)
-  // Use a ref to track if we've already restored to prevent overwriting user input
-  const hasRestoredRef = useRef(false);
+  // Use a ref to track the last restored value to avoid unnecessary restores
+  const lastRestoredRef = useRef<string | null>(null);
   
   useEffect(() => {
-    // Restore bulkText from session state if it exists
+    // Restore bulkText from session state if it exists and is different from what we last restored
     // This ensures we restore on mount AND when sessionState is loaded from AWS
     if (sessionState.bulkText !== undefined && sessionState.bulkText !== null && sessionState.bulkText !== '') {
-      // Only restore once (on first load) or if current bulkText is empty (to avoid overwriting user's current work)
-      if (!hasRestoredRef.current && (!bulkText || bulkText.trim() === '')) {
+      // Only restore if:
+      // 1. We haven't restored this value before (to avoid loops)
+      // 2. Current bulkText is empty (to avoid overwriting user's current work)
+      if (lastRestoredRef.current !== sessionState.bulkText && (!bulkText || bulkText.trim() === '')) {
         setBulkText(sessionState.bulkText);
-        hasRestoredRef.current = true;
+        lastRestoredRef.current = sessionState.bulkText;
         console.log('📝 Restored bulkText from session state:', sessionState.bulkText.length, 'characters');
       }
     }
-  }, [sessionState.bulkText]); // React to sessionState.bulkText changes (when AWS loads it)
+  }, [sessionState.bulkText, bulkText]); // React to sessionState.bulkText changes (when AWS loads it)
 
   // Save bulkText to session state for persistence (reduced debounce for faster saves)
   useEffect(() => {
