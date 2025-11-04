@@ -131,26 +131,21 @@ export const BulkTextInput = forwardRef<BulkTextInputRef, { isExpanded?: boolean
   const actualShowBulkPaste = setShowBulkPaste ? false : showBulkPaste;
 
   // Restore bulkText from session state for persistence (reactive to sessionState changes)
-  // Use a ref to track if we've attempted restoration to avoid infinite loops
-  const hasAttemptedRestoreRef = useRef(false);
+  // Use a ref to track the last restored value to prevent loops
+  const lastRestoredRef = useRef<string | null>(null);
   
   useEffect(() => {
-    // Restore bulkText from session state if it exists
+    // Restore bulkText from session state if it exists and is different from what we last restored
     // This ensures we restore on mount AND when sessionState is loaded from AWS
     if (sessionState.bulkText !== undefined && sessionState.bulkText !== null && sessionState.bulkText !== '') {
-      // Only restore if current bulkText is empty (to avoid overwriting user's current work)
-      // This allows restore to happen when:
-      // 1. Component mounts with empty text
-      // 2. SessionState loads from AWS after mount (with empty text)
-      // 3. After processing text clears it (if user wants to keep working)
-      if (!bulkText || bulkText.trim() === '') {
+      // Only restore if:
+      // 1. Current bulkText is empty (to avoid overwriting user's current work)
+      // 2. We haven't restored this exact value before (to prevent infinite loops)
+      if ((!bulkText || bulkText.trim() === '') && lastRestoredRef.current !== sessionState.bulkText) {
         setBulkText(sessionState.bulkText);
+        lastRestoredRef.current = sessionState.bulkText;
         console.log('📝 Restored bulkText from session state:', sessionState.bulkText.length, 'characters');
-        hasAttemptedRestoreRef.current = true;
       }
-    } else if (sessionState.bulkText === undefined && !hasAttemptedRestoreRef.current) {
-      // Mark that we've checked for restore (even if nothing was found)
-      hasAttemptedRestoreRef.current = true;
     }
   }, [sessionState.bulkText, bulkText]); // React to sessionState.bulkText changes (when AWS loads it)
 
@@ -162,8 +157,8 @@ export const BulkTextInput = forwardRef<BulkTextInputRef, { isExpanded?: boolean
     }
     
     const timeoutId = setTimeout(() => {
-      const { updateSessionState } = useMetadataStore.getState();
-      updateSessionState({
+    const { updateSessionState } = useMetadataStore.getState();
+    updateSessionState({
         bulkText: bulkText
       });
       console.log('💾 Saved bulkText to session state:', bulkText.length, 'characters');
@@ -375,9 +370,9 @@ export const BulkTextInput = forwardRef<BulkTextInputRef, { isExpanded?: boolean
     if (shouldRenumber) {
       // Renumber them starting from 1 (preserves sorted order visually)
       return sortedDefects.map((defect, idx) => ({
-        ...defect,
-        photoNumber: String(idx + 1)
-      }));
+      ...defect,
+      photoNumber: String(idx + 1)
+    }));
     }
     
     // Return sorted defects with original photo numbers preserved
@@ -447,13 +442,13 @@ export const BulkTextInput = forwardRef<BulkTextInputRef, { isExpanded?: boolean
         const currentPhotoNumber = parseInt(currentDefects[afterIndex]?.photoNumber) || 0;
         const nextPhotoNumber = String(currentPhotoNumber + 1);
         
-        const newDefect = {
-          id: nanoid(),
+      const newDefect = {
+        id: nanoid(),
           photoNumber: nextPhotoNumber, // Assign next number after the one we're inserting after
-          description: '',
-          selectedFile: ''
-        };
-        
+        description: '',
+        selectedFile: ''
+      };
+
         newDefects = [...currentDefects];
         newDefects.splice(insertIndex, 0, newDefect);
         
@@ -469,7 +464,7 @@ export const BulkTextInput = forwardRef<BulkTextInputRef, { isExpanded?: boolean
         console.log('➕ [ADD] Inserted defect at index', insertIndex, 'with number', nextPhotoNumber);
         
         // DO NOT apply sorting when inserting in the middle - keep the tile where it was inserted
-        return newDefects;
+      return newDefects;
       } else {
         // Always add to the bottom (end of array)
         const maxPhotoNumber = currentDefects.reduce((max, defect) => {
@@ -981,7 +976,7 @@ export const BulkTextInput = forwardRef<BulkTextInputRef, { isExpanded?: boolean
       }
 
       // Sorting is always ascending for bulk defects - no need to disable during photo number change
-      
+
       setBulkDefects(prevDefects => {
         // Update the photo number
         const updatedDefects = prevDefects.map(defect => 
