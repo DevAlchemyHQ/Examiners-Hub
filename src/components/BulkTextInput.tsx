@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo, Component, ErrorInfo, ReactNode } from 'react';
+import React, { useState, useRef, useEffect, useMemo, Component, ErrorInfo, ReactNode, forwardRef, useImperativeHandle } from 'react';
 import { AlertCircle, FileText, Upload, Plus, ArrowUpDown, Loader2, Download, Trash2, CheckCircle, X, Maximize2 } from 'lucide-react';
 import { useMetadataStore } from '../store/metadataStore';
 import { useAuthStore } from '../store/authStore';
@@ -79,7 +79,13 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
 // Shared flag to prevent auto-sort during undo operations (accessible from both BulkTextInput and SelectedImagesPanel)
 export let isUndoingGlobal = false;
 
-export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: (show: boolean) => void; showBulkPaste?: boolean }> = ({ isExpanded = false, setShowBulkPaste, showBulkPaste: parentShowBulkPaste }) => {
+// Interface for methods exposed via ref
+export interface BulkTextInputRef {
+  undoDelete: () => void;
+  deleteAll: () => void;
+}
+
+export const BulkTextInput = forwardRef<BulkTextInputRef, { isExpanded?: boolean; setShowBulkPaste?: (show: boolean) => void; showBulkPaste?: boolean }>(({ isExpanded = false, setShowBulkPaste, showBulkPaste: parentShowBulkPaste }, ref) => {
   const { 
     bulkDefects, 
     setBulkDefects, 
@@ -597,7 +603,16 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
           toggleBulkImageSelection(image.id);
         }
       }
+      
+      toast.success('Defect restored');
     }
+  };
+
+  // Delete all bulk defects
+  const deleteAll = () => {
+    setBulkDefects([]);
+    setDeletedDefects([]);
+    toast.success('All bulk defects deleted');
   };
 
   // Prevent race conditions with state updates
@@ -609,6 +624,14 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
   useEffect(() => {
     isUndoing.current = isUndoingGlobal;
   }, []);
+
+  // Expose methods via ref for parent component (SelectedImagesPanel) to call
+  // Note: We intentionally don't include all dependencies to avoid recreating the ref on every change
+  // The functions are stable and use the latest state via closures
+  useImperativeHandle(ref, () => ({
+    undoDelete,
+    deleteAll
+  }), []);
   
   const safeStateUpdate = (updateFn: () => void) => {
     if (isUpdating.current) {
@@ -1899,6 +1922,8 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
       </div>
     </ErrorBoundary>
   );
-};
+});
+
+BulkTextInput.displayName = 'BulkTextInput';
 
 export default BulkTextInput;

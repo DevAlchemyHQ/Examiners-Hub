@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { isUndoingGlobal } from './BulkTextInput';
+import { BulkTextInput, BulkTextInputRef } from './BulkTextInput';
 import { 
   Images, 
   FileText, 
@@ -289,12 +289,10 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
     setSketchSortDirection,
     viewMode,
     setViewMode,
-    bulkDefects,
-    setBulkDefects,
+    bulkDefects, // Keep read-only access for display purposes only
     setFormData,
     setSelectedImages,
-    deletedDefects,
-    setDeletedDefects,
+    deletedDefects, // Keep read-only access for checking if undo is available
     instanceMetadata
   } = useMetadataStore();
   
@@ -306,11 +304,10 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
   const [clickPosition, setClickPosition] = useState<{ x: number; y: number } | null>(null);
   const [showLoadTray, setShowLoadTray] = useState(false);
   const [savedSets, setSavedSets] = useState<{id: string, title: string, data: any, created_at: string, updated_at?: string}[]>([]);
-  // Import shared global flag from BulkTextInput module
-  // We'll use a module-level variable that both components can access
-  const isUndoingRef = useRef(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
+  // Ref to BulkTextInput component for delegating bulk operations
+  const bulkTextInputRef = useRef<BulkTextInputRef>(null);
   const [showBulkPaste, setShowBulkPaste] = useState(false);
 
   // Navigation handlers for zoom
@@ -393,7 +390,7 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
     setShowDeleteConfirm(true);
   };
 
-  // Delete all bulk defects
+  // Delete all bulk defects - delegate to BulkTextInput
   const handleDeleteAllBulk = () => {
     trackUserAction('delete_all_bulk', 'bulk_delete');
     setShowBulkDeleteConfirm(true);
@@ -406,128 +403,18 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
     toast.success('All selected images cleared');
   };
 
-  // Execute delete all bulk defects
+  // Execute delete all bulk defects - delegate to BulkTextInput
   const executeDeleteAllBulk = () => {
-    setBulkDefects([]);
-    setDeletedDefects([]);
+    bulkTextInputRef.current?.deleteAll();
     setShowBulkDeleteConfirm(false);
-    toast.success('All bulk defects deleted');
   };
 
-  // Sort bulk defects - toggle between asc/desc only
-  const toggleSorting = () => {
-    // Toggle between 'asc' and 'desc' only (no null state)
-    // If null, default to 'asc'
-    const currentDirection = defectSortDirection || 'asc';
-    const newDirection = currentDirection === 'asc' ? 'desc' : 'asc';
-    
-    setDefectSortDirection(newDirection);
-    trackUserAction('toggle_sorting', 'sort_enabled', newDirection ? 1 : 0);
-    
-    // Always apply sorting when toggling (tiles will move)
-    // Sort AND renumber - tiles will move because array order changes, then renumber to match new positions
-    const validDefects = bulkDefects.filter(defect => defect.id && defect.id.trim());
-    const sortedDefects = [...validDefects].sort((a, b) => {
-      const aNum = parseInt(a.photoNumber) || 0;
-      const bNum = parseInt(b.photoNumber) || 0;
-      // Apply sort direction
-      return newDirection === 'asc' ? aNum - bNum : bNum - aNum;
-    });
-    // Renumber starting from 1 (preserves sorted order so tiles move visually)
-    const renumberedDefects = sortedDefects.map((defect, idx) => ({
-      ...defect,
-      photoNumber: String(idx + 1)
-    }));
-    setBulkDefects(renumberedDefects);
-  };
+  // Note: Bulk defect sorting is now handled entirely by BulkTextInput component
+  // Removed toggleSorting and autoSortDefects - they're no longer needed here
 
-  // Auto-sort function that can be called when new defects are added
-  const autoSortDefects = (defects: any[]) => {
-    if (!defectSortDirection) return defects;
-    
-    return [...defects].sort((a, b) => {
-      const aNum = parseInt(a.photoNumber) || 0;
-      const bNum = parseInt(b.photoNumber) || 0;
-      return aNum - bNum;
-    });
-  };
-
-  // Undo delete for bulk defects
+  // Undo delete for bulk defects - delegate to BulkTextInput
   const undoDelete = () => {
-    if (deletedDefects.length > 0) {
-      const lastDeleted = deletedDefects[deletedDefects.length - 1];
-      
-      // Set flag FIRST before any state updates to prevent auto-sort from interfering
-      isUndoingRef.current = true;
-      isUndoingGlobal = true;
-      
-      console.log('🔄 [UNDO] Starting undo - originalPhotoNumber:', lastDeleted.originalPhotoNumber, 'defect:', lastDeleted.defect.description);
-      
-      setDeletedDefects(prev => prev.slice(0, -1));
-      
-      setBulkDefects(prev => {
-        console.log('🔄 [UNDO] Current defects before restore:', prev.map(d => ({ num: d.photoNumber, desc: d.description })));
-        
-        // Get the original photo number
-        const originalPhotoNumber = parseInt(lastDeleted.originalPhotoNumber || lastDeleted.defect.photoNumber) || 0;
-        console.log('🔄 [UNDO] Original photo number:', originalPhotoNumber);
-        
-        // Create the restored defect with empty photo number
-        const restoredDefect = {
-          ...lastDeleted.defect,
-          photoNumber: '' // Will be assigned during renumbering
-        };
-        
-        // Calculate insertion index based on original photo number
-        const insertIndex = Math.max(0, Math.min(originalPhotoNumber - 1, prev.length));
-        console.log('🔄 [UNDO] Inserting at index:', insertIndex);
-        
-        // Insert the restored defect at the correct position
-        const insertedDefects = [...prev];
-        insertedDefects.splice(insertIndex, 0, restoredDefect);
-        console.log('🔄 [UNDO] After insertion:', insertedDefects.map(d => ({ num: d.photoNumber || 'empty', desc: d.description })));
-        
-        // Now renumber ALL defects sequentially from 1 to ensure uniqueness
-        // This is based on array position, not photo number
-        const renumberedDefects = insertedDefects.map((defect, idx) => ({
-          ...defect,
-          photoNumber: String(idx + 1)
-        }));
-        
-        console.log('🔄 [UNDO] After renumbering:', renumberedDefects.map(d => ({ num: d.photoNumber, desc: d.description })));
-        
-        // Verify no duplicates after renumbering
-        const photoNumbers = renumberedDefects.map(d => d.photoNumber);
-        const duplicates = photoNumbers.filter((num, idx) => photoNumbers.indexOf(num) !== idx);
-        if (duplicates.length > 0) {
-          console.error('❌ [UNDO] DUPLICATES DETECTED AFTER RENUMBERING:', duplicates, 'defects:', renumberedDefects.map(d => ({ num: d.photoNumber, desc: d.description })));
-        } else {
-          console.log('✅ [UNDO] No duplicates detected after renumbering');
-        }
-        
-        // Clear the undo flag after a longer delay to ensure auto-sort doesn't interfere
-        // The auto-sort has a 300ms debounce, so we wait 500ms to be extra safe
-        setTimeout(() => {
-          console.log('🔄 [UNDO] Clearing undo flag');
-          isUndoingRef.current = false;
-          isUndoingGlobal = false;
-        }, 500);
-        
-        return renumberedDefects;
-      });
-      
-      // Re-select the image if it was selected
-      if (lastDeleted.defect.selectedFile) {
-        const image = images.find(img => (img.fileName || img.file?.name || '') === lastDeleted.defect.selectedFile);
-        if (image) {
-          // Get toggleBulkImageSelection from store since it's not in the destructured values
-          const { toggleBulkImageSelection } = useMetadataStore.getState();
-          toggleBulkImageSelection(image.id);
-        }
-      }
-      
-      toast.success('Defect restored');
-    }
+    bulkTextInputRef.current?.undoDelete();
   };
 
   // Save defect set to localStorage and AWS
@@ -1450,7 +1337,12 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
         
         {viewMode === 'bulk' && (
           <div className="h-full overflow-hidden">
-            <BulkTextInput isExpanded={isExpanded} setShowBulkPaste={setShowBulkPaste} showBulkPaste={showBulkPaste} />
+            <BulkTextInput 
+              ref={bulkTextInputRef}
+              isExpanded={isExpanded} 
+              setShowBulkPaste={setShowBulkPaste} 
+              showBulkPaste={showBulkPaste} 
+            />
           </div>
         )}
         
