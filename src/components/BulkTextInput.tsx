@@ -105,7 +105,8 @@ export const BulkTextInput = forwardRef<BulkTextInputRef, { isExpanded?: boolean
     defectSortDirection,
     setDefectSortDirection,
     viewMode,
-    setViewMode
+    setViewMode,
+    sessionState // Get sessionState reactively from store
   } = useMetadataStore();
   const { user } = useAuthStore();
   const { trackBulkUpload, trackBulkDownload, trackDefectSetLoad, trackUserAction, trackError } = useAnalytics();
@@ -129,16 +130,22 @@ export const BulkTextInput = forwardRef<BulkTextInputRef, { isExpanded?: boolean
   // Get the actual show state from parent or local
   const actualShowBulkPaste = setShowBulkPaste ? false : showBulkPaste;
 
-  // Restore bulkText from session state for persistence
+  // Restore bulkText from session state for persistence (reactive to sessionState changes)
+  // Use a ref to track if we've already restored to prevent overwriting user input
+  const hasRestoredRef = useRef(false);
+  
   useEffect(() => {
-    const { sessionState } = useMetadataStore.getState();
-    
-    // Restore bulkText from session state for persistence
-    if (sessionState.bulkText !== undefined) {
-      setBulkText(sessionState.bulkText);
-      console.log('📝 Restored bulkText from session state:', sessionState.bulkText.length, 'characters');
+    // Restore bulkText from session state if it exists
+    // This ensures we restore on mount AND when sessionState is loaded from AWS
+    if (sessionState.bulkText !== undefined && sessionState.bulkText !== null && sessionState.bulkText !== '') {
+      // Only restore once (on first load) or if current bulkText is empty (to avoid overwriting user's current work)
+      if (!hasRestoredRef.current && (!bulkText || bulkText.trim() === '')) {
+        setBulkText(sessionState.bulkText);
+        hasRestoredRef.current = true;
+        console.log('📝 Restored bulkText from session state:', sessionState.bulkText.length, 'characters');
+      }
     }
-  }, []);
+  }, [sessionState.bulkText]); // React to sessionState.bulkText changes (when AWS loads it)
 
   // Save bulkText to session state for persistence (reduced debounce for faster saves)
   useEffect(() => {
@@ -1562,13 +1569,14 @@ export const BulkTextInput = forwardRef<BulkTextInputRef, { isExpanded?: boolean
                 value={bulkText}
                 placeholder="Paste multiple defect descriptions here, one per line..."
                 onChange={(e) => setBulkText(e.target.value)}
-                onBlur={() => {
-                  // Save immediately on blur to ensure persistence
+                onBlur={(e) => {
+                  // Save immediately on blur to ensure persistence (use event value for latest text)
+                  const textToSave = e.target.value;
                   const { updateSessionState } = useMetadataStore.getState();
                   updateSessionState({
-                    bulkText: bulkText
+                    bulkText: textToSave
                   });
-                  console.log('💾 Saved bulkText on blur:', bulkText.length, 'characters');
+                  console.log('💾 Saved bulkText on blur:', textToSave.length, 'characters');
                 }}
                 className={`w-full min-h-[96px] p-3 text-sm border rounded-xl focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 bg-white/80 dark:bg-gray-800/80 text-slate-900 dark:text-white resize-y ${
                   bulkText.includes('/') ? 'border-amber-300 dark:border-amber-600' : 'border-slate-200/50 dark:border-gray-700/50'
