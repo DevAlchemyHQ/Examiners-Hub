@@ -647,10 +647,20 @@ export const BulkTextInput = forwardRef<BulkTextInputRef, { isExpanded?: boolean
         console.log('🔄 [UNDO] Original photo number:', originalPhotoNumber);
         
         // Create the restored defect with empty photo number
+        // CRITICAL: Preserve the original defect ID to ensure it can be restored in AWS
         const restoredDefect = {
           ...lastDeleted.defect,
-          photoNumber: '' // Will be assigned during renumbering
+          photoNumber: '', // Will be assigned during renumbering
+          // Ensure ID is preserved - if it was lost, regenerate it
+          id: lastDeleted.defect.id || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
         };
+        
+        console.log('🔄 [UNDO] Restored defect:', {
+          id: restoredDefect.id,
+          photoNumber: restoredDefect.photoNumber,
+          description: restoredDefect.description?.substring(0, 30),
+          hasId: !!restoredDefect.id
+        });
         
         // Calculate insertion index based on original photo number
         const insertIndex = Math.max(0, Math.min(originalPhotoNumber - 1, prev.length));
@@ -679,24 +689,48 @@ export const BulkTextInput = forwardRef<BulkTextInputRef, { isExpanded?: boolean
           console.log('✅ [UNDO] No duplicates detected after renumbering');
         }
         
-        // Clear the undo flag after a longer delay to ensure auto-sort doesn't interfere
-        // The auto-sort has a 300ms debounce, so we wait 500ms to be extra safe
+        // CRITICAL: Save immediately to AWS for cross-browser sync
+        // Save after a short delay to ensure state is updated, but get latest state from store
         setTimeout(() => {
-          console.log('🔄 [UNDO] Clearing undo flag');
+          console.log('🔄 [UNDO] Clearing undo flag and saving');
           isUndoing.current = false;
           isUndoingGlobal = false;
           
-          // CRITICAL: Save immediately to AWS for cross-browser sync
-          const { saveBulkData, updateSessionState } = useMetadataStore.getState();
-          const order = renumberedDefects.map(defect => defect.id).filter(Boolean) as string[];
+          // Get the latest state from store (not closure variable) to ensure we have the restored defect
+          const { saveBulkData, updateSessionState, bulkDefects: currentDefects } = useMetadataStore.getState();
+          
+          // Verify the restored defect is in the current state
+          const restoredDefectId = lastDeleted.defect.id;
+          const hasRestoredDefect = currentDefects.some(d => d.id === restoredDefectId);
+          console.log('🔄 [UNDO] Verifying restored defect:', {
+            restoredDefectId,
+            hasRestoredDefect,
+            currentDefectCount: currentDefects.length,
+            currentDefectIds: currentDefects.map(d => d.id).slice(0, 5)
+          });
+          
+          if (!hasRestoredDefect) {
+            console.error('❌ [UNDO] Restored defect not found in current state!', {
+              lookingFor: restoredDefectId,
+              availableIds: currentDefects.map(d => d.id)
+            });
+          }
+          
+          const order = currentDefects.map(defect => defect.id).filter(Boolean) as string[];
           updateSessionState({ 
             bulkDefectOrder: order
           });
+          
+          // Force immediate save to AWS - this ensures the restored defect is persisted
           saveBulkData().catch(error => {
             console.error('❌ Error saving bulk defects after undo:', error);
           });
-          console.log('💾 [UNDO] Saved bulk defects immediately for cross-browser sync');
-        }, 500);
+          console.log('💾 [UNDO] Saved bulk defects immediately for cross-browser sync:', {
+            defectCount: currentDefects.length,
+            restoredDefectId,
+            orderLength: order.length
+          });
+        }, 300); // Reduced delay - we want to save quickly after restore
         
         return renumberedDefects;
       });
