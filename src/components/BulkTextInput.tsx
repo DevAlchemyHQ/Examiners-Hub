@@ -1480,11 +1480,6 @@ export const BulkTextInput = forwardRef<BulkTextInputRef, { isExpanded?: boolean
   // Cleanup function to prevent memory leaks
   useEffect(() => {
     return () => {
-      // Clear any pending timeouts
-      if (debouncedAutoSave.current) {
-        clearTimeout(debouncedAutoSave.current);
-      }
-      
       // Clear any pending auto-sort timeouts
       const autoSortTimeouts = document.querySelectorAll('[data-auto-sort-timeout]');
       autoSortTimeouts.forEach(timeout => {
@@ -1559,11 +1554,6 @@ export const BulkTextInput = forwardRef<BulkTextInputRef, { isExpanded?: boolean
           console.error('❌ Error saving bulk defects on unmount:', error);
         });
         console.log('💾 Saving bulk defects on unmount:', currentDefects.length);
-      }
-      
-      // Clear any pending timeouts
-      if (debouncedAutoSave.current) {
-        clearTimeout(debouncedAutoSave.current);
       }
       
       // Clear any pending auto-sort timeouts

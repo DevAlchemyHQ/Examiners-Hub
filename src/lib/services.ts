@@ -1369,10 +1369,10 @@ export class DatabaseService {
         toAdd: toAdd.length,
         toUpdate: toUpdate.length,
         toDelete: toDelete.length,
-        existingDefects: existingDefectMap.size,
-        localDefects: localDefectMap.size,
+        existingDefects: existingDefectMapById.size,
+        localDefects: localDefectMapById.size,
         toAddIds: toAdd.map(d => d.id).slice(0, 5), // First 5 IDs for debugging
-        existingIds: Array.from(existingDefectMap.keys()).slice(0, 5) // First 5 IDs for debugging
+        existingIds: Array.from(existingDefectMapById.keys()).slice(0, 5) // First 5 IDs for debugging
       });
       
       // Process deletions
@@ -1418,7 +1418,7 @@ export class DatabaseService {
                 description: defect.description || '',
                 selectedFile: defect.selectedFile || '',
                 severity: defect.severity || 'medium',
-                created_at: existingDefectMap.get(defectId)?.created_at || new Date().toISOString(),
+                created_at: existingDefectMapById.get(defectId)?.created_at || new Date().toISOString(),
                 updated_at: new Date().toISOString()
               }
             }
