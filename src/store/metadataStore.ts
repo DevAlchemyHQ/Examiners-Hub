@@ -2555,6 +2555,21 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       const currentState = get();
       const sessionState = currentState.sessionState;
       
+      // CRITICAL: Load deletedDefects from localStorage to restore undo history
+      const deletedDefectsKey = `${userSpecificKeys.bulkData}-deleted`;
+      const savedDeletedDefects = localStorage.getItem(deletedDefectsKey);
+      if (savedDeletedDefects) {
+        try {
+          const deletedDefects = JSON.parse(savedDeletedDefects);
+          if (deletedDefects && Array.isArray(deletedDefects) && deletedDefects.length > 0) {
+            set({ deletedDefects });
+            console.log('📱 Deleted defects loaded from localStorage:', deletedDefects.length);
+          }
+        } catch (error) {
+          console.error('❌ Error loading deleted defects from localStorage:', error);
+        }
+      }
+      
       // Try localStorage first (consistent with loadUserData)
       const savedBulkData = localStorage.getItem(userSpecificKeys.bulkData);
       if (savedBulkData) {
