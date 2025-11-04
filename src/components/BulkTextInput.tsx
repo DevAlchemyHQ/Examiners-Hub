@@ -530,37 +530,38 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
       setDeletedDefects(prev => prev.slice(0, -1));
       
       setBulkDefects(prev => {
-        // Get the original photo number to determine insertion position
-        const originalPhotoNumber = parseInt(lastDeleted.originalPhotoNumber || lastDeleted.defect.photoNumber) || 0;
-        
-        // Create the restored defect (we'll renumber it after insertion)
+        // Create the restored defect without photo number (will be assigned after insertion)
         const restoredDefect = {
-          ...lastDeleted.defect
-          // Don't set photoNumber yet - we'll assign it after renumbering
+          ...lastDeleted.defect,
+          photoNumber: '' // Clear photo number, will be assigned during renumbering
         };
         
-        // Calculate insertion position: originalPhotoNumber - 1 (since arrays are 0-indexed)
-        // If originalPhotoNumber was #2, insert at index 1 (after #1)
-        // Clamp to valid array bounds
+        // Get the original photo number to determine where to insert
+        const originalPhotoNumber = parseInt(lastDeleted.originalPhotoNumber || lastDeleted.defect.photoNumber) || 0;
+        
+        // Calculate where to insert: originalPhotoNumber - 1 (convert to 0-based index)
+        // If originalPhotoNumber was #3, insert at index 2 (after #1 and #2)
         const insertIndex = Math.max(0, Math.min(originalPhotoNumber - 1, prev.length));
         
         // Insert the restored defect at the calculated position
         const newDefects = [...prev];
         newDefects.splice(insertIndex, 0, restoredDefect);
         
-        // Now renumber ALL defects sequentially (1, 2, 3, ...) to prevent any duplicates
-        // This ensures:
-        // - The restored defect gets the correct position number (insertIndex + 1)
-        // - All defects before it keep their numbers (shifted by 1 if needed)
-        // - All defects after it get renumbered sequentially
-        // - No duplicates because every defect gets a unique sequential number
+        // Now renumber ALL defects sequentially (1, 2, 3, ...) to prevent duplicates
+        // This ensures every defect gets a unique sequential number based on its position
         const renumberedDefects = newDefects.map((defect, idx) => ({
           ...defect,
           photoNumber: String(idx + 1)
         }));
         
-        console.log('↩️ [UNDO] Restored defect at position', insertIndex + 1, 'with original number', originalPhotoNumber);
-        console.log('↩️ [UNDO] Total defects after restore:', renumberedDefects.length);
+        console.log('↩️ [UNDO] Restored defect - original number:', originalPhotoNumber, 'inserted at index:', insertIndex);
+        console.log('↩️ [UNDO] Defects after restore:', renumberedDefects.length);
+        console.log('↩️ [UNDO] Photo numbers:', renumberedDefects.map(d => d.photoNumber).join(', '));
+        
+        // If sorting is enabled, apply sorting after renumbering
+        if (defectSortDirection) {
+          return reorderAndRenumberDefects(renumberedDefects, defectSortDirection);
+        }
         
         return renumberedDefects;
       });
