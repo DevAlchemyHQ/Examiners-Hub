@@ -312,7 +312,7 @@ interface MetadataState extends MetadataStateOnly {
   createErrorPlaceholder: (image: ImageMetadata) => Blob;
   // Session management actions
   saveSessionState: (overrideViewMode?: 'images' | 'bulk') => void;
-  forceSessionStateSave: (overrideViewMode?: 'images' | 'bulk') => Promise<void>;
+  forceSessionStateSave: (overrideViewMode?: 'images' | 'bulk', sessionStateOverrides?: Partial<SessionState>) => Promise<void>;
   restoreSessionState: () => Promise<void>;
   updateSessionState: (updates: Partial<SessionState>) => void;
   clearSessionState: () => void;
@@ -4417,7 +4417,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
     }
   },
 
-  forceSessionStateSave: async (overrideViewMode?: 'images' | 'bulk') => {
+  forceSessionStateSave: async (overrideViewMode?: 'images' | 'bulk', sessionStateOverrides?: Partial<SessionState>) => {
     const state = get();
     
     // Get userId for storage keys
@@ -4427,7 +4427,11 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
     
     const effectiveViewMode = overrideViewMode || state.viewMode;
     
-    const sessionState = {
+    // CRITICAL: Use overrides if provided, otherwise read from state
+    // This prevents race conditions when called immediately after updateSessionState
+    const bulkTextToUse = sessionStateOverrides?.bulkText ?? state.sessionState?.bulkText;
+    
+    const sessionState: SessionState = {
       lastActiveTab: effectiveViewMode,
       lastActiveTime: Date.now(),
       imageOrder: state.images.map(img => img.id),
@@ -4445,7 +4449,9 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         sketchSortDirection: state.sketchSortDirection
       }, // Include sortPreferences
       lastSortChangeTime: state.sessionState?.lastSortChangeTime, // Preserve sort change timestamp
-      bulkText: state.sessionState?.bulkText // CRITICAL: Preserve bulkText for persistence
+      bulkText: bulkTextToUse, // CRITICAL: Use override if provided to prevent race conditions
+      // Apply any other overrides from sessionStateOverrides (spread after to allow overrides)
+      ...(sessionStateOverrides || {})
     };
 
     console.log('💾 [FORCE SAVE] SAVING SESSION STATE:', {

@@ -237,8 +237,9 @@ export const BulkTextInput = forwardRef<BulkTextInputRef, { isExpanded?: boolean
           bulkText: textToSave
         });
         console.log('💾 Saved bulkText on unmount:', textToSave.length, 'characters');
-        // Force immediate AWS save to ensure bulkText persists across refreshes
-        forceSessionStateSave().catch(error => {
+        // Force immediate AWS save with latest bulkText to prevent race conditions
+        // Pass bulkText directly to ensure we use the latest value, not stale state
+        forceSessionStateSave(undefined, { bulkText: textToSave }).catch(error => {
           console.error('❌ Error forcing bulkText save to AWS on unmount:', error);
         });
       }
@@ -1654,8 +1655,9 @@ export const BulkTextInput = forwardRef<BulkTextInputRef, { isExpanded?: boolean
                     bulkText: textToSave
                   });
                   console.log('💾 Saved bulkText on blur:', textToSave.length, 'characters');
-                  // Force immediate AWS save to ensure bulkText persists across refreshes
-                  forceSessionStateSave().catch(error => {
+                  // Force immediate AWS save with latest bulkText to prevent race conditions
+                  // Pass bulkText directly to ensure we use the latest value, not stale state
+                  forceSessionStateSave(undefined, { bulkText: textToSave }).catch(error => {
                     console.error('❌ Error forcing bulkText save to AWS:', error);
                   });
                 }}
