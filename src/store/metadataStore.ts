@@ -4380,7 +4380,8 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         defectSortDirection: state.defectSortDirection,
         sketchSortDirection: state.sketchSortDirection
       }, // Include sortPreferences
-      lastSortChangeTime: state.sessionState?.lastSortChangeTime // Preserve sort change timestamp
+      lastSortChangeTime: state.sessionState?.lastSortChangeTime, // Preserve sort change timestamp
+      bulkText: state.sessionState?.bulkText // CRITICAL: Preserve bulkText for persistence
     };
 
     console.log('💾 SAVING SESSION STATE:', {
@@ -4430,7 +4431,8 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         defectSortDirection: state.defectSortDirection,
         sketchSortDirection: state.sketchSortDirection
       }, // Include sortPreferences
-      lastSortChangeTime: state.sessionState?.lastSortChangeTime // Preserve sort change timestamp
+      lastSortChangeTime: state.sessionState?.lastSortChangeTime, // Preserve sort change timestamp
+      bulkText: state.sessionState?.bulkText // CRITICAL: Preserve bulkText for persistence
     };
 
     console.log('💾 [FORCE SAVE] SAVING SESSION STATE:', {
