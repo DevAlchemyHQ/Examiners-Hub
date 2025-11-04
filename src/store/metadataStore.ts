@@ -4716,7 +4716,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
     }
   },
 
-  restoreSessionState: async () => {
+  restoreSessionState: async (): Promise<void> => {
     // Get userId for storage keys
     const userId = getUserId();
     
@@ -4729,7 +4729,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       const savedSession = localStorage.getItem(`${keys.formData}-session-state`);
       console.log('📖 Raw session data from localStorage:', savedSession);
       
-      let sessionState = null;
+      let sessionState: SessionState | null = null;
       
       if (savedSession) {
         sessionState = JSON.parse(savedSession);
@@ -4753,27 +4753,29 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
               // CRITICAL: Preserve bulkText from current sessionState when caching from AWS
               // This prevents losing bulkText that was saved locally but not yet synced to AWS
               const currentState = get();
-              const mergedSessionState = {
-                ...sessionState,
-                ...(currentState.sessionState?.bulkText && !sessionState.bulkText 
-                  ? { bulkText: currentState.sessionState.bulkText } 
-                  : {})
-              };
-              
-              if (currentState.sessionState?.bulkText && !sessionState.bulkText) {
-                console.log('💾 Preserving bulkText when caching from AWS:', currentState.sessionState.bulkText.length, 'characters');
-                sessionState = mergedSessionState; // Update sessionState for use below
-              }
-              
-              // Save to localStorage for faster future access (with preserved bulkText)
-              localStorage.setItem(`${keys.formData}-session-state`, JSON.stringify(mergedSessionState));
-              console.log('💾 Cached session state to localStorage');
-              
-              // Also restore sort preferences if available
-              if (result.project.sortPreferences) {
-                const { defectSortDirection, sketchSortDirection } = result.project.sortPreferences;
-                set({ defectSortDirection, sketchSortDirection });
-                console.log('🔄 Restored sort preferences from AWS');
+              if (sessionState) {
+                const mergedSessionState: SessionState = {
+                  ...sessionState,
+                  ...(currentState.sessionState?.bulkText && !sessionState.bulkText 
+                    ? { bulkText: currentState.sessionState.bulkText } 
+                    : {})
+                } as SessionState;
+                
+                if (currentState.sessionState?.bulkText && !sessionState.bulkText) {
+                  console.log('💾 Preserving bulkText when caching from AWS:', currentState.sessionState.bulkText.length, 'characters');
+                  sessionState = mergedSessionState; // Update sessionState for use below
+                }
+                
+                // Save to localStorage for faster future access (with preserved bulkText)
+                localStorage.setItem(`${keys.formData}-session-state`, JSON.stringify(mergedSessionState));
+                console.log('💾 Cached session state to localStorage');
+                
+                // Also restore sort preferences if available
+                if (result.project.sortPreferences) {
+                  const { defectSortDirection, sketchSortDirection } = result.project.sortPreferences;
+                  set({ defectSortDirection, sketchSortDirection });
+                  console.log('🔄 Restored sort preferences from AWS');
+                }
               }
             } else {
               console.log('⚠️ No session state found in AWS');
@@ -4851,7 +4853,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         // Merge to preserve existing date, elr, and structureNo fields
         // currentState already declared above, reuse it
         
-        if (sessionState.formData) {
+        if (sessionState && sessionState.formData) {
           console.log('📋 Session state form data:', sessionState.formData);
           console.log('📋 Current form data:', currentState.formData);
           
@@ -4896,12 +4898,15 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             }
             
             // Merge any additional fields
-            Object.keys(sessionState.formData).forEach(key => {
-              if (key !== 'date' && key !== 'elr' && key !== 'structureNo' && sessionState.formData[key]) {
-                mergedFormData[key as keyof typeof mergedFormData] = sessionState.formData[key];
-                console.log(`📝 Restored ${key}:`, sessionState.formData[key]);
-              }
-            });
+            if (sessionState?.formData) {
+              Object.keys(sessionState.formData).forEach((key: string) => {
+                const formDataKey = key as keyof FormData;
+                if (key !== 'date' && key !== 'elr' && key !== 'structureNo' && sessionState.formData[formDataKey]) {
+                  mergedFormData[formDataKey] = sessionState.formData[formDataKey];
+                  console.log(`📝 Restored ${key}:`, sessionState.formData[formDataKey]);
+                }
+              });
+            }
             
             set({ formData: mergedFormData });
             console.log('✅ Form data merged and restored:', mergedFormData);
@@ -4940,13 +4945,13 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             console.log('🔄 SelectedImageMap keys:', Array.from(selectedImageMap.keys()));
             
             // Reorder selected images according to saved order
-            const reorderedSelectedImages = sessionState.selectedImageOrder
-              .map(instanceId => selectedImageMap.get(instanceId))
-              .filter(Boolean) as Array<{ id: string; instanceId: string }>;
+            const reorderedSelectedImages = sessionState?.selectedImageOrder
+              ?.map((instanceId: string) => selectedImageMap.get(instanceId))
+              .filter(Boolean) as Array<{ id: string; instanceId: string }> || [];
             
             // Add any selected images not in the saved order at the end
             const remainingSelectedImages = currentSelectedImages.filter(item => 
-              !sessionState.selectedImageOrder.includes(item.instanceId)
+              !sessionState?.selectedImageOrder?.includes(item.instanceId)
             );
             
             const finalSelectedImages = [...reorderedSelectedImages, ...remainingSelectedImages];
@@ -4970,13 +4975,13 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             const imageMap = new Map(currentImages.map(img => [img.id, img]));
             
             // Reorder images according to saved order
-            const reorderedImages = sessionState.imageOrder
-              .map(id => imageMap.get(id))
-              .filter(Boolean) as ImageMetadata[];
+            const reorderedImages = sessionState?.imageOrder
+              ?.map((id: string) => imageMap.get(id))
+              .filter(Boolean) as ImageMetadata[] || [];
             
             // Add any images not in the saved order at the end
             const remainingImages = currentImages.filter(img => 
-              !sessionState.imageOrder.includes(img.id)
+              !sessionState?.imageOrder?.includes(img.id)
             );
             
             const finalImages = [...reorderedImages, ...remainingImages];
@@ -4984,14 +4989,10 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             console.log('✅ Image order restored:', finalImages.length);
           }
         }
-        
-        return sessionState;
       }
     } catch (error) {
       console.error('Error restoring session state:', error);
     }
-    
-    return null;
   },
 
   updateSessionState: (updates: Partial<SessionState>) => {
