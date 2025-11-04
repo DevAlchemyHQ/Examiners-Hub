@@ -2749,7 +2749,27 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             const keys = getProjectStorageKeys(userId, 'current');
             localStorage.setItem(`${keys.formData}-session-state`, JSON.stringify(mergedSessionState));
           } else {
-            console.log('⚠️ Skipping AWS sessionState - local data is newer');
+            // CRITICAL: Even if local is newer, merge bulkText from AWS for cross-browser sync
+            // This ensures bulkText saved on one browser appears on another browser
+            const awsBulkText = project.sessionState?.bulkText;
+            const localBulkText = currentState.sessionState?.bulkText;
+            
+            if (awsBulkText && !localBulkText) {
+              // AWS has bulkText but local doesn't - merge it in for cross-browser sync
+              const mergedSessionState = {
+                ...currentState.sessionState,
+                bulkText: awsBulkText
+              };
+              
+              set({ sessionState: mergedSessionState });
+              console.log('💾 Merged bulkText from AWS for cross-browser sync:', awsBulkText.length, 'characters');
+              
+              // Update localStorage with merged state
+              const keys = getProjectStorageKeys(userId, 'current');
+              localStorage.setItem(`${keys.formData}-session-state`, JSON.stringify(mergedSessionState));
+            } else {
+              console.log('⚠️ Skipping AWS sessionState - local data is newer');
+            }
           }
         }
         
