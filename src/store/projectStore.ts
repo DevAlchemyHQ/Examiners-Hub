@@ -93,7 +93,7 @@ export const useProjectStore = create<ProjectState>((set) => ({
                 bulkPanel: 0,
                 imageGrid: 0
               },
-              lastActiveTime: Date.now(),
+              lastActiveTime: Date.now() + 10000, // Add 10 seconds to ensure it's newer than any existing data
               lastActiveTab: 'images',
               panelExpanded: false,
               gridWidth: 4

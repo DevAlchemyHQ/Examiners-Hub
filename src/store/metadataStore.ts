@@ -2787,16 +2787,23 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           const localHasValues = !!(localFormData as any)?.elr?.trim() || !!(localFormData as any)?.structureNo?.trim();
           const awsHasValues = !!project.formData?.elr?.trim() || !!project.formData?.structureNo?.trim();
           
+          // Check if AWS formData is completely empty (all fields are empty strings) - indicates a clear
+          const awsIsEmpty = !awsHasValues && 
+                             (!project.formData?.elr || project.formData.elr === '') &&
+                             (!project.formData?.structureNo || project.formData.structureNo === '') &&
+                             (!project.formData?.date || project.formData.date === '');
+          
           // Check if AWS data is newer (indicating a recent clear or update)
           const awsIsNewer = awsLastActiveTime > localLastActiveTime;
           
           // Use AWS data if:
           // 1. AWS has values AND (local is empty OR AWS is different), OR
           // 2. Local has no values AND AWS has no values (both empty - use AWS for consistency), OR
-          // 3. AWS is empty AND AWS is newer (project was cleared - sync the clear)
+          // 3. AWS is empty (cleared) - ALWAYS use it to sync the clear, regardless of timestamp
+          //    This ensures that when a project is cleared, all browsers get the clear
           const shouldUseAWS = (awsHasValues && (!localHasValues || dataIsDifferent)) || 
                                (!localHasValues && !awsHasValues && dataIsDifferent) ||
-                               (!awsHasValues && awsIsNewer && dataIsDifferent);
+                               (awsIsEmpty && dataIsDifferent); // Always sync empty formData if different
           
           if (shouldUseAWS) {
             console.log('🔄 Loading AWS data for cross-browser sync', { 
@@ -2826,9 +2833,9 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
                 }
               });
             }
-          } else if (localHasValues && !awsHasValues && !awsIsNewer) {
-            // Local has values but AWS is empty AND AWS is not newer - keep local (don't overwrite with old empty)
-            console.log('⏸️ Keeping local form data - AWS has empty values but is older');
+          } else if (localHasValues && !awsHasValues && !awsIsEmpty) {
+            // Local has values but AWS is empty AND AWS is not a clear (just missing data) - keep local
+            console.log('⏸️ Keeping local form data - AWS has empty values but is not a clear');
           } else {
             console.log('✅ Local and AWS data match - using local');
           }
