@@ -2360,28 +2360,32 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           const migratedSelections = migrateSelectedImageIds(selectionsResult.value, imagesResult.value || []);
           const migrationRate = selectionsResult.value.length > 0 ? (migratedSelections.length / selectionsResult.value.length) : 1;
           
-          // If migration success rate is too low (< 50%), the selections likely reference old files
-          // Clear them to prevent stale selections from appearing
-          if (migrationRate < 0.5 && selectionsResult.value.length > 0) {
-            console.log('⚠️ Low migration success rate (' + Math.round(migrationRate * 100) + '%) - clearing stale selections that reference old files');
+          // CRITICAL FIX: Be more lenient with migration - only clear if migration rate is very low (< 20%)
+          // and we have successfully migrated at least some images. This prevents clearing valid selections
+          // when images are still loading or there are minor ID mismatches.
+          if (migrationRate < 0.2 && migratedSelections.length === 0 && selectionsResult.value.length > 0) {
+            // Only clear if we have ZERO successful migrations AND very low rate (< 20%)
+            // This means all selections are truly stale
+            console.log('⚠️ Very low migration success rate (' + Math.round(migrationRate * 100) + '%) with zero matches - clearing stale selections');
             updates.selectedImages = [];
             // Clear localStorage to remove stale selections
             const keys = getProjectStorageKeys(userId, 'current');
             saveVersionedData(keys.selections, projectId, userId, []);
           } else if (migratedSelections.length > 0) {
+            // Use migrated selections if we have any successful migrations
             updates.selectedImages = migratedSelections;
             console.log('✅ Migrated selections applied:', migratedSelections.length, '(' + Math.round(migrationRate * 100) + '% success rate)');
           } else {
-            console.log('⚠️ Migration returned empty array');
-            // Even if migration failed, try to use the original data if images haven't loaded yet
-            // This handles the case where images load asynchronously after selections
+            // If migration failed but we have selections, preserve them temporarily
+            // They might be valid but images haven't fully loaded yet
+            console.log('⚠️ Migration returned empty array, but preserving selections for potential retry');
             if (selectionsResult.value.length > 0) {
-              console.log('🔄 Attempting to preserve original selections temporarily');
+              console.log('🔄 Preserving original selections - will retry migration after images fully load');
               updates.selectedImages = selectionsResult.value as any;
             }
           }
         } else {
-          console.log('⚠️ Images not loaded yet, preserving original selections');
+          console.log('⚠️ Images not loaded yet, preserving original selections for later migration');
           if (selectionsResult.value.length > 0) {
             updates.selectedImages = selectionsResult.value as any;
           }
@@ -2400,6 +2404,37 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       
       // Restore session state after data is loaded
       await get().restoreSessionState();
+      
+      // CRITICAL FIX: Retry order restoration if images weren't ready during initial restore
+      // This handles the race condition where selectedImages load before images finish loading
+      const stateAfterRestore = get();
+      if (stateAfterRestore.selectedImages.length > 0 && 
+          stateAfterRestore.images.length > 0 &&
+          stateAfterRestore.sessionState.selectedImageOrder &&
+          stateAfterRestore.sessionState.selectedImageOrder.length > 0 &&
+          stateAfterRestore.defectSortDirection !== null) {
+        // Check if order needs to be restored (images are now loaded)
+        const currentOrder = stateAfterRestore.selectedImages.map(item => item.instanceId);
+        const savedOrder = stateAfterRestore.sessionState.selectedImageOrder;
+        const orderMatches = currentOrder.length === savedOrder.length &&
+          currentOrder.every((id, index) => id === savedOrder[index]);
+        
+        if (!orderMatches) {
+          console.log('🔄 Retrying order restoration now that images are loaded');
+          const selectedImageMap = new Map(stateAfterRestore.selectedImages.map(item => [item.instanceId, item]));
+          const reorderedSelectedImages = savedOrder
+            .map((instanceId: string) => selectedImageMap.get(instanceId))
+            .filter(Boolean) as Array<{ id: string; instanceId: string }> || [];
+          
+          const remainingSelectedImages = stateAfterRestore.selectedImages.filter(item => 
+            !savedOrder.includes(item.instanceId)
+          );
+          
+          const finalSelectedImages = [...reorderedSelectedImages, ...remainingSelectedImages];
+          set({ selectedImages: finalSelectedImages });
+          console.log('✅ Order restoration retry successful:', finalSelectedImages.length);
+        }
+      }
       
       // Load bulk data with session state restoration
       await get().loadBulkData();
@@ -4933,7 +4968,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         
         // Restore selected images order if available (but NOT in no-sort mode)
         // In no-sort mode, preserve current insertion order, don't restore from saved state
-        if (sessionState.selectedImageOrder && sessionState.selectedImageOrder.length > 0) {
+        if (sessionState?.selectedImageOrder && sessionState.selectedImageOrder.length > 0) {
           const currentSortMode = currentState.defectSortDirection;
           
           if (currentSortMode === null) {
@@ -4941,31 +4976,47 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             console.log('⏸️ No-sort mode: Skipping order restoration to preserve insertion order');
           } else {
             // Sorted mode: Restore order from session state
-          console.log('🔄 Restoring selected images order from session state:', sessionState.selectedImageOrder);
-          
-          const currentSelectedImages = currentState.selectedImages;
-          console.log('🔄 Current selectedImages before restoration:', currentSelectedImages);
-          
-          if (currentSelectedImages && currentSelectedImages.length > 0) {
-            // Create a map for quick lookup
-            const selectedImageMap = new Map(currentSelectedImages.map(item => [item.instanceId, item]));
-            console.log('🔄 SelectedImageMap keys:', Array.from(selectedImageMap.keys()));
+            console.log('🔄 Restoring selected images order from session state:', sessionState.selectedImageOrder);
             
-            // Reorder selected images according to saved order
-            const reorderedSelectedImages = sessionState?.selectedImageOrder
-              ?.map((instanceId: string) => selectedImageMap.get(instanceId))
-              .filter(Boolean) as Array<{ id: string; instanceId: string }> || [];
+            const currentSelectedImages = currentState.selectedImages;
+            const currentImages = currentState.images;
+            console.log('🔄 Current selectedImages before restoration:', currentSelectedImages.length);
+            console.log('🔄 Current images count:', currentImages.length);
             
-            // Add any selected images not in the saved order at the end
-            const remainingSelectedImages = currentSelectedImages.filter(item => 
-              !sessionState?.selectedImageOrder?.includes(item.instanceId)
-            );
-            
-            const finalSelectedImages = [...reorderedSelectedImages, ...remainingSelectedImages];
-            set({ selectedImages: finalSelectedImages });
-            console.log('✅ Selected images order restored:', finalSelectedImages.length);
-          } else {
-            console.log('⚠️ No current selectedImages to restore order for');
+            // CRITICAL FIX: Wait for both selectedImages AND images to be loaded before restoring order
+            // This prevents race conditions where images haven't loaded yet
+            if (currentSelectedImages && currentSelectedImages.length > 0 && currentImages && currentImages.length > 0) {
+              // Create a map for quick lookup by instanceId
+              const selectedImageMap = new Map(currentSelectedImages.map(item => [item.instanceId, item]));
+              console.log('🔄 SelectedImageMap keys:', Array.from(selectedImageMap.keys()));
+              
+              // Reorder selected images according to saved order
+              const reorderedSelectedImages = sessionState.selectedImageOrder
+                .map((instanceId: string) => selectedImageMap.get(instanceId))
+                .filter(Boolean) as Array<{ id: string; instanceId: string }> || [];
+              
+              // Add any selected images not in the saved order at the end
+              const remainingSelectedImages = currentSelectedImages.filter(item => 
+                !sessionState.selectedImageOrder.includes(item.instanceId)
+              );
+              
+              const finalSelectedImages = [...reorderedSelectedImages, ...remainingSelectedImages];
+              
+              // Only update if the order actually changed to prevent unnecessary re-renders
+              const orderChanged = finalSelectedImages.length !== currentSelectedImages.length ||
+                finalSelectedImages.some((item, index) => item.instanceId !== currentSelectedImages[index]?.instanceId);
+              
+              if (orderChanged) {
+                set({ selectedImages: finalSelectedImages });
+                console.log('✅ Selected images order restored:', finalSelectedImages.length);
+              } else {
+                console.log('⏸️ Selected images already in correct order, skipping update');
+              }
+            } else {
+              // If images or selectedImages aren't loaded yet, schedule a retry
+              console.log('⚠️ Images or selectedImages not fully loaded yet, order restoration will be retried');
+              // The order will be restored when both are available via the polling mechanism
+              // or when images finish loading
             }
           }
         } else {
