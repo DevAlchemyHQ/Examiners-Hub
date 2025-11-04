@@ -398,8 +398,9 @@ export const BulkTextInput = forwardRef<BulkTextInputRef, { isExpanded?: boolean
         
         // Update session state to preserve bulk defect order
         setTimeout(() => {
+          const { updateSessionState } = useMetadataStore.getState();
           updateSessionState({ 
-            bulkDefectOrder: renumberedItems.map(defect => defect.id).filter(Boolean)
+            bulkDefectOrder: renumberedItems.map(defect => defect.id).filter(Boolean) as string[]
           });
         }, 100);
         
@@ -1528,7 +1529,7 @@ export const BulkTextInput = forwardRef<BulkTextInputRef, { isExpanded?: boolean
     if (bulkDefects.length > 0) {
       const { updateSessionState } = useMetadataStore.getState();
       updateSessionState({
-        bulkDefectOrder: bulkDefects.map(defect => defect.id).filter(Boolean)
+        bulkDefectOrder: bulkDefects.map(defect => defect.id).filter((id): id is string => Boolean(id))
       });
     }
   }, [bulkDefects]);
