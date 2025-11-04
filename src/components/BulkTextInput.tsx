@@ -530,20 +530,27 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
       setDeletedDefects(prev => prev.slice(0, -1));
       
       setBulkDefects(prev => {
-        // Restore the defect at its original position with original photo number
-        const newDefects = [...prev];
+        // Get the original photo number to determine insertion position
+        const originalPhotoNumber = parseInt(lastDeleted.originalPhotoNumber || lastDeleted.defect.photoNumber) || 0;
+        
+        // Create the restored defect
         const restoredDefect = {
           ...lastDeleted.defect,
           photoNumber: lastDeleted.originalPhotoNumber || lastDeleted.defect.photoNumber
         };
         
-        // Insert at the original index
-        const insertIndex = Math.min(lastDeleted.originalIndex, newDefects.length);
+        // Find the correct insertion position based on original photo number
+        // Insert at the position where the restored defect's number should be (originalPhotoNumber - 1)
+        // But we need to account for the fact that current defects might have different numbers
+        // So we'll insert at the position that corresponds to the original photo number
+        const insertIndex = Math.max(0, Math.min(originalPhotoNumber - 1, prev.length));
+        
+        // Insert the restored defect at the calculated position
+        const newDefects = [...prev];
         newDefects.splice(insertIndex, 0, restoredDefect);
         
-        // Renumber all defects sequentially starting from position 1
-        // This ensures the restored defect gets its original position number (insertIndex + 1)
-        // and prevents duplicates by renumbering all subsequent tiles
+        // Now renumber ALL defects sequentially (1, 2, 3, ...) to prevent any duplicates
+        // This ensures every defect gets a unique sequential number
         return newDefects.map((defect, idx) => ({
           ...defect,
           photoNumber: String(idx + 1)
