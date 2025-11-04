@@ -196,6 +196,12 @@ export const BulkTextInput = forwardRef<BulkTextInputRef, { isExpanded?: boolean
     }
   }, [sessionState]); // Watch entire sessionState object to catch async loads
 
+  // Ref to track latest bulkText for unmount cleanup (avoids stale closure values)
+  const latestBulkTextRef = useRef(bulkText);
+  useEffect(() => {
+    latestBulkTextRef.current = bulkText;
+  }, [bulkText]);
+
   // Save bulkText to session state for persistence (reduced debounce for faster saves)
   useEffect(() => {
     // Skip save if bulkText is empty (to avoid unnecessary saves)
@@ -216,9 +222,15 @@ export const BulkTextInput = forwardRef<BulkTextInputRef, { isExpanded?: boolean
     
     return () => {
       clearTimeout(timeoutId);
+    };
+  }, [bulkText]);
+
+  // Separate effect for unmount-only cleanup to save latest bulkText
+  useEffect(() => {
+    return () => {
       // Save immediately on unmount to ensure persistence even if user refreshes quickly
-      // Use the latest bulkText value from the closure
-      const textToSave = bulkText;
+      // Use ref to get the latest value, not stale closure value
+      const textToSave = latestBulkTextRef.current;
       if (textToSave && textToSave.trim() !== '') {
         const { updateSessionState, forceSessionStateSave } = useMetadataStore.getState();
         updateSessionState({
@@ -231,7 +243,7 @@ export const BulkTextInput = forwardRef<BulkTextInputRef, { isExpanded?: boolean
         });
       }
     };
-  }, [bulkText]);
+  }, []); // Empty deps = only runs on mount/unmount
 
   // Load bulk data on component mount
   useEffect(() => {
