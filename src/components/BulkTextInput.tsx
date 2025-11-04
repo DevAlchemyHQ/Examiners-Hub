@@ -529,47 +529,25 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
       const lastDeleted = deletedDefects[deletedDefects.length - 1];
       setDeletedDefects(prev => prev.slice(0, -1));
       
-      // Temporarily disable sorting during undo
-      const wasSorting = defectSortDirection;
-      // Use 'asc' instead of null to prevent three-state toggle issue
-      setDefectSortDirection('asc');
-      
       setBulkDefects(prev => {
-        // Add the deleted defect back at its original position with original photo number
+        // Restore the defect at its original position with original photo number
         const newDefects = [...prev];
         const restoredDefect = {
           ...lastDeleted.defect,
           photoNumber: lastDeleted.originalPhotoNumber || lastDeleted.defect.photoNumber
         };
-        newDefects.splice(lastDeleted.originalIndex, 0, restoredDefect);
         
-        // If sorting was enabled, re-enable it after a delay
-        if (wasSorting) {
-          setTimeout(() => {
-            setDefectSortDirection(wasSorting);
-            // Only re-sort and renumber if the restored defect doesn't have a valid photo number
-            setBulkDefects(currentDefects => {
-              const hasInvalidPhotoNumbers = currentDefects.some(defect => 
-                !defect.photoNumber || defect.photoNumber === '' || defect.photoNumber === '#'
-              );
-              
-              if (hasInvalidPhotoNumbers) {
-                return reorderAndRenumberDefects(currentDefects, wasSorting);
-              }
-              
-              // Just sort without renumbering to preserve existing photo numbers
-              return reorderAndRenumberDefects(currentDefects, wasSorting);
-            });
-          }, 100);
-        } else {
-          // If sorting was disabled, just renumber based on position
-          return newDefects.map((defect, idx) => ({
-            ...defect,
-            photoNumber: String(idx + 1)
-          }));
-        }
+        // Insert at the original index
+        const insertIndex = Math.min(lastDeleted.originalIndex, newDefects.length);
+        newDefects.splice(insertIndex, 0, restoredDefect);
         
-        return newDefects;
+        // Renumber all defects sequentially starting from position 1
+        // This ensures the restored defect gets its original position number (insertIndex + 1)
+        // and prevents duplicates by renumbering all subsequent tiles
+        return newDefects.map((defect, idx) => ({
+          ...defect,
+          photoNumber: String(idx + 1)
+        }));
       });
       
       // Re-select the image if it was selected

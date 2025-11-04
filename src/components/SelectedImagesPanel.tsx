@@ -1058,24 +1058,25 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
           </div>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1">
-              <button
-                title={`Sort: ${viewMode === 'bulk' ? (defectSortDirection === 'asc' ? 'Ascending' : defectSortDirection === 'desc' ? 'Descending' : 'Disabled') : (defectSortDirection === 'asc' ? 'Ascending' : defectSortDirection === 'desc' ? 'Descending' : 'Disabled')}`}
-                className={`p-1 rounded transition-colors flex items-center gap-1 ${
-                  viewMode === 'bulk' && defectSortDirection
-                    ? 'bg-indigo-500 text-white'
-                    : viewMode === 'images' && defectSortDirection
+              {/* Only show sort button for images mode, not bulk mode */}
+              {viewMode !== 'bulk' && (
+                <button
+                  title={`Sort: ${defectSortDirection === 'asc' ? 'Ascending' : defectSortDirection === 'desc' ? 'Descending' : 'Disabled'}`}
+                  className={`p-1 rounded transition-colors flex items-center gap-1 ${
+                    defectSortDirection
                       ? 'bg-indigo-500 text-white'
                       : 'text-slate-500 dark:text-gray-300 hover:bg-slate-100 dark:hover:bg-gray-700'
-                }`}
-                onClick={viewMode === 'bulk' ? toggleSorting : handleSortImages}
-              >
-                <ArrowUpDown size={16} className={(defectSortDirection === 'desc') ? 'rotate-180' : ''} />
-                {defectSortDirection && (
-                  <span className="text-xs font-medium">
-                    {defectSortDirection === 'asc' ? '↑' : '↓'}
-                  </span>
-                )}
-              </button>
+                  }`}
+                  onClick={handleSortImages}
+                >
+                  <ArrowUpDown size={16} className={(defectSortDirection === 'desc') ? 'rotate-180' : ''} />
+                  {defectSortDirection && (
+                    <span className="text-xs font-medium">
+                      {defectSortDirection === 'asc' ? '↑' : '↓'}
+                    </span>
+                  )}
+                </button>
+              )}
               <button
                 title="Undo"
                 className={`p-1 rounded transition-colors ${
@@ -1168,24 +1169,25 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
               </button>
             )}
             <div className="flex items-center gap-2 ml-2">
-              <button
-                title={`Sort: ${viewMode === 'bulk' ? (defectSortDirection === 'asc' ? 'Ascending' : defectSortDirection === 'desc' ? 'Descending' : 'Disabled') : (defectSortDirection === 'asc' ? 'Ascending' : defectSortDirection === 'desc' ? 'Descending' : 'Disabled')}`}
-                className={`p-2 rounded transition-colors flex items-center gap-1 ${
-                  viewMode === 'bulk' && defectSortDirection
-                    ? 'bg-indigo-500 text-white'
-                    : viewMode === 'images' && defectSortDirection
+              {/* Only show sort button for images mode, not bulk mode */}
+              {viewMode !== 'bulk' && (
+                <button
+                  title={`Sort: ${defectSortDirection === 'asc' ? 'Ascending' : defectSortDirection === 'desc' ? 'Descending' : 'Disabled'}`}
+                  className={`p-2 rounded transition-colors flex items-center gap-1 ${
+                    defectSortDirection
                       ? 'bg-indigo-500 text-white'
                       : 'text-slate-500 dark:text-gray-300 hover:bg-slate-100 dark:hover:bg-gray-700'
-                }`}
-                onClick={viewMode === 'bulk' ? toggleSorting : handleSortImages}
-              >
-                <ArrowUpDown size={20} className={(defectSortDirection === 'desc') ? 'rotate-180' : ''} />
-                {defectSortDirection && (
-                  <span className="text-xs font-medium">
-                    {defectSortDirection === 'asc' ? '↑' : '↓'}
-                  </span>
-                )}
-              </button>
+                  }`}
+                  onClick={handleSortImages}
+                >
+                  <ArrowUpDown size={20} className={(defectSortDirection === 'desc') ? 'rotate-180' : ''} />
+                  {defectSortDirection && (
+                    <span className="text-xs font-medium">
+                      {defectSortDirection === 'asc' ? '↑' : '↓'}
+                    </span>
+                  )}
+                </button>
+              )}
               <button
                 title="Undo"
                 className={`p-2 rounded transition-colors ${
