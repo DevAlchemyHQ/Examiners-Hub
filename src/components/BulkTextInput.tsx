@@ -533,40 +533,42 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
         // Get the original photo number
         const originalPhotoNumber = parseInt(lastDeleted.originalPhotoNumber || lastDeleted.defect.photoNumber) || 0;
         
-        // Create the restored defect - temporarily assign a high photo number
-        // so it doesn't conflict during sorting
+        // Create the restored defect with its original photo number for sorting
         const restoredDefect = {
           ...lastDeleted.defect,
-          photoNumber: String(originalPhotoNumber + 1000) // Temporary high number
+          photoNumber: String(originalPhotoNumber)
         };
         
         // Add the restored defect to the array
         const defectsWithRestored = [...prev, restoredDefect];
         
-        // Calculate insertion position based on original photo number
-        const insertIndex = Math.max(0, Math.min(originalPhotoNumber - 1, defectsWithRestored.length - 1));
-        
-        // Remove the restored defect from the end
-        const restored = defectsWithRestored.pop()!;
-        
-        // Insert it at the correct position
-        const insertedDefects = [...defectsWithRestored];
-        insertedDefects.splice(insertIndex, 0, restored);
-        
-        // Now renumber ALL defects sequentially from 1 to ensure uniqueness
-        // This is the critical step that prevents duplicates
-        const renumberedDefects = insertedDefects.map((defect, idx) => ({
-          ...defect,
-          photoNumber: String(idx + 1)
-        }));
-        
-        // If sorting is enabled, apply it (but don't renumber again since we just did)
+        // If sorting is enabled, sort first, then renumber
         if (defectSortDirection) {
-          return reorderAndRenumberDefects(renumberedDefects, defectSortDirection, false);
+          // Sort by photo number first (this places restored defect in correct position)
+          const sortedDefects = [...defectsWithRestored].sort((a, b) => {
+            const aNum = parseInt(a.photoNumber) || 0;
+            const bNum = parseInt(b.photoNumber) || 0;
+            return defectSortDirection === 'asc' ? aNum - bNum : bNum - aNum;
+          });
+          
+          // Now renumber ALL defects sequentially from 1 to ensure uniqueness
+          // This prevents duplicates and ensures correct ordering
+          return sortedDefects.map((defect, idx) => ({
+            ...defect,
+            photoNumber: String(idx + 1)
+          }));
+        } else {
+          // Without sorting, insert at the original position
+          const insertIndex = Math.max(0, Math.min(originalPhotoNumber - 1, prev.length));
+          const insertedDefects = [...prev];
+          insertedDefects.splice(insertIndex, 0, restoredDefect);
+          
+          // Renumber sequentially based on position
+          return insertedDefects.map((defect, idx) => ({
+            ...defect,
+            photoNumber: String(idx + 1)
+          }));
         }
-        
-        // Without sorting, return the renumbered defects
-        return renumberedDefects;
       });
       
       // Re-select the image if it was selected
