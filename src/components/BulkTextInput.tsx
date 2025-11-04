@@ -529,47 +529,37 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
       const lastDeleted = deletedDefects[deletedDefects.length - 1];
       setDeletedDefects(prev => prev.slice(0, -1));
       
+      // Set flag to prevent auto-sort from interfering
+      isUndoing.current = true;
+      
       setBulkDefects(prev => {
         // Get the original photo number
         const originalPhotoNumber = parseInt(lastDeleted.originalPhotoNumber || lastDeleted.defect.photoNumber) || 0;
         
-        console.log('🔄 [UNDO] Restoring defect with originalPhotoNumber:', originalPhotoNumber);
-        console.log('🔄 [UNDO] Current defects before restore:', prev.map(d => ({ num: d.photoNumber, desc: d.description })));
-        
-        // Create the restored defect (photo number will be assigned during renumbering)
+        // Create the restored defect with empty photo number
         const restoredDefect = {
           ...lastDeleted.defect,
           photoNumber: '' // Will be assigned during renumbering
         };
         
         // Calculate insertion index based on original photo number
-        // Since defects are already sorted ascending, we insert at the position
-        // that corresponds to the original photo number
         const insertIndex = Math.max(0, Math.min(originalPhotoNumber - 1, prev.length));
-        
-        console.log('🔄 [UNDO] Inserting at index:', insertIndex);
         
         // Insert the restored defect at the correct position
         const insertedDefects = [...prev];
         insertedDefects.splice(insertIndex, 0, restoredDefect);
         
-        console.log('🔄 [UNDO] After insertion:', insertedDefects.map((d, i) => ({ idx: i, num: d.photoNumber, desc: d.description })));
-        
         // Now renumber ALL defects sequentially from 1 to ensure uniqueness
-        // This is the critical step - we renumber based on position, not photo number
+        // This is based on array position, not photo number
         const renumberedDefects = insertedDefects.map((defect, idx) => ({
           ...defect,
           photoNumber: String(idx + 1)
         }));
         
-        console.log('🔄 [UNDO] After renumbering:', renumberedDefects.map((d, i) => ({ idx: i, num: d.photoNumber, desc: d.description })));
-        
-        // Verify no duplicates
-        const photoNumbers = renumberedDefects.map(d => d.photoNumber);
-        const duplicates = photoNumbers.filter((num, idx) => photoNumbers.indexOf(num) !== idx);
-        if (duplicates.length > 0) {
-          console.error('❌ [UNDO] DUPLICATES DETECTED:', duplicates, renumberedDefects);
-        }
+        // Clear the undo flag after a short delay to allow state to settle
+        setTimeout(() => {
+          isUndoing.current = false;
+        }, 100);
         
         return renumberedDefects;
       });
@@ -586,6 +576,7 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
 
   // Prevent race conditions with state updates
   const isUpdating = useRef(false);
+  const isUndoing = useRef(false);
   
   const safeStateUpdate = (updateFn: () => void) => {
     if (isUpdating.current) {
@@ -1161,11 +1152,21 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
   // Only apply when defects are added/removed, not when sort direction changes (toggleSorting handles that)
   // This prevents conflicts where toggleSorting and useEffect both try to sort
   useEffect(() => {
+    // Skip auto-sort if we're currently undoing (prevents interference)
+    if (isUndoing.current) {
+      return;
+    }
+    
     // Get current direction from store to avoid stale closure
     const currentDirection = useMetadataStore.getState().defectSortDirection;
     
     if (currentDirection && bulkDefects.length > 0) {
       const timeoutId = setTimeout(() => {
+        // Double-check we're not undoing
+        if (isUndoing.current) {
+          return;
+        }
+        
         setBulkDefects(prev => {
           // Only apply auto-sorting if it's still enabled
           const latestDirection = useMetadataStore.getState().defectSortDirection;
