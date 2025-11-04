@@ -2729,23 +2729,30 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           
           // Only overwrite local data if AWS data is newer
           if (awsLastActiveTime > localLastActiveTime) {
-            // CRITICAL: Preserve bulkText from current sessionState when loading from AWS
-            // This prevents losing bulkText that was saved locally but not yet synced to AWS
+            // AWS is newer - use AWS sessionState, but handle bulkText merge intelligently:
+            // - If AWS has bulkText, use it (it's from another browser and is newer)
+            // - If AWS doesn't have bulkText but local does, preserve local (it was saved locally but not synced yet)
+            const awsBulkText = project.sessionState?.bulkText;
+            const localBulkText = currentState.sessionState?.bulkText;
+            
             const mergedSessionState = {
               ...project.sessionState,
-              ...(currentState.sessionState?.bulkText && !project.sessionState.bulkText 
-                ? { bulkText: currentState.sessionState.bulkText } 
-                : {})
+              // Use AWS bulkText if it exists (it's newer), otherwise preserve local if it exists
+              ...(awsBulkText 
+                ? { bulkText: awsBulkText } 
+                : (localBulkText ? { bulkText: localBulkText } : {}))
             };
             
-            if (currentState.sessionState?.bulkText && !project.sessionState.bulkText) {
-              console.log('💾 Preserving bulkText when loading from AWS:', currentState.sessionState.bulkText.length, 'characters');
+            if (awsBulkText) {
+              console.log('💾 Using AWS bulkText (AWS is newer):', awsBulkText.length, 'characters');
+            } else if (localBulkText) {
+              console.log('💾 Preserving local bulkText (AWS doesn\'t have it):', localBulkText.length, 'characters');
             }
             
             set({ sessionState: mergedSessionState });
             console.log('✅ Session state loaded from AWS (newer)');
             
-            // Cache to localStorage for faster future access (with preserved bulkText)
+            // Cache to localStorage for faster future access (with merged bulkText)
             const keys = getProjectStorageKeys(userId, 'current');
             localStorage.setItem(`${keys.formData}-session-state`, JSON.stringify(mergedSessionState));
           } else {
@@ -2754,21 +2761,37 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             const awsBulkText = project.sessionState?.bulkText;
             const localBulkText = currentState.sessionState?.bulkText;
             
-            if (awsBulkText && !localBulkText) {
-              // AWS has bulkText but local doesn't - merge it in for cross-browser sync
+            // Merge bulkText from AWS if:
+            // 1. AWS has bulkText and local doesn't, OR
+            // 2. Both have bulkText but they're different (AWS might have newer content from another browser)
+            const shouldUseAWSBulkText = awsBulkText && (
+              !localBulkText || 
+              (localBulkText && awsBulkText !== localBulkText)
+            );
+            
+            if (shouldUseAWSBulkText) {
+              // AWS has bulkText that should be used - merge it in for cross-browser sync
               const mergedSessionState = {
                 ...currentState.sessionState,
                 bulkText: awsBulkText
               };
               
               set({ sessionState: mergedSessionState });
-              console.log('💾 Merged bulkText from AWS for cross-browser sync:', awsBulkText.length, 'characters');
+              console.log('💾 Merged bulkText from AWS for cross-browser sync:', {
+                length: awsBulkText.length,
+                reason: !localBulkText ? 'local missing' : 'different content',
+                localLength: localBulkText?.length || 0
+              });
               
               // Update localStorage with merged state
               const keys = getProjectStorageKeys(userId, 'current');
               localStorage.setItem(`${keys.formData}-session-state`, JSON.stringify(mergedSessionState));
             } else {
-              console.log('⚠️ Skipping AWS sessionState - local data is newer');
+              console.log('⚠️ Skipping AWS sessionState - local data is newer', {
+                hasAWSBulkText: !!awsBulkText,
+                hasLocalBulkText: !!localBulkText,
+                areSame: awsBulkText === localBulkText
+              });
             }
           }
         }
