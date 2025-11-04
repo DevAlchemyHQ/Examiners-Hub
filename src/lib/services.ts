@@ -1403,10 +1403,25 @@ export class DatabaseService {
       }
       
       // Process adds and updates (using PutRequest which upserts)
+      // CRITICAL: Deduplicate by defect_id to prevent "duplicate keys" error
       const allUpdates = [...toAdd, ...toUpdate];
-      if (allUpdates.length > 0) {
-        console.log('➕ Adding/updating defects...');
-        const putRequests = allUpdates.map(defect => {
+      const deduplicatedUpdates = new Map<string, any>();
+      
+      // Use last occurrence of each defect_id (toUpdate takes priority over toAdd)
+      allUpdates.forEach(defect => {
+        const defectId = defect.id || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        deduplicatedUpdates.set(defectId, defect);
+      });
+      
+      const uniqueUpdates = Array.from(deduplicatedUpdates.values());
+      
+      if (uniqueUpdates.length > 0) {
+        console.log('➕ Adding/updating defects...', {
+          total: allUpdates.length,
+          unique: uniqueUpdates.length,
+          duplicates: allUpdates.length - uniqueUpdates.length
+        });
+        const putRequests = uniqueUpdates.map(defect => {
           const defectId = defect.id || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
           
           return {
@@ -1437,7 +1452,7 @@ export class DatabaseService {
           await docClient.send(batchPutCommand);
         }
         
-        console.log(`✅ Added/updated ${allUpdates.length} defects`);
+        console.log(`✅ Added/updated ${uniqueUpdates.length} defects (deduplicated from ${allUpdates.length})`);
       }
       
       if (toAdd.length === 0 && toUpdate.length === 0 && toDelete.length === 0) {

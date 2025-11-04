@@ -482,16 +482,36 @@ export const BulkTextInput = forwardRef<BulkTextInputRef, { isExpanded?: boolean
         // Update session state to preserve bulk defect order
         setTimeout(() => {
           const { updateSessionState } = useMetadataStore.getState();
+          const order = renumberedItems.map(defect => defect.id).filter(Boolean) as string[];
           updateSessionState({ 
-            bulkDefectOrder: renumberedItems.map(defect => defect.id).filter(Boolean) as string[]
+            bulkDefectOrder: order
           });
         }, 100);
         
         // Apply ascending sort after drag completes (always ascending for bulk defects)
+        // CRITICAL: Save order AFTER sort completes to ensure final order is saved
         setTimeout(() => {
           setDefectSortDirection('asc');
           // Re-apply sorting (always ascending)
-          setBulkDefects(current => reorderAndRenumberDefects(current, 'asc'));
+          setBulkDefects(current => {
+            const sorted = reorderAndRenumberDefects(current, 'asc');
+            
+            // CRITICAL: Save order immediately after sort for cross-browser sync
+            setTimeout(() => {
+              const { updateSessionState, saveBulkData } = useMetadataStore.getState();
+              const order = sorted.map(defect => defect.id).filter(Boolean) as string[];
+              updateSessionState({ 
+                bulkDefectOrder: order
+              });
+              // Force immediate save to AWS for cross-browser sync
+              saveBulkData().catch(error => {
+                console.error('❌ Error saving bulk defects after drag sort:', error);
+              });
+              console.log('💾 [DRAG] Saved bulk defect order immediately after sort:', order);
+            }, 50);
+            
+            return sorted;
+          });
         }, 100);
         
         return renumberedItems;
@@ -665,6 +685,17 @@ export const BulkTextInput = forwardRef<BulkTextInputRef, { isExpanded?: boolean
           console.log('🔄 [UNDO] Clearing undo flag');
           isUndoing.current = false;
           isUndoingGlobal = false;
+          
+          // CRITICAL: Save immediately to AWS for cross-browser sync
+          const { saveBulkData, updateSessionState } = useMetadataStore.getState();
+          const order = renumberedDefects.map(defect => defect.id).filter(Boolean) as string[];
+          updateSessionState({ 
+            bulkDefectOrder: order
+          });
+          saveBulkData().catch(error => {
+            console.error('❌ Error saving bulk defects after undo:', error);
+          });
+          console.log('💾 [UNDO] Saved bulk defects immediately for cross-browser sync');
         }, 500);
         
         return renumberedDefects;
