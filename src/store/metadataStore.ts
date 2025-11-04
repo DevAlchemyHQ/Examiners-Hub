@@ -123,8 +123,40 @@ class MinimalCrossBrowserSync {
     
     // Listen to localStorage changes for same-browser sync
     this.storageListener = (event: StorageEvent) => {
-      if (event.key && event.key.includes('session-state') && event.newValue) {
-        console.log('📦 Storage event detected:', event.key);
+      if (event.key && event.key.includes('session-state')) {
+        console.log('📦 Storage event detected:', event.key, 'newValue:', event.newValue ? 'present' : 'null');
+        
+        // Handle clearing (null newValue means key was removed)
+        if (!event.newValue) {
+          console.log('🗑️ Storage key cleared:', event.key);
+          // If formData session state was cleared, clear the form data
+          if (event.key.includes('formData-session-state')) {
+            console.log('🗑️ Form data session state cleared - clearing form data');
+            useMetadataStore.setState({ 
+              formData: {
+                elr: '',
+                structureNo: '',
+                date: ''
+              },
+              sessionState: {
+                ...useMetadataStore.getState().sessionState,
+                formData: {
+                  elr: '',
+                  structureNo: '',
+                  date: ''
+                },
+                lastActiveTime: Date.now()
+              }
+            });
+            
+            if (typeof toast !== 'undefined') {
+              toast.success('Form data cleared (synced from another tab)');
+            }
+          }
+          return;
+        }
+        
+        // Handle updates (newValue is present)
         try {
           const sessionData = JSON.parse(event.newValue);
           if (sessionData.formData) {
@@ -2755,29 +2787,48 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           const localHasValues = !!(localFormData as any)?.elr?.trim() || !!(localFormData as any)?.structureNo?.trim();
           const awsHasValues = !!project.formData?.elr?.trim() || !!project.formData?.structureNo?.trim();
           
+          // Check if AWS data is newer (indicating a recent clear or update)
+          const awsIsNewer = awsLastActiveTime > localLastActiveTime;
+          
           // Use AWS data if:
           // 1. AWS has values AND (local is empty OR AWS is different), OR
-          // 2. Local has no values AND AWS has no values (both empty - use AWS for consistency)
+          // 2. Local has no values AND AWS has no values (both empty - use AWS for consistency), OR
+          // 3. AWS is empty AND AWS is newer (project was cleared - sync the clear)
           const shouldUseAWS = (awsHasValues && (!localHasValues || dataIsDifferent)) || 
-                               (!localHasValues && !awsHasValues && dataIsDifferent);
+                               (!localHasValues && !awsHasValues && dataIsDifferent) ||
+                               (!awsHasValues && awsIsNewer && dataIsDifferent);
           
           if (shouldUseAWS) {
             console.log('🔄 Loading AWS data for cross-browser sync', { 
               localHasValues,
               awsHasValues,
               dataIsDifferent,
+              awsIsNewer,
               local: localFormData,
               aws: project.formData
             });
             set({ formData: project.formData as FormData });
             
-            // Update localStorage to match AWS
+            // Update localStorage to match AWS (including empty values if cleared)
             const keys = getProjectStorageKeys(userId, 'current');
-            localStorage.setItem(keys.formData, JSON.stringify(project.formData));
+            saveVersionedData(keys.formData, projectId, userId, project.formData);
             console.log('✅ Cross-browser sync complete - localStorage updated');
-          } else if (localHasValues && !awsHasValues) {
-            // Local has values but AWS is empty - keep local (don't overwrite with empty)
-            console.log('⏸️ Keeping local form data - AWS has empty values');
+            
+            // If AWS form data is empty (cleared), also clear session state form data
+            if (!awsHasValues) {
+              console.log('🗑️ AWS form data is empty - clearing session state form data');
+              const currentState = get();
+              set({
+                sessionState: {
+                  ...currentState.sessionState,
+                  formData: project.formData as FormData,
+                  lastActiveTime: awsLastActiveTime || Date.now()
+                }
+              });
+            }
+          } else if (localHasValues && !awsHasValues && !awsIsNewer) {
+            // Local has values but AWS is empty AND AWS is not newer - keep local (don't overwrite with old empty)
+            console.log('⏸️ Keeping local form data - AWS has empty values but is older');
           } else {
             console.log('✅ Local and AWS data match - using local');
           }
@@ -4804,36 +4855,59 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           console.log('📋 Session state form data:', sessionState.formData);
           console.log('📋 Current form data:', currentState.formData);
           
-          // Standardize and merge form data
-          let mergedFormData = { ...currentState.formData };
+          // Check if session state form data is empty (cleared)
+          const sessionHasValues = !!(sessionState.formData.elr?.trim()) || !!(sessionState.formData.structureNo?.trim());
+          const sessionIsEmpty = !sessionHasValues && 
+                                 (!sessionState.formData.elr || sessionState.formData.elr === '') &&
+                                 (!sessionState.formData.structureNo || sessionState.formData.structureNo === '');
           
-          if (sessionState.formData.date) {
-            const standardizedDate = standardizeDate(sessionState.formData.date);
-            mergedFormData.date = standardizedDate;
-            console.log('📅 Restored date:', standardizedDate);
-          }
-          
-          // Merge elr, structureNo, and other fields
-          if (sessionState.formData.elr) {
-            mergedFormData.elr = sessionState.formData.elr;
-            console.log('📝 Restored elr:', sessionState.formData.elr);
-          }
-          
-          if (sessionState.formData.structureNo) {
-            mergedFormData.structureNo = sessionState.formData.structureNo;
-            console.log('📝 Restored structureNo:', sessionState.formData.structureNo);
-          }
-          
-          // Merge any additional fields
-          Object.keys(sessionState.formData).forEach(key => {
-            if (key !== 'date' && key !== 'elr' && key !== 'structureNo' && sessionState.formData[key]) {
-              mergedFormData[key as keyof typeof mergedFormData] = sessionState.formData[key];
-              console.log(`📝 Restored ${key}:`, sessionState.formData[key]);
+          // If session state form data is empty and has recent timestamp, clear form data
+          if (sessionIsEmpty && sessionState.lastActiveTime && 
+              sessionState.lastActiveTime > (currentState.sessionState?.lastActiveTime || 0)) {
+            console.log('🗑️ Session state form data is empty (cleared) - clearing form data');
+            set({ 
+              formData: {
+                elr: '',
+                structureNo: '',
+                date: ''
+              }
+            });
+            console.log('✅ Form data cleared from session state');
+          } else if (sessionHasValues) {
+            // Only restore if session state has actual values
+            // Standardize and merge form data
+            let mergedFormData = { ...currentState.formData };
+            
+            if (sessionState.formData.date) {
+              const standardizedDate = standardizeDate(sessionState.formData.date);
+              mergedFormData.date = standardizedDate;
+              console.log('📅 Restored date:', standardizedDate);
             }
-          });
-          
-          set({ formData: mergedFormData });
-          console.log('✅ Form data merged and restored:', mergedFormData);
+            
+            // Merge elr, structureNo, and other fields
+            if (sessionState.formData.elr) {
+              mergedFormData.elr = sessionState.formData.elr;
+              console.log('📝 Restored elr:', sessionState.formData.elr);
+            }
+            
+            if (sessionState.formData.structureNo) {
+              mergedFormData.structureNo = sessionState.formData.structureNo;
+              console.log('📝 Restored structureNo:', sessionState.formData.structureNo);
+            }
+            
+            // Merge any additional fields
+            Object.keys(sessionState.formData).forEach(key => {
+              if (key !== 'date' && key !== 'elr' && key !== 'structureNo' && sessionState.formData[key]) {
+                mergedFormData[key as keyof typeof mergedFormData] = sessionState.formData[key];
+                console.log(`📝 Restored ${key}:`, sessionState.formData[key]);
+              }
+            });
+            
+            set({ formData: mergedFormData });
+            console.log('✅ Form data merged and restored:', mergedFormData);
+          } else {
+            console.log('⚠️ Session state form data is empty but older - keeping current form data');
+          }
         } else {
           console.log('⚠️ No form data available in session state');
         }

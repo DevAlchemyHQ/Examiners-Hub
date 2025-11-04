@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { DatabaseService, StorageService, AuthService } from '../lib/services';
 import { useMetadataStore } from './metadataStore';
 import { usePDFStore } from './pdfStore';
+import { getAllProjectStorageKeys } from '../utils/idGenerator';
 
 interface ProjectState {
   isLoading: boolean;
@@ -159,12 +160,31 @@ export const useProjectStore = create<ProjectState>((set) => ({
         console.log('✅ Metadata store reset');
         
         // Explicitly clear form data to ensure it's empty
+        // This will trigger broadcast and AWS save
         useMetadataStore.getState().setFormData({
           elr: '',
           structureNo: '',
           date: ''
         });
         console.log('✅ Form data explicitly cleared');
+        
+        // Also broadcast clear via BroadcastChannel for same-browser sync
+        if (typeof BroadcastChannel !== 'undefined') {
+          try {
+            const channel = new BroadcastChannel('exametry-sync');
+            channel.postMessage({
+              type: 'formDataUpdate',
+              data: { 
+                formData: { elr: '', structureNo: '', date: '' }, 
+                timestamp: Date.now() 
+              }
+            });
+            console.log('📡 Clear broadcast sent via BroadcastChannel');
+            channel.close();
+          } catch (error) {
+            console.error('❌ Error broadcasting clear:', error);
+          }
+        }
         
         // Double-check: Clear S3 files tracking immediately
         if (userEmail) {
@@ -309,24 +329,76 @@ export const useProjectStore = create<ProjectState>((set) => ({
         console.error('Error clearing PDF store persisted storage:', error);
       }
 
-      // Clear any remaining project-related keys
+      // CRITICAL: Clear project-specific localStorage keys using getProjectStorageKeys
+      if (userEmail) {
+        console.log('🗑️ Step 6c: Clearing project-specific storage keys...');
+        try {
+          const projectStorageKeys = getAllProjectStorageKeys(userEmail, 'current');
+          const keysToClear = [
+            projectStorageKeys.formData,
+            projectStorageKeys.images,
+            projectStorageKeys.selections,
+            projectStorageKeys.bulkData,
+            projectStorageKeys.sessionState,
+            projectStorageKeys.instanceMetadata,
+            projectStorageKeys.sortPreferences,
+            // Also clear the session state key used by restoreSessionState
+            `${projectStorageKeys.formData}-session-state`
+          ];
+          
+          console.log('🔑 Project storage keys to clear:', keysToClear);
+          
+          keysToClear.forEach(key => {
+            try {
+              const beforeValue = localStorage.getItem(key);
+              localStorage.removeItem(key);
+              sessionStorage.removeItem(key);
+              console.log(`🗑️ Removed project key: ${key} (was: ${beforeValue ? 'present' : 'not present'})`);
+              
+              // Trigger storage event for cross-browser sync
+              // This will notify other browser tabs/windows that the data was cleared
+              window.dispatchEvent(new StorageEvent('storage', {
+                key: key,
+                newValue: null,
+                oldValue: beforeValue,
+                storageArea: localStorage
+              }));
+            } catch (error) {
+              console.error(`Error removing project key ${key}:`, error);
+            }
+          });
+          
+          console.log('✅ Project-specific storage keys cleared');
+        } catch (error) {
+          console.error('Error clearing project-specific storage keys:', error);
+        }
+      }
+
+      // Clear any remaining project-related keys (fallback for any missed keys)
       const remainingKeys = Object.keys(localStorage);
       const projectKeys = remainingKeys.filter(key =>
-        (key.includes('project') || key.includes('image') || key.includes('form') ||
-         key.includes('selection') || key.includes('bulk') || key.includes('pdf') ||
-         key.includes('session') || key.includes('aws') || key.includes('s3')) &&
+        (key.includes('project_') || key.includes('proj_')) &&
         !key.includes('load-defects') && !key.includes('defects-data') &&
         !key.includes('defect-sets') && !key.includes('saved-defects') &&
-        !key.includes('isAuthenticated') && !key.includes('user') &&
-        !key.includes('userEmail') && !key.includes('session') && !key.includes('auth')
+        !key.includes('isAuthenticated') && !key.includes('userEmail') &&
+        !key.includes('auth') && !key.includes('user') && !key.includes('email')
       );
 
       console.log(`🔍 Found ${projectKeys.length} additional project keys to remove:`, projectKeys);
       projectKeys.forEach(key => {
         try {
+          const beforeValue = localStorage.getItem(key);
           localStorage.removeItem(key);
           sessionStorage.removeItem(key);
-          console.log(`🗑️ Removed additional key: ${key}`);
+          console.log(`🗑️ Removed additional project key: ${key}`);
+          
+          // Trigger storage event for cross-browser sync
+          window.dispatchEvent(new StorageEvent('storage', {
+            key: key,
+            newValue: null,
+            oldValue: beforeValue,
+            storageArea: localStorage
+          }));
         } catch (error) {
           console.error(`Error removing key ${key}:`, error);
         }
