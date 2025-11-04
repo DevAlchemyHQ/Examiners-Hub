@@ -533,51 +533,36 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
         // Get the original photo number
         const originalPhotoNumber = parseInt(lastDeleted.originalPhotoNumber || lastDeleted.defect.photoNumber) || 0;
         
-        // Create the restored defect with its ORIGINAL photo number
-        // This allows the sort function to place it correctly
+        // Create the restored defect - we'll assign photo number after insertion
         const restoredDefect = {
           ...lastDeleted.defect,
-          photoNumber: String(originalPhotoNumber) // Use original photo number for sorting
+          photoNumber: '' // Will be assigned during renumbering
         };
         
-        // Add the restored defect to the array
-        const newDefects = [...prev, restoredDefect];
-        
         if (defectSortDirection) {
-          // With sorting enabled, we need to reconstruct original photo numbers for all defects
-          // to ensure correct sorting. Since defects were renumbered after deletion, we need to
-          // figure out what their original photo numbers were.
+          // With sorting enabled, we need to insert at the position that would be correct
+          // after sorting. Since we're in ascending sort mode by default, we insert based
+          // on the original photo number position.
           
-          // Strategy: Find the maximum current photo number, then assign temporary photo numbers
-          // that preserve relative order but allow the restored defect to sort correctly
-          const maxCurrentNumber = Math.max(...prev.map(d => parseInt(d.photoNumber) || 0), 0);
+          // Calculate insertion index: originalPhotoNumber - 1 (convert to 0-based)
+          // This ensures the restored defect is placed at its original position
+          const insertIndex = Math.max(0, Math.min(originalPhotoNumber - 1, prev.length));
           
-          // Assign temporary photo numbers to current defects: shift them if needed
-          // If originalPhotoNumber <= maxCurrentNumber, we need to shift numbers to make room
-          const adjustedDefects = prev.map((defect, idx) => {
-            const currentNum = parseInt(defect.photoNumber) || 0;
-            // If current number >= originalPhotoNumber, shift it up by 1 to make room
-            if (currentNum >= originalPhotoNumber) {
-              return { ...defect, photoNumber: String(currentNum + 1) };
-            }
-            return defect;
-          });
+          // Insert the restored defect at the calculated position
+          const insertedDefects = [...prev];
+          insertedDefects.splice(insertIndex, 0, restoredDefect);
           
-          // Now add the restored defect with its original photo number
-          const defectsWithTempNumbers = [...adjustedDefects, restoredDefect];
-          
-          // Sort by photo number (this will place restored defect at correct position)
-          const sortedDefects = [...defectsWithTempNumbers].sort((a, b) => {
-            const aNum = parseInt(a.photoNumber) || 0;
-            const bNum = parseInt(b.photoNumber) || 0;
-            return defectSortDirection === 'asc' ? aNum - bNum : bNum - aNum;
-          });
-          
-          // Finally, renumber all defects sequentially
-          return sortedDefects.map((defect, idx) => ({
+          // Now renumber ALL defects sequentially from 1 to ensure uniqueness
+          // This prevents duplicates and ensures correct ordering
+          const renumberedDefects = insertedDefects.map((defect, idx) => ({
             ...defect,
             photoNumber: String(idx + 1)
           }));
+          
+          // After renumbering, reapply sorting if needed
+          // Since all numbers are now sequential, sorting won't change the order,
+          // but this ensures consistency
+          return reorderAndRenumberDefects(renumberedDefects, defectSortDirection);
         } else {
           // Without sorting, insert at the original position
           const insertIndex = Math.max(0, Math.min(originalPhotoNumber - 1, prev.length));
