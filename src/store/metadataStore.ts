@@ -2729,12 +2729,25 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
           
           // Only overwrite local data if AWS data is newer
           if (awsLastActiveTime > localLastActiveTime) {
-            set({ sessionState: project.sessionState });
+            // CRITICAL: Preserve bulkText from current sessionState when loading from AWS
+            // This prevents losing bulkText that was saved locally but not yet synced to AWS
+            const mergedSessionState = {
+              ...project.sessionState,
+              ...(currentState.sessionState?.bulkText && !project.sessionState.bulkText 
+                ? { bulkText: currentState.sessionState.bulkText } 
+                : {})
+            };
+            
+            if (currentState.sessionState?.bulkText && !project.sessionState.bulkText) {
+              console.log('💾 Preserving bulkText when loading from AWS:', currentState.sessionState.bulkText.length, 'characters');
+            }
+            
+            set({ sessionState: mergedSessionState });
             console.log('✅ Session state loaded from AWS (newer)');
             
-            // Cache to localStorage for faster future access
+            // Cache to localStorage for faster future access (with preserved bulkText)
             const keys = getProjectStorageKeys(userId, 'current');
-            localStorage.setItem(`${keys.formData}-session-state`, JSON.stringify(project.sessionState));
+            localStorage.setItem(`${keys.formData}-session-state`, JSON.stringify(mergedSessionState));
           } else {
             console.log('⚠️ Skipping AWS sessionState - local data is newer');
           }
@@ -4490,8 +4503,23 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
               sessionState = result.project.sessionState;
               console.log('📋 Loaded session state from AWS:', sessionState);
               
-              // Save to localStorage for faster future access
-              localStorage.setItem(`${keys.formData}-session-state`, JSON.stringify(sessionState));
+              // CRITICAL: Preserve bulkText from current sessionState when caching from AWS
+              // This prevents losing bulkText that was saved locally but not yet synced to AWS
+              const currentState = get();
+              const mergedSessionState = {
+                ...sessionState,
+                ...(currentState.sessionState?.bulkText && !sessionState.bulkText 
+                  ? { bulkText: currentState.sessionState.bulkText } 
+                  : {})
+              };
+              
+              if (currentState.sessionState?.bulkText && !sessionState.bulkText) {
+                console.log('💾 Preserving bulkText when caching from AWS:', currentState.sessionState.bulkText.length, 'characters');
+                sessionState = mergedSessionState; // Update sessionState for use below
+              }
+              
+              // Save to localStorage for faster future access (with preserved bulkText)
+              localStorage.setItem(`${keys.formData}-session-state`, JSON.stringify(mergedSessionState));
               console.log('💾 Cached session state to localStorage');
               
               // Also restore sort preferences if available
@@ -4524,6 +4552,9 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         if (currentState.sessionState?.bulkText && !sessionState.bulkText) {
           console.log('💾 Preserving existing bulkText during restore:', currentState.sessionState.bulkText.length, 'characters');
         }
+        
+        // Use mergedSessionState for all subsequent operations
+        sessionState = mergedSessionState;
         
         // Update the session state with merged data
         set({ sessionState: mergedSessionState });
@@ -4722,6 +4753,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       imageCount: autoUpdates.imageOrder.length,
       selectedCount: autoUpdates.selectedImageOrder.length,
       bulkCount: autoUpdates.bulkDefectOrder.length,
+      bulkTextLength: newSessionState.bulkText ? newSessionState.bulkText.length : 0,
       updates: updates
     });
     
