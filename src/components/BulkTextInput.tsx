@@ -131,21 +131,26 @@ export const BulkTextInput = forwardRef<BulkTextInputRef, { isExpanded?: boolean
   const actualShowBulkPaste = setShowBulkPaste ? false : showBulkPaste;
 
   // Restore bulkText from session state for persistence (reactive to sessionState changes)
-  // Use a ref to track the last restored value to avoid unnecessary restores
-  const lastRestoredRef = useRef<string | null>(null);
+  // Use a ref to track if we've attempted restoration to avoid infinite loops
+  const hasAttemptedRestoreRef = useRef(false);
   
   useEffect(() => {
-    // Restore bulkText from session state if it exists and is different from what we last restored
+    // Restore bulkText from session state if it exists
     // This ensures we restore on mount AND when sessionState is loaded from AWS
     if (sessionState.bulkText !== undefined && sessionState.bulkText !== null && sessionState.bulkText !== '') {
-      // Only restore if:
-      // 1. We haven't restored this value before (to avoid loops)
-      // 2. Current bulkText is empty (to avoid overwriting user's current work)
-      if (lastRestoredRef.current !== sessionState.bulkText && (!bulkText || bulkText.trim() === '')) {
+      // Only restore if current bulkText is empty (to avoid overwriting user's current work)
+      // This allows restore to happen when:
+      // 1. Component mounts with empty text
+      // 2. SessionState loads from AWS after mount (with empty text)
+      // 3. After processing text clears it (if user wants to keep working)
+      if (!bulkText || bulkText.trim() === '') {
         setBulkText(sessionState.bulkText);
-        lastRestoredRef.current = sessionState.bulkText;
         console.log('📝 Restored bulkText from session state:', sessionState.bulkText.length, 'characters');
+        hasAttemptedRestoreRef.current = true;
       }
+    } else if (sessionState.bulkText === undefined && !hasAttemptedRestoreRef.current) {
+      // Mark that we've checked for restore (even if nothing was found)
+      hasAttemptedRestoreRef.current = true;
     }
   }, [sessionState.bulkText, bulkText]); // React to sessionState.bulkText changes (when AWS loads it)
 
@@ -779,7 +784,8 @@ export const BulkTextInput = forwardRef<BulkTextInputRef, { isExpanded?: boolean
           }
         });
         
-        setBulkText('');
+        // Don't clear bulkText - let user keep their text for further processing or editing
+        // setBulkText('');
         setShowBulkPasteState(false);
         toast.success(`Imported ${newDefects.length} defects successfully!`);
       } catch (error) {
@@ -822,7 +828,8 @@ export const BulkTextInput = forwardRef<BulkTextInputRef, { isExpanded?: boolean
         
         return updated;
       });
-      setBulkText('');
+      // Don't clear bulkText - let user keep their text for further processing or editing
+      // setBulkText('');
       setShowBulkPasteState(false);
       toast.success(`Added ${newDefects.length} defects from text!`);
     }
