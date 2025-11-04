@@ -369,12 +369,20 @@ const forceAWSSave = async (sessionState: any, fullFormData?: any) => {
       const formDataToSave = fullFormData || sessionState.formData || {};
       
       console.log('☁️ [IMMEDIATE] Saving complete formData:', formDataToSave);
+      console.log('☁️ [IMMEDIATE] SessionState being saved:', {
+        bulkTextLength: sessionState.bulkText ? sessionState.bulkText.length : 0,
+        bulkTextPreview: sessionState.bulkText ? sessionState.bulkText.substring(0, 100) + '...' : 'none',
+        hasBulkText: !!sessionState.bulkText,
+        sessionStateKeys: Object.keys(sessionState)
+      });
       
       await DatabaseService.updateProject(user.email, 'current', { 
         formData: formDataToSave, // ✅ Always send complete formData
         sessionState: sessionState
       });
-      console.log('✅ [IMMEDIATE] Session state forced to AWS successfully with complete formData');
+      console.log('✅ [IMMEDIATE] Session state forced to AWS successfully', {
+        bulkTextLength: sessionState.bulkText ? sessionState.bulkText.length : 0
+      });
     }
   } catch (error) {
     console.error('❌ [IMMEDIATE] Error forcing session state to AWS:', error);
@@ -4503,15 +4511,24 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       effectiveViewMode,
       lastActiveTab: sessionState.lastActiveTab,
       storageKey: `${keys.formData}-session-state`,
+      bulkTextLength: sessionState.bulkText ? sessionState.bulkText.length : 0,
+      bulkTextPreview: sessionState.bulkText ? sessionState.bulkText.substring(0, 50) + '...' : 'none',
+      hasBulkText: !!sessionState.bulkText,
       fullSessionState: sessionState
     });
 
     try {
       localStorage.setItem(`${keys.formData}-session-state`, JSON.stringify(sessionState));
-      console.log('✅ [FORCE SAVE] Session state saved successfully to localStorage');
+      console.log('✅ [FORCE SAVE] Session state saved successfully to localStorage', {
+        bulkTextLength: sessionState.bulkText ? sessionState.bulkText.length : 0
+      });
       
       // Force immediate AWS save for critical operations with complete formData
       const currentState = get();
+      console.log('💾 [FORCE SAVE] About to save to AWS:', {
+        bulkTextLength: sessionState.bulkText ? sessionState.bulkText.length : 0,
+        bulkTextInSessionState: !!sessionState.bulkText
+      });
       await forceAWSSave(sessionState, currentState.formData);
     } catch (error) {
       console.error('❌ [FORCE SAVE] Error saving session state:', error);

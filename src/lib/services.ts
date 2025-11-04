@@ -1097,6 +1097,15 @@ export class DatabaseService {
               ...mergedSessionState,
               ...smallData.sessionState
             };
+            
+            // CRITICAL: Log bulkText merge to debug truncation issues
+            console.log('🔄 AWS sessionState merge:', {
+              existingBulkTextLength: existingProject.sessionState?.bulkText?.length || 0,
+              newBulkTextLength: smallData.sessionState?.bulkText?.length || 0,
+              mergedBulkTextLength: mergedSessionState.bulkText?.length || 0,
+              hasNewBulkText: !!smallData.sessionState.bulkText,
+              hasExistingBulkText: !!existingProject.sessionState?.bulkText
+            });
           }
           
           // ✅ Critical: Always use NEW formData, NEVER fall back to old data
