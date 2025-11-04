@@ -4602,7 +4602,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         
         // Restore formData from session state with merging logic
         // Merge to preserve existing date, elr, and structureNo fields
-        const currentState = get();
+        // currentState already declared above, reuse it
         
         if (sessionState.formData) {
           console.log('📋 Session state form data:', sessionState.formData);
