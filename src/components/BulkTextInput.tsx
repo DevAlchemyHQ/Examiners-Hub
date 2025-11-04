@@ -556,10 +556,18 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
           photoNumber: String(idx + 1)
         }));
         
-        // Clear the undo flag after a short delay to allow state to settle
+        // Verify no duplicates after renumbering
+        const photoNumbers = renumberedDefects.map(d => d.photoNumber);
+        const duplicates = photoNumbers.filter((num, idx) => photoNumbers.indexOf(num) !== idx);
+        if (duplicates.length > 0) {
+          console.error('❌ [UNDO] DUPLICATES DETECTED AFTER RENUMBERING:', duplicates);
+        }
+        
+        // Clear the undo flag after a longer delay to ensure auto-sort doesn't interfere
+        // The auto-sort has a 300ms debounce, so we wait 400ms to be safe
         setTimeout(() => {
           isUndoing.current = false;
-        }, 100);
+        }, 400);
         
         return renumberedDefects;
       });
