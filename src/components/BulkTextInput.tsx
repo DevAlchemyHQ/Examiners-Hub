@@ -220,11 +220,15 @@ export const BulkTextInput = forwardRef<BulkTextInputRef, { isExpanded?: boolean
       // Use the latest bulkText value from the closure
       const textToSave = bulkText;
       if (textToSave && textToSave.trim() !== '') {
-        const { updateSessionState } = useMetadataStore.getState();
+        const { updateSessionState, forceSessionStateSave } = useMetadataStore.getState();
         updateSessionState({
           bulkText: textToSave
         });
         console.log('💾 Saved bulkText on unmount:', textToSave.length, 'characters');
+        // Force immediate AWS save to ensure bulkText persists across refreshes
+        forceSessionStateSave().catch(error => {
+          console.error('❌ Error forcing bulkText save to AWS on unmount:', error);
+        });
       }
     };
   }, [bulkText]);
@@ -1633,11 +1637,15 @@ export const BulkTextInput = forwardRef<BulkTextInputRef, { isExpanded?: boolean
                 onBlur={(e) => {
                   // Save immediately on blur to ensure persistence (use event value for latest text)
                   const textToSave = e.target.value;
-                  const { updateSessionState } = useMetadataStore.getState();
+                  const { updateSessionState, forceSessionStateSave } = useMetadataStore.getState();
                   updateSessionState({
                     bulkText: textToSave
                   });
                   console.log('💾 Saved bulkText on blur:', textToSave.length, 'characters');
+                  // Force immediate AWS save to ensure bulkText persists across refreshes
+                  forceSessionStateSave().catch(error => {
+                    console.error('❌ Error forcing bulkText save to AWS:', error);
+                  });
                 }}
                 className={`w-full min-h-[96px] p-3 text-sm border rounded-xl focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 bg-white/80 dark:bg-gray-800/80 text-slate-900 dark:text-white resize-y ${
                   bulkText.includes('/') ? 'border-amber-300 dark:border-amber-600' : 'border-slate-200/50 dark:border-gray-700/50'

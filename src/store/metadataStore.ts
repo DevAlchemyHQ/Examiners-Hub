@@ -4510,8 +4510,21 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       if (sessionState) {
         console.log('📋 Using session state:', sessionState);
         
-        // Update the session state
-        set({ sessionState });
+        // CRITICAL: Merge loaded sessionState with current sessionState to preserve fields like bulkText
+        // This prevents losing bulkText when restoring from AWS/localStorage that might not have it yet
+        const currentState = get();
+        const mergedSessionState = {
+          ...sessionState, // Loaded state takes priority
+          // But preserve bulkText from current state if loaded state doesn't have it
+          ...(currentState.sessionState?.bulkText && !sessionState.bulkText ? { bulkText: currentState.sessionState.bulkText } : {})
+        };
+        
+        if (currentState.sessionState?.bulkText && !sessionState.bulkText) {
+          console.log('💾 Preserving existing bulkText during restore:', currentState.sessionState.bulkText.length, 'characters');
+        }
+        
+        // Update the session state with merged data
+        set({ sessionState: mergedSessionState });
         
           // Restore sort preferences from session state
         if (sessionState.sortPreferences) {
