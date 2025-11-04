@@ -147,6 +147,12 @@ export const BulkTextInput = forwardRef<BulkTextInputRef, { isExpanded?: boolean
         setEnlargedImage(sessionState.uiState.enlargedImage);
       }
     }
+    
+    // Restore bulkText from session state for persistence
+    if (sessionState.bulkText !== undefined) {
+      setBulkText(sessionState.bulkText);
+      console.log('📝 Restored bulkText from session state:', sessionState.bulkText.length, 'characters');
+    }
   }, []);
 
   // Save UI state to session when it changes
@@ -161,6 +167,19 @@ export const BulkTextInput = forwardRef<BulkTextInputRef, { isExpanded?: boolean
       }
     });
   }, [showBulkPasteState, showImages, showDefectImport, enlargedImage]);
+
+  // Save bulkText to session state for persistence (debounced)
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      const { updateSessionState } = useMetadataStore.getState();
+      updateSessionState({
+        bulkText: bulkText
+      });
+      console.log('💾 Saved bulkText to session state:', bulkText.length, 'characters');
+    }, 500); // Debounce to avoid excessive saves during typing
+    
+    return () => clearTimeout(timeoutId);
+  }, [bulkText]);
 
   // Load bulk data on component mount
   useEffect(() => {

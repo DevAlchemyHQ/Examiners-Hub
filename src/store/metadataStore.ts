@@ -234,6 +234,7 @@ interface SessionState {
     sketchSortDirection: 'asc' | 'desc' | null;
   };
   lastSortChangeTime?: number; // Timestamp to prevent polling from reverting recent changes
+  bulkText?: string; // Persist bulk paste text for cross-browser sync
 }
 
 // Debouncing for AWS saves to reduce costs
