@@ -135,19 +135,29 @@ export const BulkTextInput = forwardRef<BulkTextInputRef, { isExpanded?: boolean
   const lastRestoredRef = useRef<string | null>(null);
   
   useEffect(() => {
-    // Restore bulkText from session state if it exists and is different from what we last restored
+    // Restore bulkText from session state if it exists
     // This ensures we restore on mount AND when sessionState is loaded from AWS
     if (sessionState.bulkText !== undefined && sessionState.bulkText !== null && sessionState.bulkText !== '') {
       // Only restore if:
       // 1. Current bulkText is empty (to avoid overwriting user's current work)
       // 2. We haven't restored this exact value before (to prevent infinite loops)
       if ((!bulkText || bulkText.trim() === '') && lastRestoredRef.current !== sessionState.bulkText) {
+        console.log('📝 Restoring bulkText from session state:', {
+          length: sessionState.bulkText.length,
+          currentBulkText: bulkText ? bulkText.length : 0,
+          lastRestored: lastRestoredRef.current ? lastRestoredRef.current.length : null
+        });
         setBulkText(sessionState.bulkText);
         lastRestoredRef.current = sessionState.bulkText;
-        console.log('📝 Restored bulkText from session state:', sessionState.bulkText.length, 'characters');
+        console.log('✅ Restored bulkText from session state:', sessionState.bulkText.length, 'characters');
       }
+    } else {
+      console.log('⚠️ bulkText not available in sessionState:', {
+        bulkText: sessionState.bulkText,
+        currentBulkText: bulkText ? bulkText.length : 0
+      });
     }
-  }, [sessionState.bulkText, bulkText]); // React to sessionState.bulkText changes (when AWS loads it)
+  }, [sessionState.bulkText]); // Only react to sessionState.bulkText changes (when AWS loads it)
 
   // Save bulkText to session state for persistence (reduced debounce for faster saves)
   useEffect(() => {
@@ -157,11 +167,14 @@ export const BulkTextInput = forwardRef<BulkTextInputRef, { isExpanded?: boolean
     }
     
     const timeoutId = setTimeout(() => {
-    const { updateSessionState } = useMetadataStore.getState();
-    updateSessionState({
+      const { updateSessionState } = useMetadataStore.getState();
+      updateSessionState({
         bulkText: bulkText
       });
       console.log('💾 Saved bulkText to session state:', bulkText.length, 'characters');
+      // Verify it was saved
+      const savedState = useMetadataStore.getState().sessionState;
+      console.log('✅ Verified bulkText in sessionState:', savedState.bulkText ? savedState.bulkText.length : 'missing');
     }, 200); // Reduced from 500ms to 200ms for faster persistence
     
     return () => {
