@@ -326,23 +326,27 @@ export const BulkTextInput = forwardRef<BulkTextInputRef, { isExpanded?: boolean
     });
   };
 
-  const reorderAndRenumberDefects = (defects: BulkDefect[], sortDirection: 'asc' | 'desc' | null = defectSortDirection, shouldRenumber: boolean = true) => {
-    // Only sort if sorting is enabled and there are actual defects
-    if (!sortDirection || defects.length === 0) {
+  // Bulk defects always sort in ascending order
+  const reorderAndRenumberDefects = (defects: BulkDefect[], sortDirection: 'asc' | 'desc' | null = 'asc', shouldRenumber: boolean = true) => {
+    // Bulk defects always use ascending sort - ignore any other direction
+    const effectiveDirection: 'asc' = 'asc';
+    
+    // Only sort if there are actual defects
+    if (defects.length === 0) {
       return defects;
     }
     
     // Filter out any defects without valid IDs to prevent phantom defects
     const validDefects = defects.filter(defect => defect.id && defect.id.trim());
     
-    // Sort defects by photo number (extract numeric part for sorting)
+    // Sort defects by photo number (extract numeric part for sorting) - always ascending
     // This changes the array order, so tiles will move visually in the DOM
     const sortedDefects = [...validDefects].sort((a, b) => {
       // Extract numeric part from photo number (e.g., "4" from "4" or "4a")
       const aNum = parseInt(a.photoNumber) || 0;
       const bNum = parseInt(b.photoNumber) || 0;
-      // Apply sort direction
-      return sortDirection === 'asc' ? aNum - bNum : bNum - aNum;
+      // Always ascending for bulk defects
+      return aNum - bNum;
     });
     
     // Only renumber if requested (e.g., when adding new defects, not when just toggling sort)
@@ -398,19 +402,12 @@ export const BulkTextInput = forwardRef<BulkTextInputRef, { isExpanded?: boolean
           });
         }, 100);
         
-        // Re-enable sorting after a delay if it was enabled
-        if (wasSorting && wasSorting !== 'asc') {
-          setTimeout(() => {
-            setDefectSortDirection(wasSorting);
-            // Re-apply sorting after re-enabling
-            setBulkDefects(current => reorderAndRenumberDefects(current, wasSorting));
-          }, 500);
-        } else if (wasSorting === 'asc') {
-          // If it was already 'asc', just restore it
-          setTimeout(() => {
-            setDefectSortDirection('asc');
-          }, 100);
-        }
+        // Apply ascending sort after drag completes (always ascending for bulk defects)
+        setTimeout(() => {
+          setDefectSortDirection('asc');
+          // Re-apply sorting (always ascending)
+          setBulkDefects(current => reorderAndRenumberDefects(current, 'asc'));
+        }, 100);
         
         return renumberedItems;
       });
@@ -803,9 +800,9 @@ export const BulkTextInput = forwardRef<BulkTextInputRef, { isExpanded?: boolean
         
         // If sorting is enabled, apply it after adding
         if (defectSortDirection) {
-          // Use setTimeout to ensure state update completes first
+          // Always apply ascending sort for bulk defects
           setTimeout(() => {
-            setBulkDefects(current => reorderAndRenumberDefects(current, defectSortDirection));
+            setBulkDefects(current => reorderAndRenumberDefects(current, 'asc'));
           }, 100);
         }
         
@@ -903,10 +900,7 @@ export const BulkTextInput = forwardRef<BulkTextInputRef, { isExpanded?: boolean
 
   const handleFileSelect = (photoNumber: string, fileName: string) => {
     // Temporarily disable sorting during file selection
-    const wasSorting = defectSortDirection;
-    // Use 'asc' instead of null to prevent three-state toggle issue
-    setDefectSortDirection('asc');
-
+    // Sorting is always ascending for bulk defects - no need to disable during paste
     setBulkDefects((items) => {
       // Get the current defect and its previously selected file
       const currentDefect = items.find(item => item.photoNumber === photoNumber);
@@ -931,14 +925,12 @@ export const BulkTextInput = forwardRef<BulkTextInputRef, { isExpanded?: boolean
         item.photoNumber === photoNumber ? { ...item, selectedFile: fileName } : item
       );
 
-      // Re-enable sorting after a delay if it was enabled
-      if (wasSorting) {
-        setTimeout(() => {
-          setDefectSortDirection(wasSorting);
-          // Re-apply sorting
-          setBulkDefects(current => reorderAndRenumberDefects(current, wasSorting));
-        }, 100);
-      }
+      // Apply ascending sort after file selection (always ascending for bulk defects)
+      setTimeout(() => {
+        setDefectSortDirection('asc');
+        // Re-apply sorting (always ascending)
+        setBulkDefects(current => reorderAndRenumberDefects(current, 'asc'));
+      }, 100);
 
       return updated;
     });
@@ -981,13 +973,12 @@ export const BulkTextInput = forwardRef<BulkTextInputRef, { isExpanded?: boolean
         );
 
         // Re-enable sorting after a delay if it was enabled
-        if (wasSorting) {
-          setTimeout(() => {
-            setDefectSortDirection(wasSorting);
-            // Re-apply sorting after re-enabling
-            setBulkDefects(current => reorderAndRenumberDefects(current, wasSorting));
-          }, 100);
-        }
+        // Apply ascending sort after import (always ascending for bulk defects)
+        setTimeout(() => {
+          setDefectSortDirection('asc');
+          // Re-apply sorting (always ascending)
+          setBulkDefects(current => reorderAndRenumberDefects(current, 'asc'));
+        }, 100);
 
         return updatedDefects;
       });
@@ -997,28 +988,8 @@ export const BulkTextInput = forwardRef<BulkTextInputRef, { isExpanded?: boolean
     }
   };
 
-  const toggleSorting = () => {
-    // Toggle between 'asc' and 'desc' only (no null state)
-    // If null or invalid, default to 'asc'
-    const currentDirection = defectSortDirection || 'asc';
-    const newDirection = currentDirection === 'asc' ? 'desc' : 'asc';
-    
-    console.log('🔄 [SORT] Toggling from', currentDirection, 'to', newDirection);
-    
-    // Update direction first
-    setDefectSortDirection(newDirection);
-    
-    // Immediately apply sorting when toggling (tiles will move)
-    // Use functional update to ensure we have latest state
-    // Sort AND renumber - tiles will move because array order changes, then renumber to match new positions
-    setBulkDefects(defects => {
-      const sorted = reorderAndRenumberDefects(defects, newDirection, true); // true = renumber after sorting
-      console.log('🔄 [SORT] Applied sorting:', newDirection, '- defects before:', defects.length, '- after:', sorted.length);
-      console.log('🔄 [SORT] First 3 defects before:', defects.slice(0, 3).map(d => ({ id: d.id, num: d.photoNumber, desc: d.description })));
-      console.log('🔄 [SORT] First 3 defects after:', sorted.slice(0, 3).map(d => ({ id: d.id, num: d.photoNumber, desc: d.description })));
-      return sorted;
-    });
-  };
+  // Sorting is always ascending for bulk defects - no toggle needed
+  // This function is removed as sorting is now always ascending and applied automatically
 
   const formatFileSize = (bytes: number): string => {
     const sizes = ['Bytes', 'KB', 'MB', 'GB'];
@@ -1214,10 +1185,8 @@ export const BulkTextInput = forwardRef<BulkTextInputRef, { isExpanded?: boolean
       return;
     }
     
-    // Get current direction from store to avoid stale closure
-    const currentDirection = useMetadataStore.getState().defectSortDirection;
-    
-    if (currentDirection && bulkDefects.length > 0) {
+    // Bulk defects always use ascending sort
+    if (bulkDefects.length > 0) {
       const timeoutId = setTimeout(() => {
         // Double-check we're not undoing (both local and global)
         if (isUndoing.current || isUndoingGlobal) {
@@ -1226,25 +1195,21 @@ export const BulkTextInput = forwardRef<BulkTextInputRef, { isExpanded?: boolean
         }
         
         setBulkDefects(prev => {
-          // Only apply auto-sorting if it's still enabled
-          const latestDirection = useMetadataStore.getState().defectSortDirection;
-          if (latestDirection) {
-            // Check if defects are already sorted to avoid unnecessary re-sorting
-            const isAlreadySorted = prev.every((defect, idx) => {
-              if (idx === 0) return true;
-              const num = parseInt(defect.photoNumber) || 0;
-              const prevNum = parseInt(prev[idx - 1].photoNumber) || 0;
-              if (latestDirection === 'asc') {
-                return num >= prevNum;
-              } else {
-                return num <= prevNum;
-              }
-            });
-            
-            if (!isAlreadySorted) {
-              console.log('🔄 [AUTO-SORT] Applying', latestDirection, 'sort - defects:', prev.length);
-              return reorderAndRenumberDefects(prev, latestDirection);
-            }
+          // Bulk defects always use ascending sort
+          const latestDirection: 'asc' = 'asc';
+          
+          // Check if defects are already sorted to avoid unnecessary re-sorting
+          const isAlreadySorted = prev.every((defect, idx) => {
+            if (idx === 0) return true;
+            const num = parseInt(defect.photoNumber) || 0;
+            const prevNum = parseInt(prev[idx - 1].photoNumber) || 0;
+            // Always ascending for bulk defects
+            return num >= prevNum;
+          });
+          
+          if (!isAlreadySorted) {
+            console.log('🔄 [AUTO-SORT] Applying ascending sort - defects:', prev.length);
+            return reorderAndRenumberDefects(prev, 'asc');
           }
           return prev;
         });
@@ -1764,13 +1729,12 @@ export const BulkTextInput = forwardRef<BulkTextInputRef, { isExpanded?: boolean
                               }, 100);
                               
                               // Re-enable sorting after a delay if it was enabled
-                              if (wasSorting) {
-                                setTimeout(() => {
-                                  setDefectSortDirection(wasSorting);
-                                  // Re-apply sorting after re-enabling
-                                  setBulkDefects(current => reorderAndRenumberDefects(current, wasSorting));
-                                }, 500);
-                              }
+                              // Apply ascending sort after PDF import (always ascending for bulk defects)
+                              setTimeout(() => {
+                                setDefectSortDirection('asc');
+                                // Re-apply sorting (always ascending)
+                                setBulkDefects(current => reorderAndRenumberDefects(current, 'asc'));
+                              }, 500);
                               
                               return renumberedItems;
                             });

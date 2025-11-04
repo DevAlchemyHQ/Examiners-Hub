@@ -1634,22 +1634,26 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
 
   setDefectSortDirection: (direction) => {
     set((state) => {
+      // For bulk defects, always enforce 'asc' - ignore any other direction
+      // This ensures bulk defects are always sorted ascending and persist this preference
+      const effectiveDirection: 'asc' = 'asc';
+      
       // PHASE 1: OPERATION QUEUE - Create SORT_CHANGE operation
       const browserId = getBrowserId();
       let operationQueue = [...state.operationQueue];
       
-      // Create SORT_CHANGE operation
+      // Create SORT_CHANGE operation (always 'asc' for bulk defects)
       const operation: Operation = {
         id: createOperationId(browserId),
         type: 'SORT_CHANGE',
         timestamp: Date.now(),
         browserId,
         data: {
-          sortDirection: direction,
+          sortDirection: effectiveDirection,
         },
       };
       operationQueue.push(operation);
-      console.log('📝 [OPERATION] Added SORT_CHANGE operation to queue:', operation.id, { direction });
+      console.log('📝 [OPERATION] Added SORT_CHANGE operation to queue:', operation.id, { direction: effectiveDirection, note: 'Bulk defects always use ascending sort' });
       
       // Save operation queue to localStorage
       try {
@@ -1662,19 +1666,19 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         console.error('❌ Error saving operation queue to localStorage:', error);
       }
       
-      // Update state
+      // Update state - always 'asc' for bulk defects
       return {
-        defectSortDirection: direction,
+        defectSortDirection: effectiveDirection,
         operationQueue,
       };
     });
     
-    // Save sort preferences to session state and AWS
+    // Save sort preferences to session state and AWS - always 'asc' for bulk defects
     setTimeout(async () => {
       const state = get();
       get().updateSessionState({
         sortPreferences: {
-          defectSortDirection: direction,
+          defectSortDirection: 'asc', // Always 'asc' for bulk defects
           sketchSortDirection: state.sketchSortDirection
         },
         // Update selectedImageOrder to current state (images stay as-is, just sort them visually)
