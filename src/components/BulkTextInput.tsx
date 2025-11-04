@@ -76,6 +76,9 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
   }
 }
 
+// Shared flag to prevent auto-sort during undo operations (accessible from both BulkTextInput and SelectedImagesPanel)
+let isUndoingGlobal = false;
+
 export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: (show: boolean) => void; showBulkPaste?: boolean }> = ({ isExpanded = false, setShowBulkPaste, showBulkPaste: parentShowBulkPaste }) => {
   const { 
     bulkDefects, 
@@ -529,8 +532,9 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
       const lastDeleted = deletedDefects[deletedDefects.length - 1];
       setDeletedDefects(prev => prev.slice(0, -1));
       
-      // Set flag to prevent auto-sort from interfering
+      // Set flag to prevent auto-sort from interfering (both local and global)
       isUndoing.current = true;
+      isUndoingGlobal = true;
       
       setBulkDefects(prev => {
         // Get the original photo number
@@ -567,6 +571,7 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
         // The auto-sort has a 300ms debounce, so we wait 400ms to be safe
         setTimeout(() => {
           isUndoing.current = false;
+          isUndoingGlobal = false;
         }, 400);
         
         return renumberedDefects;
@@ -584,7 +589,13 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
 
   // Prevent race conditions with state updates
   const isUpdating = useRef(false);
+  // Use shared global flag for undo (accessible from SelectedImagesPanel too)
   const isUndoing = useRef(false);
+  
+  // Sync local ref with global flag
+  useEffect(() => {
+    isUndoing.current = isUndoingGlobal;
+  }, []);
   
   const safeStateUpdate = (updateFn: () => void) => {
     if (isUpdating.current) {
@@ -1161,7 +1172,8 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
   // This prevents conflicts where toggleSorting and useEffect both try to sort
   useEffect(() => {
     // Skip auto-sort if we're currently undoing (prevents interference)
-    if (isUndoing.current) {
+    // Check both local ref and global flag (for cross-component undo operations)
+    if (isUndoing.current || isUndoingGlobal) {
       return;
     }
     
@@ -1170,8 +1182,8 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
     
     if (currentDirection && bulkDefects.length > 0) {
       const timeoutId = setTimeout(() => {
-        // Double-check we're not undoing
-        if (isUndoing.current) {
+        // Double-check we're not undoing (both local and global)
+        if (isUndoing.current || isUndoingGlobal) {
           return;
         }
         

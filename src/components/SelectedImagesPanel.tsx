@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { isUndoingGlobal } from './BulkTextInput';
 import { 
   Images, 
   FileText, 
@@ -305,6 +306,9 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
   const [clickPosition, setClickPosition] = useState<{ x: number; y: number } | null>(null);
   const [showLoadTray, setShowLoadTray] = useState(false);
   const [savedSets, setSavedSets] = useState<{id: string, title: string, data: any, created_at: string, updated_at?: string}[]>([]);
+  // Import shared global flag from BulkTextInput module
+  // We'll use a module-level variable that both components can access
+  const isUndoingRef = useRef(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [showBulkPaste, setShowBulkPaste] = useState(false);
@@ -454,52 +458,60 @@ export const SelectedImagesPanel: React.FC<SelectedImagesPanelProps> = ({ onExpa
       const lastDeleted = deletedDefects[deletedDefects.length - 1];
       setDeletedDefects(prev => prev.slice(0, -1));
       
-      // Temporarily disable sorting during undo
-      const wasSorting = defectSortDirection;
-      setDefectSortDirection(null);
+      // Set flag to prevent auto-sort from interfering (use shared global flag)
+      isUndoingRef.current = true;
+      isUndoingGlobal = true;
       
       setBulkDefects(prev => {
-        // Add the deleted defect back with original photo number
+        // Get the original photo number
+        const originalPhotoNumber = parseInt(lastDeleted.originalPhotoNumber || lastDeleted.defect.photoNumber) || 0;
+        
+        // Create the restored defect with empty photo number
         const restoredDefect = {
           ...lastDeleted.defect,
-          photoNumber: lastDeleted.originalPhotoNumber || lastDeleted.defect.photoNumber
+          photoNumber: '' // Will be assigned during renumbering
         };
-        const newDefects = [...prev, restoredDefect];
         
-        // If sorting was enabled, re-enable it after a delay
-        if (wasSorting) {
-          setTimeout(() => {
-            setDefectSortDirection(wasSorting);
-            // Only re-sort and renumber if the restored defect doesn't have a valid photo number
-            setBulkDefects(currentDefects => {
-              const hasInvalidPhotoNumbers = currentDefects.some(defect => 
-                !defect.photoNumber || defect.photoNumber === '' || defect.photoNumber === '#'
-              );
-              
-              if (hasInvalidPhotoNumbers) {
-                const sortedDefects = [...currentDefects].sort((a, b) => {
-                  const aNum = parseInt(a.photoNumber) || 0;
-                  const bNum = parseInt(b.photoNumber) || 0;
-                  return wasSorting === 'asc' ? aNum - bNum : bNum - aNum;
-                });
-                return sortedDefects.map((defect, idx) => ({
-                  ...defect,
-                  photoNumber: String(idx + 1)
-                }));
-              }
-              
-              // Just sort without renumbering to preserve existing photo numbers
-              return [...currentDefects].sort((a, b) => {
-                const aNum = parseInt(a.photoNumber) || 0;
-                const bNum = parseInt(b.photoNumber) || 0;
-                return wasSorting === 'asc' ? aNum - bNum : bNum - aNum;
-              });
-            });
-          }, 100);
+        // Calculate insertion index based on original photo number
+        const insertIndex = Math.max(0, Math.min(originalPhotoNumber - 1, prev.length));
+        
+        // Insert the restored defect at the correct position
+        const insertedDefects = [...prev];
+        insertedDefects.splice(insertIndex, 0, restoredDefect);
+        
+        // Now renumber ALL defects sequentially from 1 to ensure uniqueness
+        // This is based on array position, not photo number
+        const renumberedDefects = insertedDefects.map((defect, idx) => ({
+          ...defect,
+          photoNumber: String(idx + 1)
+        }));
+        
+        // Verify no duplicates after renumbering
+        const photoNumbers = renumberedDefects.map(d => d.photoNumber);
+        const duplicates = photoNumbers.filter((num, idx) => photoNumbers.indexOf(num) !== idx);
+        if (duplicates.length > 0) {
+          console.error('❌ [UNDO] DUPLICATES DETECTED AFTER RENUMBERING:', duplicates);
         }
         
-        return newDefects;
+        // Clear the undo flag after a longer delay to ensure auto-sort doesn't interfere
+        // The auto-sort has a 300ms debounce, so we wait 400ms to be safe
+        setTimeout(() => {
+          isUndoingRef.current = false;
+          isUndoingGlobal = false;
+        }, 400);
+        
+        return renumberedDefects;
       });
+      
+      // Re-select the image if it was selected
+      if (lastDeleted.defect.selectedFile) {
+        const image = images.find(img => (img.fileName || img.file?.name || '') === lastDeleted.defect.selectedFile);
+        if (image) {
+          // Get toggleBulkImageSelection from store since it's not in the destructured values
+          const { toggleBulkImageSelection } = useMetadataStore.getState();
+          toggleBulkImageSelection(image.id);
+        }
+      }
       
       toast.success('Defect restored');
     }
