@@ -530,15 +530,21 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
   const undoDelete = () => {
     if (deletedDefects.length > 0) {
       const lastDeleted = deletedDefects[deletedDefects.length - 1];
-      setDeletedDefects(prev => prev.slice(0, -1));
       
-      // Set flag to prevent auto-sort from interfering (both local and global)
+      // Set flag FIRST before any state updates to prevent auto-sort from interfering
       isUndoing.current = true;
       isUndoingGlobal = true;
       
+      console.log('🔄 [UNDO] Starting undo - originalPhotoNumber:', lastDeleted.originalPhotoNumber, 'defect:', lastDeleted.defect.description);
+      
+      setDeletedDefects(prev => prev.slice(0, -1));
+      
       setBulkDefects(prev => {
+        console.log('🔄 [UNDO] Current defects before restore:', prev.map(d => ({ num: d.photoNumber, desc: d.description })));
+        
         // Get the original photo number
         const originalPhotoNumber = parseInt(lastDeleted.originalPhotoNumber || lastDeleted.defect.photoNumber) || 0;
+        console.log('🔄 [UNDO] Original photo number:', originalPhotoNumber);
         
         // Create the restored defect with empty photo number
         const restoredDefect = {
@@ -548,10 +554,12 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
         
         // Calculate insertion index based on original photo number
         const insertIndex = Math.max(0, Math.min(originalPhotoNumber - 1, prev.length));
+        console.log('🔄 [UNDO] Inserting at index:', insertIndex);
         
         // Insert the restored defect at the correct position
         const insertedDefects = [...prev];
         insertedDefects.splice(insertIndex, 0, restoredDefect);
+        console.log('🔄 [UNDO] After insertion:', insertedDefects.map(d => ({ num: d.photoNumber || 'empty', desc: d.description })));
         
         // Now renumber ALL defects sequentially from 1 to ensure uniqueness
         // This is based on array position, not photo number
@@ -560,19 +568,24 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
           photoNumber: String(idx + 1)
         }));
         
+        console.log('🔄 [UNDO] After renumbering:', renumberedDefects.map(d => ({ num: d.photoNumber, desc: d.description })));
+        
         // Verify no duplicates after renumbering
         const photoNumbers = renumberedDefects.map(d => d.photoNumber);
         const duplicates = photoNumbers.filter((num, idx) => photoNumbers.indexOf(num) !== idx);
         if (duplicates.length > 0) {
-          console.error('❌ [UNDO] DUPLICATES DETECTED AFTER RENUMBERING:', duplicates);
+          console.error('❌ [UNDO] DUPLICATES DETECTED AFTER RENUMBERING:', duplicates, 'defects:', renumberedDefects.map(d => ({ num: d.photoNumber, desc: d.description })));
+        } else {
+          console.log('✅ [UNDO] No duplicates detected after renumbering');
         }
         
         // Clear the undo flag after a longer delay to ensure auto-sort doesn't interfere
-        // The auto-sort has a 300ms debounce, so we wait 400ms to be safe
+        // The auto-sort has a 300ms debounce, so we wait 500ms to be extra safe
         setTimeout(() => {
+          console.log('🔄 [UNDO] Clearing undo flag');
           isUndoing.current = false;
           isUndoingGlobal = false;
-        }, 400);
+        }, 500);
         
         return renumberedDefects;
       });
@@ -1174,6 +1187,7 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
     // Skip auto-sort if we're currently undoing (prevents interference)
     // Check both local ref and global flag (for cross-component undo operations)
     if (isUndoing.current || isUndoingGlobal) {
+      console.log('⏸️ [AUTO-SORT] Skipping - undo in progress');
       return;
     }
     
@@ -1184,6 +1198,7 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
       const timeoutId = setTimeout(() => {
         // Double-check we're not undoing (both local and global)
         if (isUndoing.current || isUndoingGlobal) {
+          console.log('⏸️ [AUTO-SORT] Skipping timeout - undo in progress');
           return;
         }
         
