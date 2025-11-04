@@ -1517,39 +1517,9 @@ export const BulkTextInput = forwardRef<BulkTextInputRef, { isExpanded?: boolean
     return () => document.removeEventListener('keydown', handleKeyPress);
   }, [deletedDefects]);
 
-  // Debounced auto-save to prevent performance issues
-  const debouncedAutoSave = useRef<ReturnType<typeof setTimeout> | null>(null);
-  
-  useEffect(() => {
-    if (bulkDefects.length > 0) {
-      // Clear existing timeout
-      if (debouncedAutoSave.current) {
-        clearTimeout(debouncedAutoSave.current);
-      }
-      
-      // Set new timeout for auto-save
-      debouncedAutoSave.current = setTimeout(async () => {
-        console.log('🔄 Auto-save triggered for bulk defects:', bulkDefects.map(d => ({ photoNumber: d.photoNumber, description: d.description })));
-        
-        // Only save if we're not in the middle of clearing
-        const projectStore = useProjectStore.getState();
-        if (!projectStore.isClearing) {
-          try {
-            await saveBulkData();
-          } catch (error) {
-            console.error('❌ Auto-save failed:', error);
-            // Don't show error to user for auto-save failures
-          }
-        }
-      }, 2000); // 2 second debounce
-    }
-    
-    return () => {
-      if (debouncedAutoSave.current) {
-        clearTimeout(debouncedAutoSave.current);
-      }
-    };
-  }, [bulkDefects]); // Removed saveBulkData from dependencies temporarily
+  // REMOVED: Duplicate auto-save mechanism
+  // The setBulkDefects in metadataStore already handles auto-save with debouncing
+  // This was causing duplicate saves and potential race conditions
 
   // Enhanced data validation and logging
   useEffect(() => {
@@ -1577,9 +1547,20 @@ export const BulkTextInput = forwardRef<BulkTextInputRef, { isExpanded?: boolean
     }
   }, [bulkDefects]);
 
-  // Cleanup function to prevent memory leaks
+  // Cleanup function to prevent memory leaks and ensure data is saved on unmount
   useEffect(() => {
     return () => {
+      // CRITICAL: Save bulk defects immediately on unmount to prevent data loss
+      // This ensures titles/descriptions are saved even if user closes browser quickly
+      const currentDefects = bulkDefects;
+      if (currentDefects && currentDefects.length > 0) {
+        const { saveBulkData } = useMetadataStore.getState();
+        saveBulkData().catch(error => {
+          console.error('❌ Error saving bulk defects on unmount:', error);
+        });
+        console.log('💾 Saving bulk defects on unmount:', currentDefects.length);
+      }
+      
       // Clear any pending timeouts
       if (debouncedAutoSave.current) {
         clearTimeout(debouncedAutoSave.current);
@@ -1596,18 +1577,11 @@ export const BulkTextInput = forwardRef<BulkTextInputRef, { isExpanded?: boolean
         }
       });
     };
-  }, []);
+  }, [bulkDefects]); // Include bulkDefects to ensure we save latest data
 
-  // Auto-save bulk data with throttling
-  useEffect(() => {
-    if (bulkDefects.length > 0) {
-      const saveTimeout: NodeJS.Timeout = setTimeout(() => {
-        saveBulkData();
-      }, 5000);
-
-      return () => clearTimeout(saveTimeout);
-    }
-  }, [bulkDefects, saveBulkData]);
+  // REMOVED: Another duplicate auto-save mechanism
+  // The setBulkDefects in metadataStore already handles auto-save with debouncing
+  // Multiple auto-save mechanisms can cause race conditions and stale data
 
   // Auto-save session state when bulk defects change
   useEffect(() => {

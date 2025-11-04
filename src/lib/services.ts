@@ -1281,16 +1281,31 @@ export class DatabaseService {
       const existingDefects = existingResult.Items || [];
       console.log('📊 Existing defects found:', existingDefects.length);
       
-      // Create maps for efficient lookup
-      const existingDefectMap = new Map(
+      // Create maps for efficient lookup - match by both ID and photoNumber
+      // CRITICAL: Match by photoNumber to handle cases where IDs differ but defects are the same
+      const existingDefectMapById = new Map(
         existingDefects.map(item => [item.defect_id, item])
       );
-      const localDefectMap = new Map(
+      const existingDefectMapByPhotoNumber = new Map(
+        existingDefects
+          .filter(item => item.photoNumber)
+          .map(item => [item.photoNumber, item])
+      );
+      
+      const localDefectMapById = new Map(
         defects.map(defect => {
           const defectId = defect.id || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
           return [defectId, defect];
         })
       );
+      const localDefectMapByPhotoNumber = new Map(
+        defects
+          .filter(defect => defect.photoNumber)
+          .map(defect => [defect.photoNumber, defect])
+      );
+      
+      // Track which AWS defects have been matched (to identify orphans for deletion)
+      const matchedExistingIds = new Set<string>();
       
       // Identify what to add, update, and delete
       const toAdd: any[] = [];
@@ -1298,31 +1313,54 @@ export class DatabaseService {
       const toDelete: any[] = [];
       
       // Find defects to add or update
-      for (const [defectId, defect] of localDefectMap) {
-        const existing = existingDefectMap.get(defectId);
+      // CRITICAL: Match by ID first, then by photoNumber if ID doesn't match
+      for (const [defectId, defect] of localDefectMapById) {
+        let existing = existingDefectMapById.get(defectId);
+        let matchBy = 'id';
+        
+        // If no match by ID, try matching by photoNumber
+        if (!existing && defect.photoNumber) {
+          existing = existingDefectMapByPhotoNumber.get(defect.photoNumber);
+          matchBy = 'photoNumber';
+        }
+        
         if (!existing) {
           // New defect - add it
           toAdd.push(defect);
         } else {
+          // Mark as matched to prevent deletion
+          matchedExistingIds.add(existing.defect_id);
+          
           // Existing defect - check if it changed
           // Normalize selectedFile: null/undefined/empty all treated as empty string
           const existingFile = existing.selectedFile || '';
           const defectFile = defect.selectedFile || '';
           
+          // CRITICAL: Always update if local has more complete data (description, photoNumber, etc.)
+          // This ensures titles/descriptions added locally are always saved
           const hasChanged = 
             existing.photoNumber !== (defect.photoNumber || '') ||
             existing.description !== (defect.description || '') ||
             existingFile !== defectFile;
           
-          if (hasChanged) {
-            toUpdate.push(defect);
+          // Also update if local has description but AWS doesn't (local is newer)
+          const localHasDescription = defect.description && defect.description.trim();
+          const awsHasDescription = existing.description && existing.description.trim();
+          const localIsMoreComplete = localHasDescription && !awsHasDescription;
+          
+          if (hasChanged || localIsMoreComplete) {
+            toUpdate.push({
+              ...defect,
+              // Preserve AWS defect_id when matching by photoNumber to avoid duplicates
+              id: matchBy === 'photoNumber' && existing.defect_id ? existing.defect_id : defect.id
+            });
           }
         }
       }
       
-      // Find defects to delete (in AWS but not in local)
-      for (const [defectId, existing] of existingDefectMap) {
-        if (!localDefectMap.has(defectId)) {
+      // Find defects to delete (in AWS but not matched by local)
+      for (const [defectId, existing] of existingDefectMapById) {
+        if (!matchedExistingIds.has(defectId)) {
           toDelete.push(existing);
         }
       }

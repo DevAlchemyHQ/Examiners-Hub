@@ -1897,24 +1897,35 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             
             // Log defects with titles/descriptions to verify they're being saved
             const defectsWithTitles = latestDefects.filter(d => d.description && d.description.trim());
+            const defectsWithPhotoNumbers = latestDefects.filter(d => d.photoNumber && d.photoNumber.trim());
             console.log('💾 Saving bulk defects to AWS:', {
               total: latestDefects.length,
               withDescriptions: defectsWithTitles.length,
+              withPhotoNumbers: defectsWithPhotoNumbers.length,
               sampleDescriptions: defectsWithTitles.slice(0, 3).map(d => ({
                 photoNumber: d.photoNumber,
                 descriptionLength: d.description?.length || 0,
-                descriptionPreview: d.description?.substring(0, 50) || 'none'
-              }))
+                descriptionPreview: d.description?.substring(0, 50) || 'none',
+                id: d.id
+              })),
+              allIds: latestDefects.map(d => d.id || d.photoNumber).slice(0, 10)
             });
             
             const result = await DatabaseService.updateBulkDefects(user.email, latestDefects);
             if (result.success) {
-              console.log('✅ Bulk defects saved to AWS for user:', user.email, {
+              console.log('✅ Bulk defects saved to AWS successfully:', {
+                user: user.email,
                 saved: latestDefects.length,
-                withDescriptions: defectsWithTitles.length
+                withDescriptions: defectsWithTitles.length,
+                withPhotoNumbers: defectsWithPhotoNumbers.length,
+                timestamp: new Date().toISOString()
               });
             } else {
-              console.error('❌ Failed to save bulk defects to AWS:', result.error);
+              console.error('❌ Failed to save bulk defects to AWS:', {
+                error: result.error,
+                defectCount: latestDefects.length,
+                user: user.email
+              });
             }
           }
         } catch (error) {
@@ -2480,24 +2491,49 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       // Get user for user-specific keys
       const userId = getUserId();
       
-      // Save to user-specific localStorage
+      // CRITICAL: Always save to localStorage first (immediate persistence)
       const keys = getProjectStorageKeys(userId, 'current');
       localStorage.setItem(keys.bulkData, JSON.stringify(bulkDefects));
+      console.log('💾 Bulk defects saved to localStorage:', {
+        count: bulkDefects.length,
+        withDescriptions: bulkDefects.filter(d => d.description && d.description.trim()).length,
+        timestamp: new Date().toISOString()
+      });
       
       // Save to AWS DynamoDB for cross-device persistence (manual save bypasses rate limiting)
       if (userId !== 'anonymous') {
-        // Use static import
-        const result = await DatabaseService.updateBulkDefects(userId, bulkDefects);
+        // CRITICAL: Get latest state again in case it changed during async operation
+        const latestState = get();
+        const latestDefects = latestState.bulkDefects;
+        
+        console.log('💾 Saving bulk defects to AWS (manual save):', {
+          defectCount: latestDefects.length,
+          userId: userId,
+          timestamp: new Date().toISOString()
+        });
+        
+        const result = await DatabaseService.updateBulkDefects(userId, latestDefects);
         if (result.success) {
-          console.log('✅ Manual save: Bulk defects saved to AWS for user:', userId);
+          console.log('✅ Manual save: Bulk defects saved to AWS successfully:', {
+            userId: userId,
+            saved: latestDefects.length,
+            timestamp: new Date().toISOString()
+          });
           // Update the last save time to prevent immediate auto-saves
           localStorage.setItem('last-bulk-aws-save', Date.now().toString());
         } else {
-          console.error('❌ Manual save failed:', result.error);
+          console.error('❌ Manual save failed:', {
+            error: result.error,
+            userId: userId,
+            defectCount: latestDefects.length
+          });
         }
       }
     } catch (error) {
-      console.error('Error saving bulk data:', error);
+      console.error('❌ Error saving bulk data:', {
+        error: error,
+        defectCount: get().bulkDefects.length
+      });
     }
   },
 
@@ -2856,17 +2892,30 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
         console.log('📦 Bulk defects loaded from AWS:', awsDefects.length);
         console.log('📦 Local bulk defects:', localDefects.length);
         
-        // Merge strategy: Combine local and AWS defects, prefer local if IDs or photoNumbers match
-        // This prevents local changes (like titles/descriptions) from being overwritten by AWS data
-        // CRITICAL: Match by both ID and photoNumber to handle cases where IDs might differ
-        const localDefectMapByPhotoNumber = new Map(localDefects.map(d => [d.photoNumber, d]));
-        const awsDefectMapByPhotoNumber = new Map(awsDefects.map(d => [d.photoNumber, d]));
+        // CRITICAL MERGE STRATEGY: Always prefer local defects to prevent stale data overwriting latest changes
+        // Local defects have the most recent user edits (titles, descriptions, etc.)
+        // Match by both ID and photoNumber to handle all cases
         
-        // Start with local defects (they take priority - they have the latest titles/descriptions)
+        // Build lookup maps
+        const localDefectMapById = new Map(localDefects.map(d => [d.id || d.photoNumber, d]));
+        const localDefectMapByPhotoNumber = new Map(
+          localDefects
+            .filter(d => d.photoNumber)
+            .map(d => [d.photoNumber, d])
+        );
+        const awsDefectMapById = new Map(awsDefects.map(d => [d.id || d.photoNumber, d]));
+        const awsDefectMapByPhotoNumber = new Map(
+          awsDefects
+            .filter(d => d.photoNumber)
+            .map(d => [d.photoNumber, d])
+        );
+        
+        // Start with local defects (they ALWAYS take priority - latest user edits)
         const mergedDefects = new Map<string, BulkDefect>();
         const mergedPhotoNumbers = new Set<string>();
+        const matchedAwsIds = new Set<string>();
         
-        // Add all local defects first (these have the latest user edits like titles)
+        // Add all local defects first (these have the latest titles/descriptions)
         localDefects.forEach(defect => {
           const key = defect.id || defect.photoNumber;
           if (key) {
@@ -2874,40 +2923,62 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             if (defect.photoNumber) {
               mergedPhotoNumbers.add(defect.photoNumber);
             }
+            
+            // Mark matching AWS defects as matched (if any)
+            const awsMatch = awsDefectMapById.get(key) || 
+                           (defect.photoNumber ? awsDefectMapByPhotoNumber.get(defect.photoNumber) : null);
+            if (awsMatch) {
+              matchedAwsIds.add(awsMatch.id || awsMatch.photoNumber);
+            }
           }
         });
         
         // Add AWS defects that aren't in local (new from other browser)
-        // Match by ID first, then by photoNumber if ID doesn't match
+        // Only add if not matched by local (don't overwrite local changes)
         awsDefects.forEach(defect => {
           const key = defect.id || defect.photoNumber;
-          const isInLocalById = key && mergedDefects.has(key);
+          const isMatched = key && matchedAwsIds.has(key);
           const isInLocalByPhotoNumber = defect.photoNumber && mergedPhotoNumbers.has(defect.photoNumber);
           
-          // Only add if not already in local (don't overwrite local changes)
-          if (!isInLocalById && !isInLocalByPhotoNumber && key) {
+          // Only add if completely new (not in local at all)
+          if (!isMatched && !isInLocalByPhotoNumber && key) {
             mergedDefects.set(key, defect);
             if (defect.photoNumber) {
               mergedPhotoNumbers.add(defect.photoNumber);
             }
-          } else if (isInLocalByPhotoNumber && !isInLocalById) {
-            // AWS defect matches by photoNumber but has different ID
-            // Check if local defect has more complete data (like titles/descriptions)
-            const localDefect = localDefectMapByPhotoNumber.get(defect.photoNumber);
-            if (localDefect && (!localDefect.description || !localDefect.photoNumber)) {
-              // Local defect is incomplete, merge in AWS data but preserve local ID if it exists
-              const mergedDefect = {
-                ...defect,
-                ...localDefect,
-                id: localDefect.id || defect.id // Preserve local ID if it exists
-              };
-              mergedDefects.set(localDefect.id || localDefect.photoNumber, mergedDefect);
-            }
+            console.log('📦 Added new AWS defect not in local:', {
+              photoNumber: defect.photoNumber,
+              id: defect.id
+            });
+          } else {
+            // Local defect exists - it takes priority (has latest titles/descriptions)
+            console.log('📦 Keeping local defect over AWS (local has latest data):', {
+              photoNumber: defect.photoNumber,
+              localId: localDefectMapByPhotoNumber.get(defect.photoNumber)?.id || localDefectMapById.get(key)?.id,
+              awsId: defect.id,
+              reason: isMatched ? 'matched by ID' : 'matched by photoNumber'
+            });
           }
         });
         
         const finalDefects = Array.from(mergedDefects.values());
-        console.log('📦 Merged bulk defects:', finalDefects.length, '(local:', localDefects.length, '+ new from AWS:', finalDefects.length - localDefects.length, ')');
+        
+        // Log merge results with details about preserved data
+        const localWithDescriptions = localDefects.filter(d => d.description && d.description.trim()).length;
+        const finalWithDescriptions = finalDefects.filter(d => d.description && d.description.trim()).length;
+        const awsWithDescriptions = awsDefects.filter(d => d.description && d.description.trim()).length;
+        
+        console.log('📦 Merged bulk defects:', {
+          total: finalDefects.length,
+          local: localDefects.length,
+          aws: awsDefects.length,
+          newFromAWS: finalDefects.length - localDefects.length,
+          localWithDescriptions: localWithDescriptions,
+          finalWithDescriptions: finalWithDescriptions,
+          awsWithDescriptions: awsWithDescriptions,
+          preservedDescriptions: finalWithDescriptions >= localWithDescriptions ? '✅' : '⚠️',
+          mergeStrategy: 'local-first (latest data always wins)'
+        });
         
         // Restore order from session state if available
         const sessionState = currentState.sessionState;
