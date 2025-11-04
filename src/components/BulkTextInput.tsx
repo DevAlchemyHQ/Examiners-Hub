@@ -149,6 +149,11 @@ export const BulkTextInput = forwardRef<BulkTextInputRef, { isExpanded?: boolean
 
   // Save bulkText to session state for persistence (reduced debounce for faster saves)
   useEffect(() => {
+    // Skip save if bulkText is empty (to avoid unnecessary saves)
+    if (!bulkText || bulkText.trim() === '') {
+      return;
+    }
+    
     const timeoutId = setTimeout(() => {
       const { updateSessionState } = useMetadataStore.getState();
       updateSessionState({
@@ -160,12 +165,14 @@ export const BulkTextInput = forwardRef<BulkTextInputRef, { isExpanded?: boolean
     return () => {
       clearTimeout(timeoutId);
       // Save immediately on unmount to ensure persistence even if user refreshes quickly
-      if (bulkText) {
+      // Use the latest bulkText value from the closure
+      const textToSave = bulkText;
+      if (textToSave && textToSave.trim() !== '') {
         const { updateSessionState } = useMetadataStore.getState();
         updateSessionState({
-          bulkText: bulkText
+          bulkText: textToSave
         });
-        console.log('💾 Saved bulkText on unmount:', bulkText.length, 'characters');
+        console.log('💾 Saved bulkText on unmount:', textToSave.length, 'characters');
       }
     };
   }, [bulkText]);
