@@ -533,6 +533,9 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
         // Get the original photo number
         const originalPhotoNumber = parseInt(lastDeleted.originalPhotoNumber || lastDeleted.defect.photoNumber) || 0;
         
+        console.log('🔄 [UNDO] Restoring defect with originalPhotoNumber:', originalPhotoNumber);
+        console.log('🔄 [UNDO] Current defects before restore:', prev.map(d => ({ num: d.photoNumber, desc: d.description })));
+        
         // Create the restored defect (photo number will be assigned during renumbering)
         const restoredDefect = {
           ...lastDeleted.defect,
@@ -544,18 +547,31 @@ export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: 
         // that corresponds to the original photo number
         const insertIndex = Math.max(0, Math.min(originalPhotoNumber - 1, prev.length));
         
+        console.log('🔄 [UNDO] Inserting at index:', insertIndex);
+        
         // Insert the restored defect at the correct position
         const insertedDefects = [...prev];
         insertedDefects.splice(insertIndex, 0, restoredDefect);
         
+        console.log('🔄 [UNDO] After insertion:', insertedDefects.map((d, i) => ({ idx: i, num: d.photoNumber, desc: d.description })));
+        
         // Now renumber ALL defects sequentially from 1 to ensure uniqueness
         // This is the critical step - we renumber based on position, not photo number
-        // Since defects are already sorted and we're inserting at the correct position,
-        // the array remains sorted after insertion and renumbering
-        return insertedDefects.map((defect, idx) => ({
+        const renumberedDefects = insertedDefects.map((defect, idx) => ({
           ...defect,
           photoNumber: String(idx + 1)
         }));
+        
+        console.log('🔄 [UNDO] After renumbering:', renumberedDefects.map((d, i) => ({ idx: i, num: d.photoNumber, desc: d.description })));
+        
+        // Verify no duplicates
+        const photoNumbers = renumberedDefects.map(d => d.photoNumber);
+        const duplicates = photoNumbers.filter((num, idx) => photoNumbers.indexOf(num) !== idx);
+        if (duplicates.length > 0) {
+          console.error('❌ [UNDO] DUPLICATES DETECTED:', duplicates, renumberedDefects);
+        }
+        
+        return renumberedDefects;
       });
       
       // Re-select the image if it was selected
