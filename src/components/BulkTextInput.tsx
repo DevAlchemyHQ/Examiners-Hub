@@ -517,16 +517,8 @@ export const BulkTextInput = forwardRef<BulkTextInputRef, { isExpanded?: boolean
     setBulkDefects((items) => {
       const filteredItems = items.filter((item) => item.id !== defectId);
       console.log('✅ Defect deleted, remaining items:', filteredItems.length);
-      // Renumber based on position if sorting is disabled, or re-sort if enabled
-      if (defectSortDirection) {
-        return reorderAndRenumberDefects(filteredItems, defectSortDirection);
-      } else {
-        // Just renumber based on position (1, 2, 3...)
-        return filteredItems.map((item, idx) => ({
-          ...item,
-          photoNumber: String(idx + 1)
-        }));
-      }
+      // Always apply ascending sort for bulk defects
+      return reorderAndRenumberDefects(filteredItems, 'asc');
     });
   };
 
@@ -747,12 +739,10 @@ export const BulkTextInput = forwardRef<BulkTextInputRef, { isExpanded?: boolean
         setBulkDefects(prev => {
           const updated = [...prev, ...newDefects];
           
-          // If sorting is enabled, apply it after adding
-          if (defectSortDirection) {
-            setTimeout(() => {
-              setBulkDefects(current => reorderAndRenumberDefects(current, defectSortDirection));
-            }, 100);
-          }
+          // Always apply ascending sort for bulk defects
+          setTimeout(() => {
+            setBulkDefects(current => reorderAndRenumberDefects(current, 'asc'));
+          }, 100);
           
           return updated;
         });
@@ -959,10 +949,7 @@ export const BulkTextInput = forwardRef<BulkTextInputRef, { isExpanded?: boolean
         return;
       }
 
-      // Temporarily disable sorting during photo number change
-      const wasSorting = defectSortDirection;
-      // Use 'asc' instead of null to prevent three-state toggle issue
-      setDefectSortDirection('asc');
+      // Sorting is always ascending for bulk defects - no need to disable during photo number change
       
       setBulkDefects(prevDefects => {
         // Update the photo number
