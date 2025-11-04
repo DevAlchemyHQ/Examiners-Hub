@@ -77,7 +77,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
 }
 
 // Shared flag to prevent auto-sort during undo operations (accessible from both BulkTextInput and SelectedImagesPanel)
-let isUndoingGlobal = false;
+export let isUndoingGlobal = false;
 
 export const BulkTextInput: React.FC<{ isExpanded?: boolean; setShowBulkPaste?: (show: boolean) => void; showBulkPaste?: boolean }> = ({ isExpanded = false, setShowBulkPaste, showBulkPaste: parentShowBulkPaste }) => {
   const { 
