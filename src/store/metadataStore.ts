@@ -4686,6 +4686,7 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
     
     // Automatically capture current orders when updating session state
     // BUT: If updates explicitly provides selectedImageOrder, use it (don't override)
+    // CRITICAL: Preserve bulkText from existing sessionState if not explicitly updated
     const autoUpdates = {
       ...updates,
       imageOrder: updates.imageOrder || state.images.map(img => img.id),
@@ -4693,6 +4694,11 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
       bulkDefectOrder: updates.bulkDefectOrder || state.bulkDefects.map(defect => defect.id || defect.photoNumber),
       lastActiveTime: Date.now()
     };
+    
+    // Preserve bulkText if it exists in current sessionState and not being explicitly updated/cleared
+    if (state.sessionState.bulkText !== undefined && updates.bulkText === undefined) {
+      autoUpdates.bulkText = state.sessionState.bulkText;
+    }
     
     const newSessionState = { ...state.sessionState, ...autoUpdates };
     set({ sessionState: newSessionState });
